@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% set page_title = "Add Data Logger" %}
+{% block content %}
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-transparent">
+    <div class="h5 mb-0">Add Data Logger</div>
+  </div>
+
+  <form method="post">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-5">
+          <label class="form-label">Name *</label>
+          <input name="name" class="form-control" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Interval (sec) *</label>
+          <input name="interval_sec" type="number" class="form-control" value="60">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="enabled" id="en" checked>
+            <label class="form-check-label" for="en">Enabled</label>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Description</label>
+          <input name="description" class="form-control">
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Select Tags</label>
+          <div class="row">
+            {% for t in tags %}
+            <div class="col-md-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="tag_ids" value="{{ t.id }}" id="tag{{t.id}}" {% if
+                  t.checked %}checked{% endif %}>
+                <label class="form-check-label" for="tag{{t.id}}">
+                  {{ t.name }} <span class="text-muted">({{ t.device.name }})</span>
+                </label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a class="btn btn-secondary" href="{{ url_for('logger_settings_bp.datalogger_settings') }}">Cancel</a>
+
+      <button class="btn btn-primary">Submit</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

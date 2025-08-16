@@ -1,0 +1,60 @@
+/* ================= Dark Theme ================= */
+[data-bs-theme="dark"] {
+  --bg:#020617;
+  --panel:#0f172a;
+  --panel-2:#1e293b;
+  --border:#1e293b;
+  color:#f8fafc;
+}
+
+/* Nền tổng thể */
+[data-bs-theme="dark"] .app-bg {
+  background: radial-gradient(1200px 800px at 10% -10%, #172554 0%, rgba(23,37,84,0) 50%), var(--bg);
+  color:#f8fafc;
+}
+
+/* Sidebar */
+[data-bs-theme="dark"] .app-sidebar {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  border-right:1px solid var(--border);
+}
+[data-bs-theme="dark"] .side-link { color:#cbd5e1; }
+[data-bs-theme="dark"] .side-link:hover { background:#1e293b; color:#fff; }
+[data-bs-theme="dark"] .side-link.active {
+  background:#1e293b; color:#fff; border:1px solid #334155;
+}
+[data-bs-theme="dark"] .side-section { color:#94a3b8; }
+
+/* Topbar & container */
+[data-bs-theme="dark"] .app-topbar {
+  background: rgba(15,23,42,.7);
+  border-bottom:1px solid var(--border);
+}
+[data-bs-theme="dark"] .card {
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  border:1px solid var(--border);
+}
+
+/* Tile & meter */
+[data-bs-theme="dark"] .tile .chip-icon { background:#1e293b; }
+[data-bs-theme="dark"] .unit { color:#94a3b8; }
+[data-bs-theme="dark"] .meter {
+  background:#1e293b; border:1px solid #334155;
+}
+[data-bs-theme="dark"] .meter-bar {
+  background: linear-gradient(90deg,#06b6d4,#3b82f6,#6366f1);
+}
+
+/* Table header & hover */
+[data-bs-theme="dark"] .table-dark-subtle th {
+  background:#1e293b !important;
+  color:#e2e8f0;
+  border-bottom:1px solid var(--border);
+}
+[data-bs-theme="dark"] .table-hover tbody tr:hover {
+  background:#1e293b;
+}
+
+/* Links */
+[data-bs-theme="dark"] a.link-light-emphasis { color:#f8fafc; }
+[data-bs-theme="dark"] a.link-light-emphasis:hover { color:#93c5fd; }

@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% set page_title = "Dashboard" %}
+
+{% block content %}
+<div class="card border-0 shadow-soft mb-3">
+  <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+    <div>
+      <div class="text-muted small">Device</div>
+      <select id="sel-device" class="form-select form-select-sm" onchange="App.changeDevice(this.value)">
+        <option value="__all__" {{ 'selected' if current_device=='__all__' else '' }}>All Devices</option>
+        {% for dev in devices %}
+        <option value="{{ dev.id }}" {{ 'selected' if current_device==dev.id|string else '' }}>
+          {{ dev.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="ms-auto small text-muted">Auto refresh: 3s</div>
+  </div>
+</div>
+
+<div id="device-panels">
+  {% if current_device == '__all__' %}
+  {% for dev in devices %}
+  <div class="card border-0 shadow-soft mb-4">
+    <div class="card-header bg-primary text-white rounded-top fw-bold">{{ dev.name }}</div>
+    <div class="card-body">
+      <div class="row g-4">
+        {% for tag in dev.tags %}
+        <div class="col-12 col-md-6 col-xl-4">
+          <div class="card border-0 shadow-soft tile">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                  <div class="fw-semibold">{{ tag.name }}</div>
+                  <div class="text-muted small">{{ tag.description or '&nbsp;' }}</div>
+                </div>
+                <span class="badge bg-secondary">{{ tag.datatype }}</span>
+              </div>
+              <div class="d-flex justify-content-between mt-2">
+                <div>
+                  {% if tag.alarm_status == "Normal" %}
+                  <span class="badge bg-success">Normal</span>
+                  {% else %}
+                  <span class="badge bg-danger">Alarm</span>
+                  {% endif %}
+                </div>
+                <div class="small text-muted">
+                  <i class="bi bi-clock"></i> {{ tag.ts }}
+                </div>
+              </div>
+              <div class="value-row d-flex align-items-center justify-content-center flex-column">
+                <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
+                  {{ tag.value if tag.value is not none else '—' }}
+                </div>
+                <div class="unit">Unit {{ tag.unit }}</div>
+              </div>
+              <div class="meter mt-2">
+                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:0%"></div>
+              </div>
+              <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  {% for dev in devices %}
+  {% if current_device == dev.id|string %}
+  <div class="card border-0 shadow-soft mb-4">
+    <div class="card-header bg-primary text-white rounded-top fw-bold">{{ dev.name }}</div>
+    <div class="card-body">
+      <div class="row g-4">
+        {% for tag in dev.tags %}
+        <div class="col-12 col-md-6 col-xl-4">
+          <div class="card border-0 shadow-soft tile">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                  <div class="fw-semibold">{{ tag.name }}</div>
+                  <div class="text-muted small">{{ tag.description or '&nbsp;' }}</div>
+                </div>
+                <span class="badge bg-secondary">{{ tag.datatype }}</span>
+              </div>
+              <div class="d-flex justify-content-between mt-2">
+                <div>
+                  {% if tag.alarm_status == "Normal" %}
+                  <span class="badge bg-success">Normal</span>
+                  {% else %}
+                  <span class="badge bg-danger">Alarm</span>
+                  {% endif %}
+                </div>
+                <div class="small text-muted">
+                  <i class="bi bi-clock"></i> {{ tag.ts }}
+                </div>
+              </div>
+              <div class="value-row d-flex align-items-center justify-content-center flex-column">
+                <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
+                  {{ tag.value if tag.value is not none else '—' }}
+                </div>
+                <div class="unit">Unit {{ tag.unit }}</div>
+              </div>
+              <div class="meter mt-2">
+                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:0%"></div>
+              </div>
+              <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+  window.App = window.App || {};
+  App.changeDevice = function (deviceId) {
+    window.location.search = '?device=' + deviceId;
+  };
+  const currentDevice = "{{ current_device }}";
+  const apiUrl = `/api/tags?device=${currentDevice}`;
+
+  // Function to update tag values
+function refreshTags() {
+  fetch("/api/tags?device={{ current_device }}")
+    .then(res => res.json())
+    .then(data => {
+      if (!data.tags) return;
+      data.tags.forEach(tag => {
+        const valEl = document.getElementById('tag-val-' + tag.id);
+        if (valEl) valEl.textContent = tag.value !== null ? tag.value : '—';
+        const tsEl = document.getElementById('tag-ts-' + tag.id);
+        if (tsEl) tsEl.textContent = tag.ts || '';
+      });
+    });
+}
+
+  // Initial load
+  refreshTags();
+  // Auto refresh every 3 seconds
+  setInterval(refreshTags, 3000);
+
+  App.startDashboard(apiUrl);
+</script>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% set page_title = "Devices" %}
+{% block content %}
+
+<!-- Toolbar -->
+<div class="card border-0 shadow-soft mb-3">
+  <div class="card-body d-flex flex-wrap gap-2 justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <div class="position-relative" style="min-width:280px;max-width:360px;width:100%;">
+        <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
+        <input class="form-control ps-5" placeholder="Search Devices" oninput="filterTable(this.value)">
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-dark-subtle">⚡ Filter</button>
+      <!-- mở modal chọn protocol -->
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#chooseProto">
+        + Add Device
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card border-0 shadow-soft">
+  <div class="table-responsive">
+    <table id="tbl" class="table table-hover align-middle mb-0">
+      <thead class="table-dark-subtle">
+        <tr>
+          <th style="width:56px;"></th>
+          <th>NAME</th>
+          <th style="width:140px">PROTOCOL</th>
+          <th style="width:120px">STATUS</th>
+          <th>DESCRIPTION</th>
+          <th style="width:200px">CREATED AT</th>
+          <th style="width:120px" class="text-end">ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in items %}
+        {% set status_txt = (
+        d.status if d.status is not none else
+        ('Online' if d.is_online else ('Offline' if d.is_online is not none else 'Unknown'))
+        ) %}
+        {% set st = (status_txt|string).lower() %}
+        <tr>
+          <td><input class="form-check-input" type="checkbox"></td>
+          <td class="fw-semibold">
+            <a class="link-light-emphasis" href="{{ url_for('devices_bp.device_detail', did=d.id) }}">{{ d.name }}</a>
+          </td>
+          <td><span class="badge rounded-pill text-bg-secondary">{{ d.protocol }}</span></td>
+          <td>
+            {% if 'on' in st %}
+            <span class="badge rounded-pill text-bg-success">Online</span>
+            {% elif 'off' in st %}
+            <span class="badge rounded-pill text-bg-danger">Offline</span>
+            {% else %}
+            <span class="badge rounded-pill text-bg-secondary">Unknown</span>
+            {% endif %}
+          </td>
+          <td class="text-muted">{{ d.description or '—' }}</td>
+          <td class="text-muted">{{ d.created_at or '' }}</td>
+          <td class="text-end">
+            <div class="btn-group">
+              <a class="btn btn-sm btn-outline-secondary"
+                href="{{ url_for('devices_bp.device_detail', did=d.id) }}">Open</a>
+              <button class="btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split"
+                data-bs-toggle="dropdown"></button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{{ url_for('devices_bp.device_detail', did=d.id) }}">View</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('devices_bp.edit_device', did=d.id) }}">Edit</a></li>
+                <li>
+                  <hr class="dropdown-divider">
+                </li>
+                <li>
+                  <form method="post" action="{{ url_for('devices_bp.delete_device', did=d.id) }}"
+                    onsubmit="return confirm('Delete this device?')">
+                    <button type="submit" class="dropdown-item text-danger">Delete</button>
+                  </form>
+                </li>
+              </ul>
+
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-4">No devices yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Select Protocol Modal -->
+<div class="modal fade" id="chooseProto" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" onsubmit="goAddDevice(event)">
+      <div class="modal-header">
+        <h5 class="modal-title">Select Device Protocol</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="vstack gap-3">
+          <label class="d-flex align-items-center gap-3 border rounded p-3">
+            <input class="form-check-input" type="radio" name="protocol" value="ModbusRTU">
+            <div class="fw-semibold">ModbusRTU</div>
+          </label>
+          <label class="d-flex align-items-center gap-3 border rounded p-3">
+            <input class="form-check-input" type="radio" name="protocol" value="ModbusTCP" checked>
+            <div class="fw-semibold">ModbusTCP</div>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function filterTable(q) {
+    q = (q || '').toLowerCase();
+    document.querySelectorAll('#tbl tbody tr').forEach(tr => {
+      tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+  function goAddDevice(e) {
+    e.preventDefault();
+    const proto = document.querySelector('#chooseProto input[name="protocol"]:checked')?.value || 'ModbusTCP';
+    window.location.href = "{{ url_for('devices_bp.add_device') }}?protocol=" + encodeURIComponent(proto);
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.env
+.env
+venv/
+ENV/
+env/
+*.sqlite3
+*.db
+
+# VS Code
+.vscode/
+
+# Flask
+instance/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test/coverage
+.coverage
+htmlcov/
+*.cover
+
+#

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% set page_title = "Add Alarm Logger" %}
+
+{% block content %}
+<div class="card border-0 shadow-soft" style="max-width:860px;margin:0 auto;">
+  <div class="card-header bg-transparent">
+    <h5 class="card-title">{{ 'Edit Alarm' if editing else 'Add Alarm' }}</h5>
+  </div>
+
+  <form method="post">
+    <div class="card-body">
+      <div class="row g-3">
+
+        <!-- Enabled -->
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="enabled" name="enabled" checked>
+            <label class="form-check-label" for="enabled">Actived</label>
+          </div>
+        </div>
+
+        <!-- Target -->
+        <div class="col-md-6">
+          <label class="form-label">Target Tag *</label>
+          <select name="target" class="form-select" required>
+            <option value="">-- Select Tag --</option>
+            {% for t in tags %}
+            {% set val = t.id %}
+            {% set selected = 'selected' if (form.get('target')|string == val|string) else '' %}
+            <option value="{{ val }}" {{ selected }}>
+              {{ t.device_name }} — {{ t.tag_name }} ({{ t.address }}, {{ t.datatype }})
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Hiển thị: Device — Tag (Address, Datatype)</div>
+        </div>
+
+
+
+        <!-- Alarm Code -->
+        <div class="col-12">
+          <label class="form-label">Alarm Code *</label>
+          <input name="code" class="form-control" value="{{ form.code or '' }}">
+          <label>Alarm Level</label>
+          <select name="level" class="form-select">
+            {% for lv in ['Low','Medium','High','Critical'] %}
+            <option value="{{ lv }}" {{ 'selected' if form.level==lv else '' }}>{{ lv }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Display Name -->
+        <div class="col-12">
+          <label class="form-label">Display Name *</label>
+          <input name="name" class="form-control" placeholder="Display Name" required>
+        </div>
+
+        <!-- Level -->
+        <div class="col-md-6">
+          <label class="form-label">Level *</label>
+          <select name="level" class="form-select" required>
+            <option>Low</option>
+            <option>Medium</option>
+            <option selected>High</option>
+            <option>Critical</option>
+          </select>
+        </div>
+
+        <!-- Operator -->
+        <div class="col-md-6">
+          <label class="form-label">Operator *</label>
+          {% set op = (form.get('operator') or '') %}
+          <select name="operator" class="form-select" required>
+            <option value="== " {{ 'selected' if op=='==' else '' }}>Equal</option>
+            <option value="!=" {{ 'selected' if op=='!=' else '' }}>Not Equal</option>
+            <option value=">" {{ 'selected' if op=='>' else '' }}>Greater Than</option>
+            <option value=">=" {{ 'selected' if op=='>=' else '' }}>Greater Or Equal</option>
+            <option value="<" {{ 'selected' if op=='<' else '' }}>Less Than</option>
+            <option value="<=" {{ 'selected' if op=='<=' else '' }}>Less Or Equal</option>
+          </select>
+
+        </div>
+
+        <!-- Compare Value -->
+        <div class="col-12">
+          <label class="form-label">Compare Value *</label>
+          <input name="threshold" class="form-control" placeholder="Compare Value" required>
+          <div class="form-text">Nếu chọn “In Range / Not In Range” hãy nhập dạng <code>min,max</code>.</div>
+        </div>
+
+        <!-- Stable times -->
+        <div class="col-md-6">
+          <label class="form-label">On Stable Time (seconds) *</label>
+          <input type="number" min="0" step="1" name="on_stable" class="form-control" value="10" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Off Stable Time (seconds) *</label>
+          <input type="number" min="0" step="1" name="off_stable" class="form-control" value="30" required>
+        </div>
+
+        <!-- Send to -->
+        <div class="col-12">
+          <label class="form-label">Send To Emails</label>
+          <textarea name="emails" class="form-control" rows="2"
+            placeholder="example1@gmail.com, example2@gmail.com, ..."></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Send To SMS</label>
+          <textarea name="phones" class="form-control" rows="2"
+            placeholder="+84xxxxxxxxx, +84xxxxxxxxx, ..."></textarea>
+        </div>
+
+        <!-- Description -->
+        <div class="col-12">
+          <label class="form-label">Description</label>
+          <textarea name="description" class="form-control" rows="3" placeholder="Description"></textarea>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a class="btn btn-secondary" href="{{ url_for('alarms_bp.alarm_settings') }}">Cancel</a>
+      <button class="btn btn-primary">Submit</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

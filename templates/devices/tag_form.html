@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set page_title = "Add Tag" %}
+{% block content %}
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-transparent">
+    <div class="h5 mb-0">Add Tag</div>
+  </div>
+
+  <form method="post">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Name *</label>
+          <input name="name" class="form-control" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Group</label>
+          <input name="group" class="form-control" value="Group1">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Datatype</label>
+          <select name="datatype" class="form-select">
+            <option>Word</option>
+            <option>DWord</option>
+            <option>Float</option>
+            <option>Bit</option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Address *</label>
+          <input name="address" type="number" class="form-control" value="40001" required>
+          <div class="form-text">40001-style (auto convert 0-based)</div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Unit</label>
+          <input name="unit" class="form-control">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Scale</label>
+          <input name="scale" type="number" step="any" class="form-control" value="1">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Offset</label>
+          <input name="offset" type="number" step="any" class="form-control" value="0">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Description</label>
+          <input name="description" class="form-control">
+        </div>
+      </div>
+    </div>
+
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a class="btn btn-secondary" href="{{ url_for('devices_bp.device_detail', did=device.id) }}">Cancel</a>
+      <button class="btn btn-primary">Submit</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

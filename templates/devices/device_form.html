@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% set proto = protocol or request.args.get('protocol', 'ModbusTCP') %}
+{% set page_title = "Add Device - " + proto %}
+{% block content %}
+
+<div class="card border-0 shadow-soft">
+  <div class="card-header bg-transparent">
+    <div class="h5 mb-0">Add Device - {{ proto }}</div>
+  </div>
+
+  <form method="post">
+    <div class="card-body">
+      <div class="row g-3">
+
+        <!-- Common -->
+        <div class="col-md-6">
+          <label class="form-label">Name *</label>
+          <input name="name" class="form-control" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Description</label>
+          <input name="description" class="form-control">
+        </div>
+
+        {% if proto == 'ModbusRTU' %}
+          <!-- RTU fields -->
+          <input type="hidden" name="protocol" value="ModbusRTU">
+          <div class="col-md-6">
+            <label class="form-label">Port *</label>
+            <input name="serial_port" class="form-control" placeholder="COM3 or /dev/ttyUSB0" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Timeout (ms) *</label>
+            <input name="timeout_ms" type="number" class="form-control" value="5000" required>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Baudrate *</label>
+            <select name="baudrate" class="form-select">
+              <option>9600</option><option>19200</option><option>38400</option>
+              <option>57600</option><option>115200</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Data Bits *</label>
+            <select name="bytesize" class="form-select">
+              <option>8</option><option>7</option>
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Parity *</label>
+            <select name="parity" class="form-select">
+              <option>None</option><option>Even</option><option>Odd</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Stop Bits *</label>
+            <select name="stopbits" class="form-select">
+              <option>1</option><option>2</option>
+            </select>
+          </div>
+
+          <div class="col-md-12">
+            <label class="form-label">Byte Orders *</label>
+            <select name="byte_order" class="form-select">
+              <option>BigEndian</option><option>LittleEndian</option>
+            </select>
+          </div>
+
+        {% else %}
+          <!-- TCP fields -->
+          <input type="hidden" name="protocol" value="ModbusTCP">
+          <div class="col-md-6">
+            <label class="form-label">Host *</label>
+            <input name="host" class="form-control" placeholder="127.0.0.1" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Port *</label>
+            <input name="port" type="number" class="form-control" value="502" required>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Unit Id *</label>
+            <input name="unit_id" type="number" class="form-control" value="1" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Timeout (ms) *</label>
+            <input name="timeout_ms" type="number" class="form-control" value="5000" required>
+          </div>
+
+          <div class="col-md-12">
+            <label class="form-label">Byte Orders *</label>
+            <select name="byte_order" class="form-select">
+              <option>BigEndian</option><option>LittleEndian</option>
+            </select>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a class="btn btn-secondary" href="{{ url_for('devices_bp.devices') }}">Cancel</a>
+      <button class="btn btn-primary">Submit</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

@@ -1,0 +1,106 @@
+:root{
+  --bg:#0c0f16; --panel:#121826; --panel-2:#151b2b; --border:#263046;
+  --soft-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+*{font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+a{text-decoration:none}
+.app-bg{
+  background: radial-gradient(1200px 800px at 10% -10%, #1a2240 0%, rgba(26,34,64,0) 50%), var(--bg);
+  color:#e6e9ef;
+}
+
+/* Sidebar */
+.app-sidebar{
+  width:260px; min-height:100vh; position:fixed; left:0; top:0;
+  background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);
+  border-right:1px solid var(--border);
+}
+.brand-badge{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:#ff3d71;font-weight:700}
+.side-link{display:flex;align-items:center;gap:.6rem;padding:.65rem .9rem;color:#9fb1c5;border-radius:.6rem;margin:.15rem .4rem}
+.side-link:hover{background:#1a2234;color:#fff}
+.side-link.active{background:#1b2a4b;color:#fff;border:1px solid #2c3d64}
+.side-section{padding:.5rem .9rem .25rem;color:#7f93b5;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;opacity:.85}
+.icon{width:20px;text-align:center}
+
+/* Main / Topbar */
+.app-main{margin-left:260px;min-height:100vh}
+.app-topbar{
+  position:sticky;top:0;z-index:10;backdrop-filter:blur(8px);
+  background:rgba(10,14,22,.6);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.25rem
+}
+.page-title{font-weight:600;letter-spacing:.2px}
+.app-container{padding:1.25rem}
+
+/* Cards / sections */
+.card{background:linear-gradient(180deg,#141b2c 0%,#121826 100%);border:1px solid var(--border)}
+.shadow-soft{box-shadow:var(--soft-shadow)}
+.section-heading{font-weight:600;opacity:.9;margin-top:.4rem}
+
+/* Dashboard tiles */
+.tile .chip-icon{width:36px;height:36px;display:grid;place-items:center;background:#1f2a41;border-radius:10px}
+.value-row{display:flex;align-items:baseline;gap:.5rem;margin:.35rem 0 .6rem}
+.value{font-size:1.8rem;font-weight:700}
+.unit{opacity:.7;font-weight:600}
+.meter{height:8px;background:#1f283b;border:1px solid #29344e;border-radius:10px;overflow:hidden}
+.meter-bar{height:100%;background:linear-gradient(90deg,#34d399,#3b82f6,#a78bfa);transition:width .6s ease}
+
+/* Tables / toolbar */
+.table-dark-subtle th{background:#0f1628 !important;border-bottom:1px solid var(--border);color:#cfd9ea}
+.table-hover tbody tr:hover{background:#131c30}
+.toolbar .search-wrap{position:relative;width:320px}
+.search-icon{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);opacity:.6}
+.search-input{padding-left:2rem;background:#0f1525;border:1px solid var(--border)}
+
+/* Mobile */
+@media (max-width: 991.98px){
+  .app-sidebar{transform:translateX(-100%);transition:transform .25s ease}
+  .side-open .app-sidebar{transform:translateX(0)}
+  .app-main{margin-left:0}
+}
+table {
+    /* table-layout: fixed; Ép cố định layout */
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 0.5rem;
+    padding-bottom: 6rem;
+}
+
+
+/* --- Desktop collapsible sidebar --- */
+.app-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;          /* top:0 right:auto bottom:0 left:0 */
+  width: 260px;
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  border-right: 1px solid var(--border);
+  transition: transform .25s ease;
+  transform: translateX(0);
+  z-index: 1000;
+}
+
+.app-sidebar.collapsed {
+  transform: translateX(-260px);
+}
+
+.app-main {
+  margin-left: 260px;
+  min-height: 100vh;
+  transition: margin-left .25s ease;
+}
+
+.app-main.full {
+  margin-left: 0;
+}
+
+/* Giữ topbar luôn full-width đẹp khi thụt sidebar */
+.app-topbar {
+  position: sticky; top: 0; z-index: 10;
+  backdrop-filter: blur(8px);
+  background: rgba(10,14,22,.6);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  gap: .5rem; padding: .9rem 1.25rem;
+}
+.page-title { font-weight: 600; letter-spacing: .2px; }
+.app-container { padding: 1.25rem; }

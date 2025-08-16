@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% set page_title = "Reports" %}
+{% block content %}
+
+<!-- Toolbar -->
+<form class="card border-0 shadow-soft mb-3" method="get" action="{{ url_for('reports_bp.reports') }}">
+  <div class="card-body d-flex flex-wrap gap-3 align-items-center justify-content-between">
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+      <!-- Data Logger -->
+      <div class="d-flex flex-column">
+        <label class="small text-muted mb-1">Data Logger</label>
+        <select class="form-select" name="logger" onchange="this.form.submit()">
+          {% for lg in loggers %}
+          <option value="{{ lg.id }}" {{ 'selected' if lg.id == current_logger_id else '' }}>
+            {{ lg.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Time range -->
+      <div class="d-flex flex-column">
+        <label class="small text-muted mb-1">From</label>
+        <input type="datetime-local" class="form-control" name="from" value="{{ from_dt|default('', true) }}"
+          style="min-width: 230px;">
+      </div>
+      <div class="d-flex flex-column">
+        <label class="small text-muted mb-1">To</label>
+        <input type="datetime-local" class="form-control" name="to" value="{{ to_dt|default('', true) }}"
+          style="min-width: 230px;">
+      </div>
+
+      <div class="d-flex align-items-end">
+        <button class="btn btn-primary">Refresh</button>
+      </div>
+    </div>
+
+    <!-- Search & Export -->
+    <div class="d-flex gap-2 align-items-end">
+      <div class="position-relative" style="min-width:260px;">
+        <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
+        <input id="q" class="form-control ps-5" placeholder="Search..." oninput="filterRows(this.value)">
+      </div>
+
+      <div class="btn-group">
+        <button type="button" class="btn btn-outline-secondary" onclick="exportCSV()">Export CSV</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="exportCSV('xlsx')">Export XLSX</button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Table -->
+<div class="card border-0 shadow-soft">
+  <div class="table-responsive">
+    <table id="tbl" class="table table-hover align-middle mb-0">
+      <thead class="table-dark-subtle">
+        <tr>
+          <th style="width:220px;">TIMESTAMP</th>
+          {% for c in columns %}
+          {% if c != 'timestamp' %}
+          <th class="text-nowrap">{{ c|upper }}</th>
+          {% endif %}
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% if items and items|length %}
+        {% for row in items %}
+        <tr>
+          {% for c in columns %}
+          <td>{{ row[c] }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+          <td colspan="{{ columns|length }}">No data</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer small text-muted d-flex justify-content-between">
+    <div>Showing {{ items|length if items else 0 }} rows</div>
+    <div>Tip: Use Export → open with Excel</div>
+  </div>
+</div>
+
+<script>
+  // Lọc nhanh client-side
+  function filterRows(q) {
+    q = (q || '').toLowerCase();
+    document.querySelectorAll('#tbl tbody tr').forEach(tr => {
+      if (tr.querySelector('td[colspan]')) return; // hàng "No data"
+      tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+
+  // Xuất CSV (hoặc .xlsx đổi đuôi)
+  function exportCSV(kind) {
+    const rows = [];
+    const header = [];
+    document.querySelectorAll('#tbl thead th').forEach(th => header.push(th.textContent.trim()));
+    rows.push(header);
+
+    document.querySelectorAll('#tbl tbody tr').forEach(tr => {
+      if (tr.style.display === 'none') return; // tôn trọng filter
+      const tds = [...tr.querySelectorAll('td')];
+      if (tds.length === 0) return;
+      rows.push(tds.map(td => {
+        const v = (td.textContent || '').trim();
+        // CSV escape
+        if (v.includes(',') || v.includes('"')) {
+          return '"' + v.replace(/"/g, '""') + '"';
+        }
+        return v;
+      }).join(','));
+    });
+
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), {
+      href: url,
+      download: `report_{{ current_logger_name|replace(' ','_') }}.{{ 'xlsx' if kind == 'xlsx' else 'csv' }}`
+    });
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+</script>
+
+{% endblock %}
