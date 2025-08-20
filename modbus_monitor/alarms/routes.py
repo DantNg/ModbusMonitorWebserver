@@ -48,7 +48,7 @@ def add_alarm_rule():
 
         new_id = add_alarm_rule_row(data)
         flash("Alarm created.", "success")
-        return redirect(url_for("alarms_bp.alarms"))
+        return redirect(url_for("alarms_bp.alarm_settings"))
     # GET
     tags = list_all_tags()
     return render_template("alarms/alarm_form.html",form={},tags= tags)
@@ -87,7 +87,7 @@ def edit_alarm_rule(aid):
 def delete_alarm_rule(aid):
     cnt = delete_alarm_rule_row(aid)
     flash("Alarm deleted." if cnt else "Alarm not found.", "success" if cnt else "warning")
-    return redirect(url_for("alarms_bp.alarms"))
+    return redirect(url_for("alarms_bp.alarm_settings"))
 
 # /alarm-settings (nếu bạn dùng trang cấu hình riêng)
 @alarms_bp.route("/alarm-settings")
@@ -120,6 +120,8 @@ def _parse_alarm_form(f):
         "threshold": (f.get("threshold") or "").strip(),
         "on_stable_sec": _to_int(f.get("on_stable_sec"), 0),
         "off_stable_sec": _to_int(f.get("off_stable_sec"), 0),
+        "email": (f.get("email") or "").strip(),  # Correct field name
+        "sms": (f.get("sms") or "").strip(),   
     }
 
 def _validate_alarm_form(data: dict):

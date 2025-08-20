@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import threading, time
 from queue import Queue, Empty
 from typing import Tuple, List
@@ -28,7 +29,12 @@ class DBWriter(threading.Thread):
             now = time.time()
             if self.buf and (len(self.buf) >= self.batch_size or (now - last) >= self.flush_every):
                 try:
-                    dbsync.insert_tag_values_bulk(self.buf)
+                    cleaned = []
+                    for tag_id, ts, value in self.buf:
+                        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                            value = 0
+                        cleaned.append((tag_id, ts, value))
+                    dbsync.insert_tag_values_bulk(cleaned)
                 finally:
                     self.buf.clear()
                     last = now

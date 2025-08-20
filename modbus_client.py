@@ -1,38 +1,56 @@
-from pymodbus.client import ModbusTcpClient, ModbusSerialClient
-from pymodbus.constants import Endian
-from pymodbus.payload import BinaryPayloadDecoder
+import time
+from pymodbus.client import ModbusTcpClient
+from pymodbus.exceptions import ModbusException
 
-def _end(val:str):
-    return Endian.Big if (val or '').lower().startswith('big') else Endian.Little
+def read_modbus_tcp(ip_address, port, unit_id, register_address, count):
+    """
+    Reads Modbus TCP registers from a server.
 
-def _client(dev):
-    if dev.protocol == 'ModbusTCP':
-        return ModbusTcpClient(host=dev.host, port=dev.port, timeout=dev.timeout_ms/1000.0)
-    return ModbusSerialClient(method='rtu', port=dev.serial_port, baudrate=dev.baudrate,
-        parity=dev.parity, stopbits=dev.stopbits, bytesize=dev.bytesize, timeout=dev.timeout_ms/1000.0)
-
-def read_modbus_value(tag):
-    dev = tag.device
-    if not dev: return None
-    addr = max(0, tag.address-1)
-    unit = dev.unit_id or 1
-    client = _client(dev)
-    if not client.connect():
-        try: client.close()
-        except: pass
-        return None
+    :param ip_address: IP address of the Modbus TCP server
+    :param port: Port of the Modbus TCP server (default is 502)
+    :param unit_id: Unit ID of the Modbus device
+    :param register_address: Starting register address to read
+    :param count: Number of registers to read
+    :return: List of register values or None if an error occurs
+    """
     try:
-        if tag.datatype == 'Bit':
-            rr = client.read_coils(addr,1,unit=unit)
-            return int(rr.bits[0]) if rr and not rr.isError() else None
-        count = 1 if tag.datatype=='Word' else 2
-        rr = client.read_holding_registers(addr,count=count,unit=unit)
-        if not rr or rr.isError(): return None
-        dec = BinaryPayloadDecoder.fromRegisters(rr.registers, byteorder=_end(dev.byte_order), wordorder=_end(dev.byte_order))
-        if tag.datatype=='Word': return dec.decode_16bit_uint()
-        if tag.datatype=='DWord': return dec.decode_32bit_uint()
-        if tag.datatype=='Float': return dec.decode_32bit_float()
-    finally:
-        try: client.close()
-        except: pass
-    return None
+        # Connect to Modbus TCP server
+        client = ModbusTcpClient(host=ip_address, port=port)
+        if not client.connect():
+            print(f"Failed to connect to Modbus server at {ip_address}:{port}")
+            return None
+
+        # Read holding registers
+        response = client.read_holding_registers(register_address, count, slave=unit_id)
+        if response.isError():
+            print(f"Modbus error: {response}")
+            return None
+
+        # Disconnect client
+        client.close()
+
+        # Return register values
+        return response.registers
+
+    except ModbusException as e:
+        print(f"Modbus exception occurred: {e}")
+        return None
+    except Exception as e:
+        print(f"Error reading Modbus TCP: {e}")
+        return None
+
+
+# Example usage
+if __name__ == "__main__":
+    ip_address = "127.0.0.1"  # Replace with your Modbus server's IP
+    port = 502  # Default Modbus TCP port
+    unit_id = 1  # Unit ID of the Modbus device
+    register_address = 0  # Starting register address
+    count = 10  # Number of registers to read
+    while(True):
+        values = read_modbus_tcp(ip_address, port, unit_id, register_address, count)
+        if values:
+            print(f"Read values: {values}")
+        else:
+            print("Failed to read Modbus registers")
+        time.sleep(1)

@@ -16,6 +16,10 @@ def clear_alarm_events():
         res = con.execute(delete(alarm_events))
         return res.rowcount
 from ast import Dict, stmt
+from typing import Optional
+from typing import List as list
+from typing import Tuple as tuple
+from datetime import datetime
 import os
 from sqlalchemy import (
     create_engine, MetaData, Table, Column, Integer, String, Float, Boolean,
@@ -25,7 +29,7 @@ from sqlalchemy.engine import Engine
 from dotenv import load_dotenv
 from datetime import datetime
 # ---------- Singleton Engine ----------
-_engine: Engine | None = None
+_engine: Optional[Engine] = None
 _md = MetaData()
 
 def init_engine():
@@ -91,6 +95,15 @@ tag_values = Table(
     Column("value", Float, nullable=False),
 )
 
+users = Table(
+    "users", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("username", String(120), unique=True, nullable=False),
+    Column("password_hash", String(255), nullable=False),
+    Column("role", String(20), default="user"),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
 alarm_rules = Table(
     "alarm_rules", _md,
     Column("id", Integer, primary_key=True, autoincrement=True),
@@ -103,7 +116,9 @@ alarm_rules = Table(
     Column("threshold", String(64)),        # số hoặc "min,max"
     Column("on_stable_sec", Integer, default=0),
     Column("off_stable_sec", Integer, default=0),
-    Column("created_at", DateTime, server_default=func.now()),
+    Column("email", String(120), nullable=True),  # New column for email notifications
+    Column("sms", String(15), nullable=True),    # New column for SMS notifications
+    Column("created_at", DateTime, server_default=func.now())
 )
 # (tuỳ chọn) Báo động tối giản – chỉ để có bảng lịch sử
 alarm_events = Table(
@@ -447,3 +462,35 @@ def get_tag_logger_map(device_id: int):
 
     return {row["tag_id"]: dict(row) for row in rows}
 
+### USER
+def list_users():
+    with init_engine().connect() as con:
+        rows = con.execute(select(users)).mappings().all()
+        return [dict(r) for r in rows]
+
+def get_user_by_username(username: str):
+    with init_engine().connect() as con:
+        r = con.execute(select(users).where(users.c.username == username)).mappings().first()
+        return dict(r) if r else None
+
+def add_user_row(data: dict) -> int:
+    with init_engine().begin() as con:
+        res = con.execute(insert(users).values(**data))
+        return res.inserted_primary_key[0]
+
+def update_user_row(user_id: int, data: dict) -> int:
+    data = {k: v for k, v in data.items() if k in users.c and v is not None}
+    with init_engine().begin() as con:
+        res = con.execute(update(users).where(users.c.id == user_id).values(**data))
+        return res.rowcount
+
+def delete_user_row(user_id: int) -> int:
+    with init_engine().connect() as con:
+        # Check the user's role
+        user = con.execute(select(users).where(users.c.id == user_id)).mappings().first()
+        if user and user["role"] == "admin":
+            raise ValueError("Cannot delete admin users.")
+    
+    with init_engine().begin() as con:
+        res = con.execute(delete(users).where(users.c.id == user_id))
+        return res.rowcount

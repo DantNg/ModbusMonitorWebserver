@@ -3,7 +3,7 @@ import threading, time, math
 from typing import Dict, List
 from modbus_monitor.database import db as dbsync
 from modbus_monitor.services.common import LatestCache, utc_now
-
+from modbus_monitor.services.notification_service import *
 def _cmp(v: float, op: str, th: float) -> bool:
     if math.isnan(v): return False
     return {
@@ -35,7 +35,8 @@ class AlarmService(threading.Thread):
                         op = r.get("operator") or ">"
                         on_s  = int(r.get("on_stable_sec") or 0)
                         off_s = int(r.get("off_stable_sec") or 0)
-
+                        to_email = r.get("email")
+                        to_sms = r.get("sms")
                         rec = self.cache.get(tag_id)
                         if not rec: 
                             continue
@@ -56,6 +57,22 @@ class AlarmService(threading.Thread):
                                 float(val),
                                 f"Rule {r['id']} triggered"
                             )
+                            try:
+                                send_email(
+                                    to_email=to_email,
+                                    subject=f"Alarm Triggered: {r.get('name', 'Alarm')}",
+                                    body=f"Alarm '{r.get('name', 'Alarm')}' triggered for device {d['name']}.\n"
+                                        f"Threshold: {th}, Value: {val}, Operator: {op}"
+                                )
+
+                                # Send SMS notification
+                                send_sms(
+                                    phone_number=to_sms,
+                                    message=f"Alarm '{r.get('name', 'Alarm')}' triggered for device {d['name']}.\n"
+                                            f"Threshold: {th}, Value: {val}, Operator: {op}"
+                                )
+                            except Exception as e:
+                                print(f"Notification error: {e}")
             except Exception as e:
                 print("AlarmService error:", e)
             time.sleep(self.period)

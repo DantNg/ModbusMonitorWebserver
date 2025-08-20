@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% set page_title = "Add User" %}
+{% block content %}
+<div class="container py-5">
+  <h1 class="mb-4">Add User</h1>
+  <form method="post" action="{{ url_for('auth_bp.add_user') }}">
+    <div class="mb-3">
+      <label for="username" class="form-label">Username</label>
+      <input type="text" class="form-control" id="username" name="username" required>
+    </div>
+    <div class="mb-3">
+      <label for="password" class="form-label">Password</label>
+      <input type="password" class="form-control" id="password" name="password_hash" required>
+    </div>
+    <div class="mb-3">
+      <label for="role" class="form-label">Role</label>
+      <select class="form-select" id="role" name="role">
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-success">Add User</button>
+  </form>
+</div>
+{% endblock %}

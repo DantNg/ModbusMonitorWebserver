@@ -5,6 +5,8 @@ from typing import List, Dict, Tuple
 from datetime import datetime
 from modbus_monitor.database import db as dbsync
 from modbus_monitor.services.common import LatestCache, utc_now
+from pymodbus.exceptions import ModbusIOException
+
 import struct
 # pymodbus sync
 from pymodbus.client import ModbusTcpClient, ModbusSerialClient
@@ -41,12 +43,13 @@ class _DeviceReader:
         self._next_retry_ts = 0.0
 
     def _connect(self) -> bool:
-        if os.getenv("FAKE_MODBUS") == "1":
-            self.client = "FAKE"
-            return True
+        # if os.getenv("FAKE_MODBUS") == "1":
+        #     self.client = "FAKE"
+        #     return True
 
         if self.d["protocol"] == "ModbusTCP":
-            self.client = ModbusTcpClient(self.d.get("host"), port=int(self.d.get("port") or 502), timeout=self.timeout)
+            # print("Connecting to ModbusTCP with host {}".format(self.d.get("host")))
+            self.client = ModbusTcpClient(self.d.get("host"), port=int(self.d.get("port") or 502))
         else:
             self.client = ModbusSerialClient(
                 port=self.d.get("serial_port"),
@@ -99,25 +102,39 @@ class _DeviceReader:
         """Đọc holding registers từ thiết bị, xử lý ngoại lệ tốt hơn."""
         if count <= 0:
             raise ModbusIOException("count must be > 0")
+
         start_read_byte = self._normalize_hr_address(address)
+        # response = self.client.read_holding_registers(start_read_byte, 10, slave=1)
+        # print(response.registers)
+        # print(f"Reading {count} registers from {self.d['name']} (ID: {self.d['id']}) at address {start_read_byte}")
         try:
-            if self.d["protocol"] == "ModbusTCP":
-                rr = self.client.read_holding_registers(start_read_byte, count, unit=int(self.d["unit_id"]))
-            elif self.d["protocol"] == "ModbusRTU":
-                rr = self.client.read_holding_registers(start_read_byte, count, unit=int(self.d["unit_id"]))
+            if self.d["protocol"] in ("ModbusTCP", "ModbusRTU"):
+                if self.client != None:
+                    # print(f"Using client: {self.client}")
+                    pass
+                else:
+                    # print("Client is not connected, attempting to connect...")
+                    if not self._ensure_connected():
+                        raise ConnectionException("Failed to connect to Modbus client")
+                rr = self.client.read_holding_registers(start_read_byte, count, slave=int(self.d["unit_id"]))
             else:
-                raise ValueError(f"Unsupported protocol: {self.d['protocol']}")
+                raise ValueError("Unsupported protocol: {}".format(self.d["protocol"]))
+
             if rr is None or rr.isError():
-                raise IOError(f"Read error: {rr}")
+                raise IOError("Read error: {}".format(rr))
+
             return rr.registers
+
         except (ConnectionException, ModbusIOException, IOError) as e:
-            print(f"Modbus read error: {e}")
+            print("Modbus read error:", e)
             self._close()
-            return [math.nan] * count
+            # thay nan bằng None để MySQL không lỗi
+            return [None] * count  
+
         except Exception as e:
-            print(f"Unexpected error during Modbus read: {e}")
+            print("Unexpected error during Modbus read:", e)
             self._close()
-            return [math.nan] * count
+            return [None] * count
 
     def _extract(self, regs: list[int], offset: int, datatype: str, scale: float, offs: float) -> float:
         """
@@ -201,7 +218,7 @@ class _DeviceReader:
             scale = float(t.get("scale") or 1.0)
             offs  = float(t.get("offset") or 0.0)
             count = 1 if dt == "Word" else 2
-            print(f"Reading tag {t['name']} (ID: {t['id']}) at address {addr} with datatype {dt}")
+            # print(f"Reading tag {t['name']} (ID: {t['id']}) at address {addr} with datatype {dt}")
             regs = self._read_registers(addr, count)
             val = self._extract(regs, 0, dt, scale, offs)
             self.cache.set(int(t["id"]), ts, val)
@@ -222,7 +239,6 @@ class ModbusService:
         self._stop = threading.Event()
         self._t_tcp = threading.Thread(target=self._tcp_loop, name="modbus-tcp", daemon=True)
         self._t_rtu = threading.Thread(target=self._rtu_loop, name="modbus-rtu", daemon=True)
-        self._refresh_sec = 5.0
         self._next_due: Dict[int, float] = {}  # device_id -> next_due timestamp
 
     def start(self):
@@ -258,4 +274,5 @@ class ModbusService:
         self._poll_loop("ModbusTCP")
 
     def _rtu_loop(self):
+        pass
         self._poll_loop("ModbusRTU")

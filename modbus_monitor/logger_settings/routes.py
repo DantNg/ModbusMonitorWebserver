@@ -1,4 +1,7 @@
 from flask import render_template, request, redirect, url_for, flash
+from typing import List as list
+from typing import Tuple as tuple
+from typing import Optional
 from . import logger_settings_bp
 from modbus_monitor.database.db import (
     list_data_loggers, get_data_logger, get_data_logger_tag_ids,
@@ -118,7 +121,7 @@ def datalogger_delete(lid):
     return redirect(url_for("logger_settings_bp.datalogger_settings"))
 
 # ---------- helpers ----------
-def _tags_for_form(selected: list[int] | None = None):
+def _tags_for_form(selected: Optional[list[int]] = None):
     """
     Trả về danh sách tag có cấu trúc phù hợp với logger_form.html hiện tại:
       { id, name, device: { name } }

@@ -121,7 +121,7 @@
 {% endblock %}
 
 {% block scripts %}
-
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
   window.App = window.App || {};
   App.changeDevice = function (deviceId) {
@@ -129,27 +129,39 @@
   };
   const currentDevice = "{{ current_device }}";
   const apiUrl = `/api/tags?device=${currentDevice}`;
+  const socket = io();
 
-  // Function to update tag values
-function refreshTags() {
-  fetch("/api/tags?device={{ current_device }}")
-    .then(res => res.json())
-    .then(data => {
-      if (!data.tags) return;
-      data.tags.forEach(tag => {
-        const valEl = document.getElementById('tag-val-' + tag.id);
-        if (valEl) valEl.textContent = tag.value !== null ? tag.value : '—';
-        const tsEl = document.getElementById('tag-ts-' + tag.id);
-        if (tsEl) tsEl.textContent = tag.ts || '';
-      });
+  // Listen for tag updates
+  socket.on("update_tags", function (data) {
+    if (!data || !data.tags) {
+      console.error("No data received");
+      return;
+    }
+    data.tags.forEach(tag => {
+      const valEl = document.getElementById('tag-val-' + tag.id);
+      if (valEl) valEl.textContent = tag.value !== null ? tag.value : '—';
+      const tsEl = document.getElementById('tag-ts-' + tag.id);
+      if (tsEl) tsEl.textContent = tag.ts || '';
     });
-}
-
+  });
   // Initial load
-  refreshTags();
-  // Auto refresh every 3 seconds
-  setInterval(refreshTags, 3000);
+  function refreshTags() {
+    fetch("/api/tags?device={{ current_device }}")
+      .then(res => res.json())
+      .then(data => {
+        if (!data.tags) return;
+        data.tags.forEach(tag => {
+          const valEl = document.getElementById('tag-val-' + tag.id);
+          if (valEl) valEl.textContent = tag.value !== null ? tag.value : '—';
+          const tsEl = document.getElementById('tag-ts-' + tag.id);
+          if (tsEl) tsEl.textContent = tag.ts || '';
+        });
+      });
+  }
 
-  App.startDashboard(apiUrl);
+  setInterval(function() {
+      refreshTags();
+    }, 500);
+  // App.startDashboard(apiUrl);
 </script>
 {% endblock %}

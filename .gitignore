@@ -28,4 +28,18 @@ Thumbs.db
 htmlcov/
 *.cover
 
-#
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore virtual environment
+venv/
+.env
+
+# Ignore IDE-specific files
+.vscode/
+.idea/
+
+# Ignore Flask-SocketIO logs
+*.log

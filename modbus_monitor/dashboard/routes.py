@@ -1,11 +1,14 @@
-from flask import render_template,request,jsonify
+from flask import render_template,request,jsonify,session,redirect,url_for,flash
 from . import dashboard_bp
 from modbus_monitor.database import db
 from modbus_monitor.database.db import get_latest_tag_value
 from datetime import datetime
-@dashboard_bp.route("/")
+from modbus_monitor.extensions import socketio
+
 @dashboard_bp.route("/dashboard")
 def dashboard():
+    if "username" not in session:
+        return redirect(url_for("auth_bp.login"))
     current_device = request.args.get("device", "__all__")
     devices = db.list_devices()
     for dev in devices:
@@ -21,26 +24,37 @@ def dashboard():
         current_device=current_device
     )
 
-
+# Emit real-time tag updates
 @dashboard_bp.route("/api/tags")
 def api_tags():
-    device_id = request.args.get("device", "__all__")
-    result = []
-    if device_id == "__all__":
+    try:
+        current_device = request.args.get("device", "__all__")
+        # print(f"Current device: {current_device}")
+        
+        tags = []
         devices = db.list_devices()
+        # print(f"Devices: {devices}")
+        
         for dev in devices:
-            tags = db.list_tags(dev["id"])
-            for tag in tags:
-                tag["device_id"] = dev["id"]
-                tag["device_name"] = dev["name"]
-                result.append(tag)
-    else:
-        try:
-            did = int(device_id)
-            tags = db.list_tags(did)
-            for tag in tags:
-                tag["device_id"] = did
-            result = tags
-        except Exception:
-            result = []
-    return jsonify(result)
+            if current_device != "__all__" and str(dev["id"]) != current_device:
+                continue
+            # print(f"Processing device: {dev}")
+            
+            for tag in db.list_tags(dev["id"]):
+                # print(f"Processing tag: {tag}")
+                value, ts = get_latest_tag_value(tag["id"])
+                # print(f"Tag value: {value}, Timestamp: {ts}")
+                
+                tags.append({
+                    "id": tag["id"],
+                    "name": tag["name"],
+                    "value": value,
+                    "ts": ts.strftime("%H:%M") if ts else "--:--"
+                })
+        
+        # print(f"Tags: {tags}")
+        socketio.emit("update_tags", {"tags": tags})
+        return jsonify({"tags": tags})
+    except Exception as e:
+        print(f"Error in /api/tags: {e}")
+        return jsonify({"error": str(e)}), 500

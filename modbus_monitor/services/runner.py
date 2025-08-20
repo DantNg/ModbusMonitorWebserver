@@ -9,12 +9,15 @@ from modbus_monitor.services.alarm_service import AlarmService
 from modbus_monitor.services.datalogger_service import DataLoggerService
 
 # Singleton đơn giản
-_cache: LatestCache | None = None
-_dbq: Queue | None = None
-_writer: DBWriter | None = None
-_modbus: ModbusService | None = None
-_alarm: AlarmService | None = None
-_logger: DataLoggerService | None = None
+from typing import Optional
+
+_cache: Optional[LatestCache] = None
+_dbq: Optional[Queue] = None
+_writer: Optional[DBWriter] = None
+_modbus: Optional[ModbusService] = None
+_alarm: Optional[AlarmService] = None
+_logger: Optional[DataLoggerService] = None
+
 _started = False
 _lock = threading.RLock()
 

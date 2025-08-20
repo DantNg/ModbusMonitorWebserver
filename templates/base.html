@@ -44,7 +44,10 @@
       <a class="side-link {{ 'active' if request.path.startswith('/data-logger-settings') else '' }}"
         href="{{ url_for('logger_settings_bp.datalogger_settings') }}"><span class="icon"></span> Data Logger
         Setting</a>
-
+      <div class="side-section">User Management</div>
+      <a class="side-link {{ 'active' if request.path.startswith('/user-management') else '' }}"
+        href="{{ url_for('auth_bp.user_management') }}"><span class="icon"></span> User</a>
+      <a class="side-link" href="{{ url_for('auth_bp.logout') }}"><span class="icon"></span>Logout</a>
     </nav>
     <div class="mt-auto small text-muted px-3 pb-3">©Modbus Monitor 2025</div>
   </aside>
@@ -60,6 +63,7 @@
         <!-- Nút chuyển theme -->
         <button id="themeToggle" class="btn btn-sm btn-outline-secondary" aria-label="Toggle theme">🌙</button>
       </div>
+
     </header>
 
     <!-- Page -->

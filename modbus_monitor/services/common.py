@@ -1,3 +1,15 @@
+"""
+Module providing a thread-safe cache for storing the latest timestamped values associated with tag IDs.
+Classes:
+    LatestCache: 
+        A thread-safe cache for storing and retrieving the latest value and timestamp for each tag ID.
+        - Uses a reentrant lock (RLock) to ensure safe concurrent access.
+        - Stores data as a dictionary mapping tag IDs (int) to a tuple of (timestamp, value).
+        - Provides methods to set a value, get a value for a single tag ID, and get values for multiple tag IDs.
+Functions:
+    utc_now():
+        Returns the current UTC datetime with timezone information.
+"""
 from __future__ import annotations
 import threading
 from datetime import datetime, timezone

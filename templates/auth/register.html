@@ -1,0 +1,32 @@
+{% extends "auth_base.html" %}
+{% set page_title = "Register" %}
+{% block content %}
+<div class="d-flex justify-content-center align-items-center vh-100">
+  <div class="card shadow border-0" style="width: 380px; border-radius: 16px;">
+    <div class="card-header text-center text-white"
+         style="background: linear-gradient(135deg, #4e73df, #1cc88a); border-radius: 16px 16px 0 0;">
+      <h4 class="fw-bold my-2">📝 Register</h4>
+    </div>
+    <div class="card-body p-4">
+      <form method="post" action="{{ url_for('auth_bp.register') }}">
+        <div class="mb-3">
+          <label for="username" class="form-label">Username</label>
+          <input type="text" class="form-control" id="username" name="username" required>
+        </div>
+        <div class="mb-3">
+          <label for="email" class="form-label">Email Address</label>
+          <input type="email" class="form-control" id="email" name="email" required>
+        </div>
+        <div class="mb-3">
+          <label for="password" class="form-label">Password</label>
+          <input type="password" class="form-control" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 fw-semibold">Register</button>
+      </form>
+    </div>
+    <div class="card-footer text-center small text-muted">
+      <a href="{{ url_for('auth_bp.login') }}" class="text-primary fw-bold">Back to Login</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
