@@ -1,25 +1,9 @@
-# Delete a single alarm event by id
-def delete_alarm_event_row(eid: int) -> int:
-    with init_engine().begin() as con:
-        res = con.execute(delete(alarm_events).where(alarm_events.c.id == eid))
-        return res.rowcount
-# ----------- ALARM EVENTS (history) -----------
-def list_alarm_events():
-    """Return all alarm events, newest first."""
-    with init_engine().connect() as con:
-        rows = con.execute(select(alarm_events).order_by(alarm_events.c.ts.desc())).mappings().all()
-        return [dict(r) for r in rows]
 
-def clear_alarm_events():
-    """Delete all alarm events."""
-    with init_engine().begin() as con:
-        res = con.execute(delete(alarm_events))
-        return res.rowcount
 from ast import Dict, stmt
 from typing import Optional
 from typing import List as list
 from typing import Tuple as tuple
-from datetime import datetime
+from datetime import datetime,timedelta
 import os
 from sqlalchemy import (
     create_engine, MetaData, Table, Column, Integer, String, Float, Boolean,
@@ -159,7 +143,20 @@ def create_schema():
 def list_devices():
     with init_engine().connect() as con:
         rows = con.execute(select(devices)).mappings().all()
-        return [dict(r) for r in rows]
+        # Check device online status based on updated_at and timeout_ms
+        now = datetime.now()
+        all_devices = []
+        for r in rows:
+            updated_at = r.get("updated_at")
+            timeout_ms = r.get("timeout_ms", 2000)
+            device = dict(r)
+            if updated_at:
+                elapsed = (now - updated_at).total_seconds() * 1000
+                if elapsed > timeout_ms:
+                    device["is_online"] = False
+                    update_device_row(device["id"], {"is_online": False, "updated_at": datetime.now()})
+            all_devices.append(device)
+        return all_devices
 
 def get_device(did: int):
     with init_engine().connect() as con:
@@ -231,6 +228,24 @@ def delete_device_row(device_id: int) -> int:
         res = con.execute(delete(devices).where(devices.c.id == device_id))
         return res.rowcount
 
+def update_device_status_by_tag(tag_id,status):
+    """
+    Update the 'is_online' field for the device associated with the given tag_id.
+    A device is considered online if the tag's last_updated timestamp is within the last 60 seconds.
+    :param tag_id: ID of the tag
+    """
+    # Fetch the tag details
+    tag = get_tag(tag_id)
+    if not tag:
+        print(f"Tag with ID {tag_id} not found.")
+        return
+
+    # Fetch the device associated with the tag
+    device_id = tag.get("device_id")
+    if not device_id:
+        print(f"No device associated with tag ID {tag_id}.")
+        return
+    update_device_row(device_id, {"is_online": status, "updated_at": datetime.now()})
 # ---------- TAG ----------
 def get_tag(tag_id: int):
     with init_engine().connect() as con:
@@ -314,6 +329,25 @@ def insert_alarm_event(ts, name, level, target, value, note=""):
                 note=note
             )
         )
+
+# ----------- ALARM EVENTS (history) -----------
+def list_alarm_events():
+    """Return all alarm events, newest first."""
+    with init_engine().connect() as con:
+        rows = con.execute(select(alarm_events).order_by(alarm_events.c.ts.desc())).mappings().all()
+        return [dict(r) for r in rows]
+
+def clear_alarm_events():
+    """Delete all alarm events."""
+    with init_engine().begin() as con:
+        res = con.execute(delete(alarm_events))
+        return res.rowcount
+# Delete a single alarm event by id
+def delete_alarm_event_row(eid: int) -> int:
+    with init_engine().begin() as con:
+        res = con.execute(delete(alarm_events).where(alarm_events.c.id == eid))
+        return res.rowcount
+    
 #---------- DATA LOGGER ----------------
 def list_data_loggers():
     """Danh sách logger + số tag đính kèm."""

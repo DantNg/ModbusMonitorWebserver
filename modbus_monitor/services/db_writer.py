@@ -4,6 +4,7 @@ import threading, time
 from queue import Queue, Empty
 from typing import Tuple, List
 from datetime import datetime
+from modbus_monitor.extensions import socketio
 from modbus_monitor.database import db as dbsync
 
 class DBWriter(threading.Thread):
@@ -27,14 +28,24 @@ class DBWriter(threading.Thread):
                 pass
 
             now = time.time()
+            # print("[DBWriter] Log at", now)
             if self.buf and (len(self.buf) >= self.batch_size or (now - last) >= self.flush_every):
                 try:
                     cleaned = []
+                    data_2_FE = []
                     for tag_id, ts, value in self.buf:
                         if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
                             value = 0
                         cleaned.append((tag_id, ts, value))
+                        data_2_FE.append({
+                            "id": tag_id,
+                            "name": "tag_test",
+                            "value": value,
+                            "ts": ts.strftime("%H:%M") if ts else "--:--"
+                        })
                     dbsync.insert_tag_values_bulk(cleaned)
+                    dbsync.update_device_status_by_tag(tag_id, True)
+                    socketio.emit("update_tags", {"tags": data_2_FE})
                 finally:
                     self.buf.clear()
                     last = now

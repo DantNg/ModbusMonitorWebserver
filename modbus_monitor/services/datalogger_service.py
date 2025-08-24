@@ -1,6 +1,8 @@
 from __future__ import annotations
 import threading, time
 from typing import Dict, List, Tuple
+
+import socketio
 from modbus_monitor.database import db as dbsync
 from modbus_monitor.services.common import LatestCache, utc_now
 
@@ -44,6 +46,7 @@ class DataLoggerService(threading.Thread):
                                     rows.append((int(tid), ts, float(val)))
                         if rows:
                             dbsync.insert_tag_values_bulk(rows)
+                            socketio.emit("update_tags", {"tags": tag_ids})
                         self._next_due[lid] = now + itv
             except Exception:
                 pass

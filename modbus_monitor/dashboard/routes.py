@@ -7,6 +7,7 @@ from modbus_monitor.extensions import socketio
 
 @dashboard_bp.route("/dashboard")
 def dashboard():
+    print("Role:", session.get("role"))
     if "username" not in session:
         return redirect(url_for("auth_bp.login"))
     current_device = request.args.get("device", "__all__")
@@ -21,7 +22,8 @@ def dashboard():
     return render_template(
         "dashboard.html",
         devices=devices,
-        current_device=current_device
+        current_device=current_device,
+        role=session.get("role")
     )
 
 # Emit real-time tag updates
@@ -52,7 +54,7 @@ def api_tags():
                     "ts": ts.strftime("%H:%M") if ts else "--:--"
                 })
         
-        # print(f"Tags: {tags}")
+        print(f"Tags: {tags}")
         socketio.emit("update_tags", {"tags": tags})
         return jsonify({"tags": tags})
     except Exception as e:

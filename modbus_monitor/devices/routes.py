@@ -5,6 +5,8 @@ from modbus_monitor.database.db import (
     update_device_row, delete_device_row, get_tag, add_tag_row,
     update_tag_row, delete_tag_row
 )
+from datetime import datetime
+
 # List Devices (giữ nguyên nếu bạn đã có)
 @devices_bp.route("/devices")
 def devices():

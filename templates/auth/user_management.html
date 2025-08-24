@@ -24,11 +24,14 @@
       </thead>
       <tbody>
         {% for user in users %}
+        {% if user.role == session.get("role") %}
         <tr>
           <td class="fw-semibold">{{ loop.index }}</td> <!-- Auto-incrementing row number -->
           <td>{{ user.username }}</td>
-          <td>{% if user.role == 'admin' %}<span class="badge text-bg-success">Admin</span>{% else %}<span
-              class="badge text-bg-secondary">User</span>{% endif %}</td>
+          <td>{% if user.role == 'admin' %}
+            <span class="badge text-bg-success">Admin</span>{% else %}<span
+              class="badge text-bg-secondary">User</span>{% endif %}
+          </td>
           <td class="text-end">
             <div class="btn-group">
               <a href="{{ url_for('auth_bp.edit_user', username=user['username']) }}"
@@ -42,6 +45,7 @@
             </div>
           </td>
         </tr>
+        {% endif %}
         {% else %}
         <tr>
           <td colspan="4" class="text-center text-muted py-4">No users yet.</td>

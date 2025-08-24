@@ -39,7 +39,6 @@
       <tbody>
         {% for d in items %}
         {% set status_txt = (
-        d.status if d.status is not none else
         ('Online' if d.is_online else ('Offline' if d.is_online is not none else 'Unknown'))
         ) %}
         {% set st = (status_txt|string).lower() %}
@@ -133,5 +132,8 @@
     const proto = document.querySelector('#chooseProto input[name="protocol"]:checked')?.value || 'ModbusTCP';
     window.location.href = "{{ url_for('devices_bp.add_device') }}?protocol=" + encodeURIComponent(proto);
   }
+  setInterval(() => {
+    window.location.reload();
+  }, 10000);
 </script>
 {% endblock %}

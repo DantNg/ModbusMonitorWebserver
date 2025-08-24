@@ -32,7 +32,7 @@
 
       <a class="side-link {{ 'active' if request.path.startswith('/reports') else '' }}"
         href="{{ url_for('reports_bp.reports') }}"><span class="icon"></span> Reports</a>
-
+      {% if session.get("role") == "admin" %}
       <div class="side-section">Settings</div>
 
       <a class="side-link {{ 'active' if request.path.startswith('/devices') else '' }}"
@@ -44,6 +44,7 @@
       <a class="side-link {{ 'active' if request.path.startswith('/data-logger-settings') else '' }}"
         href="{{ url_for('logger_settings_bp.datalogger_settings') }}"><span class="icon"></span> Data Logger
         Setting</a>
+      {% endif %}
       <div class="side-section">User Management</div>
       <a class="side-link {{ 'active' if request.path.startswith('/user-management') else '' }}"
         href="{{ url_for('auth_bp.user_management') }}"><span class="icon"></span> User</a>

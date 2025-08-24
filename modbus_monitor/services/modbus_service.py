@@ -223,7 +223,8 @@ class _DeviceReader:
             val = self._extract(regs, 0, dt, scale, offs)
             self.cache.set(int(t["id"]), ts, val)
             self.dbq.put((int(t["id"]), ts, float(val)))
-            print(f"Tag {t['name']} (ID: {t['id']}) value: {val} at {ts}")
+            # print("v")
+            # print(f"Tag {t['name']} (ID: {t['id']}) value: {val} at {ts}")
             try:
                 pass
             except Exception:
@@ -250,10 +251,10 @@ class ModbusService:
         self._t_tcp.join(timeout=3)
         self._t_rtu.join(timeout=3)
         
-    def _get_device_interval(self, device_id: int) -> int:
+    def _get_device_interval(self, device_id: int) -> float:
         tag_logger_map = dbsync.get_tag_logger_map(device_id)
         intervals = [v["interval_sec"] for v in tag_logger_map.values()]
-        return min(intervals) if intervals else 5
+        return min(intervals) if intervals else 1
 
     def _poll_loop(self, protocol: str):
         readers: List[_DeviceReader] = []
