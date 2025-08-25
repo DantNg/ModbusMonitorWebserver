@@ -61,8 +61,14 @@ class AlarmService(threading.Thread):
                                 send_email(
                                     to_email=to_email,
                                     subject=f"Alarm Triggered: {r.get('name', 'Alarm')}",
-                                    body=f"Alarm '{r.get('name', 'Alarm')}' triggered for device {d['name']}.\n"
-                                        f"Threshold: {th}, Value: {val}, Operator: {op}"
+                                    body=(
+                                        f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+                                        f"Tag: {r.get('name', 'Unknown')}\n"
+                                        f"Value: {val}\n"
+                                        f"High Level: {r.get('high_level', th)}\n"
+                                        f"Low Level: {r.get('low_level', '')}\n"
+                                        f"Status: {'High Alarm' if op in ('>', '>=') else 'Low Alarm'}"
+                                    )
                                 )
 
                                 # Send SMS notification

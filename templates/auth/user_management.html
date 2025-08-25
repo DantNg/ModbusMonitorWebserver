@@ -23,21 +23,26 @@
         </tr>
       </thead>
       <tbody>
+        {% set ns = namespace(index=0) %}
         {% for user in users %}
-        {% if user.role == session.get("role") %}
+        {% if session.get("role") == "admin"
+        or (session.get("role") == "user" and user.id == session.get("user_id")) %}
+
+        {% set ns.index = ns.index + 1 %}
         <tr>
-          <td class="fw-semibold">{{ loop.index }}</td> <!-- Auto-incrementing row number -->
+          <td class="fw-semibold">{{ ns.index }}</td>
           <td>{{ user.username }}</td>
-          <td>{% if user.role == 'admin' %}
-            <span class="badge text-bg-success">Admin</span>{% else %}<span
-              class="badge text-bg-secondary">User</span>{% endif %}
+          <td>
+            {% if user.role == 'admin' %}
+            <span class="badge text-bg-success">Admin</span>
+            {% else %}
+            <span class="badge text-bg-secondary">User</span>
+            {% endif %}
           </td>
           <td class="text-end">
             <div class="btn-group">
               <a href="{{ url_for('auth_bp.edit_user', username=user['username']) }}"
-                class="btn btn-sm btn-outline-secondary">
-                Edit
-              </a>
+                class="btn btn-sm btn-outline-secondary">Edit</a>
               <form method="post" action="{{ url_for('auth_bp.delete_user', username=user['username']) }}"
                 class="d-inline" onsubmit="return confirm('Delete this user?')">
                 <button class="btn btn-sm btn-outline-danger">Delete</button>
