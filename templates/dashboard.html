@@ -122,6 +122,7 @@
 
 {% block scripts %}
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
   window.App = window.App || {};
   App.changeDevice = function (deviceId) {
@@ -167,6 +168,16 @@
     });
   });
 
+  socket.on('alarm_event', function(data) {
+      Swal.fire({
+        icon: 'error',
+        title: data.title,
+        html: `<b>${data.message}</b><br>Status: ${data.status}`,
+        background: '#1e1e2d',
+        color: '#fff',
+        confirmButtonText: 'OK'
+      });
+    });
   
 
 

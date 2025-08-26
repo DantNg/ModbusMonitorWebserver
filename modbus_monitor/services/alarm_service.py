@@ -4,6 +4,7 @@ from typing import Dict, List
 from modbus_monitor.database import db as dbsync
 from modbus_monitor.services.common import LatestCache, utc_now
 from modbus_monitor.services.notification_service import *
+from modbus_monitor.extensions import socketio
 def _cmp(v: float, op: str, th: float) -> bool:
     if math.isnan(v): return False
     return {
@@ -20,7 +21,19 @@ class AlarmService(threading.Thread):
         # state lưu active để phát hiện chuyển trạng thái
         self._active: Dict[int, bool] = {}
         self._since: Dict[int, float] = {}
+    def start_send_email_thread(self, to_email, subject, body):
+        threading.Thread(
+            target=send_email,
+            args=(to_email, subject, body),
+            daemon=True
+        ).start()
 
+    def start_send_sms_thread(self, phone_number, message):
+        threading.Thread(
+            target=send_sms,
+            args=(phone_number, message),
+            daemon=True
+        ).start()
     def run(self):
         while not self._stop.is_set():
             try:
@@ -37,6 +50,7 @@ class AlarmService(threading.Thread):
                         off_s = int(r.get("off_stable_sec") or 0)
                         to_email = r.get("email")
                         to_sms = r.get("sms")
+                        # print("target email sms",to_email,to_sms)
                         rec = self.cache.get(tag_id)
                         if not rec: 
                             continue
@@ -55,27 +69,40 @@ class AlarmService(threading.Thread):
                                 r.get("level", "Critical"),
                                 r.get("target"),
                                 float(val),
-                                f"Rule {r['id']} triggered"
+                                f"Datalogger id {r['id']} triggered"
                             )
+                            socketio.emit('alarm_event', {
+                                'title': f"ALARM: '{r.get('name', 'Alarm')}'",
+                                'message': (
+                                    f"Alarm '{r.get('name', 'Alarm')}' triggered for device '{d.get('name', '')}'.\n"
+                                    f"Threshold: {th}, Value: {val}, Operator: {op}"
+                                ),
+                                'status': "On",
+                                'level': r.get('level', 'Critical'),
+                                'device': d.get('name', ''),
+                                'tag': r.get('name', 'Unknown'),
+                                'value': val,
+                                'time': utc_now().strftime('%d/%m/%Y %H:%M:%S')
+                            })
                             try:
-                                send_email(
+                                self.start_send_email_thread(
                                     to_email=to_email,
                                     subject=f"Alarm Triggered: {r.get('name', 'Alarm')}",
                                     body=(
                                         f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
-                                        f"Tag: {r.get('name', 'Unknown')}\n"
-                                        f"Value: {val}\n"
-                                        f"High Level: {r.get('high_level', th)}\n"
-                                        f"Low Level: {r.get('low_level', '')}\n"
-                                        f"Status: {'High Alarm' if op in ('>', '>=') else 'Low Alarm'}"
+                                            f"Tag: {r.get('name', 'Unknown')}\n"
+                                            f"Value: {val}\n"
+                                            f"High Level: {r.get('high_level', th)}\n"
+                                            f"Low Level: {r.get('low_level', '')}\n"
+                                            f"Status: {'High Alarm' if op in ('>', '>=') else 'Low Alarm'}"
+                                        )
                                     )
-                                )
-
-                                # Send SMS notification
-                                send_sms(
+                                self.start_send_sms_thread(
                                     phone_number=to_sms,
-                                    message=f"Alarm '{r.get('name', 'Alarm')}' triggered for device {d['name']}.\n"
-                                            f"Threshold: {th}, Value: {val}, Operator: {op}"
+                                    message=(
+                                        f"Alarm '{r.get('name', 'Alarm')}' triggered for device {d['name']}.\n"
+                                        f"Threshold: {th}, Value: {val}, Operator: {op}"
+                                    )
                                 )
                             except Exception as e:
                                 print(f"Notification error: {e}")
@@ -85,3 +112,5 @@ class AlarmService(threading.Thread):
 
     def stop(self):
         self._stop.set()
+
+    

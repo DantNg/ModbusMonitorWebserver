@@ -1,0 +1,145 @@
+{
+ "version": "auto-py-to-exe-configuration_v1",
+ "pyinstallerOptions": [
+  {
+   "optionDest": "noconfirm",
+   "value": true
+  },
+  {
+   "optionDest": "filenames",
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/app.py"
+  },
+  {
+   "optionDest": "onefile",
+   "value": true
+  },
+  {
+   "optionDest": "console",
+   "value": true
+  },
+  {
+   "optionDest": "clean_build",
+   "value": false
+  },
+  {
+   "optionDest": "strip",
+   "value": false
+  },
+  {
+   "optionDest": "noupx",
+   "value": false
+  },
+  {
+   "optionDest": "disable_windowed_traceback",
+   "value": false
+  },
+  {
+   "optionDest": "uac_admin",
+   "value": false
+  },
+  {
+   "optionDest": "uac_uiaccess",
+   "value": false
+  },
+  {
+   "optionDest": "argv_emulation",
+   "value": false
+  },
+  {
+   "optionDest": "bootloader_ignore_signals",
+   "value": false
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/modbus_monitor;modbus_monitor/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/templates;templates/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/static;static/"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "eventlet.hubs.epolls"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "eventlet.hubs.kqueue"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "eventlet.hubs.selects"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.rdtypes.ANY"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.rdtypes.ANY.CNAME"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.rdtypes.ANY.MX"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.rdtypes.ANY.NS"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.rdtypes.ANY.PTR"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.rdtypes.ANY.SOA"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.rdtypes.ANY.TXT"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.asyncbackend"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.dnssec"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.e164"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.namedict"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.tsig"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.update"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.versioned"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.zone"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "dns.tsigkeyring"
+  }
+ ],
+ "nonPyinstallerOptions": {
+  "increaseRecursionLimit": true,
+  "manualArguments": ""
+ }
+}

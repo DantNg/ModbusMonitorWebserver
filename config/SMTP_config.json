@@ -1,4 +1,7 @@
 {
+  "MYSQL_URI":"mysql+pymysql://root:123456@127.0.0.1:3306/modbus_monitor_db",
+  "POOL_SIZE": 8,
+  "SECRET_KEY":"modbus_monitor_secret_key",
   "SMTPSettings": {
     "Host": "smtp.gmail.com",
     "Port": 587,

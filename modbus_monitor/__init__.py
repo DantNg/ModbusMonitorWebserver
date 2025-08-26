@@ -6,23 +6,25 @@ from .reports import reports_bp
 from .logger_settings import logger_settings_bp
 from .auth import auth_bp
 from .database.db import init_engine, create_schema
-from dotenv import load_dotenv
 import os
 import asyncio
 import logging, sys
 from .extensions import socketio
+import json
+
+
 # logging.basicConfig(
 #     level=logging.INFO,
 #     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 #     handlers=[logging.StreamHandler(sys.stdout)]
 # )
-
 def create_app():
     app = Flask(__name__, template_folder="../templates", static_folder="../static")
     init_engine()
     create_schema()
-    load_dotenv()
-    app.secret_key = os.getenv("SECRET_KEY")
+    with open("config/SMTP_config.json") as config_file:
+        config = json.load(config_file)
+    app.secret_key = config.get("SECRET_KEY")
 
     # Đăng ký các blueprint
     app.register_blueprint(auth_bp,url_prefix="/auth")

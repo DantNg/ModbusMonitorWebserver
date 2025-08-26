@@ -224,7 +224,7 @@ class _DeviceReader:
             self.cache.set(int(t["id"]), ts, val)
             self.dbq.put((int(t["id"]), ts, float(val)))
             # print("v")
-            # print(f"Tag {t['name']} (ID: {t['id']}) value: {val} at {ts}")
+            print(f"Tag {t['name']} (ID: {t['id']}) value: {val} at {ts}")
             try:
                 pass
             except Exception:

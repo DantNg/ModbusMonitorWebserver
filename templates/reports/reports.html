@@ -11,7 +11,7 @@
         <label class="small text-muted mb-1">Data Logger</label>
         <select class="form-select" name="logger" onchange="this.form.submit()">
           {% for lg in loggers %}
-          <option value="{{ lg.id }}" {{ 'selected' if lg.id == current_logger_id else '' }}>
+          <option value="{{ lg.id }}" {{ 'selected' if lg.id==current_logger_id else '' }}>
             {{ lg.name }}
           </option>
           {% endfor %}
@@ -43,8 +43,7 @@
       </div>
 
       <div class="btn-group">
-        <button type="button" class="btn btn-outline-secondary" onclick="exportCSV()">Export CSV</button>
-        <button type="button" class="btn btn-outline-secondary" onclick="exportCSV('xlsx')">Export XLSX</button>
+        <button type="button" class="btn btn-primary" onclick="exportReport('xlsx')">Export XLSX</button>
       </div>
     </div>
   </div>
@@ -86,7 +85,8 @@
     <div>Tip: Use Export → open with Excel</div>
   </div>
 </div>
-
+<!-- thêm thư viện XLSX -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   // Lọc nhanh client-side
   function filterRows(q) {
@@ -97,36 +97,49 @@
     });
   }
 
-  // Xuất CSV (hoặc .xlsx đổi đuôi)
-  function exportCSV(kind) {
+
+  function exportReport(kind) {
     const rows = [];
+    const currentLoggerName = document.querySelector('select[name="logger"] option:checked').textContent;
+    const fromDate = document.querySelector('input[name="from"]').value;
+    const toDate = document.querySelector('input[name="to"]').value;
+    // ==== Thêm dòng tiêu đề bảng và thời gian ====
+    rows.push(["DATALOGGER TRUY VẤN", currentLoggerName]);
+    rows.push(["FROM DATE:", fromDate]);
+    rows.push(["TO DATE:", toDate]);
+    rows.push([]);
+    rows.push([]);
+    rows.push([]);
+
+    // ==== Header ====
     const header = [];
     document.querySelectorAll('#tbl thead th').forEach(th => header.push(th.textContent.trim()));
     rows.push(header);
 
+    // ==== Data ====
     document.querySelectorAll('#tbl tbody tr').forEach(tr => {
       if (tr.style.display === 'none') return; // tôn trọng filter
       const tds = [...tr.querySelectorAll('td')];
       if (tds.length === 0) return;
-      rows.push(tds.map(td => {
-        const v = (td.textContent || '').trim();
-        // CSV escape
-        if (v.includes(',') || v.includes('"')) {
-          return '"' + v.replace(/"/g, '""') + '"';
-        }
-        return v;
-      }).join(','));
+      rows.push(tds.map(td => (td.textContent || '').trim()));
     });
 
-    const csv = rows.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = Object.assign(document.createElement('a'), {
-      href: url,
-      download: `report_{{ current_logger_name|replace(' ','_') }}.{{ 'xlsx' if kind == 'xlsx' else 'csv' }}`
-    });
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+    if (kind === 'xlsx') {
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Report");
+      XLSX.writeFile(wb, `report_{{ current_logger_name|replace(' ','_') }}.xlsx`);
+    } else {
+      const csv = rows.map(r => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `report_{{ current_logger_name|replace(' ','_') }}.csv`
+      });
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }
   }
 </script>
 

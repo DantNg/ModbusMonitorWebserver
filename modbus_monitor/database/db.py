@@ -10,7 +10,7 @@ from sqlalchemy import (
     DateTime, Enum, ForeignKey, select, insert, update, delete, func,cast,and_, asc
 )
 from sqlalchemy.engine import Engine
-from dotenv import load_dotenv
+import json
 from datetime import datetime
 # ---------- Singleton Engine ----------
 _engine: Optional[Engine] = None
@@ -21,9 +21,10 @@ def init_engine():
     global _engine
     if _engine is not None:
         return _engine
-    load_dotenv()
-    uri = os.getenv("MYSQL_URI", "mysql+pymysql://root:123456@localhost:3306/modbus_monitor_db")
-    pool_size = int(os.getenv("POOL_SIZE", "8"))
+    with open("config/SMTP_config.json") as config_file:
+        config = json.load(config_file)
+    uri = config.get("MYSQL_URI", "mysql+pymysql://root:123456@localhost:3306/modbus_monitor_db")
+    pool_size = int(config.get("POOL_SIZE", "8"))
     _engine = create_engine(
         uri,
         pool_pre_ping=True,
@@ -306,6 +307,8 @@ def list_alarm_rules_for_device(device_id: int):
                 alarm_rules.c.off_stable_sec,
                 alarm_rules.c.enabled,
                 alarm_rules.c.level,
+                alarm_rules.c.email,
+                alarm_rules.c.sms
             )
             .select_from(
                 alarm_rules.join(

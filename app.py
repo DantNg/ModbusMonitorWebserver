@@ -1,22 +1,25 @@
 import eventlet
 eventlet.monkey_patch()
-import logging,os,sys
+
+import os
 from flask import redirect, url_for
-from modbus_monitor import create_app, socketio
-from modbus_monitor.services.runner import start_services
+from modbus_monitor import create_app
 from modbus_monitor.extensions import socketio
+from modbus_monitor.services.runner import start_services
+
 app = create_app()
 
 @app.route("/")
 def root():
     print("Start login")
     return redirect(url_for("auth_bp.login"))
+
 if __name__ == "__main__":
     try:
-        if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-            start_services()
-            # app.logger.info("Services started (Modbus/Alarm/DataLogger).")
+        # Luôn start services trong production
+        start_services()
 
-        socketio.run(app, debug=True,port=5000)
+        socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+
     except Exception as e:
         print(f"Error starting the application: {e}")
