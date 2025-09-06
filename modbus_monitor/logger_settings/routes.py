@@ -28,11 +28,11 @@ def datalogger_add():
         if not name:
             errors["name"] = "Name is required."
         try:
-            interval_sec = int(interval_sec)
+            interval_sec = float(interval_sec)
             if interval_sec <= 0:
                 errors["interval_sec"] = "Interval must be > 0."
         except Exception:
-            errors["interval_sec"] = "Interval must be integer."
+            errors["interval_sec"] = "Interval must be a valid number."
 
         # tag_ids: mảng checkbox
         tag_ids = []
@@ -77,11 +77,11 @@ def datalogger_edit(lid):
         if not name:
             errors["name"] = "Name is required."
         try:
-            interval_sec = int(interval_sec)
+            interval_sec = float(interval_sec)
             if interval_sec <= 0:
                 errors["interval_sec"] = "Interval must be > 0."
         except Exception:
-            errors["interval_sec"] = "Interval must be integer."
+            errors["interval_sec"] = "Interval must be a valid number."
 
         tag_ids = []
         for v in request.form.getlist("tag_ids"):

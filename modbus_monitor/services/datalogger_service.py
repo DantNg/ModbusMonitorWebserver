@@ -32,7 +32,7 @@ class DataLoggerService(threading.Thread):
                 for l in (dbsync.list_data_loggers() or []):
                     if not l.get("enabled", True): continue
                     lid = int(l["id"])
-                    itv = max(1, int(l.get("interval_sec") or 60))
+                    itv = max(0.1, float(l.get("interval_sec") or 60))
                     due = self._next_due.get(lid, now + 0.1)
                     if now >= due:
                         tag_ids = dbsync.list_data_logger_tags(lid) or []

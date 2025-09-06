@@ -336,3 +336,49 @@ def delete_tag(did, tid):
     delete_tag_row(tid)
     flash("Tag deleted.", "success")
     return redirect(url_for("devices_bp.device_detail", did=did))
+
+@devices_bp.route("/devices/<int:did>/tags/<int:tid>/write", methods=["POST"])
+def write_tag(did, tid):
+    """Write a value to a specific tag."""
+    from modbus_monitor.services import runner
+    
+    tag = get_tag(tid)
+    if not tag or tag["device_id"] != did:
+        return {"success": False, "error": "Tag not found"}, 404
+    
+    try:
+        value = float(request.form.get("value") or request.json.get("value", 0))
+    except (ValueError, TypeError):
+        return {"success": False, "error": "Invalid value format"}, 400
+    
+    success = runner.write_tag_value(tid, value)
+    
+    if success:
+        return {"success": True, "message": f"Successfully wrote {value} to {tag['name']}"}
+    else:
+        return {"success": False, "error": "Failed to write to tag"}, 500
+
+@devices_bp.route("/api/tags/<int:tid>/write", methods=["POST"])
+def api_write_tag(tid):
+    """API endpoint to write a value to a tag (accepts JSON)."""
+    from modbus_monitor.services import runner
+    
+    tag = get_tag(tid)
+    if not tag:
+        return {"success": False, "error": "Tag not found"}, 404
+    
+    data = request.get_json()
+    if not data or "value" not in data:
+        return {"success": False, "error": "Value is required"}, 400
+    
+    try:
+        value = float(data["value"])
+    except (ValueError, TypeError):
+        return {"success": False, "error": "Invalid value format"}, 400
+    
+    success = runner.write_tag_value(tid, value)
+    
+    if success:
+        return {"success": True, "message": f"Successfully wrote {value} to {tag['name']}", "tag_name": tag['name']}
+    else:
+        return {"success": False, "error": "Failed to write to tag"}, 500

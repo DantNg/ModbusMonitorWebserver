@@ -10,8 +10,8 @@ from pymodbus.exceptions import ModbusException
 # ===================== CẤU HÌNH =====================
 GATEWAY_HOST = "127.0.0.1"
 GATEWAY_PORT = 502
-NUM_UNITS     = 100       # device_id 1..50
-INTERVAL_SEC  = 0.2      # chu kỳ đọc mỗi thiết bị (ví dụ 0.2s nếu muốn nhanh)
+NUM_UNITS     = 30       # device_id 1..50
+INTERVAL_SEC  = 1      # chu kỳ đọc mỗi thiết bị (ví dụ 0.2s nếu muốn nhanh)
 TIMEOUT_SEC   = 0.5      # timeout mỗi lần đọc (đặt < INTERVAL_SEC)
 READ_COUNT    = 6        # số thanh ghi đọc mỗi lần (giảm để nhanh hơn)
 
@@ -65,10 +65,10 @@ INDEX_HTML = """<!doctype html>
 </head>
 <body>
   <div class="wrap">
-    <h1>Modbus Live Dashboard — 100 units on {{host}}:{{port}}</h1>
+    <h1>Modbus Live Dashboard — 30 units on {{host}}:{{port}}</h1>
     <div class="grid" id="cards">
       <script>
-        for (let u = 1; u <= 100; u++) {
+        for (let u = 1; u <= 30; u++) {
           document.write(`
             <div class="card" id="card-dev${u}">
               <div class="title">
@@ -172,7 +172,7 @@ def reader(dev: Device, start_epoch: float, barrier: threading.Barrier):
             try:
                 # API theo bạn cung cấp: device_id=
                 rr = client.read_holding_registers(
-                    0, count=READ_COUNT, device_id=dev.device_id
+                    0, count=READ_COUNT, slave              =dev.device_id
                 )
                 if rr.isError():
                     err = str(rr)
@@ -248,4 +248,4 @@ def start_poller():
 if __name__ == "__main__":
     start_poller()
     # Lưu ý: với nhiều thread + SocketIO, để production hãy cân nhắc Redis message_queue
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)

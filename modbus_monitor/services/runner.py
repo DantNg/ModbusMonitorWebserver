@@ -48,6 +48,21 @@ def stop_services():
             if _writer: _writer.stop()
         _started = False
 
+def write_tag_value(tag_id: int, value: float) -> bool:
+    """
+    Global function to write a value to a tag.
+    Returns True if successful, False otherwise.
+    """
+    global _modbus
+    if not _modbus:
+        print("Modbus service not started")
+        return False
+    return _modbus.write_tag_value(tag_id, value)
+
+def get_modbus_service():
+    """Get the ModbusService instance for direct access."""
+    return _modbus
+
 # tiện cho UI kiểm tra nhanh
 def services_status():
     return {

@@ -67,6 +67,7 @@
               <th>Scale</th>
               <th>Offset</th>
               <th>Description</th>
+              <th>Write Value</th>
               <th class="text-end" style="width:160px;">Actions</th>
             </tr>
           </thead>
@@ -80,6 +81,14 @@
               <td>{{ t.scale }}</td>
               <td>{{ t.offset }}</td>
               <td class="text-muted">{{ t.description or "—" }}</td>
+              <td>
+                <div class="input-group input-group-sm" style="width: 150px;">
+                  <input type="number" step="any" class="form-control" id="writeValue{{t.id}}" placeholder="Value">
+                  <button class="btn btn-outline-success" type="button" onclick="writeTag({{ t.id }}, '{{ t.name }}')">
+                    <i class="bi bi-arrow-down-circle"></i> Write
+                  </button>
+                </div>
+              </td>
               <td class="text-end">
                 <div class="btn-group">
                   <a class="btn btn-sm btn-outline-secondary"
@@ -93,7 +102,7 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="8" class="text-center text-muted py-4">No tags yet.</td>
+              <td colspan="9" class="text-center text-muted py-4">No tags yet.</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -104,4 +113,50 @@
 
 
 </div>
+
+<script>
+function writeTag(tagId, tagName) {
+  const valueInput = document.getElementById(`writeValue${tagId}`);
+  const value = valueInput.value;
+  
+  if (value === '') {
+    alert('Please enter a value to write');
+    return;
+  }
+  
+  // Disable button during write
+  const button = event.target;
+  const originalText = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+  
+  fetch(`/api/tags/${tagId}/write`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      value: parseFloat(value)
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert(`Successfully wrote ${value} to ${tagName}`);
+      valueInput.value = ''; // Clear the input
+    } else {
+      alert(`Failed to write to ${tagName}: ${data.error}`);
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert(`Error writing to ${tagName}: ${error.message}`);
+  })
+  .finally(() => {
+    // Re-enable button
+    button.disabled = false;
+    button.innerHTML = originalText;
+  });
+}
+</script>
 {% endblock %}

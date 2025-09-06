@@ -126,7 +126,7 @@ data_loggers = Table(
     "data_loggers", _md,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("name", String(120), nullable=False),
-    Column("interval_sec", Integer, nullable=False, default=60),
+    Column("interval_sec", Float, nullable=False, default=1.0),  # chu kỳ ghi dữ liệu
     Column("enabled", Boolean, default=True),
     Column("description", String(255)),
     Column("created_at", DateTime, server_default=func.now()),
@@ -714,6 +714,15 @@ def get_subdashboard_tags(sid: int):
 def list_subdash_groups():
     with init_engine().connect() as con:
         return con.execute(select(subdash_tag_groups)).mappings().all()
+
+def list_subdash_groups_for_dashboard(dashboard_id: int):
+    """Get all groups for a specific subdashboard."""
+    with init_engine().connect() as con:
+        return con.execute(
+            select(subdash_tag_groups)
+            .where(subdash_tag_groups.c.dashboard_id == dashboard_id)
+            .order_by(subdash_tag_groups.c.order.asc(), subdash_tag_groups.c.name.asc())
+        ).mappings().all()
 
 def add_subdash_group(data: dict):
     with init_engine().begin() as con:

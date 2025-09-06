@@ -1,4 +1,4 @@
-from flask import jsonify, render_template, request, redirect, url_for
+from flask import jsonify, render_template, request, redirect, url_for, flash
 from . import subdash_bp
 from datetime import datetime,timedelta
 from modbus_monitor.database import db
@@ -26,9 +26,14 @@ def subdash_detail(sid):
     subdash = db.get_subdashboard(sid) if hasattr(db, "get_subdashboard") else {"id": sid, "name": "Demo"}
     tags = db.get_subdashboard_tags(sid) if hasattr(db, "get_subdashboard_tags") else []
     all_tags = db.list_all_tags() if hasattr(db, "list_all_tags") else []
-    groups = db.list_subdash_groups() if hasattr(db, "list_subdash_groups") else []
+    
+    # Get groups for this specific subdashboard
+    if hasattr(db, "list_subdash_groups_for_dashboard"):
+        groups = [dict(g) for g in db.list_subdash_groups_for_dashboard(sid)]
+    else:
+        groups = []
+    
     print("G: ",groups)
-    groups = [dict(g) for g in groups]
     for g in groups:
         g["tags"] = db.get_tags_of_group(g["id"])
     return render_template("subdashboards/detail.html", subdash=subdash, tags=tags, all_tags=all_tags, groups=groups)
@@ -58,6 +63,34 @@ def add_group_to_subdash(sid):
                 [{"group_id": group_id, "tag_id": int(tid)} for tid in tag_ids]
             )
     return redirect(url_for("subdash_bp.subdash_detail", sid=sid))
+
+@subdash_bp.route("/<int:sid>/groups/<int:gid>/delete", methods=["POST"])
+def delete_group(sid, gid):
+    """Delete a specific group and all its tag associations."""
+    try:
+        # First check if the group exists and belongs to this subdashboard
+        group = db.get_subdash_group(gid)
+        if not group or group["dashboard_id"] != sid:
+            return {"success": False, "error": "Group not found or doesn't belong to this dashboard"}, 404
+        
+        # Delete the group (this will cascade to delete group_tags due to ON DELETE CASCADE)
+        db.delete_subdash_group(gid)
+        
+        # If this is an AJAX request, return JSON
+        if request.headers.get('Content-Type') == 'application/json' or request.args.get('ajax') == '1':
+            return {"success": True, "message": f"Group '{group['name']}' deleted successfully"}
+        
+        # Otherwise add flash message and redirect back to the subdashboard
+        flash(f"Group '{group['name']}' deleted successfully.", "success")
+        return redirect(url_for("subdash_bp.subdash_detail", sid=sid))
+        
+    except Exception as e:
+        if request.headers.get('Content-Type') == 'application/json' or request.args.get('ajax') == '1':
+            return {"success": False, "error": str(e)}, 500
+        else:
+            # Add flash message and redirect for regular form submission
+            flash(f"Error deleting group: {str(e)}", "danger")
+            return redirect(url_for("subdash_bp.subdash_detail", sid=sid))
 
 from flask import jsonify
 
