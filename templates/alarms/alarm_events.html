@@ -20,11 +20,17 @@
 
   </div>
 </div>
-<div class="card border-0 shadow-sm">
-  <div class="table-responsive">
+<div class="card-flex gap-2 ms-auto">
+  <form method="post" action="{{ url_for('alarms_bp.delete_selected_alarm_events') }}"
+    onsubmit="return confirm('Delete selected?')">
+    <input type="hidden" name="ids" id="ids-input">
+    <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+    <div class="table-responsive">
+    </div>
     <table class="table align-middle mb-0" id="tbl">
       <thead class="table-dark-subtle">
         <tr>
+          <th><input type="checkbox" id="check-all" onclick="toggleAll(this)"></th>
           <th>Time</th>
           <th>Name</th>
           <th>Level</th>
@@ -36,6 +42,7 @@
       <tbody>
         {% for e in items %}
         <tr>
+          <td><input type="checkbox" name="ids" value="{{ e.id }}"></td>
           <td>{{ e.ts }}</td>
           <td>{{ e.name }}</td>
           <td><span class="badge text-bg-secondary">{{ e.level }}</span></td>
@@ -56,7 +63,8 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
+  </form>
+</div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -74,6 +82,21 @@
     });
   };
   let lastAlarmId = null;
+  let selectedIds = new Set();
+
+  function toggleSelect(id, checked) {
+    if (checked) selectedIds.add(id);
+    else selectedIds.delete(id);
+  }
+
+  function toggleAll(source) {
+    const checkboxes = document.querySelectorAll('input[name="ids"]');
+    checkboxes.forEach(cb => {
+      cb.checked = source.checked;
+      toggleSelect(cb.value, cb.checked);
+    });
+  }
+
   function fetchAlarmEvents() {
     fetch("/alarms/api/alarm-events")
       .then(res => res.json())
@@ -82,72 +105,94 @@
         if (!tbody) return;
         tbody.innerHTML = "";
         if (!data.items || data.items.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No alarm events.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No alarm events.</td></tr>`;
           return;
         }
-        // Check for new alarm
-        if (lastAlarmId !== null && data.items[0].id !== lastAlarmId) {
-          alert("New alarm event!");
-        }
-        lastAlarmId = data.items[0].id;
+
         data.items.forEach(e => {
+          const checked = selectedIds.has(String(e.id)) ? "checked" : "";
           const row = document.createElement("tr");
           row.innerHTML = `
+          <td><input type="checkbox" name="ids" value="${e.id}" ${checked} onchange="toggleSelect(this.value,this.checked)"></td>
           <td>${e.ts}</td>
           <td>${e.name}</td>
           <td><span class="badge text-bg-secondary">${e.level}</span></td>
           <td>${e.target}</td>
           <td>${e.value}</td>
           <td>${e.note}</td>
-          <td class="text-end">
-            <form method="post" action="/alarms/events/${e.id}/delete" style="display:inline;" onsubmit="return confirm('Delete this event?')">
-              <button class="btn btn-sm btn-outline-danger">Delete</button>
-            </form>
-          </td>
+         
         `;
           tbody.appendChild(row);
         });
       });
   }
   fetchAlarmEvents();
-  setInterval(fetchAlarmEvents, 3000);
-  function exportAlarms() {
+  // setInterval(fetchAlarmEvents, 3000);
+  function toggleAll(source) {
+    const checkboxes = document.querySelectorAll('input[name="ids"]');
+    checkboxes.forEach(cb => cb.checked = source.checked);
+  }
+  document.querySelector('form[action*="delete-selected"]').addEventListener('submit', function (e) {
+    document.getElementById('ids-input').value = Array.from(selectedIds).join(",");
+  });
+
+  async function exportAlarms() {
     const rows = [];
 
-    // ==== Thêm tiêu đề & thời gian (nếu có input from/to) ====
+    // ==== Lấy data từ API báo cáo (đã gộp incoming/outgoing) ====
+    const res = await fetch("/alarms/api/alarm-report");
+    const data = await res.json();
+    if (!data.items || data.items.length === 0) {
+      alert("Không có dữ liệu alarm để xuất!");
+      return;
+    }
+
+    // ==== Tiêu đề & khoảng thời gian ====
     const fromDate = document.querySelector('input[name="from"]')?.value || "";
     const toDate = document.querySelector('input[name="to"]')?.value || "";
 
-    rows.push(["BẢNG ALARM EVENTS"]);
+    rows.push(["BẢNG ALARM REPORT"]);
     if (fromDate || toDate) {
       rows.push(["FROM DATE:", fromDate]);
       rows.push(["TO DATE:", toDate]);
     }
     rows.push([]);
     rows.push([]);
-    rows.push([]);
 
-    // ==== Header ====
-    const header = [];
-    document.querySelectorAll('#tbl thead th').forEach(th => header.push(th.textContent.trim()));
-    rows.push(header);
+    // ==== Header chuẩn theo yêu cầu khách ====
+    rows.push([
+      "Acknowledge",
+      "Alarm code",
+      "Level Alarm",
+      "INCOMING DATE",
+      "INCOMING VALUE",
+      "OUTGOING DATE",
+      "OUTGOING VALUE",
+      "MODE COMPARE",
+      "VALUE COMPARE"
+    ]);
 
     // ==== Data ====
-    document.querySelectorAll('#tbl tbody tr').forEach(tr => {
-      if (tr.style.display === 'none') return; // bỏ filter
-      const tds = [...tr.querySelectorAll('td')];
-      if (tds.length === 0) return;
-
-      // chỉ lấy 6 cột đầu (bỏ cột chứa nút Delete)
-      const data = tds.slice(0, 6).map(td => (td.textContent || '').trim());
-      rows.push(data);
+    data.items.forEach(e => {
+      rows.push([
+        e.acknowledged ? "Yes" : "No",
+        e.code || "",
+        e.level || "",
+        e.incoming_date || "",
+        e.incoming_value ?? "",
+        e.outgoing_date || "",
+        e.outgoing_value ?? "",
+        e.operator || "",
+        e.threshold ?? ""
+      ]);
     });
 
     // ==== Xuất Excel ====
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Alarms");
-    XLSX.writeFile(wb, `alarms_report.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Alarm Report");
+    XLSX.writeFile(wb, `alarm_report.xlsx`);
   }
+
 </script>
 {% endblock %}

@@ -41,12 +41,12 @@
         <div class="col-12">
           <label class="form-label">Alarm Code *</label>
           <input name="code" class="form-control" value="{{ form.code or '' }}">
-          <label>Alarm Level</label>
+          <!-- <label>Alarm Level</label>
           <select name="level" class="form-select">
             {% for lv in ['Low','Medium','High','Critical'] %}
             <option value="{{ lv }}" {{ 'selected' if form.level==lv else '' }}>{{ lv }}</option>
             {% endfor %}
-          </select>
+          </select> -->
         </div>
 
         <!-- Display Name -->

@@ -6,12 +6,14 @@ from datetime import datetime
 from modbus_monitor.database import db as dbsync
 from modbus_monitor.services.common import LatestCache, utc_now
 from pymodbus.exceptions import ModbusIOException
-
+import asyncio
 import struct
 # pymodbus sync
 from pymodbus.client import ModbusTcpClient, ModbusSerialClient
 from pymodbus.exceptions import ModbusIOException
 from pymodbus.exceptions import ConnectionException
+import socketio
+
 def _apply_sf(raw: float, scale: float, offset: float) -> float:
     return raw * (scale or 1.0) + (offset or 0.0)
 
@@ -19,7 +21,6 @@ def _unpack_u32(lo: int, hi: int, word_order: str) -> int:
     return ((hi << 16) | lo) if (word_order or "AB") == "AB" else ((lo << 16) | hi)
 
 def _unpack_float(lo: int, hi: int, byte_order: str, word_order: str) -> float:
-    import struct
     w1, w2 = (hi, lo) if (word_order or "AB") == "AB" else (lo, hi)
     b1 = w1.to_bytes(2, "big")
     b2 = w2.to_bytes(2, "big")
@@ -29,9 +30,10 @@ def _unpack_float(lo: int, hi: int, byte_order: str, word_order: str) -> float:
     return struct.unpack(">f", b)[0]
 
 class _DeviceReader:
-    def __init__(self, dev_row: Dict, db_queue: Queue, cache: LatestCache):
+    def __init__(self, dev_row: Dict, db_queue: Queue, push_queue: Queue, cache: LatestCache):
         self.d = dev_row
         self.dbq = db_queue
+        self.pushq = push_queue
         self.cache = cache
         self.client = None
         self.byte_order = self.d.get("byte_order") or "BigEndian"
@@ -69,6 +71,7 @@ class _DeviceReader:
             return False
         ok = self._connect()
         if not ok:
+            self._connected = True
             self._backoff = min(self._backoff * 2.0, 20.0)
             self._next_retry_ts = now + min(self._backoff, 5.0)
         else:
@@ -116,7 +119,7 @@ class _DeviceReader:
                     # print("Client is not connected, attempting to connect...")
                     if not self._ensure_connected():
                         raise ConnectionException("Failed to connect to Modbus client")
-                rr = self.client.read_holding_registers(start_read_byte, count, slave=int(self.d["unit_id"]))
+                rr = self.client.read_holding_registers(start_read_byte, count=count, slave=int(self.d["unit_id"]))
             else:
                 raise ValueError("Unsupported protocol: {}".format(self.d["protocol"]))
 
@@ -126,7 +129,7 @@ class _DeviceReader:
             return rr.registers
 
         except (ConnectionException, ModbusIOException, IOError) as e:
-            print("Modbus read error:", e)
+            # print("Modbus read error:", e)
             self._close()
             # thay nan bằng None để MySQL không lỗi
             return [None] * count  
@@ -196,7 +199,9 @@ class _DeviceReader:
                 # Datatype chưa biết → trả NaN để UI thấy rõ
                 return math.nan
 
-            return val * (scale or 1.0) + (offs or 0.0)
+            val = val * (scale or 1.0) + (offs or 0.0)
+            # Giới hạn số số 0 sau dấu phẩy (làm tròn đến 6 chữ số thập phân, loại bỏ số 0 dư)
+            return float(f"{val:.2f}".rstrip('0').rstrip('.') if '.' in f"{val:.2f}" else f"{val:.2f}")
 
         except Exception:
             return math.nan
@@ -224,7 +229,8 @@ class _DeviceReader:
             self.cache.set(int(t["id"]), ts, val)
             self.dbq.put((int(t["id"]), ts, float(val)))
             # print("v")
-            print(f"Tag {t['name']} (ID: {t['id']}) value: {val} at {ts}")
+            # socketio.emit("update_tags", {"tags": tag_ids})
+            # print(f"Tag {t['name']} (ID: {t['id']}) value: {val} at {ts}")
             try:
                 pass
             except Exception:
@@ -232,48 +238,41 @@ class _DeviceReader:
                 self._close()
                 break
 
+
 class ModbusService:
-    """Hai thread: 1 cho TCP, 1 cho RTU. Mỗi thread đi vòng qua các device cùng loại."""
-    def __init__(self, db_queue: Queue, cache: LatestCache):
+    """Mỗi device chạy trong 1 thread riêng, không block lẫn nhau"""
+    def __init__(self, db_queue: Queue, push_queue: Queue, cache: LatestCache):
         self.dbq = db_queue
+        self.pushq = push_queue
         self.cache = cache
         self._stop = threading.Event()
-        self._t_tcp = threading.Thread(target=self._tcp_loop, name="modbus-tcp", daemon=True)
-        self._t_rtu = threading.Thread(target=self._rtu_loop, name="modbus-rtu", daemon=True)
-        self._next_due: Dict[int, float] = {}  # device_id -> next_due timestamp
+        self._threads: Dict[int, threading.Thread] = {}
 
     def start(self):
-        self._t_tcp.start()
-        self._t_rtu.start()
+        devices = dbsync.list_devices()
+        for d in devices:
+            t = threading.Thread(target=self._device_loop, args=(d,), daemon=True)
+            t.start()
+            self._threads[d["id"]] = t
 
     def stop(self):
         self._stop.set()
-        self._t_tcp.join(timeout=3)
-        self._t_rtu.join(timeout=3)
-        
+        for t in self._threads.values():
+            t.join(timeout=1)
+
     def _get_device_interval(self, device_id: int) -> float:
         tag_logger_map = dbsync.get_tag_logger_map(device_id)
         intervals = [v["interval_sec"] for v in tag_logger_map.values()]
-        return min(intervals) if intervals else 1
+        return min(intervals) if intervals else 1.0
 
-    def _poll_loop(self, protocol: str):
-        readers: List[_DeviceReader] = []
+    def _device_loop(self, dev_row: Dict):
+        reader = _DeviceReader(dev_row,db_queue= self.dbq,push_queue= self.pushq, cache= self.cache)
+        interval = self._get_device_interval(dev_row["id"])
+
         while not self._stop.is_set():
-            devs = [d for d in dbsync.list_devices() if d["protocol"] == protocol]
-            readers = [_DeviceReader(d, self.dbq, self.cache) for d in devs]
-            now = time.time()
-            for r in readers:
-                did = r.d["id"]
-                interval = self._get_device_interval(did)
-                due = self._next_due.get(did, now)
-                if now >= due:
-                    r.loop_once()
-                    self._next_due[did] = now + interval
-            time.sleep(0.2)
-            
-    def _tcp_loop(self):
-        self._poll_loop("ModbusTCP")
+            try:
+                reader.loop_once()
+            except Exception as e:
+                print(f"[Device {dev_row['name']}] Error: {e}")
+            time.sleep(interval)
 
-    def _rtu_loop(self):
-        pass
-        self._poll_loop("ModbusRTU")

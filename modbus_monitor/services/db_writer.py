@@ -45,7 +45,7 @@ class DBWriter(threading.Thread):
                         })
                     dbsync.insert_tag_values_bulk(cleaned)
                     dbsync.update_device_status_by_tag(tag_id, True)
-                    socketio.emit("update_tags", {"tags": data_2_FE})
+                    # socketio.emit("update_tags", {"tags": data_2_FE})
                 finally:
                     self.buf.clear()
                     last = now

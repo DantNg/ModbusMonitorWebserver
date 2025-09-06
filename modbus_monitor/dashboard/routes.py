@@ -55,7 +55,7 @@ def api_tags():
                 })
         
         print(f"Tags: {tags}")
-        socketio.emit("update_tags", {"tags": tags})
+        # socketio.emit("update_tags", {"tags": tags})
         return jsonify({"tags": tags})
     except Exception as e:
         print(f"Error in /api/tags: {e}")

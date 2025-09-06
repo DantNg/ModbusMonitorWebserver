@@ -18,7 +18,7 @@ class AlarmService(threading.Thread):
         self.cache = cache
         self.period = period_sec
         self._stop = threading.Event()
-        # state lưu active để phát hiện chuyển trạng thái
+        self._state = {}    # trạng thái mở rộng: on_since/off_since
         self._active: Dict[int, bool] = {}
         self._since: Dict[int, float] = {}
     def start_send_email_thread(self, to_email, subject, body):
@@ -42,73 +42,109 @@ class AlarmService(threading.Thread):
                 for d in devs:
                     rules = dbsync.list_alarm_rules_for_device(d["id"]) or []
                     for r in rules:
-                        if not r.get("enabled", True): continue
+                        if not r.get("enabled", True):
+                            continue
+
                         tag_id = int(r["target"])
                         th = float(r.get("threshold") or 0.0)
                         op = r.get("operator") or ">"
-                        on_s  = int(r.get("on_stable_sec") or 0)
+                        on_s = int(r.get("on_stable_sec") or 0)
                         off_s = int(r.get("off_stable_sec") or 0)
                         to_email = r.get("email")
                         to_sms = r.get("sms")
-                        # print("target email sms",to_email,to_sms)
+
                         rec = self.cache.get(tag_id)
-                        if not rec: 
+                        if not rec:
                             continue
                         _, val = rec
                         cond = _cmp(float(val), op, th)
 
-                        cur_active = cond
-                        prev_active = self._active.get(r["id"], False)
-                        self._active[r["id"]] = cur_active
+                        # ---- state lưu trữ cho từng rule ----
+                        state = self._state.setdefault(r["id"], {
+                            "active": False,
+                            "on_since": None,
+                            "off_since": None
+                        })
 
-                        if cur_active and not prev_active:
-                            # Only insert when alarm transitions from inactive to active
-                            dbsync.insert_alarm_event(
-                                utc_now(),
-                                r.get("name", "Alarm"),
-                                r.get("level", "Critical"),
-                                r.get("target"),
-                                float(val),
-                                f"Datalogger id {r['id']} triggered"
-                            )
-                            socketio.emit('alarm_event', {
-                                'title': f"ALARM: '{r.get('name', 'Alarm')}'",
-                                'message': (
-                                    f"Alarm '{r.get('name', 'Alarm')}' triggered for device '{d.get('name', '')}'.\n"
-                                    f"Threshold: {th}, Value: {val}, Operator: {op}"
-                                ),
-                                'status': "On",
-                                'level': r.get('level', 'Critical'),
-                                'device': d.get('name', ''),
-                                'tag': r.get('name', 'Unknown'),
-                                'value': val,
-                                'time': utc_now().strftime('%d/%m/%Y %H:%M:%S')
-                            })
-                            try:
-                                self.start_send_email_thread(
-                                    to_email=to_email,
-                                    subject=f"Alarm Triggered: {r.get('name', 'Alarm')}",
-                                    body=(
-                                        f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
-                                            f"Tag: {r.get('name', 'Unknown')}\n"
-                                            f"Value: {val}\n"
-                                            f"High Level: {r.get('high_level', th)}\n"
-                                            f"Low Level: {r.get('low_level', '')}\n"
-                                            f"Status: {'High Alarm' if op in ('>', '>=') else 'Low Alarm'}"
-                                        )
+                        # ---- Nếu điều kiện thỏa ----
+                        if cond:
+                            state["off_since"] = None
+                            if not state["active"]:
+                                if state["on_since"] is None:
+                                    state["on_since"] = now
+                                # kiểm tra đã ổn định đủ lâu chưa
+                                if now - state["on_since"] >= on_s:
+                                    # Bật alarm
+                                    dbsync.insert_alarm_event(
+                                        utc_now(),
+                                        r.get("name", "Alarm"),
+                                        r.get("level", "Critical"),
+                                        r.get("target"),
+                                        float(val),
+                                        f"Alarm INCOMING (> {th})"
                                     )
-                                self.start_send_sms_thread(
-                                    phone_number=to_sms,
-                                    message=(
-                                        f"Alarm '{r.get('name', 'Alarm')}' triggered for device {d['name']}.\n"
-                                        f"Threshold: {th}, Value: {val}, Operator: {op}"
+                                    socketio.emit('alarm_event', {
+                                        'title': f"ALARM: '{r.get('name', 'Alarm')}'",
+                                        'message': (
+                                            f"Alarm '{r.get('name', 'Alarm')}' triggered for device '{d.get('name', '')}'.\n"
+                                            f"Threshold: {th}, Value: {val}, Operator: {op}"
+                                        ),
+                                        'status': "On",
+                                        'level': r.get('level', 'Critical'),
+                                        'device': d.get('name', ''),
+                                        'tag': r.get('name', 'Unknown'),
+                                        'value': val,
+                                        'time': utc_now().strftime('%d/%m/%Y %H:%M:%S')
+                                    })
+                                    
+                                    try:
+                                        # self.start_send_email_thread(
+                                        #     to_email=to_email,
+                                        #     subject=f"Alarm Triggered: {r.get('name', 'Alarm')}",
+                                        #     body=(
+                                        #         f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+                                        #         f"Tag: {r.get('name', 'Unknown')}\n"
+                                        #         f"Value: {val}\n"
+                                        #         f"High Level: {r.get('high_level', th)}\n"
+                                        #         f"Low Level: {r.get('low_level', '')}\n"
+                                        #         f"Status: {'High Alarm' if op in ('>', '>=') else 'Low Alarm'}"
+                                        #     )
+                                        # )
+                                        # self.start_send_sms_thread(
+                                        #     phone_number=to_sms,
+                                        #     message=(
+                                        #         f"Alarm '{r.get('name', 'Alarm')}' triggered for device {d['name']}.\n"
+                                        #         f"Threshold: {th}, Value: {val}, Operator: {op}"
+                                        #     )
+                                        # )
+                                        pass
+                                    except Exception as e:
+                                        print(f"Notification error: {e}")
+                                    state["active"] = True
+                                    
+                                state["off_since"] = None  # reset off timer
+                        else:
+                            state["on_since"] = None
+                            if state["active"]:
+                                if state["off_since"] is None:
+                                    state["off_since"] = now
+                                # đủ Off Stable Time
+                                if now - state["off_since"] >= off_s:
+                                    # Ghi nhận alarm outcome
+                                    dbsync.insert_alarm_event(
+                                        utc_now(),
+                                        r.get("name", "Alarm"),
+                                        r.get("level", "Critical"),
+                                        r.get("target"),
+                                        float(val),
+                                        f"Alarm OUTCOME (< {th})"
                                     )
-                                )
-                            except Exception as e:
-                                print(f"Notification error: {e}")
+                                    state["active"] = False
+
             except Exception as e:
                 print("AlarmService error:", e)
             time.sleep(self.period)
+
 
     def stop(self):
         self._stop.set()

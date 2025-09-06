@@ -1,6 +1,9 @@
 from flask import render_template, request, redirect, url_for, flash
+
+from modbus_monitor.database import db
 from . import alarms_bp
 from modbus_monitor.database.db import (
+    list_alarm_report,
     list_all_tags,
     list_alarm_rules, get_alarm_rule,
     add_alarm_rule_row, update_alarm_rule_row, delete_alarm_rule_row,
@@ -15,6 +18,17 @@ def delete_alarm_event(eid):
     cnt = delete_alarm_event_row(eid)
     flash("Alarm event deleted." if cnt else "Event not found.", "success" if cnt else "warning")
     return redirect(url_for("alarms_bp.alarm_events"))
+
+@alarms_bp.post("/events/delete-selected")
+def delete_selected_alarm_events():
+    ids_str = request.form.get("ids")  # "1,2,3"
+    if ids_str:
+        ids = [int(i) for i in ids_str.split(",") if i.strip()]
+        db.delete_alarm_events(ids)
+        flash(f"Deleted {len(ids)} alarm events.")
+    return redirect(url_for("alarms_bp.alarm_events"))
+
+
 # /alarms/events (history)
 @alarms_bp.route("/alarms/events")
 def alarm_events():
@@ -94,6 +108,13 @@ def delete_alarm_rule(aid):
 def alarm_settings():
     items = list_alarm_rules()
     return render_template("alarms/alarm_settings.html", items=items)
+
+
+@alarms_bp.route("/api/alarm-report")
+def alarm_report():
+    items = list_alarm_report()
+    print(items)
+    return jsonify({"items": items})
 
 # --------- helpers ----------
 def _parse_alarm_form(f):

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% set page_title = "Add Subdashboard" %}
+{% block content %}
+<form method="post">
+    <div class="mb-3">
+        <label class="form-label">Name</label>
+        <input type="text" name="name" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Description</label>
+        <input type="text" name="description" class="form-control">
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Tags</label>
+        <div class="dropdown">
+            <button class="btn btn-outline-primary dropdown-toggle w-100 text-start" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false">
+                Select tags
+            </button>
+            <ul class="dropdown-menu w-100" style="max-height:300px;overflow-y:auto;">
+                {% for tag in all_tags %}
+                <li>
+                    <label class="dropdown-item">
+                        <input type="checkbox" name="tag_ids" value="{{ tag.id }}" class="form-check-input me-2">
+                        {{ tag.tag_name }} <span class="text-muted">({{ tag.device_name }})</span>
+                    </label>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <small class="text-muted">Click to select one or more tags.</small>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Subdashboard</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<!-- Include Select2 JS and CSS from CDN -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    $(document).ready(function () {
+        $('#tag-select').select2({
+            placeholder: "Select tags",
+            width: '100%'
+        });
+    });
+</script>
+{% endblock %}

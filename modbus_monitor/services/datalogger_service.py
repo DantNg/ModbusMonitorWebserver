@@ -47,7 +47,6 @@ class DataLoggerService(threading.Thread):
                         if rows:
                             dbsync.insert_tag_values_bulk(rows)
                             print("update_tags")
-                            socketio.emit("update_tags", {"tags": tag_ids})
                         self._next_due[lid] = now + itv
             except Exception:
                 pass

@@ -22,14 +22,15 @@ _started = False
 _lock = threading.RLock()
 
 def start_services():
-    global _started, _cache, _dbq, _writer, _modbus, _alarm, _logger
+    global _started, _cache, _dbq,_pushq, _writer, _modbus, _alarm, _logger
     with _lock:
         if _started:
             return
         _cache = LatestCache()
         _dbq = Queue(maxsize=5000)
+        _pushq = Queue(maxsize=5000)
         _writer = DBWriter(_dbq); _writer.start()
-        _modbus = ModbusService(_dbq, _cache); _modbus.start()
+        _modbus = ModbusService(_dbq, _pushq,_cache); _modbus.start()
         _alarm = AlarmService(_cache); _alarm.start()
         _logger = DataLoggerService(_cache); _logger.start()
         _started = True

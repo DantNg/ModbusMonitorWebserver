@@ -117,6 +117,15 @@
   {% endif %}
   {% endfor %}
   {% endif %}
+
+
+  <div class="ms-auto d-flex gap-2 align-items-center">
+    <!-- Nút Add Subdashboard -->
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('subdash_bp.list_subdash') }}">
+      + Add Subdashboard
+    </a>
+    <div class="small text-muted">Auto refresh: 3s</div>
+  </div>
 </div>
 {% endblock %}
 
@@ -130,55 +139,58 @@
   };
   const currentDevice = "{{ current_device }}";
   const apiUrl = `/api/tags?device=${currentDevice}`;
-  const socket = io("http://127.0.0.1:5000");
+  const socket = io();
+  if (window.location.pathname.startsWith('/dashboard')) {
+    socket.emit('join', { room: 'dashboard' });
+  }
+
 
   const tagUpdateTimers = {};
   // Listen for tag updates
   socket.on("update_tags", function (data) {
-    if (!data || !data.tags) {
-      console.error("No data received");
-      return;
-    }
-    // Iterate over the received tags and update the DOM
-    data.tags.forEach(tag => {
-      // Update the value and timestamp
-      const valEl = document.getElementById('tag-val-' + tag.id);
-      if (valEl) valEl.textContent = tag.value !== null ? tag.value : '—';
+    if (!data || !data.tags) return;
 
+    data.tags.forEach(tag => {
+      const valEl = document.getElementById('tag-val-' + tag.id);
+      if (!valEl) return;
+
+      const oldVal = valEl.textContent;
+      const newVal = tag.value !== null ? String(tag.value) : '—';
+
+      // update text
+      valEl.textContent = newVal;
       const tsEl = document.getElementById('tag-ts-' + tag.id);
       if (tsEl) tsEl.textContent = tag.ts || '';
 
-      // Update the meter bar color to green
-      const barEl = document.getElementById('tag-bar-' + tag.id);
-      if (barEl) {
-        barEl.style.width = "100%";
-        barEl.style.backgroundColor = "green";
+      // chỉ sáng khi có update mới
+      if (oldVal !== newVal) {
+        const barEl = document.getElementById('tag-bar-' + tag.id);
+        if (barEl) {
+          barEl.style.width = "100%";
+          barEl.style.backgroundColor = "green";
 
-        // Clear any existing timeout for this tag
-        if (tagUpdateTimers[tag.id]) {
-          clearTimeout(tagUpdateTimers[tag.id]);
+          if (tagUpdateTimers[tag.id]) clearTimeout(tagUpdateTimers[tag.id]);
+          tagUpdateTimers[tag.id] = setTimeout(() => {
+            barEl.style.backgroundColor = "";
+            barEl.style.width = "0%"; // tắt sau 10s nếu không có update
+          }, 20000);
         }
-
-        // Set a timeout to reset the meter bar color after 10 seconds
-        tagUpdateTimers[tag.id] = setTimeout(() => {
-          barEl.style.backgroundColor = ""; // Reset to no color
-          barEl.style.width = "0%"; // Reset width
-        }, 10000); // 10 seconds
       }
     });
   });
 
-  socket.on('alarm_event', function(data) {
-      Swal.fire({
-        icon: 'error',
-        title: data.title,
-        html: `<b>${data.message}</b><br>Status: ${data.status}`,
-        background: '#1e1e2d',
-        color: '#fff',
-        confirmButtonText: 'OK'
-      });
+
+  socket.on('alarm_event', function (data) {
+    Swal.fire({
+      icon: 'error',
+      title: data.title,
+      html: `<b>${data.message}</b><br>Status: ${data.status}`,
+      background: '#1e1e2d',
+      color: '#fff',
+      confirmButtonText: 'OK'
     });
-  
+  });
+
 
 
   // Initial load
@@ -195,9 +207,7 @@
         });
       });
   }
-  // setInterval(function() {
-  //     refreshTags();
-  //   }, 100);
-  // App.startDashboard(apiUrl);
+
+
 </script>
 {% endblock %}

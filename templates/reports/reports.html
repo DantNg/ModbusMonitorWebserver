@@ -10,6 +10,9 @@
       <div class="d-flex flex-column">
         <label class="small text-muted mb-1">Data Logger</label>
         <select class="form-select" name="logger" onchange="this.form.submit()">
+          <option value="all" {{ 'selected' if current_logger_id=='all' else '' }}>
+            ALL DATALOGGERS
+          </option>
           {% for lg in loggers %}
           <option value="{{ lg.id }}" {{ 'selected' if lg.id==current_logger_id else '' }}>
             {{ lg.name }}

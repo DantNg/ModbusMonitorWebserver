@@ -1,0 +1,120 @@
+<!-- templates/index.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Modbus Live Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- socket.io client -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <style>
+    :root { --ok:#10b981; --err:#ef4444; --muted:#9ca3af; --card:#111827; --bg:#0b1020; --fg:#e5e7eb; }
+    body { background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; }
+    /* nới rộng để chứa 10 cột */
+    .wrap { max-width: 1600px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 20px; font-weight: 700; margin: 0 0 16px; }
+
+    /* 10 phần tử mỗi hàng */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(140px, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .card { background:var(--card); border-radius: 16px; padding: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.25); position: relative; overflow: hidden; }
+    .title { font-weight: 700; font-size: 14px; margin-bottom: 6px; display:flex; align-items:center; gap:8px;}
+    .pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:3px 8px; border-radius:999px; background:#1f2937; color:#d1d5db; }
+    .pill.ok { background: rgba(16,185,129,.15); color:#a7f3d0; }
+    .pill.err { background: rgba(239,68,68,.15); color:#fecaca; }
+    .meta { font-size:11px; color:#9ca3af; display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 6px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; }
+    .regs { margin-top: 6px; padding:6px; background:#0b1222; border-radius:10px; min-height: 40px; }
+    .spark { position:absolute; left:0; bottom:0; height:3px; width:0; background: linear-gradient(90deg, #22d3ee, #8b5cf6, #22c55e); transition: width .2s ease; }
+    .ts { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--muted); }
+
+    /* Nếu màn nhỏ quá vẫn giữ 10 cột, nhưng bạn có thể bật đoạn dưới để tự co về 5/3 cột khi hẹp:
+    @media (max-width: 1200px) { .grid { grid-template-columns: repeat(5, minmax(140px, 1fr)); } }
+    @media (max-width: 768px) { .grid { grid-template-columns: repeat(3, minmax(120px, 1fr)); } }
+    */
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Modbus Live Dashboard (Gateway: {{gateway.host}}:{{gateway.port}})</h1>
+    <div class="grid" id="cards">
+      {% for d in devices %}
+      <div class="card" id="card-{{d.id}}">
+        <div class="title">
+          <span>{{d.id}}</span>
+          <span class="pill" id="pill-{{d.id}}">waiting…</span>
+        </div>
+        <div class="meta">
+          <div>unit: <b>{{d.unit}}</b></div>
+          <div>interval: <b>{{'%.2f'|format(d.interval)}}</b>s</div>
+          <div>latency: <b id="lat-{{d.id}}">—</b> ms</div>
+          <div>updated: <span class="ts" id="ts-{{d.id}}">—</span></div>
+        </div>
+        <div class="regs mono" id="regs-{{d.id}}"><span class="muted">[no data]</span></div>
+        <div class="spark" id="spark-{{d.id}}"></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script>
+    const socket = io("/", { transports: ["websocket"] });
+
+    function fmtTs(t) {
+      const d = new Date(t*1000);
+      const pad = n => String(n).padStart(2,"0");
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`;
+    }
+
+    function pulse(id) {
+      const el = document.getElementById(`spark-${id}`);
+      if (!el) return;
+      el.style.width = "100%";
+      setTimeout(() => el.style.width = "0%", 180);
+    }
+
+    function setPill(id, ok, text) {
+      const el = document.getElementById(`pill-${id}`);
+      if (!el) return;
+      el.classList.remove("ok","err");
+      if (ok === true) { el.classList.add("ok"); el.textContent = "OK"; }
+      else if (ok === false) { el.classList.add("err"); el.textContent = text || "ERR"; }
+      else { el.textContent = "waiting…"; }
+    }
+
+    socket.on("connect", () => {
+      console.log("connected");
+    });
+
+    socket.on("modbus_update", (msg) => {
+      const id = msg.device_id;
+      const regsEl = document.getElementById(`regs-${id}`);
+      const tsEl = document.getElementById(`ts-${id}`);
+      const latEl = document.getElementById(`lat-${id}`);
+
+      if (msg.ok) {
+        setPill(id, true);
+        if (Array.isArray(msg.data) && msg.data.length) {
+          regsEl.textContent = msg.data.join(", ");
+        } else {
+          regsEl.textContent = "[empty]";
+        }
+      } else {
+        setPill(id, false, "ERR");
+        regsEl.textContent = msg.error || "error";
+      }
+
+      if (typeof msg.latency_ms === "number") latEl.textContent = msg.latency_ms;
+      if (typeof msg.ts === "number") tsEl.textContent = fmtTs(msg.ts);
+
+      pulse(id);
+    });
+  </script>
+</body>
+</html>

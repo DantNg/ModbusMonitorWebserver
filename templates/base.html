@@ -26,7 +26,18 @@
     <nav class="px-2">
       <a class="side-link {{ 'active' if request.path.startswith('/dashboard') or request.path == '/' else '' }}"
         href="{{ url_for('dashboard_bp.dashboard') }}"><span class="icon"></span> Dashboard</a>
-
+      {% if subdashboards %}
+      <ul class="nav flex-column ms-3">
+        {% for subdash in subdashboards %}
+        <li class="nav-item">
+          <a class="side-link {{ 'active' if request.path.startswith('/subdashboards/' ~ subdash.id|string) else '' }}"
+            href="{{ url_for('subdash_bp.subdash_detail', sid=subdash.id) }}">
+            <span class="icon"></span> {{ subdash.name }}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
       <a class="side-link {{ 'active' if request.path.startswith('/alarms') and not request.path.startswith('/settings') else '' }}"
         href="{{ url_for('alarms_bp.alarm_events') }}"><span class="icon"></span> Alarms Logger</a>
 

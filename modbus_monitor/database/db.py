@@ -96,7 +96,7 @@ alarm_rules = Table(
     Column("code", String(50)),
     Column("name", String(120)),
     Column("level", Enum("Low", "Medium", "High", "Critical"), default="High"),
-    Column("target", String(120)),          # ví dụ: "device_id.tag_id" hoặc "device_name.tag_name"
+    Column("target", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
     Column("operator", String(30)),         # >, <, >=, <=, ==, !=
     Column("threshold", String(64)),        # số hoặc "min,max"
     Column("on_stable_sec", Integer, default=0),
@@ -112,10 +112,14 @@ alarm_events = Table(
     Column("ts", DateTime, nullable=False),
     Column("name", String(120)),
     Column("level", String(20)),
-    Column("target", String(120)),
+    Column("target", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
     Column("value", Float),
     Column("note", String(255)),
+    Column("event_type", Enum("INCOMING", "OUTGOING"), nullable=False),   # mới
+    Column("operator", String(10)),                                       # mới
+    Column("threshold", Float)                                            # mới
 )
+
 
 # --- Bảng Data Logger ---
 data_loggers = Table(
@@ -135,6 +139,41 @@ data_logger_tags = Table(
     Column("logger_id", Integer, ForeignKey("data_loggers.id", ondelete="CASCADE"), primary_key=True),
     Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
 )
+
+# --- Bảng: Dashboard con ---
+dashboards = Table(
+    "dashboards", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(120), nullable=False),
+    Column("description", String(255)),
+    Column("created_at", DateTime, server_default=func.now()),
+    Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now()),
+)
+
+# Bảng nối: dashboard ↔ tag
+dashboard_tags = Table(
+    "dashboard_tags", _md,
+    Column("dashboard_id", Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+subdash_tag_groups = Table(
+    "subdash_tag_groups", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("dashboard_id", Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=False),
+    Column("name", String(120), nullable=False),   # Tên nhóm (vd: "Temperature Zone A")
+    Column("order", Integer, default=0),
+)
+
+subdash_group_tags = Table(
+    "subdash_group_tags", _md,
+    Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+
 def create_schema():
     """Tạo bảng nếu chưa có (idempotent)."""
     engine = init_engine()
@@ -350,7 +389,64 @@ def delete_alarm_event_row(eid: int) -> int:
     with init_engine().begin() as con:
         res = con.execute(delete(alarm_events).where(alarm_events.c.id == eid))
         return res.rowcount
+def delete_alarm_events(ids: list[int]) -> int:
+    with init_engine().begin() as con:
+        res = con.execute(delete(alarm_events).where(alarm_events.c.id.in_(ids)))
+        return res.rowcount 
     
+def list_alarm_report():
+    """Ghép INCOMING với OUTGOING + rule info để làm báo cáo alarm."""
+    items = []
+    with init_engine().connect() as con:
+        # Lấy tất cả event INCOMING
+        q_in = select(
+            alarm_events.c.id,
+            alarm_events.c.ts.label("incoming_date"),
+            alarm_events.c.value.label("incoming_value"),
+            alarm_events.c.target,
+            alarm_events.c.name,
+            alarm_events.c.level,
+            alarm_events.c.note
+        ).where(alarm_events.c.note.like("Alarm INCOMING%"))
+
+        incoming_rows = con.execute(q_in).mappings().all()
+
+        for inc in incoming_rows:
+            # Tìm OUTGOING sau INCOMING đó
+            q_out = select(
+                alarm_events.c.ts.label("outgoing_date"),
+                alarm_events.c.value.label("outgoing_value")
+            ).where(
+                and_(
+                    alarm_events.c.target == inc["target"],
+                    alarm_events.c.note.like("Alarm OUTCOME%"),
+                    alarm_events.c.ts > inc["incoming_date"]
+                )
+            ).order_by(alarm_events.c.ts.asc()).limit(1)
+
+            out = con.execute(q_out).mappings().first()
+
+            # Lấy rule để biết code / operator / threshold
+            q_rule = select(
+                alarm_rules.c.code,
+                alarm_rules.c.operator,
+                alarm_rules.c.threshold
+            ).where(alarm_rules.c.target == inc["target"])
+            rule = con.execute(q_rule).mappings().first()
+
+            items.append({
+                "acknowledged": False,  # sau này bạn có thể thêm cột ack
+                "code": rule["code"] if rule else "",
+                "level": inc["level"],
+                "incoming_date": inc["incoming_date"].strftime("%Y-%m-%d %H:%M:%S"),
+                "incoming_value": inc["incoming_value"],
+                "outgoing_date": out["outgoing_date"].strftime("%Y-%m-%d %H:%M:%S") if out else "",
+                "outgoing_value": out["outgoing_value"] if out else "",
+                "operator": rule["operator"] if rule else "",
+                "threshold": rule["threshold"] if rule else ""
+            })
+
+    return items
 #---------- DATA LOGGER ----------------
 def list_data_loggers():
     """Danh sách logger + số tag đính kèm."""
@@ -465,6 +561,28 @@ def get_logger_rows(logger_id: int, dt_from: datetime = None, dt_to: datetime = 
 
         return items, columns
 
+def get_all_logger_rows(dt_from, dt_to):
+    items_all = []
+    columns = ["timestamp"]
+    with init_engine().connect() as con:
+        loggers = con.execute(select(data_loggers.c.id, data_loggers.c.name)).mappings().all()
+        for lg in loggers:
+            lg_items, lg_cols = get_logger_rows(lg["id"], dt_from, dt_to)
+            # đổi tên cột tag -> "LoggerName.TagName"
+            for col in lg_cols:
+                if col == "timestamp": continue
+                new_col = f"{lg['name']}.{col}"
+                columns.append(new_col)
+                for it in lg_items:
+                    ts = it["timestamp"]
+                    row = next((x for x in items_all if x["timestamp"] == ts), None)
+                    if not row:
+                        row = {"timestamp": ts}
+                        items_all.append(row)
+                    row[new_col] = it.get(col)
+    return items_all, columns
+
+
 def get_latest_tag_value(tag_id: int):
     with init_engine().connect() as con:
         row = con.execute(
@@ -531,3 +649,99 @@ def delete_user_row(user_id: int) -> int:
     with init_engine().begin() as con:
         res = con.execute(delete(users).where(users.c.id == user_id))
         return res.rowcount
+
+### Subdashboard
+def list_subdashboards():
+    """Return all subdashboards (dashboards table)."""
+    with init_engine().connect() as con:
+        rows = con.execute(select(dashboards).order_by(dashboards.c.id.desc())).mappings().all()
+        return [dict(r) for r in rows]
+
+def add_tag_to_subdashboard(sid: int, tag_id: int):
+    with init_engine().begin() as con:
+        exists = con.execute(
+            select(dashboard_tags)
+            .where(
+                dashboard_tags.c.dashboard_id == sid,
+                dashboard_tags.c.tag_id == tag_id
+            )
+        ).first()
+        if not exists:
+            con.execute(
+                dashboard_tags.insert().values(dashboard_id=sid, tag_id=tag_id)
+            )
+        
+def add_subdashboard_row(data: dict, tag_ids: list[int] = None) -> int:
+    """Add a new subdashboard and optionally attach tags."""
+    with init_engine().begin() as con:
+        res = con.execute(insert(dashboards).values(**data))
+        new_id = res.inserted_primary_key[0]
+        if tag_ids:
+            con.execute(
+                dashboard_tags.insert(),
+                [{"dashboard_id": new_id, "tag_id": tid} for tid in tag_ids]
+            )
+        return new_id
+
+def delete_subdashboard_row(sid: int) -> int:
+    """Delete a subdashboard and its tag mappings."""
+    with init_engine().begin() as con:
+        # ON DELETE CASCADE will remove dashboard_tags
+        res = con.execute(delete(dashboards).where(dashboards.c.id == sid))
+        return res.rowcount
+    
+def get_subdashboard_tags(sid: int):
+    """
+    Trả về danh sách tag (dict) thuộc subdashboard (dashboard) có id=sid.
+    """
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(
+                tags.c.id,
+                tags.c.name,
+                tags.c.description,
+                tags.c.datatype,
+                tags.c.unit,
+                tags.c.device_id
+            )
+            .select_from(
+                dashboard_tags.join(tags, dashboard_tags.c.tag_id == tags.c.id)
+            )
+            .where(dashboard_tags.c.dashboard_id == sid)
+        ).mappings().all()
+        return [dict(r) for r in rows]
+    
+def list_subdash_groups():
+    with init_engine().connect() as con:
+        return con.execute(select(subdash_tag_groups)).mappings().all()
+
+def add_subdash_group(data: dict):
+    with init_engine().begin() as con:
+        res = con.execute(insert(subdash_tag_groups).values(**data))
+        return res.inserted_primary_key[0]
+
+def get_subdash_group(gid: int):
+    with init_engine().connect() as con:
+        return con.execute(select(subdash_tag_groups).where(subdash_tag_groups.c.id == gid)).mappings().first()
+
+def update_subdash_group(gid: int, data: dict):
+    with init_engine().begin() as con:
+        con.execute(update(subdash_tag_groups).where(subdash_tag_groups.c.id == gid).values(**data))
+
+def delete_subdash_group(gid: int):
+    with init_engine().begin() as con:
+        con.execute(delete(subdash_tag_groups).where(subdash_tag_groups.c.id == gid))
+def get_tags_of_group(group_id: int):
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(
+                tags.c.id,
+                tags.c.name,
+                tags.c.unit
+            )
+            .select_from(
+                subdash_group_tags.join(tags, subdash_group_tags.c.tag_id == tags.c.id)
+            )
+            .where(subdash_group_tags.c.group_id == group_id)
+        ).mappings().all()
+        return [dict(r) for r in rows]
