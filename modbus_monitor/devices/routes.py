@@ -57,12 +57,18 @@ def add_device():
         # Base fields
         unit_id = to_int(request.form.get("unit_id"), 1, "unit_id")
         timeout_ms = to_int(request.form.get("timeout_ms"), 2000, "timeout_ms")
+        default_function_code = to_int(request.form.get("default_function_code"), 3, "default_function_code")
+        
+        # Validate function code
+        if default_function_code not in [1, 2, 3, 4]:
+            errors["default_function_code"] = "Function code must be 1, 2, 3, or 4."
 
         data = {
             "name": name,
             "protocol": "ModbusTCP" if protocol == "ModbusTCP" else "ModbusRTU",
             "unit_id": unit_id,
             "timeout_ms": timeout_ms,
+            "default_function_code": default_function_code,
             "description": description or None,
         }
 
@@ -135,6 +141,7 @@ def add_tag(did):
         scale = request.form.get("scale") or 1.0
         offset = request.form.get("offset") or 0.0
         grp = (request.form.get("grp") or "Group1").strip()
+        function_code = request.form.get("function_code")
         description = (request.form.get("description") or "").strip() or None
 
         errors = {}
@@ -144,6 +151,17 @@ def add_tag(did):
             address = int(address)
         except Exception:
             errors["address"] = "Address must be an integer."
+        
+        # Validate function code if provided
+        if function_code:
+            try:
+                function_code = int(function_code)
+                if function_code not in [1, 2, 3, 4]:
+                    errors["function_code"] = "Function code must be 1, 2, 3, or 4."
+            except ValueError:
+                errors["function_code"] = "Function code must be a valid integer."
+        else:
+            function_code = None
 
         if errors:
             return render_template(
@@ -161,6 +179,7 @@ def add_tag(did):
             "scale": float(scale),
             "offset": float(offset),
             "grp": grp,
+            "function_code": function_code,
             "description": description,
         })
         flash("Tag added.", "success")
@@ -198,12 +217,18 @@ def edit_device(did):
 
         unit_id = to_int(request.form.get("unit_id"), 1, "unit_id")
         timeout_ms = to_int(request.form.get("timeout_ms"), 2000, "timeout_ms")
+        default_function_code = to_int(request.form.get("default_function_code"), 3, "default_function_code")
+        
+        # Validate function code
+        if default_function_code not in [1, 2, 3, 4]:
+            errors["default_function_code"] = "Function code must be 1, 2, 3, or 4."
 
         data = {
             "name": name,
             "protocol": protocol,  # không cho đổi protocol trong edit (đơn giản)
             "unit_id": unit_id,
             "timeout_ms": timeout_ms,
+            "default_function_code": default_function_code,
             "description": description or None,
         }
 

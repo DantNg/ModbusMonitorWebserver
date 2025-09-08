@@ -2,6 +2,7 @@
 {% set page_title = "Add Alarm Logger" %}
 
 {% block content %}
+
 <div class="card border-0 shadow-soft" style="max-width:860px;margin:0 auto;">
   <div class="card-header bg-transparent">
     <h5 class="card-title">{{ 'Edit Alarm' if editing else 'Add Alarm' }}</h5>
@@ -40,29 +41,25 @@
         <!-- Alarm Code -->
         <div class="col-12">
           <label class="form-label">Alarm Code *</label>
-          <input name="code" class="form-control" value="{{ form.code or '' }}">
-          <!-- <label>Alarm Level</label>
-          <select name="level" class="form-select">
-            {% for lv in ['Low','Medium','High','Critical'] %}
-            <option value="{{ lv }}" {{ 'selected' if form.level==lv else '' }}>{{ lv }}</option>
-            {% endfor %}
-          </select> -->
+          <input name="code" class="form-control" value="{{ form.get('code', '') if form else '' }}">
         </div>
 
         <!-- Display Name -->
         <div class="col-12">
           <label class="form-label">Display Name *</label>
-          <input name="name" class="form-control" placeholder="Display Name" required>
+          <input name="name" class="form-control" placeholder="Display Name" 
+                 value="{{ form.get('name', '') if form else '' }}" required>
         </div>
 
         <!-- Level -->
         <div class="col-md-6">
           <label class="form-label">Level *</label>
           <select name="level" class="form-select" required>
-            <option>Low</option>
-            <option>Medium</option>
-            <option selected>High</option>
-            <option>Critical</option>
+            {% set selected_level = form.get('level', 'High') if form else 'High' %}
+            <option {{ 'selected' if selected_level == 'Low' else '' }}>Low</option>
+            <option {{ 'selected' if selected_level == 'Medium' else '' }}>Medium</option>
+            <option {{ 'selected' if selected_level == 'High' else '' }}>High</option>
+            <option {{ 'selected' if selected_level == 'Critical' else '' }}>Critical</option>
           </select>
         </div>
 
@@ -91,11 +88,13 @@
         <!-- Stable times -->
         <div class="col-md-6">
           <label class="form-label">On Stable Time (seconds) *</label>
-          <input type="number" min="0" step="1" name="on_stable" class="form-control" value="10" required>
+          <input type="number" min="0" step="1" name="on_stable" class="form-control" 
+                 value="{{ form.get('on_stable_sec', 10) if form else 10 }}" required>
         </div>
         <div class="col-md-6">
           <label class="form-label">Off Stable Time (seconds) *</label>
-          <input type="number" min="0" step="1" name="off_stable" class="form-control" value="30" required>
+          <input type="number" min="0" step="1" name="off_stable" class="form-control" 
+                 value="{{ form.get('off_stable_sec', 30) if form else 30 }}" required>
         </div>
 
         <!-- Send to -->

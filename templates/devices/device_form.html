@@ -15,11 +15,23 @@
         <!-- Common -->
         <div class="col-md-6">
           <label class="form-label">Name *</label>
-          <input name="name" class="form-control" required>
+          <input name="name" class="form-control" value="{{ (form.name if form else '') or '' }}" required>
         </div>
         <div class="col-md-6">
           <label class="form-label">Description</label>
-          <input name="description" class="form-control">
+          <input name="description" class="form-control" value="{{ (form.description if form else '') or '' }}">
+        </div>
+
+        <!-- Function Code Selection -->
+        <div class="col-md-12">
+          <label class="form-label">Default Modbus Function Code *</label>
+          <select name="default_function_code" class="form-select" required>
+            <option value="1" {% if ((form.default_function_code if form else 3) or 3)|int == 1 %}selected{% endif %}>01 - Read Coils (Boolean outputs)</option>
+            <option value="2" {% if ((form.default_function_code if form else 3) or 3)|int == 2 %}selected{% endif %}>02 - Read Discrete Inputs (Boolean inputs)</option>
+            <option value="3" {% if ((form.default_function_code if form else 3) or 3)|int == 3 %}selected{% endif %}>03 - Read Holding Registers (Read/Write registers)</option>
+            <option value="4" {% if ((form.default_function_code if form else 3) or 3)|int == 4 %}selected{% endif %}>04 - Read Input Registers (Read-only registers)</option>
+          </select>
+          <small class="text-muted">Choose the primary function code for reading data from this device. Individual tags can override this setting.</small>
         </div>
 
         {% if proto == 'ModbusRTU' %}
@@ -27,44 +39,52 @@
           <input type="hidden" name="protocol" value="ModbusRTU">
           <div class="col-md-6">
             <label class="form-label">Port *</label>
-            <input name="serial_port" class="form-control" placeholder="COM3 or /dev/ttyUSB0" required>
+            <input name="serial_port" class="form-control" placeholder="COM3 or /dev/ttyUSB0" value="{{ (form.serial_port if form else '') or '' }}" required>
           </div>
           <div class="col-md-6">
             <label class="form-label">Timeout (ms) *</label>
-            <input name="timeout_ms" type="number" class="form-control" value="5000" required>
+            <input name="timeout_ms" type="number" class="form-control" value="{{ (form.timeout_ms if form else 5000) or 5000 }}" required>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Baudrate *</label>
             <select name="baudrate" class="form-select">
-              <option>9600</option><option>19200</option><option>38400</option>
-              <option>57600</option><option>115200</option>
+              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 9600 %}selected{% endif %}>9600</option>
+              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 19200 %}selected{% endif %}>19200</option>
+              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 38400 %}selected{% endif %}>38400</option>
+              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 57600 %}selected{% endif %}>57600</option>
+              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 115200 %}selected{% endif %}>115200</option>
             </select>
           </div>
           <div class="col-md-6">
             <label class="form-label">Data Bits *</label>
             <select name="bytesize" class="form-select">
-              <option>8</option><option>7</option>
+              <option {% if ((form.bytesize if form else 8) or 8)|int == 8 %}selected{% endif %}>8</option>
+              <option {% if ((form.bytesize if form else 8) or 8)|int == 7 %}selected{% endif %}>7</option>
             </select>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Parity *</label>
             <select name="parity" class="form-select">
-              <option>None</option><option>Even</option><option>Odd</option>
+              <option {% if ((form.parity if form else 'N') or 'N') == 'N' %}selected{% endif %}>None</option>
+              <option {% if ((form.parity if form else 'N') or 'N') == 'E' %}selected{% endif %}>Even</option>
+              <option {% if ((form.parity if form else 'N') or 'N') == 'O' %}selected{% endif %}>Odd</option>
             </select>
           </div>
           <div class="col-md-6">
             <label class="form-label">Stop Bits *</label>
             <select name="stopbits" class="form-select">
-              <option>1</option><option>2</option>
+              <option {% if ((form.stopbits if form else 1) or 1)|int == 1 %}selected{% endif %}>1</option>
+              <option {% if ((form.stopbits if form else 1) or 1)|int == 2 %}selected{% endif %}>2</option>
             </select>
           </div>
 
           <div class="col-md-12">
             <label class="form-label">Byte Orders *</label>
             <select name="byte_order" class="form-select">
-              <option>BigEndian</option><option>LittleEndian</option>
+              <option {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'BigEndian' %}selected{% endif %}>BigEndian</option>
+              <option {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'LittleEndian' %}selected{% endif %}>LittleEndian</option>
             </select>
           </div>
 
@@ -73,26 +93,27 @@
           <input type="hidden" name="protocol" value="ModbusTCP">
           <div class="col-md-6">
             <label class="form-label">Host *</label>
-            <input name="host" class="form-control" placeholder="127.0.0.1" required>
+            <input name="host" class="form-control" placeholder="127.0.0.1" value="{{ (form.host if form else '') or '' }}" required>
           </div>
           <div class="col-md-6">
             <label class="form-label">Port *</label>
-            <input name="port" type="number" class="form-control" value="502" required>
+            <input name="port" type="number" class="form-control" value="{{ (form.port if form else 502) or 502 }}" required>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Unit Id *</label>
-            <input name="unit_id" type="number" class="form-control" value="1" required>
+            <input name="unit_id" type="number" class="form-control" value="{{ (form.unit_id if form else 1) or 1 }}" required>
           </div>
           <div class="col-md-6">
             <label class="form-label">Timeout (ms) *</label>
-            <input name="timeout_ms" type="number" class="form-control" value="5000" required>
+            <input name="timeout_ms" type="number" class="form-control" value="{{ (form.timeout_ms if form else 5000) or 5000 }}" required>
           </div>
 
           <div class="col-md-12">
             <label class="form-label">Byte Orders *</label>
             <select name="byte_order" class="form-select">
-              <option>BigEndian</option><option>LittleEndian</option>
+              <option {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'BigEndian' %}selected{% endif %}>BigEndian</option>
+              <option {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'LittleEndian' %}selected{% endif %}>LittleEndian</option>
             </select>
           </div>
         {% endif %}

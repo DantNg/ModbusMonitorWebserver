@@ -139,8 +139,8 @@ def _parse_alarm_form(f):
         "target": (f.get("target") or "").strip(),
         "operator": op,
         "threshold": (f.get("threshold") or "").strip(),
-        "on_stable_sec": _to_int(f.get("on_stable_sec"), 0),
-        "off_stable_sec": _to_int(f.get("off_stable_sec"), 0),
+        "on_stable_sec": _to_int(f.get("on_stable"), 0),  # Fixed: get "on_stable" from form
+        "off_stable_sec": _to_int(f.get("off_stable"), 0), # Fixed: get "off_stable" from form
         "email": (f.get("email") or "").strip(),  # Correct field name
         "sms": (f.get("sms") or "").strip(),   
     }

@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
   <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-theme.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/light-theme.css') }}">
@@ -72,6 +73,34 @@
       <button class="btn btn-sm btn-outline-secondary" id="sidebarToggle" aria-label="Toggle sidebar">☰</button>
       <div class="page-title ms-2">{{ page_title or 'Dashboard' }}</div>
       <div class="ms-auto d-flex align-items-center gap-2">
+        <!-- Notification Bell -->
+        <div class="dropdown position-relative">
+          <button class="btn btn-sm btn-outline-secondary position-relative" id="notificationBell" 
+                  type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-bell"></i>
+            <!-- Notification Badge -->
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                  id="notificationBadge" style="display: none; font-size: 0.6em;">
+              0
+            </span>
+          </button>
+          <!-- Dropdown Menu -->
+          <div class="dropdown-menu dropdown-menu-end shadow-lg" style="width: 320px; max-height: 400px; overflow-y: auto;">
+            <div class="dropdown-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">Alarm Notifications</h6>
+              <button class="btn btn-sm btn-outline-secondary" id="clearAllNotifications" title="Clear All">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div id="notificationList">
+              <div class="dropdown-item-text text-muted text-center py-3">
+                <i class="bi bi-bell-slash"></i><br>
+                No active alarms
+              </div>
+            </div>
+          </div>
+        </div>
         <!-- Nút chuyển theme -->
         <button id="themeToggle" class="btn btn-sm btn-outline-secondary" aria-label="Toggle theme">🌙</button>
       </div>
@@ -130,7 +159,273 @@
         main.classList.toggle('full');
       });
     })();
+    
+    // Notification System
+    window.NotificationSystem = {
+      notifications: [],
+      maxNotifications: 10,
+      
+      init() {
+        this.loadNotifications();
+        this.bindEvents();
+        this.startPeriodicCheck();
+      },
+      
+      bindEvents() {
+        // Clear all notifications
+        document.getElementById('clearAllNotifications')?.addEventListener('click', () => {
+          this.clearAll();
+        });
+      },
+      
+      addNotification(notification) {
+        // Add timestamp if not provided
+        notification.timestamp = notification.timestamp || new Date();
+        notification.id = notification.id || Date.now() + Math.random();
+        
+        // Add to beginning of array (newest first)
+        this.notifications.unshift(notification);
+        
+        // Limit number of notifications
+        if (this.notifications.length > this.maxNotifications) {
+          this.notifications = this.notifications.slice(0, this.maxNotifications);
+        }
+        
+        this.saveNotifications();
+        this.updateUI();
+        this.showBellAnimation();
+      },
+      
+      removeNotification(id) {
+        this.notifications = this.notifications.filter(n => n.id !== id);
+        this.saveNotifications();
+        this.updateUI();
+      },
+      
+      clearAll() {
+        this.notifications = [];
+        this.saveNotifications();
+        this.updateUI();
+      },
+      
+      updateUI() {
+        const badge = document.getElementById('notificationBadge');
+        const list = document.getElementById('notificationList');
+        
+        if (!badge || !list) return;
+        
+        // Update badge
+        if (this.notifications.length > 0) {
+          badge.textContent = this.notifications.length;
+          badge.style.display = 'block';
+        } else {
+          badge.style.display = 'none';
+        }
+        
+        // Update list
+        if (this.notifications.length === 0) {
+          list.innerHTML = `
+            <div class="dropdown-item-text text-muted text-center py-3">
+              <i class="bi bi-bell-slash"></i><br>
+              No active alarms
+            </div>
+          `;
+        } else {
+          list.innerHTML = this.notifications.map(n => this.renderNotification(n)).join('');
+        }
+      },
+      
+      renderNotification(notification) {
+        const timeStr = this.formatTime(notification.timestamp);
+        const levelClass = this.getLevelClass(notification.level);
+        const levelIcon = this.getLevelIcon(notification.level);
+        
+        return `
+          <div class="dropdown-item notification-item" data-id="${notification.id}">
+            <div class="d-flex align-items-start gap-2">
+              <div class="flex-shrink-0">
+                <i class="bi ${levelIcon} text-${levelClass}"></i>
+              </div>
+              <div class="flex-grow-1 min-width-0">
+                <div class="fw-semibold text-truncate">${notification.title || 'Alarm Alert'}</div>
+                <div class="small text-muted mb-1">${notification.message || ''}</div>
+                <div class="small text-muted">
+                  <i class="bi bi-clock"></i> ${timeStr}
+                  ${notification.tagName ? `• <i class="bi bi-tag"></i> ${notification.tagName}` : ''}
+                </div>
+              </div>
+              <button class="btn btn-sm btn-outline-secondary" onclick="NotificationSystem.removeNotification('${notification.id}')" title="Dismiss">
+                <i class="bi bi-x"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      },
+      
+      getLevelClass(level) {
+        const levels = {
+          'Critical': 'danger',
+          'High': 'warning',
+          'Medium': 'info',
+          'Low': 'secondary'
+        };
+        return levels[level] || 'secondary';
+      },
+      
+      getLevelIcon(level) {
+        const icons = {
+          'Critical': 'bi-exclamation-triangle-fill',
+          'High': 'bi-exclamation-triangle',
+          'Medium': 'bi-info-circle',
+          'Low': 'bi-info-circle-fill'
+        };
+        return icons[level] || 'bi-bell';
+      },
+      
+      formatTime(timestamp) {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
+      },
+      
+      showBellAnimation() {
+        const bell = document.querySelector('#notificationBell i');
+        if (bell) {
+          bell.classList.add('bell-shake');
+          setTimeout(() => {
+            bell.classList.remove('bell-shake');
+          }, 1000);
+        }
+      },
+      
+      saveNotifications() {
+        try {
+          localStorage.setItem('alarmNotifications', JSON.stringify(this.notifications));
+        } catch (e) {
+          console.warn('Could not save notifications to localStorage:', e);
+        }
+      },
+      
+      loadNotifications() {
+        try {
+          const saved = localStorage.getItem('alarmNotifications');
+          if (saved) {
+            this.notifications = JSON.parse(saved);
+            // Convert timestamp strings back to Date objects
+            this.notifications.forEach(n => {
+              if (typeof n.timestamp === 'string') {
+                n.timestamp = new Date(n.timestamp);
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Could not load notifications from localStorage:', e);
+          this.notifications = [];
+        }
+        this.updateUI();
+      },
+      
+      startPeriodicCheck() {
+        // Check for new alarms every 30 seconds
+        setInterval(() => {
+          this.checkForNewAlarms();
+        }, 30000);
+      },
+      
+      async checkForNewAlarms() {
+        try {
+          const response = await fetch('/api/alarms/recent');
+          if (response.ok) {
+            const alarms = await response.json();
+            alarms.forEach(alarm => {
+              // Check if we already have this alarm
+              const exists = this.notifications.some(n => 
+                n.alarmId === alarm.id || 
+                (n.tagId === alarm.tag_id && n.timestamp && new Date(n.timestamp).getTime() === new Date(alarm.created_at).getTime())
+              );
+              
+              if (!exists) {
+                this.addNotification({
+                  alarmId: alarm.id,
+                  tagId: alarm.tag_id,
+                  title: alarm.title || 'Alarm Triggered',
+                  message: alarm.message,
+                  level: alarm.level,
+                  tagName: alarm.tag_name,
+                  timestamp: new Date(alarm.created_at)
+                });
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Could not check for new alarms:', e);
+        }
+      }
+    };
+    
+    // Initialize notification system when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      NotificationSystem.init();
+      
+      // Listen for real-time alarm events via Socket.IO
+      if (typeof socket !== 'undefined') {
+        socket.on('alarm_event', function(data) {
+          console.log('Received alarm event:', data);
+          
+          // Add to notification system
+          NotificationSystem.addNotification({
+            id: Date.now() + Math.random(), // Generate unique ID
+            title: data.title || 'Alarm Alert',
+            message: data.message || 'Alarm condition detected',
+            level: data.level || 'Critical',
+            created_at: new Date().toISOString(),
+            status: data.status || 'Active'
+          });
+        });
+      }
+    });
   </script>
+  
+  <!-- Bell Animation CSS -->
+  <style>
+    @keyframes bellShake {
+      0%, 100% { transform: rotate(0deg); }
+      10%, 30%, 50%, 70%, 90% { transform: rotate(10deg); }
+      20%, 40%, 60%, 80% { transform: rotate(-10deg); }
+    }
+    
+    .bell-shake {
+      animation: bellShake 0.8s ease-in-out;
+      transform-origin: top center;
+    }
+    
+    .notification-item:hover {
+      background-color: var(--bs-gray-100);
+    }
+    
+    [data-bs-theme="dark"] .notification-item:hover {
+      background-color: var(--bs-gray-800);
+    }
+    
+    .notification-item {
+      cursor: pointer;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--bs-border-color);
+    }
+    
+    .notification-item:last-child {
+      border-bottom: none;
+    }
+  </style>
 
   {% block scripts %}{% endblock %}
 </body>

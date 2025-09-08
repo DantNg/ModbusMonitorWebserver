@@ -33,9 +33,18 @@
               <div class="d-flex justify-content-between align-items-start mb-2">
                 <div>
                   <div class="fw-semibold">{{ tag.name }}</div>
-                  <div class="text-muted small">{{ tag.description or '&nbsp;' }}</div>
+                  <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
-                <span class="badge bg-secondary">{{ tag.datatype }}</span>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-secondary">{{ tag.datatype }}</span>
+                  {% if tag.function_code != 2 and tag.function_code != 4 %}
+                  <button class="btn btn-sm btn-outline-primary write-btn" 
+                          data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}"
+                          title="Write Value">
+                    <i class="bi bi-pencil-square"></i>
+                  </button>
+                  {% endif %}
+                </div>
               </div>
               <div class="d-flex justify-content-between mt-2">
                 <div>
@@ -58,7 +67,6 @@
               <div class="meter mt-2">
                 <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:0%"></div>
               </div>
-              <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
             </div>
           </div>
         </div>
@@ -81,9 +89,18 @@
               <div class="d-flex justify-content-between align-items-start mb-2">
                 <div>
                   <div class="fw-semibold">{{ tag.name }}</div>
-                  <div class="text-muted small">{{ tag.description or '&nbsp;' }}</div>
+                  <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
-                <span class="badge bg-secondary">{{ tag.datatype }}</span>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-secondary">{{ tag.datatype }}</span>
+                  {% if tag.function_code != 2 and tag.function_code != 4 %}
+                  <button class="btn btn-sm btn-outline-primary write-btn" 
+                          data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}"
+                          title="Write Value">
+                    <i class="bi bi-pencil-square"></i>
+                  </button>
+                  {% endif %}
+                </div>
               </div>
               <div class="d-flex justify-content-between mt-2">
                 <div>
@@ -106,7 +123,6 @@
               <div class="meter mt-2">
                 <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:0%"></div>
               </div>
-              <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
             </div>
           </div>
         </div>
@@ -135,18 +151,68 @@
 <script>
   window.App = window.App || {};
   App.changeDevice = function (deviceId) {
+    // Leave current room before navigating
+    const currentDevice = "{{ current_device }}";
+    if (currentDevice === '__all__') {
+      socket.emit('leave', { room: 'dashboard_all' });
+    } else {
+      socket.emit('leave', { room: `dashboard_device_${currentDevice}` });
+    }
+    
+    // Navigate to new device
     window.location.search = '?device=' + deviceId;
   };
   const currentDevice = "{{ current_device }}";
   const apiUrl = `/api/tags?device=${currentDevice}`;
   const socket = io();
+  
+  // Join the appropriate room based on current device view
   if (window.location.pathname.startsWith('/dashboard')) {
-    socket.emit('join', { room: 'dashboard' });
+    if (currentDevice === '__all__') {
+      socket.emit('join', { room: 'dashboard_all' });
+    } else {
+      socket.emit('join', { room: `dashboard_device_${currentDevice}` });
+    }
   }
 
 
   const tagUpdateTimers = {};
-  // Listen for tag updates
+  
+  // Listen for real-time modbus updates (new high-speed format)
+  socket.on("modbus_update", function (data) {
+    if (!data || !data.tags) return;
+    
+    // Show device activity in console for debugging
+    console.log(`[${new Date().toLocaleTimeString()}] Device ${data.device_name || data.device_id}: ${data.tag_count} tags, ${data.latency_ms}ms latency, seq: ${data.seq}`);
+
+    data.tags.forEach(tag => {
+      const valEl = document.getElementById('tag-val-' + tag.id);
+      if (!valEl) return;
+
+      const oldVal = valEl.textContent;
+      const newVal = tag.value !== null ? String(tag.value) : '—';
+
+      // Update text
+      valEl.textContent = newVal;
+      const tsEl = document.getElementById('tag-ts-' + tag.id);
+      if (tsEl) tsEl.textContent = tag.ts || '';
+
+      // Always show activity bar for real-time updates (green = fresh data)
+      const barEl = document.getElementById('tag-bar-' + tag.id);
+      if (barEl) {
+        barEl.style.width = "100%";
+        barEl.style.backgroundColor = "green";
+
+        if (tagUpdateTimers[tag.id]) clearTimeout(tagUpdateTimers[tag.id]);
+        tagUpdateTimers[tag.id] = setTimeout(() => {
+          barEl.style.backgroundColor = "";
+          barEl.style.width = "0%"; // Fade after 20s without updates
+        }, 20000);
+      }
+    });
+  });
+  
+  // Keep legacy listener for backward compatibility
   socket.on("update_tags", function (data) {
     if (!data || !data.tags) return;
 
@@ -207,6 +273,84 @@
         });
       });
   }
+
+  // Write functionality for dashboard tags
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.write-btn')) {
+      const btn = e.target.closest('.write-btn');
+      const tagId = btn.dataset.tagId;
+      const tagName = btn.dataset.tagName;
+      
+      Swal.fire({
+        title: `Write Value to ${tagName}`,
+        input: 'number',
+        inputLabel: 'Enter value:',
+        inputPlaceholder: 'Enter new value',
+        showCancelButton: true,
+        confirmButtonText: 'Write',
+        cancelButtonText: 'Cancel',
+        inputValidator: (value) => {
+          if (!value && value !== '0') {
+            return 'Please enter a value';
+          }
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const value = result.value;
+          
+          // Show loading
+          Swal.fire({
+            title: 'Writing...',
+            text: `Setting ${tagName} to ${value}`,
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            }
+          });
+          
+          // Send write request
+          fetch(`/api/tags/${parseInt(tagId)}/write`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              value: parseFloat(value)
+            })
+          })
+          .then(response => response.json())
+          .then(data => {
+            Swal.close();
+            if (data.success) {
+              Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: `Successfully wrote ${value} to ${tagName}`,
+                timer: 2000,
+                showConfirmButton: false
+              });
+              // Refresh tags to show new value
+              refreshTags();
+            } else {
+              Swal.fire({
+                icon: 'error',
+                title: 'Write Failed',
+                text: data.error || 'Failed to write value'
+              });
+            }
+          })
+          .catch(error => {
+            Swal.close();
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: 'Network error occurred'
+            });
+          });
+        }
+      });
+    }
+  });
 
 
 </script>

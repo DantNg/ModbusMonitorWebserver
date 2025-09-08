@@ -52,6 +52,7 @@ devices = Table(
     Column("unit_id", Integer, default=1),
     Column("timeout_ms", Integer, default=2000),
     Column("byte_order", String(20), default="BigEndian"),
+    Column("default_function_code", Integer, default=3),  # 1=Read Coils, 2=Read Discrete Inputs, 3=Read Holding Registers, 4=Read Input Registers
     Column("description", String(255)),
     Column("is_online", Boolean),
     Column("created_at", DateTime, server_default=func.now()),
@@ -69,6 +70,7 @@ tags = Table(
     Column("scale", Float, default=1.0),
     Column("offset", Float, default=0.0),
     Column("grp", String(50), default="Group1"),
+    Column("function_code", Integer),  # Optional override: 1=Coils, 2=Discrete Inputs, 3=Holding Registers, 4=Input Registers. NULL = use device default
     Column("description", String(255)),
 )
 
@@ -339,6 +341,7 @@ def list_alarm_rules_for_device(device_id: int):
         rows = con.execute(
             select(
                 alarm_rules.c.id,
+                alarm_rules.c.name,               # Thêm name field
                 alarm_rules.c.target,             # tag_id (string)
                 alarm_rules.c.operator,
                 alarm_rules.c.threshold,
@@ -347,7 +350,8 @@ def list_alarm_rules_for_device(device_id: int):
                 alarm_rules.c.enabled,
                 alarm_rules.c.level,
                 alarm_rules.c.email,
-                alarm_rules.c.sms
+                alarm_rules.c.sms,
+                tags.c.name.label("tag_name")    # Thêm tag name để debug
             )
             .select_from(
                 alarm_rules.join(
@@ -359,7 +363,7 @@ def list_alarm_rules_for_device(device_id: int):
         ).mappings().all()
         return [dict(r) for r in rows]
  
-def insert_alarm_event(ts, name, level, target, value, note=""):
+def insert_alarm_event(ts, name, level, target, value, note="", event_type="INCOMING", operator=">", threshold=0.0):
     with init_engine().begin() as con:
         con.execute(
             alarm_events.insert().values(
@@ -368,7 +372,10 @@ def insert_alarm_event(ts, name, level, target, value, note=""):
                 level=level,
                 target=target,
                 value=value,
-                note=note
+                note=note,
+                event_type=event_type,
+                operator=operator,
+                threshold=threshold
             )
         )
 
@@ -740,17 +747,76 @@ def update_subdash_group(gid: int, data: dict):
 def delete_subdash_group(gid: int):
     with init_engine().begin() as con:
         con.execute(delete(subdash_tag_groups).where(subdash_tag_groups.c.id == gid))
+
+def add_tag_to_subdash_group(group_id: int, tag_id: int):
+    """Add a tag to a subdashboard group"""
+    with init_engine().begin() as con:
+        # Check if the relationship already exists
+        exists = con.execute(
+            select(subdash_group_tags)
+            .where(
+                subdash_group_tags.c.group_id == group_id,
+                subdash_group_tags.c.tag_id == tag_id
+            )
+        ).first()
+        
+        if not exists:
+            con.execute(
+                subdash_group_tags.insert().values(group_id=group_id, tag_id=tag_id)
+            )
 def get_tags_of_group(group_id: int):
+    """Get all tags with full details for a specific group."""
     with init_engine().connect() as con:
         rows = con.execute(
             select(
                 tags.c.id,
                 tags.c.name,
-                tags.c.unit
+                tags.c.description,
+                tags.c.unit,
+                tags.c.datatype,
+                tags.c.function_code,
+                tags.c.device_id
             )
             .select_from(
                 subdash_group_tags.join(tags, subdash_group_tags.c.tag_id == tags.c.id)
             )
             .where(subdash_group_tags.c.group_id == group_id)
         ).mappings().all()
+        
+        result = []
+        for r in rows:
+            tag_dict = dict(r)
+            # Get latest value and timestamp for each tag
+            value, ts = get_latest_tag_value(tag_dict['id'])
+            tag_dict['value'] = value
+            tag_dict['ts'] = ts.strftime("%H:%M:%S") if ts else "--:--"
+            tag_dict['alarm_status'] = "Normal"  # You can add alarm logic here
+            result.append(tag_dict)
+        
+        return result
+
+def get_recent_alarm_events(since: datetime = None):
+    """Get recent alarm events for notification system"""
+    if since is None:
+        since = datetime.now() - timedelta(hours=1)
+    
+    with init_engine().connect() as con:
+        # Join alarm_events với tags để lấy tag name
+        query = select(
+            alarm_events.c.id,
+            alarm_events.c.ts.label("created_at"),
+            alarm_events.c.name.label("alarm_name"),
+            alarm_events.c.level,
+            alarm_events.c.target.label("tag_id"),
+            alarm_events.c.value,
+            alarm_events.c.note.label("message"),
+            alarm_events.c.event_type,
+            tags.c.name.label("tag_name")
+        ).select_from(
+            alarm_events.join(tags, alarm_events.c.target == tags.c.id)
+        ).where(
+            alarm_events.c.ts >= since
+        ).order_by(alarm_events.c.ts.desc())
+        
+        rows = con.execute(query).mappings().all()
         return [dict(r) for r in rows]
