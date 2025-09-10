@@ -39,7 +39,9 @@ class _DeviceReader:
         self.byte_order = self.d.get("byte_order") or "BigEndian"
         self.word_order = self.d.get("word_order") or "AB"
         self.unit_id = int(self.d.get("unit_id") or 1)
-        self.timeout = min((int(self.d.get("timeout_ms") or 500))/1000.0, 0.5)  # Shorter timeout for speed
+        
+        
+        self.timeout = min((int(self.d.get("timeout_ms") or 200))/1000.0, 0.2)  # Fast 200ms timeout
         self._connected = False
         self._backoff = 1.0
         self._next_retry_ts = 0.0
@@ -163,12 +165,13 @@ class _DeviceReader:
             self._close()
             return [None] * count
 
-    def _extract(self, regs: list[int], offset: int, datatype: str, scale: float, offs: float) -> float:
+    def _extract(self, regs: list[int], offset: int, datatype: str, scale: float, offs: float) -> float | int | None:
         """
         Chuyển regs -> giá trị thật theo datatype.
         Hỗ trợ alias: word/uint16/ushort, short/int16, dword/uint32/udint, dint/int32/int,
                     float/real, bit/bool/boolean.
         Tôn trọng self.word_order ('AB'|'BA') và self.byte_order ('BigEndian'|'LittleEndian').
+        Trả về int nếu không có scale/offset và là số nguyên, float nếu có thập phân.
         """
         name = (datatype or "").strip().lower()
 
@@ -192,11 +195,16 @@ class _DeviceReader:
         try:
             # 16-bit unsigned
             if name in ("word", "uint16", "ushort"):
-                val = float(regs[offset])
+                val = regs[offset]  # Keep as int initially
 
-            # 16-bit signed (big-endian word)
-            elif name in ("short", "int16"):
-                val = float(struct.unpack(">h", struct.pack(">H", regs[offset]))[0])
+            # 16-bit signed 
+            elif name.lower() in ("short", "int16"):
+                raw_val = regs[offset]
+                # Convert unsigned to signed 16-bit
+                if raw_val > 32767:
+                    val = raw_val - 65536
+                else:
+                    val = raw_val
 
             # 32-bit unsigned
             elif name in ("dword", "uint32", "udint"):
@@ -204,18 +212,19 @@ class _DeviceReader:
                 if lo is None or hi is None:
                     return math.nan
                 u32 = (hi << 16) | lo if (self.word_order or "AB") == "AB" else (lo << 16) | hi
-                val = float(u32)
+                val = u32  # Keep as int initially
 
             # 32-bit signed
-            elif name in ("dint", "int32", "int"):
+            elif name.lower() in ("dint", "int32", "int"):
                 lo, hi, b = _two_words()
                 if lo is None or hi is None:
                     return math.nan
                 u32 = (hi << 16) | lo if (self.word_order or "AB") == "AB" else (lo << 16) | hi
-                # chuyển sang signed
-                if u32 & 0x80000000:
-                    u32 = -((~u32 & 0xFFFFFFFF) + 1)
-                val = float(u32)
+                # Convert unsigned to signed 32-bit
+                if u32 >= 2147483648:  # 2^31
+                    val = u32 - 4294967296  # 2^32
+                else:
+                    val = u32
 
             # 32-bit float (IEEE754)
             elif name in ("float", "float32", "real"):
@@ -226,15 +235,54 @@ class _DeviceReader:
 
             # Bit / boolean
             elif name in ("bit", "bool", "boolean"):
-                val = 1.0 if regs[offset] != 0 else 0.0
+                val = 1 if regs[offset] != 0 else 0
 
             else:
                 # Datatype chưa biết → trả NaN để UI thấy rõ
                 return math.nan
 
-            val = val * (scale or 1.0) + (offs or 0.0)
-            # Giới hạn số số 0 sau dấu phẩy (làm tròn đến 6 chữ số thập phân, loại bỏ số 0 dư)
-            return float(f"{val:.2f}".rstrip('0').rstrip('.') if '.' in f"{val:.2f}" else f"{val:.2f}")
+            # Áp dụng scale/offset (chỉ convert thành float khi cần thiết)
+            scale_factor = scale if scale is not None else 1.0
+            offset_value = offs if offs is not None else 0.0
+            
+            # Chỉ thực hiện phép tính khi có scale/offset khác mặc định
+            if scale_factor != 1.0 or offset_value != 0.0:
+                val = val * scale_factor + offset_value
+            # Else: giữ nguyên val (có thể là int)
+
+            # Nếu là float (float32/real) thì luôn trả về float, làm tròn 2 số thập phân
+            if name in ("float", "float32", "real"):
+                rounded_val = round(val, 2)
+                if rounded_val == 0.0:
+                    rounded_val = 0.0
+                return float(rounded_val)
+
+            # Nếu là kiểu số nguyên (word, short, dword, dint, int, uint32, ...)
+            if name in ("word", "uint16", "ushort", "short", "int16", "dword", "uint32", "udint", "dint", "int32", "int"):
+                # Nếu val vẫn là int và chưa bị modify bởi scale/offset
+                if isinstance(val, int):
+                    return val
+                # Nếu đã thành float, kiểm tra xem có phải là số nguyên không
+                elif isinstance(val, float):
+                    if abs(val - round(val)) < 1e-9:  # So sánh với epsilon để tránh floating point error
+                        return int(round(val))
+                    else:
+                        return round(val, 2)
+                else:
+                    return val
+
+            # Bit/bool/boolean: trả về int 0 hoặc 1
+            if name in ("bit", "bool", "boolean"):
+                if isinstance(val, int):
+                    return val
+                else:
+                    return int(round(val))
+
+            # Trường hợp còn lại
+            return val
+
+        except Exception:
+            return math.nan
 
         except Exception:
             return math.nan
@@ -270,7 +318,7 @@ class _DeviceReader:
                 val = int(value) & 0xFFFF
                 return [val]
                 
-            elif name in ("short", "int16"):
+            elif name.lower() in ("short", "int16"):
                 # 16-bit signed
                 val = int(value)
                 if val < 0:
@@ -285,7 +333,7 @@ class _DeviceReader:
                 # word order: AB = hi->lo, BA = lo->hi
                 return [hi, lo] if (self.word_order or "AB") == "AB" else [lo, hi]
                 
-            elif name in ("dint", "int32", "int"):
+            elif name.lower() in ("dint", "int32", "int"):
                 # 32-bit signed
                 val = int(value)
                 if val < 0:
@@ -448,7 +496,6 @@ class _DeviceReader:
                 bulk_data = self._read_registers(start_addr, count, function_code)
                 if not bulk_data or all(r is None for r in bulk_data):
                     continue
-                    
                 # Parse each tag from bulk data
                 for t in fc_tags:
                     try:
@@ -459,7 +506,7 @@ class _DeviceReader:
                         
                         # Calculate offset in bulk_data array
                         offset_in_bulk = addr - start_addr
-                        
+                
                         # For bit-based function codes (1,2), handle differently
                         if function_code in [1, 2]:
                             # For coils/discrete inputs, each element is already a single bit
@@ -471,9 +518,9 @@ class _DeviceReader:
                         else:
                             # For register-based function codes (3,4), extract according to datatype
                             val = self._extract(bulk_data, offset_in_bulk, dt, scale, offs)
-                        
                         # Save to cache and queue
                         self.cache.set(int(t["id"]), ts, val)
+                        # print(val)
                         if val is not None:
                             self.dbq.put((int(t["id"]), ts, float(val)))
                             # Track for immediate emission
@@ -481,6 +528,7 @@ class _DeviceReader:
                                 "id": int(t["id"]),
                                 "name": t.get("name", "tag_test"),
                                 "value": float(val),
+                                "datatype":t["datatype"],
                                 "ts": ts.strftime("%H:%M:%S") if ts else "--:--:--"
                             })
 
@@ -500,32 +548,6 @@ class _DeviceReader:
             # Immediate socket emission for this device
             from modbus_monitor.extensions import socketio
             
-            # Emit to specific device dashboard view
-            socketio.emit("modbus_update", {
-                "device_id": self._device_id_str,
-                "device_name": self.d.get("name", "Unknown"),
-                "unit": self.d.get("unit_id", 1),
-                "ok": True,
-                "tags": all_successful_tags,
-                "seq": self._seq,
-                "latency_ms": latency_ms,
-                "ts": time.time(),
-                "tag_count": len(all_successful_tags)
-            }, room=f"dashboard_device_{self.d['id']}")
-            
-            # Also emit to "all devices" dashboard view
-            socketio.emit("modbus_update", {
-                "device_id": self._device_id_str,
-                "device_name": self.d.get("name", "Unknown"),
-                "unit": self.d.get("unit_id", 1),
-                "ok": True,
-                "tags": all_successful_tags,
-                "seq": self._seq,
-                "latency_ms": latency_ms,
-                "ts": time.time(),
-                "tag_count": len(all_successful_tags)
-            }, room="dashboard_all")
-            
             # Emit to relevant subdashboards
             try:
                 subdashboards = dbsync.list_subdashboards() or []
@@ -534,10 +556,8 @@ class _DeviceReader:
                 for subdash in subdashboards:
                     subdash_id = subdash['id']
                     subdash_tag_ids = [t['id'] for t in dbsync.get_subdashboard_tags(subdash_id) or []]
-                    
                     # Filter tags that belong to this subdashboard
                     subdash_tags = [tag for tag in all_successful_tags if tag['id'] in subdash_tag_ids]
-                    
                     if subdash_tags:
                         socketio.emit("modbus_update", {
                             "device_id": self._device_id_str,
@@ -553,7 +573,6 @@ class _DeviceReader:
             except Exception as e:
                 print(f"Error emitting to subdashboards: {e}")
                 
-        # print(f"[{ts}] Device {self.d['name']} processed {len(tags)} tags in {latency_ms}ms (seq: {self._seq})")
 
     def loop_with_timing(self, start_epoch: float, barrier: threading.Barrier):
         """
@@ -574,7 +593,9 @@ class _DeviceReader:
             if now < start_epoch:
                 time.sleep(start_epoch - now)
             
-            interval = max(self._get_optimal_interval(), 0.5)  # Minimum 500ms
+            # High-speed mode intervals
+            interval = max(self._get_optimal_interval(), 0.05)  # Ultra-fast minimum 50ms (20 updates/sec)
+           
             next_run = start_epoch
             
             while True:  # Run indefinitely until thread is stopped
@@ -616,12 +637,14 @@ class _DeviceReader:
         try:
             tag_logger_map = dbsync.get_tag_logger_map(self.d["id"])
             intervals = [v["interval_sec"] for v in tag_logger_map.values()]
-            # Use minimum interval but cap between 0.5-2.0 seconds for real-time
-            min_interval = min(intervals) if intervals else 1.0
-            return max(min(min_interval, 2.0), 0.5)
+            
+            # Ultra-high-speed mode: 50ms to 500ms range
+            min_interval = min(intervals) if intervals else 0.2
+            return max(min(min_interval, 0.5), 0.05)  # 50ms to 500ms
+         
         except Exception:
-            return 1.0  # Default 1 second
-
+            # Default based on mode
+            return 0.2 # Default 200ms
 
 class ModbusService:
     """High-performance multi-threaded Modbus service with precision timing and immediate socket emission."""

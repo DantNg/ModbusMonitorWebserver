@@ -3,11 +3,12 @@ from ast import Dict, stmt
 from typing import Optional
 from typing import List as list
 from typing import Tuple as tuple
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta, timezone
 import os
+import threading
 from sqlalchemy import (
     create_engine, MetaData, Table, Column, Integer, String, Float, Boolean,
-    DateTime, Enum, ForeignKey, select, insert, update, delete, func,cast,and_, asc
+    DateTime, Enum, ForeignKey, select, insert, update, delete, func,cast,and_, asc, text
 )
 from sqlalchemy.engine import Engine
 import json
@@ -15,6 +16,39 @@ from datetime import datetime
 # ---------- Singleton Engine ----------
 _engine: Optional[Engine] = None
 _md = MetaData()
+
+def safe_datetime_now():
+    """Return current datetime that's compatible with database datetime comparison"""
+    return datetime.now()
+
+def safe_datetime_compare(dt1, dt2):
+    """Safely compare two datetime objects handling timezone awareness"""
+    if dt1 is None or dt2 is None:
+        return None
+    
+    try:
+        if dt1.tzinfo is None and dt2.tzinfo is None:
+            # Both naive - direct comparison
+            return dt1 - dt2
+        elif dt1.tzinfo is not None and dt2.tzinfo is not None:
+            # Both aware - direct comparison  
+            return dt1 - dt2
+        elif dt1.tzinfo is None and dt2.tzinfo is not None:
+            # dt1 naive, dt2 aware - make dt1 aware (assume UTC)
+            dt1_aware = dt1.replace(tzinfo=timezone.utc)
+            return dt1_aware - dt2
+        else:
+            # dt1 aware, dt2 naive - make dt2 aware (assume UTC)
+            dt2_aware = dt2.replace(tzinfo=timezone.utc)
+            return dt1 - dt2_aware
+    except Exception as e:
+        print(f"DateTime comparison error: {e}")
+        # Fallback to naive comparison
+        if hasattr(dt1, 'replace') and hasattr(dt2, 'replace'):
+            dt1_naive = dt1.replace(tzinfo=None) if dt1.tzinfo else dt1
+            dt2_naive = dt2.replace(tzinfo=None) if dt2.tzinfo else dt2
+            return dt1_naive - dt2_naive
+        return None
 
 def init_engine():
     """Khởi tạo engine một lần (singleton)."""
@@ -65,7 +99,7 @@ tags = Table(
     Column("device_id", Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True),
     Column("name", String(120), nullable=False),
     Column("address", Integer, nullable=False),
-    Column("datatype", Enum("Word","DWord","Float","Bit"), default="Word"),
+    Column("datatype", Enum("Word","Short","DWord","DInt","Float","Bit"), default="Word"),
     Column("unit", String(20)),
     Column("scale", Float, default=1.0),
     Column("offset", Float, default=0.0),
@@ -80,6 +114,15 @@ tag_values = Table(
     Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False, index=True),
     Column("ts", DateTime, nullable=False),
     Column("value", Float, nullable=False),
+)
+
+# Bảng mới để lưu giá trị mới nhất của mỗi tag - tối ưu cho get_latest_tag_value
+tag_latest_values = Table(
+    "tag_latest_values", _md,
+    Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+    Column("value", Float, nullable=False),
+    Column("ts", DateTime, nullable=False),
+    Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now()),
 )
 
 users = Table(
@@ -180,23 +223,97 @@ def create_schema():
     """Tạo bảng nếu chưa có (idempotent)."""
     engine = init_engine()
     _md.create_all(engine)
+    create_performance_indexes()
+
+def create_performance_indexes():
+    """Tạo các indexes quan trọng để tăng performance"""
+    try:
+        with init_engine().connect() as con:
+            # Index cho tag_values - quan trọng nhất để optimize get_latest_tag_value
+            indexes_sql = [
+                # Index tối ưu cho query latest value theo tag_id
+                "CREATE INDEX IF NOT EXISTS idx_tag_values_tag_ts ON tag_values (tag_id, ts DESC)",
+                
+                # Index cho timestamp queries (reports)
+                "CREATE INDEX IF NOT EXISTS idx_tag_values_ts ON tag_values (ts)",
+                
+                # Index cho dashboard_tags joins
+                "CREATE INDEX IF NOT EXISTS idx_dashboard_tags_dashboard ON dashboard_tags (dashboard_id)",
+                "CREATE INDEX IF NOT EXISTS idx_dashboard_tags_tag ON dashboard_tags (tag_id)",
+                
+                # Index cho data_logger_tags joins  
+                "CREATE INDEX IF NOT EXISTS idx_data_logger_tags_logger ON data_logger_tags (logger_id)",
+                "CREATE INDEX IF NOT EXISTS idx_data_logger_tags_tag ON data_logger_tags (tag_id)",
+                
+                # Index cho alarm_events
+                "CREATE INDEX IF NOT EXISTS idx_alarm_events_ts ON alarm_events (ts DESC)",
+                "CREATE INDEX IF NOT EXISTS idx_alarm_events_target ON alarm_events (target)",
+            ]
+            
+            for sql in indexes_sql:
+                try:
+                    con.execute(text(sql))
+                    print(f"✅ Created index: {sql.split('IF NOT EXISTS ')[1].split(' ON')[0]}")
+                except Exception as e:
+                    print(f"⚠️ Index creation skipped: {e}")
+            
+            con.commit()
+            print("🚀 Performance indexes created successfully!")
+            
+    except Exception as e:
+        print(f"❌ Error creating indexes: {e}")
+
+def analyze_query_performance():
+    """Analyze và suggest performance improvements"""
+    try:
+        with init_engine().connect() as con:
+            # Check table sizes
+            tables_info = [
+                "SELECT 'tag_values' as table_name, COUNT(*) as row_count FROM tag_values",
+                "SELECT 'alarm_events' as table_name, COUNT(*) as row_count FROM alarm_events", 
+                "SELECT 'tags' as table_name, COUNT(*) as row_count FROM tags",
+                "SELECT 'devices' as table_name, COUNT(*) as row_count FROM devices"
+            ]
+            
+            print("📊 Database Table Sizes:")
+            for sql in tables_info:
+                result = con.execute(text(sql)).first()
+                print(f"  {result[0]}: {result[1]:,} rows")
+            
+            # Check indexes
+            try:
+                indexes_result = con.execute(text("SHOW INDEX FROM tag_values")).fetchall()
+                print(f"\n📋 Indexes on tag_values table: {len(indexes_result)} indexes")
+                for idx in indexes_result:
+                    print(f"  - {idx[2]} on column {idx[4]}")
+            except:
+                print("\n⚠️ Could not analyze indexes (may be SQLite)")
+                
+    except Exception as e:
+        print(f"❌ Performance analysis error: {e}")
 
 # ---------- CRUD NHANH (dùng trực tiếp trong route/service) ----------
 def list_devices():
     with init_engine().connect() as con:
         rows = con.execute(select(devices)).mappings().all()
         # Check device online status based on updated_at and timeout_ms
-        now = datetime.now()
+        now = safe_datetime_now()
         all_devices = []
         for r in rows:
             updated_at = r.get("updated_at")
             timeout_ms = r.get("timeout_ms", 2000)
             device = dict(r)
             if updated_at:
-                elapsed = (now - updated_at).total_seconds() * 1000
+                # Use safe datetime comparison
+                time_diff = safe_datetime_compare(now, updated_at)
+                if time_diff:
+                    elapsed = time_diff.total_seconds() * 1000
+                else:
+                    elapsed = 0
+                    
                 if elapsed > timeout_ms:
                     device["is_online"] = False
-                    update_device_row(device["id"], {"is_online": False, "updated_at": datetime.now()})
+                    update_device_row(device["id"], {"is_online": False, "updated_at": safe_datetime_now()})
             all_devices.append(device)
         return all_devices
 
@@ -236,15 +353,55 @@ def add_tag_row(device_id: int, data: dict) -> int:
         return res.inserted_primary_key[0]
 
 def insert_tag_values_bulk(rows: list[tuple[int, "datetime", float]]):
-    """rows = [(tag_id, ts, value), ...]"""
+    """
+    Insert bulk data vào tag_values và update tag_latest_values
+    rows = [(tag_id, ts, value), ...]
+    """
     if not rows:
         return 0
+    
     with init_engine().begin() as con:
+        # Insert vào bảng tag_values như cũ
         con.execute(
             tag_values.insert(),
             [{"tag_id": t, "ts": ts, "value": v} for (t, ts, v) in rows]
         )
+        
+        # Tìm giá trị mới nhất cho mỗi tag_id từ batch này
+        latest_values = {}
+        for tag_id, ts, value in rows:
+            if tag_id not in latest_values or ts > latest_values[tag_id][1]:
+                latest_values[tag_id] = (value, ts)
+        
+        # Upsert vào tag_latest_values
+        for tag_id, (value, ts) in latest_values.items():
+            # Kiểm tra xem tag đã có trong tag_latest_values chưa
+            existing = con.execute(
+                select(tag_latest_values.c.ts)
+                .where(tag_latest_values.c.tag_id == tag_id)
+            ).first()
+            
+            if existing is None:
+                # Insert mới
+                con.execute(
+                    tag_latest_values.insert().values(
+                        tag_id=tag_id, value=value, ts=ts
+                    )
+                )
+            else:
+                # So sánh timestamp an toàn
+                time_diff = safe_datetime_compare(ts, existing[0])
+                if time_diff and time_diff.total_seconds() > 0:  # ts > existing[0]
+                    # Update existing
+                    con.execute(
+                        update(tag_latest_values)
+                        .where(tag_latest_values.c.tag_id == tag_id)
+                        .values(value=value, ts=ts)
+                    )
+        
         return len(rows)
+
+# Các hàm cache cũ không còn cần thiết vì sử dụng bảng tag_latest_values
 # ---------- DEVICE ----------
 def update_device_row(device_id: int, data: dict) -> int:
     # loại bỏ key None để không overwrite
@@ -287,7 +444,7 @@ def update_device_status_by_tag(tag_id,status):
     if not device_id:
         print(f"No device associated with tag ID {tag_id}.")
         return
-    update_device_row(device_id, {"is_online": status, "updated_at": datetime.now()})
+    update_device_row(device_id, {"is_online": status, "updated_at": safe_datetime_now()})
 # ---------- TAG ----------
 def get_tag(tag_id: int):
     with init_engine().connect() as con:
@@ -386,10 +543,43 @@ def list_alarm_events():
         rows = con.execute(select(alarm_events).order_by(alarm_events.c.ts.desc())).mappings().all()
         return [dict(r) for r in rows]
 
+def list_alarm_events_by_date_range(start_date, end_date):
+    """Return alarm events within date range, newest first."""
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(alarm_events)
+            .where(alarm_events.c.ts >= start_date)
+            .where(alarm_events.c.ts <= end_date)
+            .order_by(alarm_events.c.ts.desc())
+        ).mappings().all()
+        return [dict(r) for r in rows]
+
 def clear_alarm_events():
     """Delete all alarm events."""
     with init_engine().begin() as con:
         res = con.execute(delete(alarm_events))
+        return res.rowcount
+
+def clear_report_data():
+    """Delete all tag values (report data)."""
+    with init_engine().begin() as con:
+        res = con.execute(delete(tag_values))
+        return res.rowcount
+
+def clear_report_data_by_logger(logger_id: int):
+    """Delete tag values for specific logger."""
+    with init_engine().begin() as con:
+        # Get tag IDs for this logger
+        tag_ids_result = con.execute(
+            select(data_logger_tags.c.tag_id)
+            .where(data_logger_tags.c.logger_id == logger_id)
+        ).mappings().all()
+        
+        if not tag_ids_result:
+            return 0
+            
+        tag_ids = [r["tag_id"] for r in tag_ids_result]
+        res = con.execute(delete(tag_values).where(tag_values.c.tag_id.in_(tag_ids)))
         return res.rowcount
 # Delete a single alarm event by id
 def delete_alarm_event_row(eid: int) -> int:
@@ -484,6 +674,11 @@ def get_data_logger_tag_ids(lid: int) -> list[int]:
     with init_engine().connect() as con:
         rows = con.execute(select(data_logger_tags.c.tag_id).where(data_logger_tags.c.logger_id == lid)).all()
         return [r[0] for r in rows]
+
+# Alias for backward compatibility
+def list_data_logger_tags(lid: int) -> list[int]:
+    """Alias for get_data_logger_tag_ids"""
+    return get_data_logger_tag_ids(lid)
 
 def add_data_logger_row(data: dict, tag_ids: list[int]) -> int:
     with init_engine().begin() as con:
@@ -591,16 +786,79 @@ def get_all_logger_rows(dt_from, dt_to):
 
 
 def get_latest_tag_value(tag_id: int):
+    """
+    Ultra-fast version sử dụng bảng tag_latest_values với format giá trị theo datatype
+    """
     with init_engine().connect() as con:
+        # Join với bảng tags để lấy datatype
         row = con.execute(
-            select(tag_values.c.value, tag_values.c.ts)
-            .where(tag_values.c.tag_id == tag_id)
-            .order_by(tag_values.c.ts.desc())
-            .limit(1)
+            select(
+                tag_latest_values.c.value, 
+                tag_latest_values.c.ts,
+                tags.c.datatype
+            )
+            .select_from(tag_latest_values.join(tags, tag_latest_values.c.tag_id == tags.c.id))
+            .where(tag_latest_values.c.tag_id == tag_id)
         ).first()
-        if row:
-            return row.value, row.ts
-        return None, None
+        
+        if not row:
+            return (None, None)
+            
+        value, ts, datatype = row
+        
+        # Format giá trị theo datatype
+        if datatype in ["Word", "Short", "DWord", "DInt", "Bit"]:
+            # Các kiểu số nguyên - loại bỏ .0
+            formatted_value = int(value) if value == int(value) else value
+        else:
+            # Float - giữ nguyên
+            formatted_value = value
+        return (formatted_value, ts)
+
+def get_latest_tag_values_batch(tag_ids: list[int]) -> dict:
+    """
+    Lấy latest values cho nhiều tags cùng lúc từ bảng tag_latest_values với format giá trị theo datatype
+    Returns: {tag_id: (value, timestamp), ...}
+    """
+    if not tag_ids:
+        return {}
+    
+    result = {}
+    
+    with init_engine().connect() as con:
+        # Join với bảng tags để lấy datatype
+        rows = con.execute(
+            select(
+                tag_latest_values.c.tag_id,
+                tag_latest_values.c.value,
+                tag_latest_values.c.ts,
+                tags.c.datatype
+            )
+            .select_from(tag_latest_values.join(tags, tag_latest_values.c.tag_id == tags.c.id))
+            .where(tag_latest_values.c.tag_id.in_(tag_ids))
+        ).mappings().all()
+        
+        # Populate result với formatted data từ database
+        for row in rows:
+            value = row['value']
+            datatype = row['datatype']
+            
+            # Format giá trị theo datatype
+            if datatype in ["Word", "Short", "DWord", "DInt", "Bit"]:
+                # Các kiểu số nguyên - loại bỏ .0
+                formatted_value = int(value) if value == int(value) else value
+            else:
+                # Float - giữ nguyên
+                formatted_value = value
+                
+            result[row['tag_id']] = (formatted_value, row['ts'])
+        
+        # Đối với các tag không có data, set None
+        for tag_id in tag_ids:
+            if tag_id not in result:
+                result[tag_id] = (None, None)
+    
+    return result
     
 def get_tag_logger_map(device_id: int):
     """
@@ -661,7 +919,7 @@ def delete_user_row(user_id: int) -> int:
 def list_subdashboards():
     """Return all subdashboards (dashboards table)."""
     with init_engine().connect() as con:
-        rows = con.execute(select(dashboards).order_by(dashboards.c.id.desc())).mappings().all()
+        rows = con.execute(select(dashboards).order_by(dashboards.c.id.asc())).mappings().all()
         return [dict(r) for r in rows]
 
 def add_tag_to_subdashboard(sid: int, tag_id: int):
@@ -700,6 +958,7 @@ def delete_subdashboard_row(sid: int) -> int:
 def get_subdashboard_tags(sid: int):
     """
     Trả về danh sách tag (dict) thuộc subdashboard (dashboard) có id=sid.
+    Chỉ lấy thông tin tag cơ bản, value và timestamp sẽ được update qua realtime.
     """
     with init_engine().connect() as con:
         rows = con.execute(
@@ -709,14 +968,28 @@ def get_subdashboard_tags(sid: int):
                 tags.c.description,
                 tags.c.datatype,
                 tags.c.unit,
-                tags.c.device_id
+                tags.c.device_id,
+                tags.c.function_code,
+                tags.c.address,
+                tags.c.scale,
+                tags.c.offset
             )
             .select_from(
                 dashboard_tags.join(tags, dashboard_tags.c.tag_id == tags.c.id)
             )
             .where(dashboard_tags.c.dashboard_id == sid)
         ).mappings().all()
-        return [dict(r) for r in rows]
+        
+        result = []
+        for r in rows:
+            tag_dict = dict(r)
+            # Set default values - will be updated by realtime updates
+            tag_dict['value'] = None
+            tag_dict['ts'] = "--:--"
+            tag_dict['alarm_status'] = "Normal"
+            result.append(tag_dict)
+        
+        return result
     
 def list_subdash_groups():
     with init_engine().connect() as con:
@@ -746,7 +1019,13 @@ def update_subdash_group(gid: int, data: dict):
 
 def delete_subdash_group(gid: int):
     with init_engine().begin() as con:
-        con.execute(delete(subdash_tag_groups).where(subdash_tag_groups.c.id == gid))
+        # First delete all tag associations
+        result1 = con.execute(delete(subdash_group_tags).where(subdash_group_tags.c.group_id == gid))
+        print(f"Deleted {result1.rowcount} tag associations for group {gid}")
+        
+        # Then delete the group itself
+        result2 = con.execute(delete(subdash_tag_groups).where(subdash_tag_groups.c.id == gid))
+        print(f"Deleted group {gid}, affected rows: {result2.rowcount}")
 
 def add_tag_to_subdash_group(group_id: int, tag_id: int):
     """Add a tag to a subdashboard group"""
@@ -764,6 +1043,18 @@ def add_tag_to_subdash_group(group_id: int, tag_id: int):
             con.execute(
                 subdash_group_tags.insert().values(group_id=group_id, tag_id=tag_id)
             )
+
+def remove_tag_from_subdash_group(group_id: int, tag_id: int):
+    """Remove a tag from a subdashboard group"""
+    with init_engine().begin() as con:
+        result = con.execute(
+            subdash_group_tags.delete().where(
+                subdash_group_tags.c.group_id == group_id,
+                subdash_group_tags.c.tag_id == tag_id
+            )
+        )
+        print(f"Removed tag {tag_id} from group {group_id}, affected rows: {result.rowcount}")
+
 def get_tags_of_group(group_id: int):
     """Get all tags with full details for a specific group."""
     with init_engine().connect() as con:
@@ -788,6 +1079,7 @@ def get_tags_of_group(group_id: int):
             tag_dict = dict(r)
             # Get latest value and timestamp for each tag
             value, ts = get_latest_tag_value(tag_dict['id'])
+            print(f"Tag {tag_dict['name']} latest value: {value} at {ts}")
             tag_dict['value'] = value
             tag_dict['ts'] = ts.strftime("%H:%M:%S") if ts else "--:--"
             tag_dict['alarm_status'] = "Normal"  # You can add alarm logic here
@@ -798,7 +1090,7 @@ def get_tags_of_group(group_id: int):
 def get_recent_alarm_events(since: datetime = None):
     """Get recent alarm events for notification system"""
     if since is None:
-        since = datetime.now() - timedelta(hours=1)
+        since = safe_datetime_now() - timedelta(hours=1)
     
     with init_engine().connect() as con:
         # Join alarm_events với tags để lấy tag name

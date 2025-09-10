@@ -5,6 +5,7 @@ from modbus_monitor.database.db import (
     update_device_row, delete_device_row, get_tag, add_tag_row,
     update_tag_row, delete_tag_row
 )
+from modbus_monitor.services.runner import restart_services
 from datetime import datetime
 
 # List Devices (giữ nguyên nếu bạn đã có)
@@ -120,6 +121,10 @@ def add_device():
 
         # Insert DB
         new_id = add_device_row(data)
+        
+        # Restart services to pick up new device
+        restart_services()
+        
         flash("Device created successfully.", "success")
         return redirect(url_for("devices_bp.device_detail", did=new_id))
 
@@ -182,6 +187,10 @@ def add_tag(did):
             "function_code": function_code,
             "description": description,
         })
+        
+        # Restart services to pick up new tag
+        restart_services()
+        
         flash("Tag added.", "success")
         return redirect(url_for("devices_bp.device_detail", did=did))
 
@@ -296,6 +305,8 @@ def edit_device(did):
 def delete_device(did):
     cnt = delete_device_row(did)
     if cnt:
+        # Restart services to remove deleted device
+        restart_services()
         flash("Device deleted.", "success")
     else:
         flash("Device not found.", "warning")
@@ -359,6 +370,10 @@ def delete_tag(did, tid):
         flash("Tag not found.", "warning")
         return redirect(url_for("devices_bp.device_detail", did=did))
     delete_tag_row(tid)
+    
+    # Restart services to remove deleted tag
+    restart_services()
+    
     flash("Tag deleted.", "success")
     return redirect(url_for("devices_bp.device_detail", did=did))
 

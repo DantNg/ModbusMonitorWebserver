@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% set page_title = "Add Tag" %}
+{% set page_title = "Edit Tag" if editing else "Add Tag" %}
 {% block content %}
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-transparent">
-    <div class="h5 mb-0">Add Tag</div>
+    <div class="h5 mb-0">{{ "Edit Tag" if editing else "Add Tag" }}</div>
   </div>
 
   <form method="post">
@@ -11,60 +11,65 @@
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label">Name *</label>
-          <input name="name" class="form-control" required>
+          <input name="name" class="form-control" value="{{ form.name if form else '' }}" required>
         </div>
-        <div class="col-md-4">
+        <!-- <div class="col-md-4">
           <label class="form-label">Group</label>
-          <input name="group" class="form-control" value="Group1">
-        </div>
+          <input name="grp" class="form-control" value="{{ form.grp if form else 'Group1' }}">
+        </div> -->
         <div class="col-md-4">
           <label class="form-label">Datatype</label>
           <select name="datatype" class="form-select">
-            <option>Word</option>
-            <option>DWord</option>
-            <option>Float</option>
-            <option>Bit</option>
+            <option {{ 'selected' if (form and form.datatype == 'Word') or (not form) else '' }}>Word</option>
+            <option {{ 'selected' if form and form.datatype == 'Short' else '' }}>Short</option>
+            <option {{ 'selected' if form and form.datatype == 'DWord' else '' }}>DWord</option>
+            <option {{ 'selected' if form and form.datatype == 'DInt' else '' }}>DInt</option>
+            <option {{ 'selected' if form and form.datatype == 'Float' else '' }}>Float</option>
+            <option {{ 'selected' if form and form.datatype == 'Bit' else '' }}>Bit</option>
           </select>
+          <div class="form-text">
+            <strong>Word:</strong> 16-bit unsigned | <strong>Short:</strong> 16-bit signed | 
+            <strong>DWord:</strong> 32-bit unsigned | <strong>DInt:</strong> 32-bit signed
+          </div>
         </div>
         <div class="col-md-4">
           <label class="form-label">Function Code</label>
           <select name="function_code" class="form-select">
-            <option value="">Use Device Default</option>
-            <option value="1">01 - Read Coils</option>
-            <option value="2">02 - Read Discrete Inputs</option>
-            <option value="3">03 - Read Holding Registers</option>
-            <option value="4">04 - Read Input Registers</option>
+            <option value="1" {{ 'selected' if form and form.function_code == 1 else '' }}>01 - Read Coils</option>
+            <option value="2" {{ 'selected' if form and form.function_code == 2 else '' }}>02 - Read Discrete Inputs</option>
+            <option value="3" {{ 'selected' if form and form.function_code == 3 else '' }}>03 - Read Holding Registers</option>
+            <option value="4" {{ 'selected' if form and form.function_code == 4 else '' }}>04 - Read Input Registers</option>
           </select>
           <small class="text-muted">Override device's default function code for this tag</small>
         </div>
 
         <div class="col-md-3">
           <label class="form-label">Address *</label>
-          <input name="address" type="number" class="form-control" value="40001" required>
+          <input name="address" type="number" class="form-control" value="{{ form.address if form else '40001' }}" required>
           <div class="form-text">40001-style (auto convert 0-based)</div>
         </div>
         <div class="col-md-2">
           <label class="form-label">Unit</label>
-          <input name="unit" class="form-control">
+          <input name="unit" class="form-control" value="{{ form.unit if form else '' }}">
         </div>
         <div class="col-md-2">
           <label class="form-label">Scale</label>
-          <input name="scale" type="number" step="any" class="form-control" value="1">
+          <input name="scale" type="number" step="any" class="form-control" value="{{ form.scale if form else '1' }}">
         </div>
         <div class="col-md-2">
           <label class="form-label">Offset</label>
-          <input name="offset" type="number" step="any" class="form-control" value="0">
+          <input name="offset" type="number" step="any" class="form-control" value="{{ form.offset if form else '0' }}">
         </div>
         <div class="col-12">
           <label class="form-label">Description</label>
-          <input name="description" class="form-control">
+          <input name="description" class="form-control" value="{{ form.description if form else '' }}">
         </div>
       </div>
     </div>
 
     <div class="card-footer d-flex justify-content-end gap-2">
       <a class="btn btn-secondary" href="{{ url_for('devices_bp.device_detail', did=device.id) }}">Cancel</a>
-      <button class="btn btn-primary">Submit</button>
+      <button class="btn btn-primary">{{ "Update" if editing else "Create" }}</button>
     </div>
   </form>
 </div>

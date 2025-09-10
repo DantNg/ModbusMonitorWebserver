@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, session
 
 from modbus_monitor.database import db
 from . import alarms_bp
@@ -7,20 +7,31 @@ from modbus_monitor.database.db import (
     list_all_tags,
     list_alarm_rules, get_alarm_rule,
     add_alarm_rule_row, update_alarm_rule_row, delete_alarm_rule_row,
-    list_alarm_events, clear_alarm_events,
+    list_alarm_events, list_alarm_events_by_date_range, clear_alarm_events,
     delete_alarm_event_row
 )
 from flask import jsonify
 from datetime import datetime
+from modbus_monitor.database.db import safe_datetime_now
 # /alarms/events/<id>/delete
 @alarms_bp.route("/alarms/events/<int:eid>/delete", methods=["POST"])
 def delete_alarm_event(eid):
+    # Chỉ admin mới có thể delete alarm events
+    if session.get("role") != "admin":
+        flash("Access denied. Admin role required.", "error")
+        return redirect(url_for("alarms_bp.alarm_events"))
+    
     cnt = delete_alarm_event_row(eid)
     flash("Alarm event deleted." if cnt else "Event not found.", "success" if cnt else "warning")
     return redirect(url_for("alarms_bp.alarm_events"))
 
 @alarms_bp.post("/events/delete-selected")
 def delete_selected_alarm_events():
+    # Chỉ admin mới có thể delete alarm events
+    if session.get("role") != "admin":
+        flash("Access denied. Admin role required.", "error")
+        return redirect(url_for("alarms_bp.alarm_events"))
+    
     ids_str = request.form.get("ids")  # "1,2,3"
     if ids_str:
         ids = [int(i) for i in ids_str.split(",") if i.strip()]
@@ -32,12 +43,59 @@ def delete_selected_alarm_events():
 # /alarms/events (history)
 @alarms_bp.route("/alarms/events")
 def alarm_events():
-    items = list_alarm_events()
-    return render_template("alarms/alarm_events.html", items=items)
+    from datetime import datetime, timedelta
+    
+    # Get time filter parameters
+    time_filter = request.args.get('time_filter', 'all')
+    from_date = request.args.get('from_date', '')
+    to_date = request.args.get('to_date', '')
+    
+    # Calculate date ranges based on filter
+    now = safe_datetime_now()
+    start_date = None
+    end_date = None
+    
+    if time_filter == 'today':
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif time_filter == 'yesterday':
+        yesterday = now - timedelta(days=1)
+        start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif time_filter == 'last7days':
+        start_date = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now
+    elif time_filter == 'last30days':
+        start_date = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now
+    elif time_filter == 'custom' and from_date and to_date:
+        try:
+            start_date = datetime.fromisoformat(from_date)
+            end_date = datetime.fromisoformat(to_date)
+        except ValueError:
+            flash("Invalid date format", "error")
+            start_date = end_date = None
+    
+    # Get filtered items
+    if start_date and end_date:
+        items = list_alarm_events_by_date_range(start_date, end_date)
+    else:
+        items = list_alarm_events()
+    
+    return render_template("alarms/alarm_events.html", 
+                         items=items,
+                         time_filter=time_filter,
+                         from_date=from_date,
+                         to_date=to_date)
 
 # /alarms/events/clear
 @alarms_bp.route("/alarms/events/clear", methods=["POST"])
 def clear_alarm_events_route():
+    # Chỉ admin mới có thể clear alarm events
+    if session.get("role") != "admin":
+        flash("Access denied. Admin role required.", "error")
+        return redirect(url_for("alarms_bp.alarm_events"))
+    
     cnt = clear_alarm_events()
     flash(f"Cleared {cnt} alarm events.", "success")
     return redirect(url_for("alarms_bp.alarm_events"))

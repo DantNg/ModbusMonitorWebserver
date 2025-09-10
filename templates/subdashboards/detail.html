@@ -17,27 +17,42 @@
     </div>
     <div class="ms-auto d-flex gap-2 align-items-center">
       <a href="{{ url_for('subdash_bp.list_subdash') }}" class="btn btn-sm btn-outline-secondary">← Back</a>
-      <button id="testSocketBtn" class="btn btn-sm btn-info">🔌 Test Socket</button>
-      <button id="forceRefreshBtn" class="btn btn-sm btn-warning">🔄 Force Refresh</button>
-      <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addTagModal">+ Add Tag</button>
-      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addGroupModal">+ Add Tag Group</button>
-      <div class="small text-muted">Auto refresh: 1s</div>
+      <!-- <button id="testSocketBtn" class="btn btn-sm btn-info">🔌 Test Socket</button>
+      <button id="forceRefreshBtn" class="btn btn-sm btn-warning">🔄 Force Refresh</button> -->
+      {% if session.get("role") == "admin" %}
+      <div class="dropdown"></div>
+      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="settingsDropdown"
+        data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-gear"></i> Settings
+      </button>
+      <ul class="dropdown-menu" aria-labelledby="settingsDropdown">
+        <li>
+          <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addTagModal">+ Add Tag</button>
+        </li>
+        <li>
+          <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addGroupModal">+ Add Tag Group</button>
+        </li>
+      </ul>
     </div>
+    {% endif %}
   </div>
+</div>
 </div>
 
 <!-- Flash Messages -->
 {% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div class="alert-container mb-3">
-      {% for category, message in messages %}
-        <div class="alert alert-{{ 'danger' if category == 'error' else 'warning' if category == 'warning' else 'success' }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
+{% if messages %}
+<div class="alert-container mb-3">
+  {% for category, message in messages %}
+  <div
+    class="alert alert-{{ 'danger' if category == 'error' else 'warning' if category == 'warning' else 'success' }} alert-dismissible fade show"
+    role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 {% endwith %}
 
 <div id="group-panels">
@@ -46,12 +61,11 @@
   <div class="card border-0 shadow-soft mb-4">
     <div class="card-header bg-info text-white rounded-top fw-bold d-flex justify-content-between align-items-center">
       <span>{{ group.name }}</span>
-      <form method="post" action="{{ url_for('subdash_bp.delete_group', sid=subdash.id, gid=group.id) }}" 
-            class="d-inline" onsubmit="return confirm('Are you sure you want to delete the group \'{{ group.name }}\'?')">
-        <button type="submit" class="btn btn-sm btn-outline-light" title="Delete Group">
-          <i class="bi bi-trash"></i>
-        </button>
-      </form>
+      {% if session.get("role") == "admin" %}
+      <button class="btn btn-sm btn-outline-light delete-group-btn" data-group-id="{{ group.id }}" data-group-name="{{ group.name }}" title="Delete Group">
+        <i class="bi bi-trash"></i>
+      </button>
+      {% endif %}
     </div>
     <div class="card-body">
       <div class="row g-4">
@@ -65,13 +79,22 @@
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  <span class="badge bg-secondary">{{ tag.datatype }}</span>
-                  {% if tag.function_code != 2 and tag.function_code != 4 %}
-                  <button class="btn btn-sm btn-outline-primary write-btn" 
-                          data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}"
-                          title="Write Value">
+                  {% if tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or
+                  tag.function_code == "3" %}
+                  <button class="btn btn-sm btn-outline-primary write-btn" data-tag-id="{{ tag.id }}"
+                    data-tag-name="{{ tag.name }}" title="Write Value">
                     <i class="bi bi-pencil-square"></i>
                   </button>
+                  {% endif %}
+                  {% if session.get("role") == "admin" %}
+
+                  <button class="btn btn-sm btn-outline-danger remove-tag-btn" data-tag-id="{{ tag.id }}"
+                    data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}" title="Remove tag from group">
+
+                    <i class="bi bi-x-circle"></i>
+
+                  </button>
+
                   {% endif %}
                 </div>
               </div>
@@ -83,18 +106,18 @@
                   <span class="badge bg-danger">Alarm</span>
                   {% endif %}
                 </div>
-                <div class="small text-muted">
+                <!-- <div class="small text-muted">
                   <i class="bi bi-clock"></i> {{ tag.ts }}
-                </div>
+                </div> -->
               </div>
               <div class="value-row d-flex align-items-center justify-content-center flex-column">
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
-                  {{ tag.value if tag.value is not none else '—' }}
+                  {{ tag.value }}
                 </div>
                 <div class="unit">Unit {{ tag.unit }}</div>
               </div>
               <div class="meter mt-2">
-                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:0%"></div>
+                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:100%"></div>
               </div>
               <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
             </div>
@@ -111,12 +134,11 @@
   <div class="card border-0 shadow-soft mb-4">
     <div class="card-header bg-info text-white rounded-top fw-bold d-flex justify-content-between align-items-center">
       <span>{{ group.name }}</span>
-      <form method="post" action="{{ url_for('subdash_bp.delete_group', sid=subdash.id, gid=group.id) }}" 
-            class="d-inline" onsubmit="return confirm('Are you sure you want to delete the group \'{{ group.name }}\'?')">
-        <button type="submit" class="btn btn-sm btn-outline-light" title="Delete Group">
-          <i class="bi bi-trash"></i>
-        </button>
-      </form>
+      {% if session.get("role") == "admin" %}
+      <button class="btn btn-sm btn-outline-light delete-group-btn" data-group-id="{{ group.id }}" data-group-name="{{ group.name }}" title="Delete Group">
+        <i class="bi bi-trash"></i>
+      </button>
+      {% endif %}
     </div>
     <div class="card-body">
       <div class="row g-4">
@@ -130,13 +152,23 @@
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  <span class="badge bg-secondary">{{ tag.datatype }}</span>
-                  {% if tag.function_code != 2 and tag.function_code != 4 %}
-                  <button class="btn btn-sm btn-outline-primary write-btn" 
-                          data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}"
-                          title="Write Value">
+                  <!-- Debug FC: {{ tag.function_code }} Type: {{ tag.function_code.__class__.__name__ }} -->`n{% if
+                  tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or tag.function_code ==
+                  "3" %}
+                  <button class="btn btn-sm btn-outline-primary write-btn" data-tag-id="{{ tag.id }}"
+                    data-tag-name="{{ tag.name }}" title="Write Value">
                     <i class="bi bi-pencil-square"></i>
                   </button>
+                  {% endif %}
+                  {% if session.get("role") == "admin" %}
+
+                  <button class="btn btn-sm btn-outline-danger remove-tag-btn" data-tag-id="{{ tag.id }}"
+                    data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}" title="Remove tag from group">
+
+                    <i class="bi bi-x-circle"></i>
+
+                  </button>
+
                   {% endif %}
                 </div>
               </div>
@@ -148,18 +180,18 @@
                   <span class="badge bg-danger">Alarm</span>
                   {% endif %}
                 </div>
-                <div class="small text-muted">
+                <!-- <div class="small text-muted">
                   <i class="bi bi-clock"></i> {{ tag.ts }}
-                </div>
+                </div> -->
               </div>
               <div class="value-row d-flex align-items-center justify-content-center flex-column">
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
-                  {{ tag.value if tag.value is not none else '—' }}
+                  {{ tag.value }}
                 </div>
                 <div class="unit">Unit {{ tag.unit }}</div>
               </div>
               <div class="meter mt-2">
-                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:0%"></div>
+                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:100%"></div>
               </div>
               <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
             </div>
@@ -183,7 +215,7 @@
         <h5 class="modal-title" id="addTagModalLabel">Add Tag to {{ subdash.name }}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form method="post" action="{{ url_for('subdash_bp.add_tag_to_subdash', sid=subdash.id) }}">
+      <form id="addTagForm">
         <div class="modal-body">
           <div class="mb-3">
             <label for="tag_id" class="form-label">Select Tag</label>
@@ -194,7 +226,7 @@
               {% endfor %}
             </select>
           </div>
-          
+
           <div class="mb-3">
             <label for="target_group" class="form-label">Add to Group</label>
             <div class="input-group">
@@ -204,17 +236,19 @@
                 <option value="{{ group.id }}">{{ group.name }}</option>
                 {% endfor %}
               </select>
-              <button class="btn btn-outline-secondary" type="button" id="toggleNewGroup" onclick="toggleNewGroupInput()">
+              <button class="btn btn-outline-secondary" type="button" id="toggleNewGroup"
+                onclick="toggleNewGroupInput()">
                 <i class="bi bi-plus-circle"></i> New
               </button>
             </div>
             <small class="text-muted">Select an existing group or create a new one</small>
           </div>
-          
+
           <!-- New Group Input (hidden by default) -->
           <div class="mb-3" id="newGroupSection" style="display: none;">
             <label for="new_group_name" class="form-label">New Group Name</label>
-            <input type="text" id="new_group_name" name="new_group_name" class="form-control" placeholder="Enter group name...">
+            <input type="text" id="new_group_name" name="new_group_name" class="form-control"
+              placeholder="Enter group name...">
           </div>
         </div>
         <div class="modal-footer">
@@ -234,7 +268,7 @@
         <h5 class="modal-title" id="addGroupModalLabel">Add Tag Group to {{ subdash.name }}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form method="post" action="{{ url_for('subdash_bp.add_group_to_subdash', sid=subdash.id) }}">
+      <form id="addGroupForm">
         <div class="modal-body">
           <div class="mb-3">
             <label for="group_name" class="form-label">Group Name</label>
@@ -266,378 +300,426 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script>
+  // Initialize Socket.IO client
+  const socket = io();
+
+  console.log('Initializing Socket.IO listeners for subdashboard...');
   // Wrap everything in DOMContentLoaded to ensure buttons exist
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log('Subdashboard DOM loaded, initializing...');
-    
+  document.addEventListener('DOMContentLoaded', function () {
+
     // App globals for subdashboard
     window.App = window.App || {};
-    
+
     const currentSubdashId = "{{ subdash.id }}";
     const currentGroup = "{{ current_group }}";
-    
-    // Test functions
-    function testSocketConnection() {
-      console.log('=== SOCKET CONNECTION TEST ===');
-      console.log('Socket connected:', typeof socket !== 'undefined' ? socket.connected : 'socket not defined');
-      console.log('Socket ID:', typeof socket !== 'undefined' ? socket.id : 'socket not defined');
-      console.log('Current subdash ID:', currentSubdashId);
-      console.log('Expected room:', `subdashboard_${currentSubdashId}`);
-      
-      if (typeof socket !== 'undefined') {
-        // Try to rejoin room
-        socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
-        console.log('Re-joined room');
-      }
-      
-      // Test API endpoint
-      fetch(`/subdashboards/debug/${currentSubdashId}`)
-        .then(r => r.json())
-        .then(data => {
-          console.log('Debug data:', data);
-          alert(`Subdash has ${data.tag_count} tags in ${data.group_count} groups`);
-        })
-        .catch(e => console.error('Debug API error:', e));
-    }
 
-    function forceRefresh() {
-      console.log('Force refreshing tags...');
-      if (App.refreshTags) {
-        App.refreshTags();
-      } else {
-        console.log('App.refreshTags not available, reloading page');
-        location.reload();
-      }
-    }
-    
-    // Setup button event listeners
-    const testBtn = document.getElementById('testSocketBtn');
-    const refreshBtn = document.getElementById('forceRefreshBtn');
-    
-    console.log('Test button found:', testBtn);
-    console.log('Refresh button found:', refreshBtn);
-    
-    if (testBtn) {
-      testBtn.addEventListener('click', function() {
-        console.log('Test button clicked');
-        testSocketConnection();
-      });
-      console.log('Test button event listener added');
-    }
-    
-    if (refreshBtn) {
-      refreshBtn.addEventListener('click', function() {
-        console.log('Refresh button clicked');
-        forceRefresh();
-      });
-      console.log('Refresh button event listener added');
-    }
-
-    // Expose functions globally for console access
-    window.testSocketConnection = testSocketConnection;
-    window.forceRefresh = forceRefresh;
 
     // Change group function
-    App.changeGroup = function(groupId) {
+    App.changeGroup = function (groupId) {
+      console.log(`🔄 Changing from group '${currentGroup}' to group '${groupId}'`);
+
       // Leave current room before navigating
       if (typeof socket !== 'undefined') {
         socket.emit('leave', { room: `subdashboard_${currentSubdashId}` });
         console.log(`Left subdashboard room: subdashboard_${currentSubdashId}`);
       }
-      
-      // Navigate to new group
+
+      // Navigate to new group (this will reload the page)
       const url = new URL(window.location);
       url.searchParams.set('group', groupId);
       window.location.href = url.toString();
     };
 
     // Initialize App for subdashboard
-    App.startDashboard('/api/tags?subdash={{ subdash.id }}');
-    
-    // Backup polling mechanism if Socket.IO fails
-    let socketConnected = false;
-    let pollingInterval = null;
-    
-    // Check if we're receiving socket updates
-    setTimeout(function() {
-      if (!socketConnected) {
-        console.warn('Socket.IO not receiving updates, falling back to polling');
-        // Start polling every 2 seconds as fallback
-        pollingInterval = setInterval(function() {
-          App.refreshTags();
-        }, 2000);
-      }
-    }, 5000); // Wait 5 seconds for socket updates
+    // App.startDashboard('/api/tags?subdash={{ subdash.id }}');
 
-    // Socket connection for subdashboard
-    const socket = io();
-    console.log('Socket.IO initialized for subdashboard');
-    
-    // Join appropriate room based on current subdashboard
-    if (window.location.pathname.startsWith('/subdashboards/')) {
-      const roomName = `subdashboard_${currentSubdashId}`;
-      socket.emit('join', { room: roomName });
-      console.log(`Joined subdashboard room: ${roomName}`);
-      
-      // Verify connection
-      socket.on('connect', function() {
-        console.log('✅ Socket connected successfully, re-joining room:', roomName);
-        socket.emit('join', { room: roomName });
-        socketConnected = true;
-      });
-      
-      socket.on('disconnect', function() {
-        console.log('❌ Socket disconnected');
-        socketConnected = false;
-      });
+    // Write functionality for subdashboard tags
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('.write-btn')) {
+        const btn = e.target.closest('.write-btn');
+        const tagId = btn.dataset.tagId;
+        const tagName = btn.dataset.tagName;
 
-      socket.on('connect_error', function(error) {
-        console.error('❌ Socket connection error:', error);
-      });
-
-      // Test if we can receive any socket events
-      socket.on('joined_room', function(data) {
-        console.log('✅ Successfully joined room:', data);
-      });
-    }
-    
-    // Leave room when page unloads
-    window.addEventListener('beforeunload', function() {
-      if (socket) {
-        socket.emit('leave', { room: `subdashboard_${currentSubdashId}` });
-        console.log(`Left subdashboard room: subdashboard_${currentSubdashId}`);
-      }
-    });
-
-  const tagUpdateTimers = {};
-  
-  // Listen for real-time modbus updates (new high-speed format)
-  socket.on("modbus_update", function (data) {
-    console.log('Received high-speed modbus update for subdash:', data);
-    socketConnected = true; // Mark socket as working
-    
-    // Clear polling fallback if socket is working
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      pollingInterval = null;
-      console.log('Socket.IO working, stopped polling fallback');
-    }
-    
-    if (!data || !data.tags) return;
-    
-    // Show device activity in console for debugging
-    console.log(`[${new Date().toLocaleTimeString()}] Subdash Device ${data.device_name || data.device_id}: ${data.tag_count} tags, ${data.latency_ms}ms latency, seq: ${data.seq}`);
-
-    data.tags.forEach(tag => {
-      const valEl = document.getElementById('tag-val-' + tag.id);
-      if (!valEl) {
-        // Tag not visible in current group filter, skip update
-        console.log(`Tag ${tag.id} not found in DOM, skipping`);
-        return;
-      }
-
-      const oldVal = valEl.textContent;
-      const newVal = tag.value !== null ? Number(tag.value).toFixed(2) : '—';
-
-      // Update text
-      valEl.textContent = newVal;
-      const tsEl = document.getElementById('tag-ts-' + tag.id);
-      if (tsEl) tsEl.textContent = tag.ts || '';
-
-      // Always show activity bar for real-time updates (green = fresh data)
-      const actEl = document.getElementById('tag-activity-' + tag.id);
-      if (actEl) {
-        // Clear previous timer
-        if (tagUpdateTimers[tag.id]) {
-          clearTimeout(tagUpdateTimers[tag.id]);
-        }
-
-        actEl.style.backgroundColor = '#28a745'; // Green for real-time
-        actEl.style.opacity = '0.8';
-        
-        // Fade out activity indicator after 1 second
-        tagUpdateTimers[tag.id] = setTimeout(() => {
-          actEl.style.opacity = '0.1';
-        }, 1000);
-      }
-
-      // Highlight changes in subdashboard
-      if (oldVal !== newVal && oldVal !== '—') {
-        if (valEl.parentElement) {
-          valEl.parentElement.style.backgroundColor = '#e8f5e8';
-          setTimeout(() => {
-            if (valEl.parentElement) {
-              valEl.parentElement.style.backgroundColor = '';
+        Swal.fire({
+          title: `Write Value to ${tagName}`,
+          input: 'number',
+          inputLabel: 'Enter value:',
+          inputPlaceholder: 'Enter new value',
+          showCancelButton: true,
+          confirmButtonText: 'Write',
+          cancelButtonText: 'Cancel',
+          inputValidator: (value) => {
+            if (!value && value !== '0') {
+              return 'Please enter a value';
             }
-          }, 2000);
-        }
-      }
-
-      // Progress bar animation for real-time updates
-      const barEl = document.getElementById('tag-bar-' + tag.id);
-      if (barEl) {
-        barEl.style.width = "100%";
-        barEl.style.backgroundColor = "#28a745"; // Green color
-        console.log(`Real-time update bar for tag ${tag.id}: 100% (activity indicator)`);
-
-        if (tagUpdateTimers[tag.id]) clearTimeout(tagUpdateTimers[tag.id]);
-        tagUpdateTimers[tag.id] = setTimeout(() => {
-          barEl.style.backgroundColor = "";
-          barEl.style.width = "0%"; // Reset after 20 seconds
-        }, 20000);
-      }
-
-      // Add visual feedback for value changes
-      valEl.style.transition = 'background-color 0.3s';
-      valEl.style.backgroundColor = '#28a745';
-      setTimeout(() => {
-        valEl.style.backgroundColor = '';
-      }, 300);
-      console.log(`Real-time updated tag ${tag.id} from ${oldVal} to ${newVal}`);
-    });
-  });
-
-  // Keep legacy listener for backward compatibility
-  socket.on("update_tags", function (data) {
-    console.log('Received legacy tag updates:', data);
-    if (!data || !data.tags) return;
-
-    data.tags.forEach(tag => {
-      const valEl = document.getElementById('tag-val-' + tag.id);
-      if (!valEl) return;
-
-      const oldVal = valEl.textContent;
-      const newVal = tag.value !== null ? Number(tag.value).toFixed(2) : '—';
-
-      // Update text
-      valEl.textContent = newVal;
-      const tsEl = document.getElementById('tag-ts-' + tag.id);
-      if (tsEl) tsEl.textContent = tag.ts || '';
-
-      // Update meter bar to show activity (like dashboard)
-      if (oldVal !== newVal) {
-        const barEl = document.getElementById('tag-bar-' + tag.id);
-        if (barEl) {
-          barEl.style.width = "100%";
-          barEl.style.backgroundColor = "#28a745"; // Green color
-          console.log(`Updated bar for tag ${tag.id}: 100% (activity indicator)`);
-
-          if (tagUpdateTimers[tag.id]) clearTimeout(tagUpdateTimers[tag.id]);
-          tagUpdateTimers[tag.id] = setTimeout(() => {
-            barEl.style.backgroundColor = "";
-            barEl.style.width = "0%"; // Reset after 20 seconds
-          }, 20000);
-        }
-
-        // Add visual feedback for value changes
-        valEl.style.transition = 'background-color 0.3s';
-        valEl.style.backgroundColor = '#28a745';
-        setTimeout(() => {
-          valEl.style.backgroundColor = '';
-        }, 300);
-        console.log(`Updated tag ${tag.id} from ${oldVal} to ${newVal}`);
-      }
-    });
-  });
-
-  // Group filtering functionality
-  if (typeof App.changeGroup === 'undefined') {
-    App.changeGroup = function(groupValue) {
-      const url = new URL(window.location);
-      if (groupValue === '__all__') {
-        url.searchParams.delete('group');
-      } else {
-        url.searchParams.set('group', groupValue);
-      }
-      window.location.href = url.toString();
-    };
-  }
-
-  // Write functionality for subdashboard tags
-  document.addEventListener('click', function(e) {
-    if (e.target.closest('.write-btn')) {
-      const btn = e.target.closest('.write-btn');
-      const tagId = btn.dataset.tagId;
-      const tagName = btn.dataset.tagName;
-      
-      Swal.fire({
-        title: `Write Value to ${tagName}`,
-        input: 'number',
-        inputLabel: 'Enter value:',
-        inputPlaceholder: 'Enter new value',
-        showCancelButton: true,
-        confirmButtonText: 'Write',
-        cancelButtonText: 'Cancel',
-        inputValidator: (value) => {
-          if (!value && value !== '0') {
-            return 'Please enter a value';
           }
-        }
-      }).then((result) => {
-        if (result.isConfirmed) {
-          const value = result.value;
-          
-          // Show loading
-          Swal.fire({
-            title: 'Writing...',
-            text: `Setting ${tagName} to ${value}`,
-            allowOutsideClick: false,
-            didOpen: () => {
-              Swal.showLoading();
-            }
-          });
-          
-          // Send write request
-          fetch(`/api/tags/${parseInt(tagId)}/write`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              value: parseFloat(value)
+        }).then((result) => {
+          if (result.isConfirmed) {
+            const value = result.value;
+
+            // Show loading
+            Swal.fire({
+              title: 'Writing...',
+              text: `Setting ${tagName} to ${value}`,
+              allowOutsideClick: false,
+              didOpen: () => {
+                Swal.showLoading();
+              }
+            });
+
+            // Send write request
+            fetch(`/api/tags/${parseInt(tagId)}/write`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                value: parseFloat(value)
+              })
             })
-          })
-          .then(response => response.json())
-          .then(data => {
-            Swal.close();
-            if (data.success) {
-              Swal.fire({
-                icon: 'success',
-                title: 'Success!',
-                text: `Successfully wrote ${value} to ${tagName}`,
-                timer: 2000,
-                showConfirmButton: false
+              .then(response => response.json())
+              .then(data => {
+                Swal.close();
+                if (data.success) {
+                  Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: `Successfully wrote ${value} to ${tagName}`,
+                    timer: 2000,
+                    showConfirmButton: false
+                  });
+                } else {
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Write Failed',
+                    text: data.error || 'Failed to write value'
+                  });
+                }
+              })
+              .catch(error => {
+                Swal.close();
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Error',
+                  text: 'Network error occurred'
+                });
               });
-            } else {
-              Swal.fire({
-                icon: 'error',
-                title: 'Write Failed',
-                text: data.error || 'Failed to write value'
-              });
-            }
-          })
-          .catch(error => {
-            Swal.close();
+          }
+        });
+      }
+    });
+
+    // Handle Add Tag form submission
+    const addTagForm = document.getElementById('addTagForm');
+    if (addTagForm) {
+      addTagForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(addTagForm);
+        const tagId = formData.get('tag_id');
+        const targetGroup = formData.get('target_group');
+        const newGroupName = formData.get('new_group_name');
+        
+        if (!tagId) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Please select a tag'
+          });
+          return;
+        }
+        
+        // Show loading
+        Swal.fire({
+          title: 'Adding Tag...',
+          text: 'Adding tag to subdashboard',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+        
+        // Send AJAX request
+        fetch(`/subdash/${currentSubdashId}/add_tag`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: `tag_id=${tagId}&target_group=${targetGroup}&new_group_name=${newGroupName}`
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            Swal.fire({
+              icon: 'success',
+              title: 'Success!',
+              text: data.message || 'Tag added successfully',
+              timer: 2000,
+              showConfirmButton: false
+            }).then(() => {
+              // Close modal and reload page
+              const modal = bootstrap.Modal.getInstance(document.getElementById('addTagModal'));
+              modal.hide();
+              window.location.href = window.location.href + '?t=' + Date.now();
+            });
+          } else {
             Swal.fire({
               icon: 'error',
               title: 'Error',
-              text: 'Network error occurred'
+              text: data.error || 'Failed to add tag'
             });
+          }
+        })
+        .catch(error => {
+          console.error('Add tag error:', error);
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Failed to add tag'
           });
-        }
+        });
       });
     }
-  });
 
-  // Group selection functionality for Add Tag modal
+    // Handle Add Group form submission
+    const addGroupForm = document.getElementById('addGroupForm');
+    if (addGroupForm) {
+      addGroupForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(addGroupForm);
+        const groupName = formData.get('group_name');
+        const selectedTags = Array.from(document.getElementById('group_tags').selectedOptions).map(option => option.value);
+        
+        if (!groupName || selectedTags.length === 0) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Please enter group name and select at least one tag'
+          });
+          return;
+        }
+        
+        // Show loading
+        Swal.fire({
+          title: 'Creating Group...',
+          text: 'Creating new tag group',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+        
+        // Prepare form data
+        const formBody = `group_name=${encodeURIComponent(groupName)}&${selectedTags.map(tag => `group_tags=${tag}`).join('&')}`;
+        
+        // Send AJAX request
+        fetch(`/subdash/${currentSubdashId}/add_group`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formBody
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            Swal.fire({
+              icon: 'success',
+              title: 'Success!',
+              text: data.message || `Group "${groupName}" created successfully`,
+              timer: 2000,
+              showConfirmButton: false
+            }).then(() => {
+              // Close modal and reload page
+              const modal = bootstrap.Modal.getInstance(document.getElementById('addGroupModal'));
+              modal.hide();
+              window.location.href = window.location.href + '?t=' + Date.now();
+            });
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: data.error || 'Failed to create group'
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Add group error:', error);
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Failed to create group'
+          });
+        });
+      });
+    }
 
-  // Toggle new group input visibility
+    // Request notification permission on page load
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    // Handle remove tag from group
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('.remove-tag-btn')) {
+        e.preventDefault();
+        const btn = e.target.closest('.remove-tag-btn');
+        const tagId = btn.dataset.tagId;
+        const tagName = btn.dataset.tagName;
+        const groupId = btn.dataset.groupId;
+
+        Swal.fire({
+          title: 'Remove Tag',
+          text: `Are you sure you want to remove "${tagName}" from this group?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, remove it!'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+              title: 'Removing...',
+              text: 'Removing tag from group',
+              allowOutsideClick: false,
+              didOpen: () => {
+                Swal.showLoading();
+              }
+            });
+
+            // Send AJAX request
+            fetch(`/subdash/${currentSubdashId}/remove_tag`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: `tag_id=${tagId}&group_id=${groupId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Success!',
+                  text: data.message || `Tag "${tagName}" removed successfully`,
+                  timer: 2000,
+                  showConfirmButton: false
+                }).then(() => {
+                  // Hard reload page to bypass cache
+                  window.location.href = window.location.href + '?t=' + Date.now();
+                });
+              } else {
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Error',
+                  text: data.error || 'Failed to remove tag'
+                });
+              }
+            })
+            .catch(error => {
+              console.error('Remove tag error:', error);
+              Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to remove tag'
+              });
+            });
+          }
+        });
+      }
+    });
+
+    // Handle delete group
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('.delete-group-btn')) {
+        e.preventDefault();
+        const btn = e.target.closest('.delete-group-btn');
+        const groupId = btn.dataset.groupId;
+        const groupName = btn.dataset.groupName;
+
+        Swal.fire({
+          title: 'Delete Group',
+          text: `Are you sure you want to delete the group "${groupName}"?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, delete it!'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+              title: 'Deleting...',
+              text: 'Deleting group',
+              allowOutsideClick: false,
+              didOpen: () => {
+                Swal.showLoading();
+              }
+            });
+
+            // Send AJAX request
+            fetch(`/subdash/${currentSubdashId}/group/${groupId}/delete`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              }
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Deleted!',
+                  text: data.message || `Group "${groupName}" deleted successfully`,
+                  timer: 2000,
+                  showConfirmButton: false
+                }).then(() => {
+                  // Hard reload page to bypass cache
+                  window.location.href = window.location.href + '?t=' + Date.now();
+                });
+              } else {
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Error',
+                  text: data.error || 'Failed to delete group'
+                });
+              }
+            })
+            .catch(error => {
+              console.error('Delete group error:', error);
+              Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to delete group'
+              });
+            });
+          }
+        });
+      }
+    });
+
+  }); // End of DOMContentLoaded
+
+  // Convert function code to integer for comparison
+  function getFunctionCodeInt(fc) {
+    return parseInt(fc) || 0;
+  }
+
+  // Check if tag supports write operations
+  function canWriteTag(functionCode) {
+    const fc = getFunctionCodeInt(functionCode);
+    return fc === 1 || fc === 3;
+  }
+
+  // Toggle new group input visibility (global function)
   function toggleNewGroupInput() {
     const newGroupSection = document.getElementById('newGroupSection');
     const targetGroupSelect = document.getElementById('target_group');
     const toggleBtn = document.getElementById('toggleNewGroup');
     const newGroupInput = document.getElementById('new_group_name');
-    
+
     if (newGroupSection.style.display === 'none') {
       // Show new group input
       newGroupSection.style.display = 'block';
@@ -657,41 +739,239 @@
     }
   }
 
-  // Listen for alarm events from subdashboard tags
-  socket.on('alarm_event', function(data) {
-    console.log('Received alarm event in subdash:', data);
+  // Socket connection variables (global)
+
+  let socketConnected = false;
+  let pollingInterval = null;
+  const currentSubdashId = "{{ subdash.id }}";
+  
+  // Timeout tracking for tags
+  const TAG_TIMEOUT_MS = 20000; // 20 seconds
+  const tagLastUpdates = new Map(); // tag_id -> last_update_timestamp
+  let timeoutCheckInterval = null;
+
+  // Check for timed out tags and reset to 0
+  function checkTagTimeouts() {
+    const now = Date.now();
     
-    // Only show notifications for tags that belong to current subdashboard
-    // (The modbus_service already filters by subdashboard, so we can trust this event)
-    if (window.notificationSystem) {
-      window.notificationSystem.addNotification({
-        id: Date.now() + Math.random(),
-        title: data.title || 'Alarm Alert',
-        message: data.message || 'Alarm condition detected',
-        level: data.level || 'Critical',
-        created_at: new Date().toISOString(),
-        status: data.status || 'Active'
-      });
-    }
+    tagLastUpdates.forEach((lastUpdate, tagId) => {
+      if (now - lastUpdate > TAG_TIMEOUT_MS) {
+        const valEl = document.getElementById('tag-val-' + tagId);
+        if (valEl && valEl.textContent !== '0') {
+          console.log(`⏰ Tag ${tagId} timeout (${(now - lastUpdate)/1000}s) - resetting to 0`);
+          valEl.textContent = '0';
+          valEl.style.color = '#666';
+          valEl.style.opacity = '0.7';
+          
+          // Reset bar to 0 width
+          const barEl = document.getElementById('tag-bar-' + tagId);
+          if (barEl) {
+            barEl.style.width = '0%';
+            barEl.style.backgroundColor = '#ccc';
+          }
+          
+          // Update timestamp to show timeout
+          const tsEl = document.getElementById('tag-ts-' + tagId);
+          if (tsEl) {
+            tsEl.textContent = 'TIMEOUT';
+            tsEl.style.color = '#999';
+          }
+        }
+      }
+    });
+  }
+  // Format value function (matches Python filter)
+  function formatValue(value, datatype) {
     
-    // Also show browser toast notification for important alarms
-    if (data.status === 'INCOMING' && data.level === 'Critical') {
-      // Show browser notification if permission granted
-      if (Notification.permission === 'granted') {
-        new Notification(`🚨 ${data.title}`, {
-          body: data.message,
-          icon: '/static/favicon.ico'
-        });
+    if (value === null || value === undefined || value === '') return '—';
+
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || !isFinite(numValue)) return '—';
+
+    // Fix -0.0 display issue
+    const fixedValue = numValue === 0 ? 0 : numValue;
+
+    if (datatype) {
+      const datatypeLower = datatype.toLowerCase();
+      // Float types: show with .00
+      if (['float', 'float32', 'real'].includes(datatypeLower)) {
+        return fixedValue.toFixed(2);
+      }
+      // Integer types: show without decimals if whole number
+      else if (['word', 'short', 'dword', 'dint', 'bit', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint'].includes(datatypeLower)) {
+        if (Number.isInteger(fixedValue)) {
+          return fixedValue.toString();
+        } else {
+          return fixedValue.toFixed(2); // Fallback for fractional values after scaling
+        }
       }
     }
-  });
 
-  // Request notification permission on page load
-  if (Notification.permission === 'default') {
-    Notification.requestPermission();
+    // Default behavior when no datatype specified
+    if (Number.isInteger(fixedValue)) {
+      return fixedValue.toString();
+    } else {
+      return fixedValue.toFixed(2);
+    }
   }
 
-  }); // End of DOMContentLoaded
 
+  // Real-time socket listener for modbus updates (immediate connection)
+  if (typeof socket !== 'undefined') {
+    socket.on("modbus_update", function (data) {
+      console.log(`Received modbus_update `);
+      if (!data || !data.tags) return;
+
+      // Mark that we're receiving socket updates
+      socketConnected = true;
+
+      // Debug: Log first update to confirm socket is working
+      if (!window.socketUpdateLogged) {
+        console.log('✅ First socket update received - real-time connection working!');
+        window.socketUpdateLogged = true;
+      }
+
+      // Batch DOM updates for better performance
+      const updates = [];
+      data.tags.forEach(tag => {
+        const valEl = document.getElementById('tag-val-' + tag.id);
+        if (!valEl) return;
+
+        const oldVal = valEl.textContent;
+        const newVal = formatValue(tag.value, tag.datatype);
+        console.log(`Tag ${tag.id} value changed from ${oldVal} to ${newVal}`);
+        // Only update if value actually changed
+        if (oldVal != newVal) {
+          updates.push({ valEl, newVal, oldVal, tag });
+        }
+
+      });
+
+      // Apply all updates in a single batch
+      updates.forEach(({ valEl, newVal, oldVal, tag }) => {
+        valEl.textContent = newVal;
+        // Track last update time for timeout detection
+        tagLastUpdates.set(tag.id, Date.now());
+        
+        // Reset visual styling (remove timeout indicators)
+        valEl.style.color = '';
+        valEl.style.opacity = '';
+        
+        // Update timestamp
+        const tsEl = document.getElementById('tag-ts-' + tag.id);
+        if (tsEl && tag.ts) {
+          tsEl.textContent = tag.ts;
+          tsEl.style.color = '';
+        }
+
+        // // Add visual feedback for value changes
+        // valEl.style.transition = 'all 0.2s ease';
+        // valEl.style.backgroundColor = '#e3f2fd';
+        const barEl = document.getElementById('tag-bar-' + tag.id);
+        if (barEl) {
+          barEl.style.width = "100%";
+          barEl.style.backgroundColor = "green";
+
+        }
+        setTimeout(() => {
+          valEl.style.backgroundColor = '';
+        }, 1000);
+      });
+
+    });
+
+    // Listen for alarm events from subdashboard tags
+    socket.on('alarm_event', function (data) {
+      console.log('Received alarm event in subdash:', data);
+
+      // Only show notifications for tags that belong to current subdashboard
+      if (window.NotificationSystem) {
+        window.NotificationSystem.addNotification({
+          id: Date.now() + Math.random(),
+          title: data.title || 'Alarm Alert',
+          message: data.message || 'Alarm condition detected',
+          level: data.level || 'Critical',
+          created_at: new Date().toISOString(),
+          status: data.status || 'Active'
+        });
+      }
+
+      // Also show browser toast notification for important alarms
+      if (data.status === 'INCOMING' && data.level === 'Critical') {
+        if (Notification.permission === 'granted') {
+          new Notification(`🚨 ${data.title}`, {
+            body: data.message,
+            icon: '/static/favicon.ico',
+            tag: `alarm-${data.tag_id}-${Date.now()}`
+          });
+        }
+      }
+    });
+
+    console.log('✅ Socket listeners initialized immediately for maximum speed');
+
+    // Join subdashboard room for targeted updates
+    socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
+    console.log(`Joined room: subdashboard_${currentSubdashId}`);
+    
+    // Initialize tag tracking and start timeout checker
+    document.querySelectorAll('[id^="tag-val-"]').forEach(el => {
+      const tagId = el.id.replace('tag-val-', '');
+      tagLastUpdates.set(parseInt(tagId), Date.now());
+    });
+    
+    // Start timeout checking interval
+    timeoutCheckInterval = setInterval(checkTagTimeouts, 5000); // Check every 5 seconds
+    console.log('✅ Tag timeout monitoring started (20s timeout)');
+
+    // Handle reconnection - rejoin room
+    socket.on('connect', function () {
+      console.log('Socket reconnected, rejoining room...');
+      socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
+      socketConnected = false; // Reset flag to redetect updates
+    });
+
+    socket.on('disconnect', function () {
+      console.log('Socket disconnected');
+      socketConnected = false;
+      
+      // Stop timeout checking when disconnected
+      if (timeoutCheckInterval) {
+        clearInterval(timeoutCheckInterval);
+        timeoutCheckInterval = null;
+      }
+    });
+  } else {
+    console.warn('Socket not available, falling back to polling only');
+  }
+
+  // Polling fallback - check after DOM is ready
+  document.addEventListener('DOMContentLoaded', function () {
+    // Check if we're receiving socket updates
+    setTimeout(function () {
+      if (!socketConnected) {
+        console.warn('Socket.IO not receiving updates after 2s, falling back to polling');
+        pollingInterval = setInterval(function () {
+          console.log('Polling fallback - refreshing tags...');
+          if (window.App && window.App.refreshTags) {
+            window.App.refreshTags();
+          }
+        }, 2000);
+      } else {
+        console.log('✅ Real-time socket updates working, polling disabled');
+      }
+    }, 2000);
+  });
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', function() {
+    if (timeoutCheckInterval) {
+      clearInterval(timeoutCheckInterval);
+    }
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
+  });
 </script>
+
 {% endblock %}

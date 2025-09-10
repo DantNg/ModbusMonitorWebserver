@@ -36,8 +36,7 @@
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  <span class="badge bg-secondary">{{ tag.datatype }}</span>
-                  {% if tag.function_code != 2 and tag.function_code != 4 %}
+                  {% if tag.function_code == 1 or tag.function_code == 3 %}
                   <button class="btn btn-sm btn-outline-primary write-btn" 
                           data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}"
                           title="Write Value">
@@ -60,7 +59,7 @@
               </div>
               <div class="value-row d-flex align-items-center justify-content-center flex-column">
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
-                  {{ tag.value if tag.value is not none else '—' }}
+                  {{ tag.value|format_value(tag.datatype) }}
                 </div>
                 <div class="unit">Unit {{ tag.unit }}</div>
               </div>
@@ -92,8 +91,7 @@
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  <span class="badge bg-secondary">{{ tag.datatype }}</span>
-                  {% if tag.function_code != 2 and tag.function_code != 4 %}
+                  {% if tag.function_code == 1 or tag.function_code == 3 %}
                   <button class="btn btn-sm btn-outline-primary write-btn" 
                           data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}"
                           title="Write Value">
@@ -116,7 +114,7 @@
               </div>
               <div class="value-row d-flex align-items-center justify-content-center flex-column">
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
-                  {{ tag.value if tag.value is not none else '—' }}
+                  {{ tag.value|format_value(tag.datatype) }}
                 </div>
                 <div class="unit">Unit {{ tag.unit }}</div>
               </div>
@@ -178,20 +176,62 @@
 
   const tagUpdateTimers = {};
   
-  // Listen for real-time modbus updates (new high-speed format)
+  // Format value function (matches Python filter)
+  function formatValue(value, datatype) {
+    if (value === null || value === undefined || value === '') return '—';
+    
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || !isFinite(numValue)) return '—';
+    
+    // Fix -0.0 display issue
+    const fixedValue = numValue === 0 ? 0 : numValue;
+    
+    if (datatype) {
+      const datatypeLower = datatype.toLowerCase();
+      // Float types: show with .00
+      if (['float', 'float32', 'real'].includes(datatypeLower)) {
+        return fixedValue.toFixed(2);
+      }
+      // Integer types: show without decimals if whole number
+      else if (['word', 'short', 'dword', 'dint', 'bit', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint'].includes(datatypeLower)) {
+        if (Number.isInteger(fixedValue)) {
+          return fixedValue.toString();
+        } else {
+          return fixedValue.toFixed(2); // Fallback for fractional values after scaling
+        }
+      }
+    }
+    
+    // Default behavior when no datatype specified
+    if (Number.isInteger(fixedValue)) {
+      return fixedValue.toString();
+    } else {
+      return fixedValue.toFixed(2);
+    }
+  }
+  
+  // Listen for real-time modbus updates (new high-speed format) - Optimized for maximum speed
   socket.on("modbus_update", function (data) {
     if (!data || !data.tags) return;
     
-    // Show device activity in console for debugging
-    console.log(`[${new Date().toLocaleTimeString()}] Device ${data.device_name || data.device_id}: ${data.tag_count} tags, ${data.latency_ms}ms latency, seq: ${data.seq}`);
-
+    // Batch DOM updates for better performance at high speeds
+    const updates = [];
+    
     data.tags.forEach(tag => {
       const valEl = document.getElementById('tag-val-' + tag.id);
       if (!valEl) return;
 
       const oldVal = valEl.textContent;
-      const newVal = tag.value !== null ? String(tag.value) : '—';
+      const newVal = formatValue(tag.value, tag.datatype);
 
+      // Only update if value actually changed (performance optimization)
+      if (oldVal !== newVal) {
+        updates.push({ valEl, newVal, oldVal, tag });
+      }
+    });
+    
+    // Apply all updates in a single batch
+    updates.forEach(({ valEl, newVal, oldVal, tag }) => {
       // Update text
       valEl.textContent = newVal;
       const tsEl = document.getElementById('tag-ts-' + tag.id);
@@ -206,10 +246,15 @@
         if (tagUpdateTimers[tag.id]) clearTimeout(tagUpdateTimers[tag.id]);
         tagUpdateTimers[tag.id] = setTimeout(() => {
           barEl.style.backgroundColor = "";
-          barEl.style.width = "0%"; // Fade after 20s without updates
-        }, 20000);
+          barEl.style.width = "0%"; // Fade after 10s for faster feedback
+        }, 10000);
       }
     });
+    
+    // Debug log only for significant batches to reduce console spam
+    if (updates.length > 0) {
+      console.log(`[${new Date().toLocaleTimeString()}] Device ${data.device_name || data.device_id}: ${updates.length}/${data.tag_count} tags updated, ${data.latency_ms}ms latency, seq: ${data.seq}`);
+    }
   });
   
   // Keep legacy listener for backward compatibility
@@ -221,7 +266,7 @@
       if (!valEl) return;
 
       const oldVal = valEl.textContent;
-      const newVal = tag.value !== null ? String(tag.value) : '—';
+      const newVal = formatValue(tag.value, tag.datatype);
 
       // update text
       valEl.textContent = newVal;
@@ -267,7 +312,7 @@
         if (!data.tags) return;
         data.tags.forEach(tag => {
           const valEl = document.getElementById('tag-val-' + tag.id);
-          if (valEl) valEl.textContent = tag.value !== null ? tag.value : '—';
+          if (valEl) valEl.textContent = formatValue(tag.value, tag.datatype);
           const tsEl = document.getElementById('tag-ts-' + tag.id);
           if (tsEl) tsEl.textContent = tag.ts || '';
         });

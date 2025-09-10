@@ -8,6 +8,7 @@ from modbus_monitor.database.db import (
     add_data_logger_row, update_data_logger_row, delete_data_logger_row,
     list_all_tags
 )
+from modbus_monitor.services.runner import restart_services
 
 # Danh sách Data Logger (settings)
 @logger_settings_bp.route("/data-logger-settings", endpoint="datalogger_settings")
@@ -52,6 +53,10 @@ def datalogger_add():
             {"name": name, "interval_sec": interval_sec, "enabled": enabled, "description": description},
             tag_ids
         )
+        
+        # Restart services to pick up new datalogger
+        restart_services()
+        
         flash("Data Logger created.", "success")
         return redirect(url_for("logger_settings_bp.datalogger_settings"))
 
@@ -117,6 +122,11 @@ def datalogger_edit(lid):
 @logger_settings_bp.route("/data-loggers/<int:lid>/delete", methods=["POST"])
 def datalogger_delete(lid):
     cnt = delete_data_logger_row(lid)
+    
+    if cnt:
+        # Restart services to remove deleted datalogger
+        restart_services()
+    
     flash("Data Logger deleted." if cnt else "Data Logger not found.", "success" if cnt else "warning")
     return redirect(url_for("logger_settings_bp.datalogger_settings"))
 

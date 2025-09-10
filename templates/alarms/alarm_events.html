@@ -2,24 +2,88 @@
 {% set page_title = "Alarm Events" %}
 {% block content %}
 <div class="card border-0 shadow-soft mb-3">
-  <div class="card-body d-flex flex-wrap gap-2 justify-content-between align-items-center">
-    <div class="position-relative" style="min-width:280px;max-width:360px;width:100%;">
-      <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
-      <input class="form-control ps-5" placeholder="Search alarms…" oninput="App.filterTable('#tbl', this.value)">
+  <div class="card-body">
+    <!-- Time Filter Row -->
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <div class="d-flex gap-3 align-items-center">
+          <label class="fw-semibold text-muted mb-0" for="timeFilterSelect">Time Filter:</label>
+          <select class="form-select form-select-sm" id="timeFilterSelect" style="width: auto; min-width: 150px;">
+            <option value="all" {{ 'selected' if time_filter == 'all' or not time_filter else '' }}>All Time</option>
+            <option value="today" {{ 'selected' if time_filter == 'today' else '' }}>Today</option>
+            <option value="yesterday" {{ 'selected' if time_filter == 'yesterday' else '' }}>Yesterday</option>
+            <option value="last7days" {{ 'selected' if time_filter == 'last7days' else '' }}>Last 7 Days</option>
+            <option value="last30days" {{ 'selected' if time_filter == 'last30days' else '' }}>Last 30 Days</option>
+            <option value="custom" {{ 'selected' if time_filter == 'custom' else '' }}>Custom Range</option>
+          </select>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <!-- Filter Status -->
+        {% if time_filter and time_filter != 'all' %}
+        <div class="d-flex align-items-center">
+          <small class="text-muted">
+            Active: 
+            {% if time_filter == 'today' %}
+              <span class="badge bg-info">Today</span>
+            {% elif time_filter == 'yesterday' %}
+              <span class="badge bg-info">Yesterday</span>
+            {% elif time_filter == 'last7days' %}
+              <span class="badge bg-info">Last 7 Days</span>
+            {% elif time_filter == 'last30days' %}
+              <span class="badge bg-info">Last 30 Days</span>
+            {% elif time_filter == 'custom' %}
+              <span class="badge bg-info">Custom Range</span>
+            {% endif %}
+            <a href="{{ url_for('alarms_bp.alarm_events') }}" class="text-decoration-none ms-1" title="Clear filter">✕</a>
+          </small>
+        </div>
+        {% endif %}
+      </div>
     </div>
-    <div class="d-flex gap-2 mb-2">
-      <!-- Nút Export không submit form -->
-      <button type="button" class="btn btn-primary btn-sm" onclick="exportAlarms()">Export XLSX</button>
-
-      <!-- Nút Clear All vẫn submit form -->
-      <form method="post" action="{{ url_for('alarms_bp.clear_alarm_events_route') }}"
-        onsubmit="return confirm('Clear all alarm events?')" style="display:inline;">
-        <button type="submit" class="btn btn-danger btn-sm">Clear All</button>
-      </form>
+    
+    <!-- Custom Date Range (hidden by default) -->
+    <div class="row mb-3" id="customDateRange" style="display: none;">
+      <div class="col-md-4">
+        <label class="form-label small">From Date:</label>
+        <input type="datetime-local" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">To Date:</label>
+        <input type="datetime-local" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}">
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="button" class="btn btn-success btn-sm" onclick="applyTimeFilter()">Apply Custom Range</button>
+      </div>
     </div>
+    
+    <!-- Search and Actions Row -->
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+      <div>
+        <div class="position-relative d-inline-block" style="min-width:280px;max-width:360px;width:100%;">
+          <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
+          <input class="form-control ps-5" placeholder="Search alarms…" oninput="App.filterTable('#tbl', this.value)">
+        </div>
+      </div>
+      <div class="d-flex gap-2 mb-2">
+        <!-- Apply Filter Button (hidden by default, only show for non-custom) -->
+        <button type="button" class="btn btn-success btn-sm" id="quickApplyBtn" onclick="applyTimeFilter()" style="display: none;">Apply Filter</button>
+        
+        <!-- Export button -->
+        <button type="button" class="btn btn-primary btn-sm" onclick="exportAlarms()">Export XLSX</button>
 
+        <!-- Clear All button - chỉ admin -->
+        {% if session.get("role") == "admin" %}
+        <form method="post" action="{{ url_for('alarms_bp.clear_alarm_events_route') }}"
+          onsubmit="return confirm('Clear all alarm events?')" style="display:inline;">
+          <button type="submit" class="btn btn-danger btn-sm">Clear All</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
   </div>
 </div>
+{% if session.get("role") == "admin" %}
 <div class="card-flex gap-2 ms-auto">
   <form method="post" action="{{ url_for('alarms_bp.delete_selected_alarm_events') }}"
     onsubmit="return confirm('Delete selected?')">
@@ -27,10 +91,15 @@
     <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
     <div class="table-responsive">
     </div>
+</form>
+</div>
+{% endif %}
     <table class="table align-middle mb-0" id="tbl">
       <thead class="table-dark-subtle">
         <tr>
+          {% if session.get("role") == "admin" %}
           <th><input type="checkbox" id="check-all" onclick="toggleAll(this)"></th>
+          {% endif %}
           <th>Time</th>
           <th>Name</th>
           <th>Level</th>
@@ -42,19 +111,23 @@
       <tbody>
         {% for e in items %}
         <tr>
+          {% if session.get("role") == "admin" %}
           <td><input type="checkbox" name="ids" value="{{ e.id }}"></td>
+          {% endif %}
           <td>{{ e.ts }}</td>
           <td>{{ e.name }}</td>
           <td><span class="badge text-bg-secondary">{{ e.level }}</span></td>
           <td>{{ e.target }}</td>
           <td>{{ e.value }}</td>
           <td>{{ e.note }}</td>
+          {% if session.get("role") == "admin" %}
           <td class="text-end">
             <form method="post" action="{{ url_for('alarms_bp.delete_alarm_event', eid=e.id) }}" style="display:inline;"
               onsubmit="return confirm('Delete this event?')">
               <button class="btn btn-sm btn-outline-danger">Delete</button>
             </form>
           </td>
+          {% endif %}
         </tr>
         {% else %}
         <tr>
@@ -193,6 +266,91 @@
     XLSX.utils.book_append_sheet(wb, ws, "Alarm Report");
     XLSX.writeFile(wb, `alarm_report.xlsx`);
   }
+
+  // ==== Time Filter Functions ====
+  
+  // Show/hide custom date range based on selection
+  document.addEventListener('change', function(e) {
+    if (e.target.id === 'timeFilterSelect') {
+      const customDateRange = document.getElementById('customDateRange');
+      if (e.target.value === 'custom') {
+        customDateRange.style.display = 'block';
+        // Set default dates if empty
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 16);
+        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString().slice(0, 16);
+
+        const fromDate = document.getElementById('fromDate');
+        const toDate = document.getElementById('toDate');
+
+        if (!fromDate.value) fromDate.value = today;
+        if (!toDate.value) toDate.value = tomorrow;
+      } else {
+        customDateRange.style.display = 'none';
+        // Auto-apply for non-custom selections
+        applyTimeFilter();
+      }
+    }
+  });
+
+  // On page load, show custom date range if filter is 'custom'
+  document.addEventListener('DOMContentLoaded', function() {
+    const timeFilter = "{{ time_filter|default('') }}";
+    if (timeFilter === "custom") {
+      document.getElementById('customDateRange').style.display = 'block';
+    }
+    document.body.style.cursor = 'default';
+  });
+
+  // Apply time filter
+  function applyTimeFilter() {
+    const selectedFilter = document.getElementById('timeFilterSelect').value;
+    console.log('Applying time filter:', selectedFilter); // Debug log
+    
+    const url = new URL(window.location);
+    
+    // Clear existing time parameters
+    url.searchParams.delete('time_filter');
+    url.searchParams.delete('from_date');
+    url.searchParams.delete('to_date');
+    
+    // Set new parameters
+    url.searchParams.set('time_filter', selectedFilter);
+    
+    if (selectedFilter === 'custom') {
+      const fromDate = document.getElementById('fromDate').value;
+      const toDate = document.getElementById('toDate').value;
+      
+      console.log('Custom dates:', fromDate, toDate); // Debug log
+      
+      if (!fromDate || !toDate) {
+        alert('Please select both from and to dates for custom range');
+        return;
+      }
+      
+      // Validate date range
+      if (new Date(fromDate) > new Date(toDate)) {
+        alert('From date must be before to date');
+        return;
+      }
+      
+      url.searchParams.set('from_date', fromDate);
+      url.searchParams.set('to_date', toDate);
+    }
+    
+    console.log('Redirecting to:', url.toString()); // Debug log
+    
+    // Show loading indicator
+    document.body.style.cursor = 'wait';
+    
+    // Reload page with new parameters
+    window.location.href = url.toString();
+  }
+
+  // Reset cursor when page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    document.body.style.cursor = 'default';
+  });
 
 </script>
 {% endblock %}

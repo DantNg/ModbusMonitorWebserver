@@ -1,5 +1,5 @@
 import smtplib
-import serial
+import serial  # Required for SMS/COM functionality
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import json
@@ -33,8 +33,12 @@ def send_email(to_email, subject, body):
         print(f"Failed to send email: {e}")
         return False
 
-# SMS Service
+# SMS Service via COM Port
 def send_sms(phone_number, message):
+    """
+    Send SMS via COM port (GSM modem/AT commands)
+    Note: Serial port access may trigger antivirus warnings - this is normal for industrial applications
+    """
     try:
         print(f"Sending SMS to {phone_number}")
         com_port = config["SMSSettings"]["COMPort"]
@@ -43,8 +47,8 @@ def send_sms(phone_number, message):
         stopbits = int(config["SMSSettings"].get("StopBits", 1))
         bytesize = int(config["SMSSettings"].get("DataBits", 8))
         timeout = int(config["SMSSettings"].get("Timeout", 1))
-        # print(com_port,baud_rate,parity,stopbits,bytesize,timeout)
-        # Connect to COM port
+        
+        # Connect to COM port for GSM modem
         with serial.Serial(
             port=com_port,
             baudrate=baud_rate,
@@ -53,11 +57,12 @@ def send_sms(phone_number, message):
             bytesize=bytesize,
             timeout=timeout
         ) as ser:
-            ser.write(b'AT\r')  # Test AT command
-            ser.write(b'AT+CMGF=1\r')  # Set SMS mode to text
+            # Standard GSM AT commands for SMS
+            ser.write(b'AT\r')  # Test modem connection
+            ser.write(b'AT+CMGF=1\r')  # Set SMS text mode
             ser.write(f'AT+CMGS="{phone_number}"\r'.encode())
-            ser.write(message.encode() + b"\x1A")  # Send message and Ctrl+Z
+            ser.write(message.encode() + b"\x1A")  # Send message + Ctrl+Z terminator
         return True
     except Exception as e:
-        print(f"Failed to send SMS: {e}")
+        print(f"Failed to send SMS via COM: {e}")
         return False

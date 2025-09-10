@@ -25,20 +25,52 @@
       <div class="fw-semibold">Modbus Monitor</div>
     </div>
     <nav class="px-2">
-      <a class="side-link {{ 'active' if request.path.startswith('/dashboard') or request.path == '/' else '' }}"
-        href="{{ url_for('dashboard_bp.dashboard') }}"><span class="icon"></span> Dashboard</a>
-      {% if subdashboards %}
-      <ul class="nav flex-column ms-3">
-        {% for subdash in subdashboards %}
-        <li class="nav-item">
-          <a class="side-link {{ 'active' if request.path.startswith('/subdashboards/' ~ subdash.id|string) else '' }}"
-            href="{{ url_for('subdash_bp.subdash_detail', sid=subdash.id) }}">
-            <span class="icon"></span> {{ subdash.name }}
-          </a>
-        </li>
-        {% endfor %}
-      </ul>
-      {% endif %}
+      <!-- Dashboard với dropdown subdashboards -->
+      <div class="nav-item">
+        <a class="side-link d-flex justify-content-between align-items-center" 
+           data-bs-toggle="collapse" 
+           href="#dashboardSubmenu" 
+           role="button" 
+           aria-expanded="{{ 'true' if request.path.startswith('/dashboard') or request.path.startswith('/subdash') or request.path == '/' else 'false' }}" 
+           aria-controls="dashboardSubmenu">
+          <span><span class="icon"></span> Dashboard</span>
+          <i class="fas fa-chevron-down ms-auto collapse-icon"></i>
+        </a>
+        <div class="collapse {{ 'show' if request.path.startswith('/dashboard') or request.path.startswith('/subdash') or request.path == '/' else '' }}"
+             id="dashboardSubmenu">
+          <div class="nav flex-column ms-3 mt-1">
+            <!-- Debug info -->
+            
+            {% if subdashboards %}
+              {% for subdash in subdashboards %}
+              <div class="d-flex align-items-center">
+                <a class="side-link small flex-grow-1 {{ 'active' if request.path.startswith('/subdash/' ~ subdash.id|string) else '' }}"
+                   href="{{ url_for('subdash_bp.subdash_detail', sid=subdash.id) }}">
+                  <span class="icon"></span> {{ subdash.name }}
+                </a>
+                {% if session.get("role") == "admin" %}
+                <button type="button" class="btn btn-sm btn-outline-danger ms-2 p-1 delete-subdash-btn" 
+                        data-subdash-id="{{ subdash.id }}" 
+                        data-subdash-name="{{ subdash.name }}"
+                        title="Delete subdashboard" style="font-size: 0.7rem; line-height: 1;">
+                    <i class="fas bi-trash"></i>
+                </button>
+                {% endif %}
+              </div>
+              {% endfor %}
+            {% else %}
+              <span class="side-link small text-muted">No subdashboards available</span>
+            {% endif %}
+            {% if session.get("role") == "admin" %}
+            <hr class="border-secondary my-2">
+            <a class="side-link small text-success {{ 'active' if request.path.startswith('/subdash/add') else '' }}" 
+               href="{{ url_for('subdash_bp.add_subdash') }}">
+              <span class="icon">+</span> Add Sub Dashboard
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
       <a class="side-link {{ 'active' if request.path.startswith('/alarms') and not request.path.startswith('/settings') else '' }}"
         href="{{ url_for('alarms_bp.alarm_events') }}"><span class="icon"></span> Alarms Logger</a>
 
@@ -426,6 +458,37 @@
       border-bottom: none;
     }
   </style>
+
+  <script>
+  // Handle subdashboard deletion
+  document.addEventListener('DOMContentLoaded', function() {
+    const deleteButtons = document.querySelectorAll('.delete-subdash-btn');
+    
+    deleteButtons.forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent navigation to subdashboard
+        
+        const subdashId = this.dataset.subdashId;
+        const subdashName = this.dataset.subdashName;
+        
+        if (confirm(`Are you sure you want to delete subdashboard "${subdashName}"?\n\nThis action cannot be undone.`)) {
+          // Show loading state
+          this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+          this.disabled = true;
+          
+          // Create and submit form for deletion
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/subdash/${subdashId}/delete`;
+          
+          document.body.appendChild(form);
+          form.submit();
+        }
+      });
+    });
+  });
+  </script>
 
   {% block scripts %}{% endblock %}
 </body>
