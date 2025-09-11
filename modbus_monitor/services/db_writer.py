@@ -65,7 +65,7 @@ class DBWriter(threading.Thread):
                     
                     # Save to database (this is still important for persistence)
                     if cleaned:
-                        dbsync.insert_tag_values_bulk(cleaned)
+                        # dbsync.insert_tag_values_bulk(cleaned)
                         # Update device status
                         dbsync.update_device_status_by_tag(cleaned[-1][0], True)
                     
@@ -114,7 +114,7 @@ class DBWriter(threading.Thread):
 
         # flush cuối
         if self.buf:
-            dbsync.insert_tag_values_bulk(self.buf)
+            # dbsync.insert_tag_values_bulk(self.buf)
             self.buf.clear()
 
     def stop(self):

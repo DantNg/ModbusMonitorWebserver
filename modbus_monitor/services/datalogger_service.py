@@ -37,7 +37,7 @@ class DataLoggerService(threading.Thread):
             
             if rows:
                 dbsync.insert_tag_values_bulk(rows)
-                # print(f"✅ {logger_name}: Logged {len(rows)} tag values")
+                print(f"✅ {logger_name}: Logged {len(rows)} tag values at {ts.isoformat()}")
             else:
                 print(f"📝 {logger_name}: No data to log")
                 
@@ -56,25 +56,25 @@ class DataLoggerService(threading.Thread):
                         
                     lid = int(logger["id"])
                     interval = max(0.1, float(logger.get("interval_sec") or 60))
-                    
+                    # print(f"⏱️ Checking Logger {lid} (interval={interval}s)")
                     # Check if interval changed
                     if self._intervals.get(lid) != interval:
-                        # print(f"🔄 Logger {lid}: Interval changed to {interval}s")
+                        print(f"🔄 Logger {lid}: Interval changed to {interval}s")
                         self._intervals[lid] = interval
-                        self._next_runs[lid] = now + 0.1  # Run soon
+                        self._next_runs[lid] = now + 0.1  # Run soon for immediate effect
                         continue
                     
                     # Initialize if new logger
                     if lid not in self._next_runs:
-                        # print(f"🆕 Logger {lid}: First run - interval {interval}s")
+                        print(f"🆕 Logger {lid}: First run - interval {interval}s")
                         self._intervals[lid] = interval
-                        self._next_runs[lid] = now + 0.1
+                        self._next_runs[lid] = now + 0.1  # Run soon for immediate effect
                         continue
                     
                     # Check if due to run
                     next_run = self._next_runs[lid]
-                    if now >= next_run:
-                        # print(f"🚀 Logger {lid}: Executing (interval={interval}s)")
+                    if now >= next_run and now - next_run < 0.1:  # Avoid huge catch-up runs
+                        print(f"🚀 Logger {lid}: Executing (interval={interval}s)")
                         
                         # Execute logging
                         self._execute_logger(logger)
@@ -82,9 +82,12 @@ class DataLoggerService(threading.Thread):
                         # Schedule next run (anti-drift)
                         self._next_runs[lid] = next_run + interval
                         
-                        # If we're behind, catch up gradually
-                        while self._next_runs[lid] < now:
+                        # If we're behind, catch up gradually (but don't spam)
+                        max_catchup = 3  # Maximum 3 intervals to catch up
+                        catchup_count = 0
+                        while self._next_runs[lid] < now and catchup_count < max_catchup:
                             self._next_runs[lid] += interval
+                            catchup_count += 1
                 
             except Exception as e:
                 print(f"❌ DataLogger main loop error: {e}")
