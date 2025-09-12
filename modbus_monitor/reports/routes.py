@@ -46,7 +46,7 @@ def reports():
     else:  # "all"
         from_dt = now - timedelta(days=365)  # Last year
         to_dt = now
-
+    print(f"Reports: Time filter {time_filter}, from {from_dt} to {to_dt}")
     if current_logger_id == "all":
         # mới: lấy dữ liệu cho tất cả logger
         items, columns = db.get_all_logger_rows(dt_from=from_dt, dt_to=to_dt)
@@ -55,7 +55,7 @@ def reports():
 
     if "timestamp" not in columns:
         columns = ["timestamp"] + [c for c in columns if c != "timestamp"]
-
+    print(f"Reports: Loaded {len(items)} rows for logger {current_logger_id} from {from_dt} to {to_dt}")
     return render_template(
         "reports/reports.html",
         loggers=loggers,

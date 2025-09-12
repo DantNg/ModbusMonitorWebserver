@@ -103,7 +103,7 @@
           <th>Time</th>
           <th>Name</th>
           <th>Level</th>
-          <th>Target</th>
+          
           <th>Value</th>
           <th>Note</th>
         </tr>
@@ -117,7 +117,7 @@
           <td>{{ e.ts }}</td>
           <td>{{ e.name }}</td>
           <td><span class="badge text-bg-secondary">{{ e.level }}</span></td>
-          <td>{{ e.target }}</td>
+          
           <td>{{ e.value }}</td>
           <td>{{ e.note }}</td>
           {% if session.get("role") == "admin" %}
@@ -190,7 +190,7 @@
           <td>${e.ts}</td>
           <td>${e.name}</td>
           <td><span class="badge text-bg-secondary">${e.level}</span></td>
-          <td>${e.target}</td>
+          
           <td>${e.value}</td>
           <td>${e.note}</td>
          

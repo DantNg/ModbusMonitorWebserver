@@ -26,10 +26,21 @@
             <option {{ 'selected' if form and form.datatype == 'DInt' else '' }}>DInt</option>
             <option {{ 'selected' if form and form.datatype == 'Float' else '' }}>Float</option>
             <option {{ 'selected' if form and form.datatype == 'Bit' else '' }}>Bit</option>
+            <option {{ 'selected' if form and form.datatype == 'Signed' else '' }}>Signed</option>
+            <option {{ 'selected' if form and form.datatype == 'Unsigned' else '' }}>Unsigned</option>
+            <option {{ 'selected' if form and form.datatype == 'Hex' else '' }}>Hex</option>
+            <option {{ 'selected' if form and form.datatype == 'Raw' else '' }}>Raw</option>
+            <option {{ 'selected' if form and form.datatype == 'Binary' else '' }}>Binary</option>
+            <option {{ 'selected' if form and form.datatype == 'Double' else '' }}>Double</option>
+            <option {{ 'selected' if form and form.datatype == 'Float_inverse' else '' }}>Float_inverse</option>
+            <option {{ 'selected' if form and form.datatype == 'Long' else '' }}>Long</option>
+            <option {{ 'selected' if form and form.datatype == 'Double_inverse' else '' }}>Double_inverse</option>
           </select>
           <div class="form-text">
-            <strong>Word:</strong> 16-bit unsigned | <strong>Short:</strong> 16-bit signed | 
-            <strong>DWord:</strong> 32-bit unsigned | <strong>DInt:</strong> 32-bit signed
+            <strong>Basic:</strong> Word (16-bit unsigned), Short (16-bit signed), DWord (32-bit unsigned), DInt (32-bit signed)<br>
+            <strong>IEEE754:</strong> Float (32-bit), Double (64-bit), Float/Double_inverse (BA word order)<br>
+            <strong>Display:</strong> Hex (hexadecimal), Binary (binary), Raw (unprocessed), Signed/Unsigned (16-bit)<br>
+            <strong>64-bit:</strong> Long (64-bit signed integer)
           </div>
         </div>
         <div class="col-md-4">

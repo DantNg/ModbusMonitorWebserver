@@ -793,12 +793,29 @@
 
     if (datatype) {
       const datatypeLower = datatype.toLowerCase();
-      // Float types: show with .00
-      if (['float', 'float32', 'real'].includes(datatypeLower)) {
+      
+      // IEEE754 Float types: show with .00
+      if (['float', 'float32', 'real', 'float_inverse'].includes(datatypeLower)) {
         return fixedValue.toFixed(2);
       }
+      // IEEE754 Double types: show with more precision
+      else if (['double', 'double_inverse'].includes(datatypeLower)) {
+        return fixedValue.toFixed(4);
+      }
+      // Display formats
+      else if (datatypeLower === 'hex') {
+        const intVal = Math.round(Math.abs(fixedValue));
+        return '0x' + intVal.toString(16).toUpperCase();
+      }
+      else if (datatypeLower === 'binary') {
+        const intVal = Math.round(Math.abs(fixedValue));
+        return '0b' + intVal.toString(2);
+      }
+      else if (datatypeLower === 'raw') {
+        return fixedValue.toString(); // Raw unprocessed value
+      }
       // Integer types: show without decimals if whole number
-      else if (['word', 'short', 'dword', 'dint', 'bit', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint'].includes(datatypeLower)) {
+      else if (['word', 'short', 'dword', 'dint', 'bit', 'signed', 'unsigned', 'long', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint'].includes(datatypeLower)) {
         if (Number.isInteger(fixedValue)) {
           return fixedValue.toString();
         } else {

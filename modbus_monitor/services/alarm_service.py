@@ -21,6 +21,7 @@ class AlarmService(threading.Thread):
         self._state = {}    # trạng thái mở rộng: on_since/off_since
         self._active: Dict[int, bool] = {}
         self._since: Dict[int, float] = {}
+        self._last_notification = {}  # rule_id -> {"incoming": timestamp, "outgoing": timestamp}
     def start_send_email_thread(self, to_email, subject, body):
         threading.Thread(
             target=send_email,
@@ -34,6 +35,35 @@ class AlarmService(threading.Thread):
             args=(phone_number, message),
             daemon=True
         ).start()
+    
+    def should_send_notification(self, rule_id: int, notification_type: str, stable_time_sec: int) -> bool:
+        """
+        Kiểm tra có nên gửi notification không dựa trên debounce timer
+        notification_type: "incoming" hoặc "outgoing"
+        stable_time_sec: on_stable_sec hoặc off_stable_sec từ alarm rule
+        Debounce time = stable_time_sec * 2 (để tránh spam notifications)
+        """
+        now = time.time()
+        
+        # Tính debounce time dựa trên stable time của rule này
+        # Sử dụng ít nhất stable_time * 2, tối thiểu 60s để tránh spam quá nhiều
+        debounce_time = max(stable_time_sec * 2, 60)
+        
+        # Khởi tạo tracking cho rule nếu chưa có
+        if rule_id not in self._last_notification:
+            self._last_notification[rule_id] = {"incoming": 0, "outgoing": 0}
+        
+        last_sent = self._last_notification[rule_id].get(notification_type, 0)
+        time_since_last = now - last_sent
+        
+        if time_since_last >= debounce_time:
+            # Cập nhật timestamp cho lần gửi này
+            self._last_notification[rule_id][notification_type] = now
+            return True
+        else:
+            remaining = debounce_time - time_since_last
+            print(f"Notification debounce: {notification_type} for rule {rule_id} - {remaining:.1f}s remaining (debounce: {debounce_time}s)")
+            return False
     def run(self):
         while not self._stop.is_set():
             try:
@@ -57,19 +87,31 @@ class AlarmService(threading.Thread):
                         to_email = r.get("email")
                         to_sms = r.get("sms")
 
+                        # ---- state lưu trữ cho từng rule ----
+                        rule_id = r.get("id")
+                        if not rule_id:
+                            print(f"Warning: Alarm rule missing ID, skipping: {r}")
+                            continue
+                            
+                        state = self._state.setdefault(rule_id, {
+                            "active": False,
+                            "on_since": None,
+                            "off_since": None,
+                            "prev_condition": None,
+                            "alarm_triggered": False  # Flag để tránh trigger nhiều lần
+                        })
+
                         rec = self.cache.get(tag_id)
                         if not rec:
                             continue
                         _, val = rec
                         cond = _cmp(float(val), op, th)
 
-                        # ---- state lưu trữ cho từng rule ----
-                        rule_id = r.get("id", f"rule_{tag_id}_{hash(str(r))}")
-                        state = self._state.setdefault(rule_id, {
-                            "active": False,
-                            "on_since": None,
-                            "off_since": None
-                        })
+                        # Debug log để track condition changes
+                        prev_cond = state.get("prev_condition", None)
+                        if prev_cond != cond:
+                            # print(f"Alarm {r.get('name', 'Unknown')} (ID:{rule_id}) - Condition changed: {prev_cond} -> {cond} (val:{val} {op} {th})")
+                            state["prev_condition"] = cond
 
                         # ---- Nếu điều kiện thỏa (alarm condition met) ----
                         if cond:
@@ -80,11 +122,17 @@ class AlarmService(threading.Thread):
                                 # Bắt đầu đếm on stable time
                                 if state["on_since"] is None:
                                     state["on_since"] = now
-                                    print(f"Alarm {r.get('name', 'Unknown')} - Started ON stable timer")
+                                    state["alarm_triggered"] = False  # Reset trigger flag
+                                    print(f"Alarm {r.get('name', 'Unknown')} (ID:{rule_id}) - Started ON stable timer")
                                 
-                                # Kiểm tra đã ổn định đủ lâu chưa
-                                if now - state["on_since"] >= on_s:
-                                    print(f"Alarm {r.get('name', 'Unknown')} - ON stable time reached ({on_s}s), triggering alarm")
+                                # Kiểm tra đã ổn định đủ lâu chưa và chưa trigger
+                                elapsed = now - state["on_since"]
+                                if elapsed >= on_s and not state["alarm_triggered"]:
+                                    # print(f"Alarm {r.get('name', 'Unknown')} (ID:{rule_id}) - ON stable time reached ({on_s}s), triggering alarm")
+                                    
+                                    # Set flag để không trigger lại
+                                    state["alarm_triggered"] = True
+                                    
                                     # Bật alarm - gửi INCOMING event
                                     dbsync.insert_alarm_event(
                                         utc_now(),
@@ -138,38 +186,42 @@ class AlarmService(threading.Thread):
                                         print(f"Error emitting alarm to subdashboards: {e}")
                                     
                                     try:
-                                        print(f"Alarm {r.get('name', 'Unknown')} triggered - sending notifications...")
-                                        
-                                        # Send Email notification if configured
-                                        if to_email and to_email.strip():
-                                            self.start_send_email_thread(
-                                                to_email=to_email.strip(),
-                                                subject=f"🚨 ALARM TRIGGERED: {r.get('name', 'Alarm')}",
-                                                body=(
-                                                    f"ALARM NOTIFICATION\n"
-                                                    f"==================\n\n"
-                                                    f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
-                                                    f"Device: {d.get('name', 'Unknown Device')}\n"
-                                                    f"Alarm Name: {r.get('name', 'Unknown Alarm')}\n"
-                                                    f"Tag Value: {val}\n"
-                                                    f"Threshold: {th}\n"
-                                                    f"Condition: {op}\n"
-                                                    f"Level: {r.get('level', 'Critical')}\n"
-                                                    f"Status: {'High Alarm' if op in ('>', '>=') else 'Low Alarm' if op in ('<', '<=') else 'Alarm'}\n\n"
-                                                    f"Please check the system immediately."
+                                        # Chỉ gửi notification nếu chưa gửi trong khoảng debounce time
+                                        if self.should_send_notification(rule_id, "incoming", on_s):
+                                            print(f"Alarm {r.get('name', 'Unknown')} triggered - sending notifications...")
+                                            
+                                            # Send Email notification if configured
+                                            if to_email and to_email.strip():
+                                                self.start_send_email_thread(
+                                                    to_email=to_email.strip(),
+                                                    subject=f"🚨 ALARM TRIGGERED: {r.get('name', 'Alarm')}",
+                                                    body=(
+                                                        f"ALARM NOTIFICATION\n"
+                                                        f"==================\n\n"
+                                                        f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+                                                        f"Device: {d.get('name', 'Unknown Device')}\n"
+                                                        f"Alarm Name: {r.get('name', 'Unknown Alarm')}\n"
+                                                        f"Tag Value: {val}\n"
+                                                        f"Threshold: {th}\n"
+                                                        f"Condition: {op}\n"
+                                                        f"Level: {r.get('level', 'Critical')}\n"
+                                                        f"Status: {'High Alarm' if op in ('>', '>=') else 'Low Alarm' if op in ('<', '<=') else 'Alarm'}\n\n"
+                                                        f"Please check the system immediately."
+                                                    )
                                                 )
-                                            )
-                                        
-                                        # Send SMS notification if configured
-                                        if to_sms and to_sms.strip():
-                                            self.start_send_sms_thread(
-                                                phone_number=to_sms.strip(),
-                                                message=(
-                                                    f"🚨 ALARM: '{r.get('name', 'Alarm')}' triggered for device '{d.get('name', 'Unknown')}'.\n"
-                                                    f"Value: {val}, Threshold: {op} {th}, Level: {r.get('level', 'Critical')}\n"
-                                                    f"Time: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}"
+                                            
+                                            # Send SMS notification if configured
+                                            if to_sms and to_sms.strip():
+                                                self.start_send_sms_thread(
+                                                    phone_number=to_sms.strip(),
+                                                    message=(
+                                                        f"🚨 ALARM: '{r.get('name', 'Alarm')}' triggered for device '{d.get('name', 'Unknown')}'.\n"
+                                                        f"Value: {val}, Threshold: {op} {th}, Level: {r.get('level', 'Critical')}\n"
+                                                        f"Time: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}"
+                                                    )
                                                 )
-                                            )
+                                        else:
+                                            print(f"Alarm {r.get('name', 'Unknown')} triggered but notification skipped due to debounce")
                                         
                                     except Exception as e:
                                         print(f"Notification error: {e}")
@@ -177,8 +229,8 @@ class AlarmService(threading.Thread):
                                     state["active"] = True
                                     state["on_since"] = None  # Reset on timer sau khi trigger
                                 else:
-                                    remaining = on_s - (now - state["on_since"])
-                                    print(f"Alarm {r.get('name', 'Unknown')} - ON stable: {remaining:.1f}s remaining")
+                                    remaining = on_s - elapsed
+                                    # print(f"Alarm {r.get('name', 'Unknown')} (ID:{rule_id}) - ON stable: {remaining:.1f}s remaining (elapsed: {elapsed:.1f}s)")
                             else:
                                 # Alarm đã active, chỉ cần reset off timer
                                 pass
@@ -186,8 +238,9 @@ class AlarmService(threading.Thread):
                         
                         # ---- Nếu điều kiện không thỏa (alarm condition not met) ----
                         else:
-                            # Reset on timer ngay khi thoát điều kiện alarm  
+                            # Reset on timer và trigger flag ngay khi thoát điều kiện alarm  
                             state["on_since"] = None
+                            state["alarm_triggered"] = False
                             
                             if state["active"]:
                                 # Bắt đầu đếm off stable time
@@ -251,36 +304,43 @@ class AlarmService(threading.Thread):
                                         print(f"Error emitting alarm clear to subdashboards: {e}")
                                     
                                     try:
-                                        print(f"Alarm {r.get('name', 'Unknown')} cleared - sending clear notifications...")
-                                        
-                                        # Send Email clear notification if configured
-                                        if to_email and to_email.strip():
-                                            self.start_send_email_thread(
-                                                to_email=to_email.strip(),
-                                                subject=f"✅ ALARM CLEARED: {r.get('name', 'Alarm')}",
-                                                body=(
-                                                    f"ALARM CLEAR NOTIFICATION\n"
-                                                    f"========================\n\n"
-                                                    f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
-                                                    f"Device: {d.get('name', 'Unknown Device')}\n"
-                                                    f"Alarm Name: {r.get('name', 'Unknown Alarm')}\n"
-                                                    f"Tag Value: {val}\n"
-                                                    f"Threshold: {th}\n"
-                                                    f"Condition: {op}\n"
-                                                    f"Status: NORMAL\n\n"
-                                                    f"The alarm condition has been resolved."
+                                        # Chỉ gửi clear notification nếu chưa gửi trong khoảng debounce time
+                                        if self.should_send_notification(rule_id, "outgoing", off_s):
+                                            print(f"Alarm {r.get('name', 'Unknown')} cleared - sending clear notifications...")
+                                            
+                                            # Send Email clear notification if configured
+                                            if to_email and to_email.strip():
+                                                self.start_send_email_thread(
+                                                    to_email=to_email.strip(),
+                                                    subject=f"✅ ALARM CLEARED: {r.get('name', 'Alarm')}",
+                                                    body=(
+                                                        f"ALARM CLEAR NOTIFICATION\n"
+                                                        f"========================\n\n"
+                                                        f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+                                                        f"Device: {d.get('name', 'Unknown Device')}\n"
+                                                        f"Alarm Name: {r.get('name', 'Unknown Alarm')}\n"
+                                                        f"Tag Value: {val}\n"
+                                                        f"Threshold: {th}\n"
+                                                        f"Condition: {op}\n"
+                                                        f"Status: NORMAL\n\n"
+                                                        f"The alarm condition has been resolved."
+                                                    )
                                                 )
-                                            )
-                                        
-                                        # Send SMS clear notification if configured
-                                        if to_sms and to_sms.strip():
-                                            self.start_send_sms_thread(
-                                                phone_number=to_sms.strip(),
-                                                message=(
-                                                    f"✅ CLEAR: '{r.get('name', 'Alarm')}' for device '{d.get('name', 'Unknown')}'.\n"
-                                                    f"Value: {val} (Normal), Time: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}"
+                                            
+                                            # Send SMS clear notification if configured
+                                            if to_sms and to_sms.strip():
+                                                self.start_send_sms_thread(
+                                                    phone_number=to_sms.strip(),
+                                                    message=(
+                                                        f"✅ CLEAR: '{r.get('name', 'Alarm')}' for device '{d.get('name', 'Unknown')}'.\n"
+                                                        f"Value: {val} (Normal), Time: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}"
+                                                    )
                                                 )
-                                            )
+                                        else:
+                                            print(f"Alarm {r.get('name', 'Unknown')} cleared but notification skipped due to debounce")
+                                        
+                                    except Exception as e:
+                                        print(f"Clear notification error: {e}")
                                         
                                     except Exception as e:
                                         print(f"Clear notification error: {e}")

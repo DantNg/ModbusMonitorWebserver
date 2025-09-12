@@ -2,7 +2,8 @@
 {% set page_title = "Reports" %}
 {% block content %}
 
-<!-- Toolbar -->
+<!-- Toolbar - Fixed position -->
+<div id="toolbar" class="sticky-top bg-white shadow-sm" style="z-index: 100;">
 <form class="card border-0 shadow-soft mb-3" method="get" action="{{ url_for('reports_bp.reports') }}">
   <div class="card-body">
     <div class="row mb-3">
@@ -117,6 +118,14 @@
     </div>
   </div>
 </form>
+</div>
+
+<!-- Back to top button -->
+<button id="backToTop" class="btn btn-primary position-fixed shadow" 
+        style="bottom: 20px; right: 20px; z-index: 1000; border-radius: 50%; width: 50px; height: 50px;" 
+        onclick="scrollToTop()" title="Back to Top">
+  <i class="bi bi-arrow-up fs-5"></i>
+</button>
 
 <!-- Table -->
 <div class="card border-0 shadow-soft">
@@ -157,6 +166,29 @@
 <!-- thêm thư viện XLSX -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+  // Back to top functionality
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Show/hide back to top button
+  window.addEventListener('scroll', function() {
+    const backToTop = document.getElementById('backToTop');
+    if (window.scrollY > 200) {  // Hiện sớm hơn (200px thay vì 300px)
+      backToTop.style.display = 'block';
+    } else {
+      backToTop.style.display = 'none';
+    }
+  });
+
+  // Initialize - show button if already scrolled
+  document.addEventListener('DOMContentLoaded', function() {
+    const backToTop = document.getElementById('backToTop');
+    if (window.scrollY > 200) {
+      backToTop.style.display = 'block';
+    }
+  });
+
   // Toggle custom date range visibility
   function toggleCustomRange() {
     const select = document.getElementById('timeFilterSelect');

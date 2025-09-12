@@ -99,7 +99,7 @@ tags = Table(
     Column("device_id", Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True),
     Column("name", String(120), nullable=False),
     Column("address", Integer, nullable=False),
-    Column("datatype", Enum("Word","Short","DWord","DInt","Float","Bit"), default="Word"),
+    Column("datatype", String(20), default="Word"),  # Changed from Enum to String to support new datatypes
     Column("unit", String(20)),
     Column("scale", Float, default=1.0),
     Column("offset", Float, default=0.0),
@@ -223,74 +223,8 @@ def create_schema():
     """Tạo bảng nếu chưa có (idempotent)."""
     engine = init_engine()
     _md.create_all(engine)
-    create_performance_indexes()
+    # create_performance_indexes()
 
-def create_performance_indexes():
-    """Tạo các indexes quan trọng để tăng performance"""
-    try:
-        with init_engine().connect() as con:
-            # Index cho tag_values - quan trọng nhất để optimize get_latest_tag_value
-            indexes_sql = [
-                # Index tối ưu cho query latest value theo tag_id
-                "CREATE INDEX IF NOT EXISTS idx_tag_values_tag_ts ON tag_values (tag_id, ts DESC)",
-                
-                # Index cho timestamp queries (reports)
-                "CREATE INDEX IF NOT EXISTS idx_tag_values_ts ON tag_values (ts)",
-                
-                # Index cho dashboard_tags joins
-                "CREATE INDEX IF NOT EXISTS idx_dashboard_tags_dashboard ON dashboard_tags (dashboard_id)",
-                "CREATE INDEX IF NOT EXISTS idx_dashboard_tags_tag ON dashboard_tags (tag_id)",
-                
-                # Index cho data_logger_tags joins  
-                "CREATE INDEX IF NOT EXISTS idx_data_logger_tags_logger ON data_logger_tags (logger_id)",
-                "CREATE INDEX IF NOT EXISTS idx_data_logger_tags_tag ON data_logger_tags (tag_id)",
-                
-                # Index cho alarm_events
-                "CREATE INDEX IF NOT EXISTS idx_alarm_events_ts ON alarm_events (ts DESC)",
-                "CREATE INDEX IF NOT EXISTS idx_alarm_events_target ON alarm_events (target)",
-            ]
-            
-            for sql in indexes_sql:
-                try:
-                    con.execute(text(sql))
-                    print(f"✅ Created index: {sql.split('IF NOT EXISTS ')[1].split(' ON')[0]}")
-                except Exception as e:
-                    print(f"⚠️ Index creation skipped: {e}")
-            
-            con.commit()
-            print("🚀 Performance indexes created successfully!")
-            
-    except Exception as e:
-        print(f"❌ Error creating indexes: {e}")
-
-def analyze_query_performance():
-    """Analyze và suggest performance improvements"""
-    try:
-        with init_engine().connect() as con:
-            # Check table sizes
-            tables_info = [
-                "SELECT 'tag_values' as table_name, COUNT(*) as row_count FROM tag_values",
-                "SELECT 'alarm_events' as table_name, COUNT(*) as row_count FROM alarm_events", 
-                "SELECT 'tags' as table_name, COUNT(*) as row_count FROM tags",
-                "SELECT 'devices' as table_name, COUNT(*) as row_count FROM devices"
-            ]
-            
-            print("📊 Database Table Sizes:")
-            for sql in tables_info:
-                result = con.execute(text(sql)).first()
-                print(f"  {result[0]}: {result[1]:,} rows")
-            
-            # Check indexes
-            try:
-                indexes_result = con.execute(text("SHOW INDEX FROM tag_values")).fetchall()
-                print(f"\n📋 Indexes on tag_values table: {len(indexes_result)} indexes")
-                for idx in indexes_result:
-                    print(f"  - {idx[2]} on column {idx[4]}")
-            except:
-                print("\n⚠️ Could not analyze indexes (may be SQLite)")
-                
-    except Exception as e:
-        print(f"❌ Performance analysis error: {e}")
 
 # ---------- CRUD NHANH (dùng trực tiếp trong route/service) ----------
 def list_devices():
@@ -719,7 +653,7 @@ def get_logger_rows(logger_id: int, dt_from: datetime = None, dt_to: datetime = 
         ]
         if not tag_ids:
             return [], ["timestamp"]
-
+        # print(f"Logger {logger_id} has tags: {tag_ids}")
         # Lấy tên tag
         tags_map = {
             row.id: row.name
@@ -743,7 +677,7 @@ def get_logger_rows(logger_id: int, dt_from: datetime = None, dt_to: datetime = 
 
         stmt = stmt.order_by(asc(tag_values.c.ts))
         rows = con.execute(stmt).fetchall()
-
+        # print(f"Fetched {len(rows)} rows for logger {logger_id} from {dt_from} to {dt_to}")
         # Gom dữ liệu theo timestamp
         data_map = {}
         for tag_id, ts, value in rows:
@@ -807,11 +741,17 @@ def get_latest_tag_value(tag_id: int):
         value, ts, datatype = row
         
         # Format giá trị theo datatype
-        if datatype in ["Word", "Short", "DWord", "DInt", "Bit"]:
-            # Các kiểu số nguyên - loại bỏ .0
-            formatted_value = int(value) if value == int(value) else value
+        if datatype in ["Word", "Short", "DWord", "DInt", "Bit", "Signed", "Unsigned", "Long"]:
+            # Các kiểu số nguyên - loại bỏ .0, hỗ trợ số âm
+            try:
+                if float(value).is_integer():
+                    formatted_value = int(value)
+                else:
+                    formatted_value = value
+            except (ValueError, TypeError):
+                formatted_value = value
         else:
-            # Float - giữ nguyên
+            # Float, Double, Binary, Hex, Raw và các kiểu khác - giữ nguyên
             formatted_value = value
         return (formatted_value, ts)
 
@@ -844,11 +784,17 @@ def get_latest_tag_values_batch(tag_ids: list[int]) -> dict:
             datatype = row['datatype']
             
             # Format giá trị theo datatype
-            if datatype in ["Word", "Short", "DWord", "DInt", "Bit"]:
-                # Các kiểu số nguyên - loại bỏ .0
-                formatted_value = int(value) if value == int(value) else value
+            if datatype in ["Word", "Short", "DWord", "DInt", "Bit", "Signed", "Unsigned", "Long"]:
+                # Các kiểu số nguyên - loại bỏ .0, hỗ trợ số âm
+                try:
+                    if float(value).is_integer():
+                        formatted_value = int(value)
+                    else:
+                        formatted_value = value
+                except (ValueError, TypeError):
+                    formatted_value = value
             else:
-                # Float - giữ nguyên
+                # Float, Double, Binary, Hex, Raw và các kiểu khác - giữ nguyên
                 formatted_value = value
                 
             result[row['tag_id']] = (formatted_value, row['ts'])

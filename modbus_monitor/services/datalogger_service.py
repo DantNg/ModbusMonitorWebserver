@@ -26,7 +26,7 @@ class DataLoggerService(threading.Thread):
         try:
             tag_ids = dbsync.list_data_logger_tags(lid) or []
             rows = []
-            ts = utc_now()
+            ts = utc_now().astimezone().replace(tzinfo=None)
             
             if tag_ids:
                 kv = self.cache.get_many(tag_ids)
@@ -37,7 +37,7 @@ class DataLoggerService(threading.Thread):
             
             if rows:
                 dbsync.insert_tag_values_bulk(rows)
-                print(f"✅ {logger_name}: Logged {len(rows)} tag values at {ts.isoformat()}")
+                print(f"✅ {logger_name}: Logged at {ts.isoformat()}")
             else:
                 print(f"📝 {logger_name}: No data to log")
                 
@@ -73,8 +73,8 @@ class DataLoggerService(threading.Thread):
                     
                     # Check if due to run
                     next_run = self._next_runs[lid]
-                    if now >= next_run and now - next_run < 0.1:  # Avoid huge catch-up runs
-                        print(f"🚀 Logger {lid}: Executing (interval={interval}s)")
+                    if now >= next_run:  # Avoid huge catch-up runs
+                        # print(f"🚀 Logger {lid}: Executing (interval={interval}s)")
                         
                         # Execute logging
                         self._execute_logger(logger)

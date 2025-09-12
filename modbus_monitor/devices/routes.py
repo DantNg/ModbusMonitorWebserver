@@ -326,6 +326,7 @@ def edit_tag(did, tid):
         unit = (request.form.get("unit") or "").strip() or None
         grp = (request.form.get("grp") or "Group1").strip()
         description = (request.form.get("description") or "").strip() or None
+        function_code = request.form.get("function_code")
 
         errors = {}
         try:
@@ -339,6 +340,17 @@ def edit_tag(did, tid):
         except Exception:
             errors["scale"] = "Scale/Offset must be number."
 
+        # Validate function code if provided
+        if function_code:
+            try:
+                function_code = int(function_code)
+                if function_code not in [1, 2, 3, 4]:
+                    errors["function_code"] = "Function code must be 1, 2, 3, or 4."
+            except ValueError:
+                errors["function_code"] = "Function code must be a valid integer."
+        else:
+            function_code = None
+
         if not name:
             errors["name"] = "Name is required."
 
@@ -350,8 +362,12 @@ def edit_tag(did, tid):
         update_tag_row(tid, {
             "name": name, "address": address, "datatype": datatype,
             "unit": unit, "scale": scale, "offset": offset,
-            "grp": grp, "description": description
+            "grp": grp, "function_code": function_code, "description": description
         })
+        
+        # Restart services to pick up tag changes
+        restart_services()
+        
         flash("Tag updated.", "success")
         return redirect(url_for("devices_bp.device_detail", did=did))
 

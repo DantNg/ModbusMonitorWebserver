@@ -15,7 +15,8 @@
         <!-- Enabled -->
         <div class="col-12">
           <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" role="switch" id="enabled" name="enabled" checked>
+            <input class="form-check-input" type="checkbox" role="switch" id="enabled" name="enabled" {{ 'checked' if
+              (form.get('enabled', True) if form else True) else '' }}>
             <label class="form-check-label" for="enabled">Actived</label>
           </div>
         </div>
@@ -47,8 +48,8 @@
         <!-- Display Name -->
         <div class="col-12">
           <label class="form-label">Display Name *</label>
-          <input name="name" class="form-control" placeholder="Display Name" 
-                 value="{{ form.get('name', '') if form else '' }}" required>
+          <input name="name" class="form-control" placeholder="Display Name"
+            value="{{ form.get('name', '') if form else '' }}" required>
         </div>
 
         <!-- Level -->
@@ -56,10 +57,10 @@
           <label class="form-label">Level *</label>
           <select name="level" class="form-select" required>
             {% set selected_level = form.get('level', 'High') if form else 'High' %}
-            <option {{ 'selected' if selected_level == 'Low' else '' }}>Low</option>
-            <option {{ 'selected' if selected_level == 'Medium' else '' }}>Medium</option>
-            <option {{ 'selected' if selected_level == 'High' else '' }}>High</option>
-            <option {{ 'selected' if selected_level == 'Critical' else '' }}>Critical</option>
+            <option {{ 'selected' if selected_level=='Low' else '' }}>Low</option>
+            <option {{ 'selected' if selected_level=='Medium' else '' }}>Medium</option>
+            <option {{ 'selected' if selected_level=='High' else '' }}>High</option>
+            <option {{ 'selected' if selected_level=='Critical' else '' }}>Critical</option>
           </select>
         </div>
 
@@ -88,31 +89,31 @@
         <!-- Stable times -->
         <div class="col-md-6">
           <label class="form-label">On Stable Time (seconds) *</label>
-          <input type="number" min="0" step="1" name="on_stable" class="form-control" 
-                 value="{{ form.get('on_stable_sec', 10) if form else 10 }}" required>
+          <input type="number" min="0" step="1" name="on_stable" class="form-control"
+            value="{{ form.get('on_stable_sec', 10) if form else 10 }}" required>
         </div>
         <div class="col-md-6">
           <label class="form-label">Off Stable Time (seconds) *</label>
-          <input type="number" min="0" step="1" name="off_stable" class="form-control" 
-                 value="{{ form.get('off_stable_sec', 30) if form else 30 }}" required>
+          <input type="number" min="0" step="1" name="off_stable" class="form-control"
+            value="{{ form.get('off_stable_sec', 30) if form else 30 }}" required>
         </div>
 
         <!-- Send to -->
         <div class="col-12">
           <label class="form-label">Send To Email</label>
           <textarea name="email" class="form-control" rows="2"
-            placeholder="example1@gmail.com, example2@gmail.com, ..."></textarea>
+            placeholder="example1@gmail.com, example2@gmail.com, ...">{{ form.get('email', '') if form else '' }}</textarea>
         </div>
         <div class="col-12">
           <label class="form-label">Send To SMS</label>
           <textarea name="sms" class="form-control" rows="2"
-            placeholder="+84xxxxxxxxx, +84xxxxxxxxx, ..."></textarea>
+            placeholder="+84xxxxxxxxx, +84xxxxxxxxx, ...">{{ form.get('sms', '') if form else '' }}</textarea>
         </div>
 
         <!-- Description -->
         <div class="col-12">
           <label class="form-label">Description</label>
-          <textarea name="description" class="form-control" rows="3" placeholder="Description"></textarea>
+          <textarea name="description" class="form-control" rows="3" placeholder="Description">{{ form.get('description', '') if form else '' }}</textarea>
         </div>
 
       </div>

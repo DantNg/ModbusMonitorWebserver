@@ -168,7 +168,8 @@ class _DeviceReader:
     def _extract(self, regs: list[int], offset: int, datatype: str, scale: float, offs: float) -> float | int | None:
         """
         Chuyển regs -> giá trị thật theo datatype.
-        Hỗ trợ alias: word/uint16/ushort, short/int16, dword/uint32/udint, dint/int32/int,
+        Hỗ trợ các datatype: Signed, Unsigned, Hex, Raw, Float, Binary, Double, Float_inverse, Long, Double_inverse
+        và các alias: word/uint16/ushort, short/int16, dword/uint32/udint, dint/int32/int,
                     float/real, bit/bool/boolean.
         Tôn trọng self.word_order ('AB'|'BA') và self.byte_order ('BigEndian'|'LittleEndian').
         Trả về int nếu không có scale/offset và là số nguyên, float nếu có thập phân.
@@ -192,27 +193,108 @@ class _DeviceReader:
                 b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
             return lo, hi, b
 
-        try:
-            # 16-bit unsigned
-            if name in ("word", "uint16", "ushort"):
-                val = regs[offset]  # Keep as int initially
+        def _four_words():
+            """Helper for 64-bit datatypes (Double, Long)"""
+            if offset + 3 >= len(regs) or any(regs[offset + i] is None for i in range(4)):
+                return None
+            # Get 4 words and pack according to word order
+            words = [regs[offset + i] for i in range(4)]
+            if (self.word_order or "AB") == "AB":
+                # Normal order: w0,w1,w2,w3
+                b = words[0].to_bytes(2, "big") + words[1].to_bytes(2, "big") + words[2].to_bytes(2, "big") + words[3].to_bytes(2, "big")
+            else:
+                # Inverse order: w3,w2,w1,w0
+                b = words[3].to_bytes(2, "big") + words[2].to_bytes(2, "big") + words[1].to_bytes(2, "big") + words[0].to_bytes(2, "big")
+            
+            # Apply byte order
+            if (self.byte_order or "BigEndian") == "LittleEndian":
+                # Swap bytes within each word
+                result = b""
+                for i in range(0, 8, 2):
+                    result += b[i+1:i+2] + b[i:i+1]
+                b = result
+            return b
 
-            # 16-bit signed 
-            elif name.lower() in ("short", "int16"):
+        try:
+            # === New datatypes from dropdown ===
+            
+            # Signed (16-bit signed)
+            if name in ("signed", "short", "int16"):
                 raw_val = regs[offset]
-                # Convert unsigned to signed 16-bit
                 if raw_val > 32767:
                     val = raw_val - 65536
                 else:
                     val = raw_val
 
+            # Unsigned (16-bit unsigned)  
+            elif name in ("unsigned", "word", "uint16", "ushort"):
+                val = regs[offset]
+
+            # Hex (display as hex but store as int)
+            elif name in ("hex", "raw"):
+                val = regs[offset]  # Same as unsigned but UI might display differently
+
+            # Float (32-bit IEEE754)
+            elif name in ("float", "float32", "real"):
+                print("Decoding float at offset", offset, "with regs:", regs)
+                lo, hi, b = _two_words()
+                if b is None:
+                    return math.nan
+                val = float(struct.unpack(">f", b)[0])
+
+            # Float_inverse (32-bit IEEE754 with inverse word order)
+            elif name in ("float_inverse", "floatinverse", "float-inverse"):
+                if offset + 1 >= len(regs) or regs[offset + 1] is None:
+                    return math.nan
+                lo, hi = regs[offset], regs[offset+1]
+                # Force inverse word order for this datatype
+                w1, w2 = (lo, hi)  # Opposite of normal AB order
+                b = w1.to_bytes(2, "big") + w2.to_bytes(2, "big")
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
+                val = float(struct.unpack(">f", b)[0])
+
+            # Binary (boolean/bit)
+            elif name in ("binary", "bit", "bool", "boolean"):
+                val = 1 if regs[offset] != 0 else 0
+
+            # Double (64-bit IEEE754)
+            elif name in ("double", "float64"):
+                b = _four_words()
+                if b is None:
+                    return math.nan
+                val = float(struct.unpack(">d", b)[0])
+
+            # Double_inverse (64-bit IEEE754 with inverse word order)
+            elif name in ("double_inverse", "doubleinverse", "double-inverse"):
+                if offset + 3 >= len(regs) or any(regs[offset + i] is None for i in range(4)):
+                    return math.nan
+                # Force inverse word order
+                words = [regs[offset + i] for i in range(4)]
+                b = words[3].to_bytes(2, "big") + words[2].to_bytes(2, "big") + words[1].to_bytes(2, "big") + words[0].to_bytes(2, "big")
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    result = b""
+                    for i in range(0, 8, 2):
+                        result += b[i+1:i+2] + b[i:i+1]
+                    b = result
+                val = float(struct.unpack(">d", b)[0])
+
+            # Long (64-bit signed integer)
+            elif name in ("long", "int64"):
+                b = _four_words()
+                if b is None:
+                    return math.nan
+                val = struct.unpack(">q", b)[0]  # signed 64-bit
+
+            # === Legacy aliases for backward compatibility ===
+            
             # 32-bit unsigned
             elif name in ("dword", "uint32", "udint"):
                 lo, hi, b = _two_words()
                 if lo is None or hi is None:
                     return math.nan
                 u32 = (hi << 16) | lo if (self.word_order or "AB") == "AB" else (lo << 16) | hi
-                val = u32  # Keep as int initially
+                val = u32
 
             # 32-bit signed
             elif name.lower() in ("dint", "int32", "int"):
@@ -220,25 +302,14 @@ class _DeviceReader:
                 if lo is None or hi is None:
                     return math.nan
                 u32 = (hi << 16) | lo if (self.word_order or "AB") == "AB" else (lo << 16) | hi
-                # Convert unsigned to signed 32-bit
                 if u32 >= 2147483648:  # 2^31
                     val = u32 - 4294967296  # 2^32
                 else:
                     val = u32
 
-            # 32-bit float (IEEE754)
-            elif name in ("float", "float32", "real"):
-                lo, hi, b = _two_words()
-                if b is None:
-                    return math.nan
-                val = float(struct.unpack(">f", b)[0])
-
-            # Bit / boolean
-            elif name in ("bit", "bool", "boolean"):
-                val = 1 if regs[offset] != 0 else 0
-
             else:
                 # Datatype chưa biết → trả NaN để UI thấy rõ
+                print(f"⚠️ Unknown datatype: {datatype}")
                 return math.nan
 
             # Áp dụng scale/offset (chỉ convert thành float khi cần thiết)
@@ -250,15 +321,17 @@ class _DeviceReader:
                 val = val * scale_factor + offset_value
             # Else: giữ nguyên val (có thể là int)
 
-            # Nếu là float (float32/real) thì luôn trả về float, làm tròn 2 số thập phân
-            if name in ("float", "float32", "real"):
-                rounded_val = round(val, 2)
+            # Nếu là float/double/real thì luôn trả về float
+            if name in ("float", "float32", "real", "float_inverse", "floatinverse", "float-inverse", 
+                       "double", "float64", "double_inverse", "doubleinverse", "double-inverse"):
+                rounded_val = round(val, 6)  # More precision for double
                 if rounded_val == 0.0:
                     rounded_val = 0.0
                 return float(rounded_val)
 
-            # Nếu là kiểu số nguyên (word, short, dword, dint, int, uint32, ...)
-            if name in ("word", "uint16", "ushort", "short", "int16", "dword", "uint32", "udint", "dint", "int32", "int"):
+            # Nếu là kiểu số nguyên
+            if name in ("signed", "unsigned", "word", "uint16", "ushort", "short", "int16", "hex", "raw",
+                       "dword", "uint32", "udint", "dint", "int32", "int", "long", "int64"):
                 # Nếu val vẫn là int và chưa bị modify bởi scale/offset
                 if isinstance(val, int):
                     return val
@@ -271,12 +344,15 @@ class _DeviceReader:
                 else:
                     return val
 
-            # Bit/bool/boolean: trả về int 0 hoặc 1
-            if name in ("bit", "bool", "boolean"):
+            # Bit/bool/boolean/binary: trả về int 0 hoặc 1
+            if name in ("binary", "bit", "bool", "boolean"):
                 if isinstance(val, int):
                     return val
                 else:
                     return int(round(val))
+
+            # Default fallback
+            return val
 
             # Trường hợp còn lại
             return val
@@ -308,43 +384,33 @@ class _DeviceReader:
     def _encode_value_for_write(self, value: float, datatype: str) -> List[int]:
         """
         Chuyển đổi giá trị thành danh sách registers để ghi.
+        Hỗ trợ các datatype: Signed, Unsigned, Hex, Raw, Float, Binary, Double, Float_inverse, Long, Double_inverse
         Tôn trọng self.word_order ('AB'|'BA') và self.byte_order ('BigEndian'|'LittleEndian').
         """
         name = (datatype or "").strip().lower()
         
         try:
-            if name in ("word", "uint16", "ushort"):
-                # 16-bit unsigned
-                val = int(value) & 0xFFFF
-                return [val]
-                
-            elif name.lower() in ("short", "int16"):
-                # 16-bit signed
+            # === New datatypes ===
+            
+            # Signed (16-bit signed)
+            if name in ("signed", "short", "int16"):
                 val = int(value)
                 if val < 0:
                     val = (1 << 16) + val  # Two's complement
                 return [val & 0xFFFF]
                 
-            elif name in ("dword", "uint32", "udint"):
-                # 32-bit unsigned
-                val = int(value) & 0xFFFFFFFF
-                lo = val & 0xFFFF
-                hi = (val >> 16) & 0xFFFF
-                # word order: AB = hi->lo, BA = lo->hi
-                return [hi, lo] if (self.word_order or "AB") == "AB" else [lo, hi]
+            # Unsigned (16-bit unsigned)
+            elif name in ("unsigned", "word", "uint16", "ushort"):
+                val = int(value) & 0xFFFF
+                return [val]
                 
-            elif name.lower() in ("dint", "int32", "int"):
-                # 32-bit signed
-                val = int(value)
-                if val < 0:
-                    val = (1 << 32) + val  # Two's complement
-                val = val & 0xFFFFFFFF
-                lo = val & 0xFFFF
-                hi = (val >> 16) & 0xFFFF
-                return [hi, lo] if (self.word_order or "AB") == "AB" else [lo, hi]
+            # Hex/Raw (same as unsigned)
+            elif name in ("hex", "raw"):
+                val = int(value) & 0xFFFF
+                return [val]
                 
+            # Float (32-bit IEEE754)
             elif name in ("float", "float32", "real"):
-                # 32-bit float (IEEE754)
                 import struct
                 packed = struct.pack('>f', float(value))
                 w1, w2 = struct.unpack('>HH', packed)
@@ -357,9 +423,83 @@ class _DeviceReader:
                 # word order: AB = w1->w2, BA = w2->w1
                 return [w1, w2] if (self.word_order or "AB") == "AB" else [w2, w1]
                 
-            elif name in ("bit", "bool", "boolean"):
-                # Boolean
+            # Float_inverse (32-bit IEEE754 with forced inverse word order)
+            elif name in ("float_inverse", "floatinverse", "float-inverse"):
+                import struct
+                packed = struct.pack('>f', float(value))
+                w1, w2 = struct.unpack('>HH', packed)
+                
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    w1 = ((w1 & 0xFF) << 8) | ((w1 >> 8) & 0xFF)
+                    w2 = ((w2 & 0xFF) << 8) | ((w2 >> 8) & 0xFF)
+                
+                # Force inverse order (opposite of AB)
+                return [w2, w1]  # Always inverse regardless of word_order setting
+                
+            # Binary (boolean/bit)
+            elif name in ("binary", "bit", "bool", "boolean"):
                 return [1 if value else 0]
+                
+            # Double (64-bit IEEE754)
+            elif name in ("double", "float64"):
+                import struct
+                packed = struct.pack('>d', float(value))
+                words = list(struct.unpack('>HHHH', packed))
+                
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    words = [((w & 0xFF) << 8) | ((w >> 8) & 0xFF) for w in words]
+                
+                # Apply word order
+                if (self.word_order or "AB") != "AB":
+                    words = words[::-1]  # Reverse word order
+                    
+                return words
+                
+            # Double_inverse (64-bit IEEE754 with forced inverse word order)
+            elif name in ("double_inverse", "doubleinverse", "double-inverse"):
+                import struct
+                packed = struct.pack('>d', float(value))
+                words = list(struct.unpack('>HHHH', packed))
+                
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    words = [((w & 0xFF) << 8) | ((w >> 8) & 0xFF) for w in words]
+                
+                # Force inverse order
+                return words[::-1]
+                
+            # Long (64-bit signed integer)
+            elif name in ("long", "int64"):
+                import struct
+                val = int(value)
+                packed = struct.pack('>q', val)
+                words = list(struct.unpack('>HHHH', packed))
+                
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    words = [((w & 0xFF) << 8) | ((w >> 8) & 0xFF) for w in words]
+                
+                if (self.word_order or "AB") != "AB":
+                    words = words[::-1]
+                    
+                return words
+                
+            # === Legacy datatypes for backward compatibility ===
+                
+            elif name in ("dword", "uint32", "udint"):
+                # 32-bit unsigned
+                val = int(value) & 0xFFFFFFFF
+                lo = val & 0xFFFF
+                hi = (val >> 16) & 0xFFFF
+                return [hi, lo] if (self.word_order or "AB") == "AB" else [lo, hi]
+                
+            elif name.lower() in ("dint", "int32", "int"):
+                # 32-bit signed
+                val = int(value)
+                if val < 0:
+                    val = (1 << 32) + val  # Two's complement
+                val = val & 0xFFFFFFFF
+                lo = val & 0xFFFF
+                hi = (val >> 16) & 0xFFFF
+                return [hi, lo] if (self.word_order or "AB") == "AB" else [lo, hi]
                 
             else:
                 raise ValueError(f"Unsupported datatype for write: {datatype}")

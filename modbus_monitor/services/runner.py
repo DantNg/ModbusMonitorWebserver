@@ -72,7 +72,7 @@ def restart_services():
     stop_services()
     # Small delay to ensure clean shutdown
     import time
-    time.sleep(0.5)
+    time.sleep(0.1)
     start_services()
     print("🔄 Services restarted successfully")
 
