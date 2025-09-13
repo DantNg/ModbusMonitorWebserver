@@ -76,11 +76,17 @@ def add_device():
         if protocol == "ModbusTCP":
             host = (request.form.get("host") or "").strip()
             port = to_int(request.form.get("port"), 502, "port")
+            byte_order = (request.form.get("byte_order") or "BigEndian").strip()
+            
             if not host:
                 errors["host"] = "Host is required for ModbusTCP."
+            if byte_order not in ("BigEndian", "LittleEndian"):
+                errors["byte_order"] = "Byte order must be BigEndian or LittleEndian."
+                
             data.update({
                 "host": host or None,
                 "port": port,
+                "byte_order": byte_order,
                 # RTU fields để None
                 "serial_port": None, "baudrate": None, "parity": None,
                 "stopbits": None, "bytesize": None
@@ -92,6 +98,7 @@ def add_device():
             parity = (request.form.get("parity") or "N").upper()
             stopbits = to_int(request.form.get("stopbits"), None, "stopbits")
             bytesize = to_int(request.form.get("bytesize"), None, "bytesize")
+            byte_order = (request.form.get("byte_order") or "BigEndian").strip()
 
             if not serial_port:
                 errors["serial_port"] = "Serial port is required for ModbusRTU."
@@ -101,6 +108,8 @@ def add_device():
                 errors["stopbits"] = "Stop bits must be 1 or 2."
             if bytesize not in (7, 8):
                 errors["bytesize"] = "Byte size must be 7 or 8."
+            if byte_order not in ("BigEndian", "LittleEndian"):
+                errors["byte_order"] = "Byte order must be BigEndian or LittleEndian."
 
             data.update({
                 "serial_port": serial_port or None,
@@ -108,6 +117,7 @@ def add_device():
                 "parity": parity,
                 "stopbits": stopbits,
                 "bytesize": bytesize,
+                "byte_order": byte_order,
                 # TCP fields để None
                 "host": None, "port": None
             })

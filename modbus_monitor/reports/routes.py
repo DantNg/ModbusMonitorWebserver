@@ -100,6 +100,7 @@ def clear_all_report_data():
 @reports_bp.post("/clear_logger_data/<int:logger_id>")
 def clear_logger_report_data(logger_id: int):
     """Clear report data for specific logger - admin only"""
+    print(f"Request to clear data for logger ID {logger_id} with user role {session.get('role')}")
     if session.get("role") != "admin":
         flash("Access denied. Admin role required.", "error")
         return redirect(url_for("reports_bp.reports"))

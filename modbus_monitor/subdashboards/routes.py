@@ -310,3 +310,25 @@ def debug_subdash(sid):
         return jsonify(debug_info)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@subdash_bp.route("/tags/<int:tag_id>/update-unit", methods=["POST"])
+def update_tag_unit(tag_id):
+    """Update unit for a specific tag"""
+    # Check if user is admin
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    
+    try:
+        unit = request.form.get("unit", "").strip()
+        
+        # Update unit in database
+        result = db.update_tag_unit(tag_id, unit)
+        
+        if result:
+            return jsonify({"success": True, "message": "Unit updated successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to update unit"})
+            
+    except Exception as e:
+        print(f"Error updating tag unit: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500

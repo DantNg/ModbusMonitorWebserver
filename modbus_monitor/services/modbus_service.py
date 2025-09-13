@@ -53,34 +53,115 @@ class _DeviceReader:
         #     self.client = "FAKE"
         #     return True
 
-        if self.d["protocol"] == "ModbusTCP":
-            # print("Connecting to ModbusTCP with host {}".format(self.d.get("host")))
-            self.client = ModbusTcpClient(self.d.get("host"), port=int(self.d.get("port") or 502))
-        else:
-            self.client = ModbusSerialClient(
-                port=self.d.get("serial_port"),
-                baudrate=int(self.d.get("baudrate") or 9600),
-                bytesize=int(self.d.get("bytesize") or 8),
-                parity=(self.d.get("parity") or "N"),
-                stopbits=int(self.d.get("stopbits") or 1),
-                timeout=self.timeout
-            )
-        return self.client.connect()
+        try:
+            if self.d["protocol"] == "ModbusTCP":
+                host = self.d.get("host")
+                port = int(self.d.get("port") or 502)
+                print(f"🔌 Connecting to ModbusTCP: host={host}, port={port}")
+                self.client = ModbusTcpClient(host, port=port, timeout=self.timeout)
+            else:
+                serial_port = self.d.get("serial_port")
+                baudrate = int(self.d.get("baudrate") or 9600)
+                parity = self.d.get("parity") or "N"
+                print(f"🔌 Connecting to ModbusRTU: port={serial_port}, baudrate={baudrate}, parity={parity}")
+                self.client = ModbusSerialClient(
+                    port=serial_port,
+                    baudrate=baudrate,
+                    bytesize=int(self.d.get("bytesize") or 8),
+                    parity=parity,
+                    stopbits=int(self.d.get("stopbits") or 1),
+                    timeout=self.timeout
+                )
+            
+            connected = self.client.connect()
+            status = "SUCCESS" if connected else "FAILED" 
+            
+            if not connected and self.d["protocol"] == "ModbusTCP":
+                print(f"💡 TCP connection tips: Check if device is online at {self.d.get('host')}:{self.d.get('port', 502)}")
+            elif not connected and self.d["protocol"] == "ModbusRTU":
+                print(f"💡 RTU connection tips: Check COM port, baudrate, and cable connection")
+                
+            return connected
+            
+        except Exception as e:
+            print(f"❌ Connection error for {self.d.get('name')}: {e}")
+            return False
 
     def _ensure_connected(self) -> bool:
         now = time.time()
         if self._connected:
-            return True
+            # Test connection periodically by attempting a simple operation
+            if hasattr(self, '_last_connection_test') and now - self._last_connection_test > 30:
+                if not self._test_connection():
+                    print(f"🔄 Device {self.d.get('name')} ({self.d['protocol']}): Connection lost, reconnecting...")
+                    self._connected = False
+                    self._close()
+                else:
+                    self._last_connection_test = now
+            
+            if self._connected:
+                return True
+        
         if now < self._next_retry_ts:
             return False
+            
+        print(f"🔄 Device {self.d.get('name')} ({self.d['protocol']}): Attempting connection (retry #{getattr(self, '_retry_count', 0) + 1})")
         ok = self._connect()
+        
         if ok:
             self._connected = True
             self._backoff = 1.0
+            self._retry_count = 0
+            self._last_connection_test = now
+            # print(f"✅ Device {self.d.get('name')} ({self.d['protocol']}): Connection successful")
+            
+            # Emit connection success to UI
+            try:
+                from modbus_monitor.extensions import socketio
+                socketio.emit("modbus_update", {
+                    "device_id": self._device_id_str,
+                    "device_name": self.d.get("name", "Unknown"),
+                    "unit": self.d.get("unit_id", 1),
+                    "ok": True,
+                    "status": "connected",
+                    "seq": self._seq,
+                    "ts": time.time()
+                }, room=f"dashboard_device_{self.d['id']}")
+            except Exception:
+                pass
         else:
-            self._backoff = min(self._backoff * 2.0, 20.0)
-            self._next_retry_ts = now + min(self._backoff, 5.0)
+            self._retry_count = getattr(self, '_retry_count', 0) + 1
+            # Faster retry for first few attempts, then backoff
+            if self._retry_count <= 3:
+                retry_delay = 2.0  # Quick retry for first 3 attempts
+            elif self._retry_count <= 10:
+                retry_delay = 5.0  # Medium delay for next 7 attempts
+            else:
+                retry_delay = min(self._backoff, 30.0)  # Longer backoff after 10 attempts
+                self._backoff = min(self._backoff * 1.5, 30.0)
+            
+            self._next_retry_ts = now + retry_delay
+            print(f"❌ Device {self.d.get('name')} ({self.d['protocol']}): Connection failed, retry in {retry_delay}s (attempt #{self._retry_count})")
+        
         return ok
+
+    def _test_connection(self) -> bool:
+        """Test if the connection is still alive by performing a simple read operation"""
+        try:
+            if self.client is None:
+                return False
+                
+            # Try to read a single register/coil to test connection
+            if self.d["protocol"] == "ModbusTCP":
+                # For TCP, try to read 1 holding register
+                result = self.client.read_holding_registers(0, 1, slave=self.unit_id)
+                return not result.isError()
+            else:
+                # For RTU, try to read 1 holding register  
+                result = self.client.read_holding_registers(0, 1, slave=self.unit_id)
+                return not result.isError()
+        except Exception:
+            return False
 
     def _close(self):
         try:
@@ -125,38 +206,48 @@ class _DeviceReader:
                     if not self._ensure_connected():
                         raise ConnectionException("Failed to connect to Modbus client")
 
+
                 # Choose appropriate read function based on function code
                 if function_code == 1:  # Read Coils
                     rr = self.client.read_coils(start_read_byte, count=count, slave=int(self.d["unit_id"]))
-                    # Convert boolean bits to integers for consistency
-                    return [int(bit) for bit in rr.bits[:count]] if not rr.isError() else None
+                    if rr.isError():
+                        print(f"❌ FC01 Read Coils error: {rr}")
+                        return None
+                    # print(f"✅ FC01 Read Coils success: {[int(bit) for bit in rr.bits[:count]]}")
+                    return [int(bit) for bit in rr.bits[:count]]
                 elif function_code == 2:  # Read Discrete Inputs
                     rr = self.client.read_discrete_inputs(start_read_byte, count=count, slave=int(self.d["unit_id"]))
-                    # Convert boolean bits to integers for consistency
-                    return [int(bit) for bit in rr.bits[:count]] if not rr.isError() else None
+                    if rr.isError():
+                        print(f"❌ FC02 Read Discrete Inputs error: {rr}")
+                        return None
+                    # print(f"✅ FC02 Read Discrete Inputs success: {[int(bit) for bit in rr.bits[:count]]}")
+                    return [int(bit) for bit in rr.bits[:count]]
                 elif function_code == 3:  # Read Holding Registers
                     rr = self.client.read_holding_registers(start_read_byte, count=count, slave=int(self.d["unit_id"]))
+                    if rr.isError():
+                        print(f"❌ FC03 Read Holding Registers error: {rr}")
+                        return None
+                    # print(f"✅ FC03 Read Holding Registers success: {rr.registers}")
+                    return rr.registers
                 elif function_code == 4:  # Read Input Registers
                     rr = self.client.read_input_registers(start_read_byte, count=count, slave=int(self.d["unit_id"]))
+                    if rr.isError():
+                        print(f"❌ FC04 Read Input Registers error: {rr}")
+                        return None
+                    # print(f"✅ FC04 Read Input Registers success: {rr.registers}")
+                    return rr.registers
                 else:
                     raise ValueError(f"Unsupported function code: {function_code}")
                     
             else:
                 raise ValueError("Unsupported protocol: {}".format(self.d["protocol"]))
 
-            if rr is None or rr.isError():
-                raise IOError("Read error: {}".format(rr))
-
-            # For register-based functions (3, 4), return registers
-            if function_code in [3, 4]:
-                return rr.registers
-            # For bit-based functions (1, 2), already converted above
-            else:
-                return rr
-
         except (ConnectionException, ModbusIOException, IOError) as e:
-            # print("Modbus read error:", e)
+            self._connected = False  # Mark as disconnected to trigger reconnection
             self._close()
+            # Trigger immediate retry by resetting backoff for connection errors
+            if isinstance(e, ConnectionException):
+                self._next_retry_ts = time.time() + 1.0  # Quick retry for connection errors
             # Return None values to indicate read failure
             return [None] * count  
 
@@ -604,12 +695,27 @@ class _DeviceReader:
         t0 = time.perf_counter()  # Start timing
         
         if not self._ensure_connected():
+            # Emit disconnection status to UI
+            from modbus_monitor.extensions import socketio
+            try:
+                socketio.emit("modbus_update", {
+                    "device_id": self._device_id_str,
+                    "device_name": self.d.get("name", "Unknown"),
+                    "unit": self.d.get("unit_id", 1),
+                    "ok": False,
+                    "error": "Connection failed",
+                    "status": "disconnected",
+                    "seq": self._seq,
+                    "ts": time.time()
+                }, room=f"dashboard_device_{self.d['id']}")
+            except Exception:
+                pass
             return  # chưa đến giờ retry, quay lại sau
 
         tags = dbsync.list_tags(self.d["id"])
         if not tags:
             return
-
+        # print(f"Reading device {self.d['name']} with {len(tags)} tags")
         # Group tags by function code
         function_code_groups = {}
         device_default_fc = self.d.get("default_function_code", 3)
@@ -619,7 +725,6 @@ class _DeviceReader:
             if fc not in function_code_groups:
                 function_code_groups[fc] = []
             function_code_groups[fc].append(tag)
-
         ts = utc_now()
         self._seq += 1
         all_successful_tags = []  # Track all successfully read tags for immediate emission
@@ -719,19 +824,23 @@ class _DeviceReader:
         High-precision loop with barrier synchronization and anti-drift timing.
         Based on async_modbus.py approach.
         """
-        # Connect first
-        if not self._ensure_connected():
-            print(f"Device {self.d['name']}: Failed initial connection")
-            return
-            
         try:
-            # Wait for all devices to be ready
-            barrier.wait()
+            # IMPORTANT: Always wait for barrier regardless of connection status
+            # This prevents blocking other devices when one device fails to connect
+            print(f"Device {self.d['name']}: Waiting for synchronized start...")
+            try:
+                barrier.wait(timeout=10.0)  # 10 second timeout to prevent infinite wait
+            except threading.BrokenBarrierError:
+                print(f"Device {self.d['name']}: Barrier broken, starting independently")
+            except Exception as e:
+                print(f"Device {self.d['name']}: Barrier error: {e}, starting independently")
             
             # Wait until the synchronized start time
             now = time.monotonic()
             if now < start_epoch:
                 time.sleep(start_epoch - now)
+            
+            # print(f"Device {self.d['name']}: Starting monitoring loop...")
             
             # High-speed mode intervals
             interval = max(self._get_optimal_interval(), 0.05)  # Ultra-fast minimum 50ms (20 updates/sec)
@@ -743,7 +852,7 @@ class _DeviceReader:
                 if now < next_run:
                     time.sleep(next_run - now)
                 
-                # Execute one read cycle
+                # Execute one read cycle (this will handle connection internally)
                 try:
                     self.loop_once()
                 except Exception as e:
@@ -812,21 +921,29 @@ class ModbusService:
         start_epoch = math.ceil(time.monotonic()) + 1
         print(f"Synchronized start scheduled for epoch: {start_epoch}")
         
+        # Start devices with individual error handling
+        started_devices = 0
         for d in devices:
-            reader = _DeviceReader(d, db_queue=self.dbq, push_queue=self.pushq, cache=self.cache)
-            self._readers[d["id"]] = reader  # Store reader reference
-            
-            # Use high-precision timing loop
-            t = threading.Thread(
-                target=reader.loop_with_timing, 
-                args=(start_epoch, self._barrier), 
-                daemon=True, 
-                name=f"Modbus-{d['name']}"
-            )
-            t.start()
-            self._threads[d["id"]] = t
-            
-        print(f"All {len(devices)} device readers started with precision timing")
+            try:
+                reader = _DeviceReader(d, db_queue=self.dbq, push_queue=self.pushq, cache=self.cache)
+                self._readers[d["id"]] = reader  # Store reader reference
+                
+                # Use high-precision timing loop
+                t = threading.Thread(
+                    target=reader.loop_with_timing, 
+                    args=(start_epoch, self._barrier), 
+                    daemon=True, 
+                    name=f"Modbus-{d['name']}"
+                )
+                t.start()
+                self._threads[d["id"]] = t
+                started_devices += 1
+                # print(f"✅ Started thread for device: {d['name']} ({d['protocol']})")
+                
+            except Exception as e:
+                print(f"❌ Failed to start device {d.get('name', 'Unknown')}: {e}")
+                # If barrier is broken, remaining devices will start independently
+        
 
     def stop(self):
         print("Stopping Modbus service...")

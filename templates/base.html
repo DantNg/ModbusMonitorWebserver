@@ -27,44 +27,42 @@
     <nav class="px-2">
       <!-- Dashboard với dropdown subdashboards -->
       <div class="nav-item">
-        <a class="side-link d-flex justify-content-between align-items-center" 
-           data-bs-toggle="collapse" 
-           href="#dashboardSubmenu" 
-           role="button" 
-           aria-expanded="{{ 'true' if request.path.startswith('/dashboard') or request.path.startswith('/subdash') or request.path == '/' else 'false' }}" 
-           aria-controls="dashboardSubmenu">
+        <a class="side-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse"
+          href="#dashboardSubmenu" role="button"
+          aria-expanded="{{ 'true' if request.path.startswith('/dashboard') or request.path.startswith('/subdash') or request.path == '/' else 'false' }}"
+          aria-controls="dashboardSubmenu">
           <span><span class="icon"></span> Dashboard</span>
           <i class="fas fa-chevron-down ms-auto collapse-icon"></i>
         </a>
-        <div class="collapse {{ 'show' if request.path.startswith('/dashboard') or request.path.startswith('/subdash') or request.path == '/' else '' }}"
-             id="dashboardSubmenu">
+        <div
+          class="collapse {{ 'show' if request.path.startswith('/dashboard') or request.path.startswith('/subdash') or request.path == '/' else '' }}"
+          id="dashboardSubmenu">
           <div class="nav flex-column ms-3 mt-1">
             <!-- Debug info -->
-            
+
             {% if subdashboards %}
-              {% for subdash in subdashboards %}
-              <div class="d-flex align-items-center">
-                <a class="side-link small flex-grow-1 {{ 'active' if request.path.startswith('/subdash/' ~ subdash.id|string) else '' }}"
-                   href="{{ url_for('subdash_bp.subdash_detail', sid=subdash.id) }}">
-                  <span class="icon"></span> {{ subdash.name }}
-                </a>
-                {% if session.get("role") == "admin" %}
-                <button type="button" class="btn btn-sm btn-outline-danger ms-2 p-1 delete-subdash-btn" 
-                        data-subdash-id="{{ subdash.id }}" 
-                        data-subdash-name="{{ subdash.name }}"
-                        title="Delete subdashboard" style="font-size: 0.7rem; line-height: 1;">
-                    <i class="fas bi-trash"></i>
-                </button>
-                {% endif %}
-              </div>
-              {% endfor %}
+            {% for subdash in subdashboards %}
+            <div class="d-flex align-items-center">
+              <a class="side-link small flex-grow-1 {{ 'active' if request.path.startswith('/subdash/' ~ subdash.id|string) else '' }}"
+                href="{{ url_for('subdash_bp.subdash_detail', sid=subdash.id) }}">
+                <span class="icon"></span> {{ subdash.name }}
+              </a>
+              {% if session.get("role") == "admin" %}
+              <button type="button" class="btn btn-sm btn-outline-danger ms-2 p-1 delete-subdash-btn"
+                data-subdash-id="{{ subdash.id }}" data-subdash-name="{{ subdash.name }}" title="Delete subdashboard"
+                style="font-size: 0.7rem; line-height: 1;">
+                <i class="fas bi-trash"></i>
+              </button>
+              {% endif %}
+            </div>
+            {% endfor %}
             {% else %}
-              <span class="side-link small text-muted">No subdashboards available</span>
+            <span class="side-link small text-muted">No subdashboards available</span>
             {% endif %}
             {% if session.get("role") == "admin" %}
             <hr class="border-secondary my-2">
-            <a class="side-link small text-success {{ 'active' if request.path.startswith('/subdash/add') else '' }}" 
-               href="{{ url_for('subdash_bp.add_subdash') }}">
+            <a class="side-link small text-success {{ 'active' if request.path.startswith('/subdash/add') else '' }}"
+              href="{{ url_for('subdash_bp.add_subdash') }}">
               <span class="icon">+</span> Add Sub Dashboard
             </a>
             {% endif %}
@@ -107,17 +105,18 @@
       <div class="ms-auto d-flex align-items-center gap-2">
         <!-- Notification Bell -->
         <div class="dropdown position-relative">
-          <button class="btn btn-sm btn-outline-secondary position-relative" id="notificationBell" 
-                  type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <button class="btn btn-sm btn-outline-secondary position-relative" id="notificationBell" type="button"
+            data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-bell"></i>
             <!-- Notification Badge -->
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
-                  id="notificationBadge" style="display: none; font-size: 0.6em;">
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+              id="notificationBadge" style="display: none; font-size: 0.6em;">
               0
             </span>
           </button>
           <!-- Dropdown Menu -->
-          <div class="dropdown-menu dropdown-menu-end shadow-lg" style="width: 320px; max-height: 400px; overflow-y: auto;">
+          <div class="dropdown-menu dropdown-menu-end shadow-lg"
+            style="width: 320px; max-height: 400px; overflow-y: auto;">
             <div class="dropdown-header d-flex justify-content-between align-items-center">
               <h6 class="mb-0">Alarm Notifications</h6>
               <button class="btn btn-sm btn-outline-secondary" id="clearAllNotifications" title="Clear All">
@@ -191,61 +190,61 @@
         main.classList.toggle('full');
       });
     })();
-    
+
     // Notification System
     window.NotificationSystem = {
       notifications: [],
       maxNotifications: 10,
-      
+
       init() {
         this.loadNotifications();
         this.bindEvents();
         this.startPeriodicCheck();
       },
-      
+
       bindEvents() {
         // Clear all notifications
         document.getElementById('clearAllNotifications')?.addEventListener('click', () => {
           this.clearAll();
         });
       },
-      
+
       addNotification(notification) {
         // Add timestamp if not provided
         notification.timestamp = notification.timestamp || new Date();
         notification.id = notification.id || Date.now() + Math.random();
-        
+
         // Add to beginning of array (newest first)
         this.notifications.unshift(notification);
-        
+
         // Limit number of notifications
         if (this.notifications.length > this.maxNotifications) {
           this.notifications = this.notifications.slice(0, this.maxNotifications);
         }
-        
+
         this.saveNotifications();
         this.updateUI();
         this.showBellAnimation();
       },
-      
+
       removeNotification(id) {
         this.notifications = this.notifications.filter(n => n.id !== id);
         this.saveNotifications();
         this.updateUI();
       },
-      
+
       clearAll() {
         this.notifications = [];
         this.saveNotifications();
         this.updateUI();
       },
-      
+
       updateUI() {
         const badge = document.getElementById('notificationBadge');
         const list = document.getElementById('notificationList');
-        
+
         if (!badge || !list) return;
-        
+
         // Update badge
         if (this.notifications.length > 0) {
           badge.textContent = this.notifications.length;
@@ -253,7 +252,7 @@
         } else {
           badge.style.display = 'none';
         }
-        
+
         // Update list
         if (this.notifications.length === 0) {
           list.innerHTML = `
@@ -266,12 +265,12 @@
           list.innerHTML = this.notifications.map(n => this.renderNotification(n)).join('');
         }
       },
-      
+
       renderNotification(notification) {
         const timeStr = this.formatTime(notification.timestamp);
         const levelClass = this.getLevelClass(notification.level);
         const levelIcon = this.getLevelIcon(notification.level);
-        
+
         return `
           <div class="dropdown-item notification-item" data-id="${notification.id}">
             <div class="d-flex align-items-start gap-2">
@@ -293,7 +292,7 @@
           </div>
         `;
       },
-      
+
       getLevelClass(level) {
         const levels = {
           'Critical': 'danger',
@@ -303,7 +302,7 @@
         };
         return levels[level] || 'secondary';
       },
-      
+
       getLevelIcon(level) {
         const icons = {
           'Critical': 'bi-exclamation-triangle-fill',
@@ -313,7 +312,7 @@
         };
         return icons[level] || 'bi-bell';
       },
-      
+
       formatTime(timestamp) {
         const date = new Date(timestamp);
         const now = new Date();
@@ -321,14 +320,14 @@
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
-        
+
         if (diffMins < 1) return 'Just now';
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
         if (diffDays < 7) return `${diffDays}d ago`;
         return date.toLocaleDateString();
       },
-      
+
       showBellAnimation() {
         const bell = document.querySelector('#notificationBell i');
         if (bell) {
@@ -338,7 +337,7 @@
           }, 1000);
         }
       },
-      
+
       saveNotifications() {
         try {
           localStorage.setItem('alarmNotifications', JSON.stringify(this.notifications));
@@ -346,7 +345,7 @@
           console.warn('Could not save notifications to localStorage:', e);
         }
       },
-      
+
       loadNotifications() {
         try {
           const saved = localStorage.getItem('alarmNotifications');
@@ -365,14 +364,14 @@
         }
         this.updateUI();
       },
-      
+
       startPeriodicCheck() {
         // Check for new alarms every 30 seconds
         setInterval(() => {
           this.checkForNewAlarms();
         }, 30000);
       },
-      
+
       async checkForNewAlarms() {
         try {
           const response = await fetch('/api/alarms/recent');
@@ -380,11 +379,11 @@
             const alarms = await response.json();
             alarms.forEach(alarm => {
               // Check if we already have this alarm
-              const exists = this.notifications.some(n => 
-                n.alarmId === alarm.id || 
+              const exists = this.notifications.some(n =>
+                n.alarmId === alarm.id ||
                 (n.tagId === alarm.tag_id && n.timestamp && new Date(n.timestamp).getTime() === new Date(alarm.created_at).getTime())
               );
-              
+
               if (!exists) {
                 this.addNotification({
                   alarmId: alarm.id,
@@ -403,16 +402,16 @@
         }
       }
     };
-    
+
     // Initialize notification system when DOM is ready
     document.addEventListener('DOMContentLoaded', () => {
       NotificationSystem.init();
-      
+
       // Listen for real-time alarm events via Socket.IO
       if (typeof socket !== 'undefined') {
-        socket.on('alarm_event', function(data) {
+        socket.on('alarm_event', function (data) {
           console.log('Received alarm event:', data);
-          
+
           // Add to notification system
           NotificationSystem.addNotification({
             id: Date.now() + Math.random(), // Generate unique ID
@@ -426,68 +425,85 @@
       }
     });
   </script>
-  
+
   <!-- Bell Animation CSS -->
   <style>
     @keyframes bellShake {
-      0%, 100% { transform: rotate(0deg); }
-      10%, 30%, 50%, 70%, 90% { transform: rotate(10deg); }
-      20%, 40%, 60%, 80% { transform: rotate(-10deg); }
+
+      0%,
+      100% {
+        transform: rotate(0deg);
+      }
+
+      10%,
+      30%,
+      50%,
+      70%,
+      90% {
+        transform: rotate(10deg);
+      }
+
+      20%,
+      40%,
+      60%,
+      80% {
+        transform: rotate(-10deg);
+      }
     }
-    
+
     .bell-shake {
       animation: bellShake 0.8s ease-in-out;
       transform-origin: top center;
     }
-    
+
     .notification-item:hover {
       background-color: var(--bs-gray-100);
     }
-    
+
     [data-bs-theme="dark"] .notification-item:hover {
       background-color: var(--bs-gray-800);
     }
-    
+
     .notification-item {
       cursor: pointer;
       padding: 0.75rem 1rem;
       border-bottom: 1px solid var(--bs-border-color);
     }
-    
+
     .notification-item:last-child {
       border-bottom: none;
     }
   </style>
 
   <script>
-  // Handle subdashboard deletion
-  document.addEventListener('DOMContentLoaded', function() {
-    const deleteButtons = document.querySelectorAll('.delete-subdash-btn');
-    
-    deleteButtons.forEach(button => {
-      button.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation(); // Prevent navigation to subdashboard
-        
-        const subdashId = this.dataset.subdashId;
-        const subdashName = this.dataset.subdashName;
-        
-        if (confirm(`Are you sure you want to delete subdashboard "${subdashName}"?\n\nThis action cannot be undone.`)) {
-          // Show loading state
-          this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-          this.disabled = true;
-          
-          // Create and submit form for deletion
-          const form = document.createElement('form');
-          form.method = 'POST';
-          form.action = `/subdash/${subdashId}/delete`;
-          
-          document.body.appendChild(form);
-          form.submit();
-        }
+    // Handle subdashboard deletion
+    document.addEventListener('DOMContentLoaded', function () {
+      const deleteButtons = document.querySelectorAll('.delete-subdash-btn');
+
+      deleteButtons.forEach(button => {
+        button.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation(); // Prevent navigation to subdashboard
+
+          const subdashId = this.dataset.subdashId;
+          const subdashName = this.dataset.subdashName;
+
+          if (confirm(`Are you sure you want to delete subdashboard "${subdashName}"?\n\nThis action cannot be undone.`)) {
+            // Show loading state
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            this.disabled = true;
+
+            // Create and submit form for deletion
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/subdash/${subdashId}/delete`;
+
+            document.body.appendChild(form);
+            form.submit();
+          }
+        });
       });
     });
-  });
   </script>
 
   {% block scripts %}{% endblock %}

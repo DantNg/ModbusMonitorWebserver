@@ -49,42 +49,42 @@
           <div class="col-md-6">
             <label class="form-label">Baudrate *</label>
             <select name="baudrate" class="form-select">
-              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 9600 %}selected{% endif %}>9600</option>
-              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 19200 %}selected{% endif %}>19200</option>
-              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 38400 %}selected{% endif %}>38400</option>
-              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 57600 %}selected{% endif %}>57600</option>
-              <option {% if ((form.baudrate if form else 9600) or 9600)|int == 115200 %}selected{% endif %}>115200</option>
+              <option value="9600" {% if ((form.baudrate if form else 9600) or 9600)|int == 9600 %}selected{% endif %}>9600</option>
+              <option value="19200" {% if ((form.baudrate if form else 9600) or 9600)|int == 19200 %}selected{% endif %}>19200</option>
+              <option value="38400" {% if ((form.baudrate if form else 9600) or 9600)|int == 38400 %}selected{% endif %}>38400</option>
+              <option value="57600" {% if ((form.baudrate if form else 9600) or 9600)|int == 57600 %}selected{% endif %}>57600</option>
+              <option value="115200" {% if ((form.baudrate if form else 9600) or 9600)|int == 115200 %}selected{% endif %}>115200</option>
             </select>
           </div>
           <div class="col-md-6">
             <label class="form-label">Data Bits *</label>
             <select name="bytesize" class="form-select">
-              <option {% if ((form.bytesize if form else 8) or 8)|int == 8 %}selected{% endif %}>8</option>
-              <option {% if ((form.bytesize if form else 8) or 8)|int == 7 %}selected{% endif %}>7</option>
+              <option value="8" {% if ((form.bytesize if form else 8) or 8)|int == 8 %}selected{% endif %}>8</option>
+              <option value="7" {% if ((form.bytesize if form else 8) or 8)|int == 7 %}selected{% endif %}>7</option>
             </select>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Parity *</label>
             <select name="parity" class="form-select">
-              <option {% if ((form.parity if form else 'N') or 'N') == 'N' %}selected{% endif %}>None</option>
-              <option {% if ((form.parity if form else 'N') or 'N') == 'E' %}selected{% endif %}>Even</option>
-              <option {% if ((form.parity if form else 'N') or 'N') == 'O' %}selected{% endif %}>Odd</option>
+              <option value="N" {% if ((form.parity if form else 'N') or 'N') == 'N' %}selected{% endif %}>None</option>
+              <option value="E" {% if ((form.parity if form else 'N') or 'N') == 'E' %}selected{% endif %}>Even</option>
+              <option value="O" {% if ((form.parity if form else 'N') or 'N') == 'O' %}selected{% endif %}>Odd</option>
             </select>
           </div>
           <div class="col-md-6">
             <label class="form-label">Stop Bits *</label>
             <select name="stopbits" class="form-select">
-              <option {% if ((form.stopbits if form else 1) or 1)|int == 1 %}selected{% endif %}>1</option>
-              <option {% if ((form.stopbits if form else 1) or 1)|int == 2 %}selected{% endif %}>2</option>
+              <option value="1" {% if ((form.stopbits if form else 1) or 1)|int == 1 %}selected{% endif %}>1</option>
+              <option value="2" {% if ((form.stopbits if form else 1) or 1)|int == 2 %}selected{% endif %}>2</option>
             </select>
           </div>
 
           <div class="col-md-12">
             <label class="form-label">Byte Orders *</label>
             <select name="byte_order" class="form-select">
-              <option {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'BigEndian' %}selected{% endif %}>BigEndian</option>
-              <option {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'LittleEndian' %}selected{% endif %}>LittleEndian</option>
+              <option value="BigEndian" {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'BigEndian' %}selected{% endif %}>BigEndian</option>
+              <option value="LittleEndian" {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'LittleEndian' %}selected{% endif %}>LittleEndian</option>
             </select>
           </div>
 

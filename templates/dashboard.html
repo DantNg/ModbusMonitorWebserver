@@ -61,7 +61,7 @@
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
                   {{ tag.value|format_value(tag.datatype) }}
                 </div>
-                <div class="unit">Unit {{ tag.unit }}</div>
+                <div class="unit">{{ tag.unit or 'No Unit' }}</div>
               </div>
               <div class="meter mt-2">
                 <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:0%"></div>
@@ -116,7 +116,7 @@
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
                   {{ tag.value|format_value(tag.datatype) }}
                 </div>
-                <div class="unit">Unit {{ tag.unit }}</div>
+                <div class="unit">{{ tag.unit or 'No Unit' }}</div>
               </div>
               <div class="meter mt-2">
                 <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:0%"></div>

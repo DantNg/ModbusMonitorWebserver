@@ -1058,3 +1058,18 @@ def get_recent_alarm_events(since: datetime = None):
         
         rows = con.execute(query).mappings().all()
         return [dict(r) for r in rows]
+
+def update_tag_unit(tag_id: int, unit: str) -> bool:
+    """Update unit for a specific tag"""
+    try:
+        with init_engine().connect() as con:
+            result = con.execute(
+                update(tags)
+                .where(tags.c.id == tag_id)
+                .values(unit=unit)
+            )
+            con.commit()
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating tag unit: {e}")
+        return False

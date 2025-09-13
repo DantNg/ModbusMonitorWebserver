@@ -37,7 +37,6 @@
     {% endif %}
   </div>
 </div>
-</div>
 
 <!-- Flash Messages -->
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -114,7 +113,7 @@
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
                   {{ tag.value }}
                 </div>
-                <div class="unit">Unit {{ tag.unit }}</div>
+                <div class="unit position-relative"><span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% if session.get("role") == "admin" %}<button class="btn btn-sm btn-outline-secondary edit-unit-btn ms-2" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Edit Unit"><i class="bi bi-pencil"></i></button>{% endif %}</div>
               </div>
               <div class="meter mt-2">
                 <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:100%"></div>
@@ -152,7 +151,7 @@
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  <!-- Debug FC: {{ tag.function_code }} Type: {{ tag.function_code.__class__.__name__ }} -->`n{% if
+                  <!-- Debug FC: {{ tag.function_code }} Type: {{ tag.function_code.__class__.__name__ }} -->{% if
                   tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or tag.function_code ==
                   "3" %}
                   <button class="btn btn-sm btn-outline-primary write-btn" data-tag-id="{{ tag.id }}"
@@ -188,7 +187,7 @@
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
                   {{ tag.value }}
                 </div>
-                <div class="unit">Unit {{ tag.unit }}</div>
+                <div class="unit position-relative"><span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% if session.get("role") == "admin" %}<button class="btn btn-sm btn-outline-secondary edit-unit-btn ms-2" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Edit Unit"><i class="bi bi-pencil"></i></button>{% endif %}</div>
               </div>
               <div class="meter mt-2">
                 <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:100%"></div>
@@ -287,6 +286,39 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-primary">Add Group</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Edit Unit -->
+<div class="modal fade" id="editUnitModal" tabindex="-1" aria-labelledby="editUnitModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editUnitModalLabel">Edit Unit</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="editUnitForm">
+        <div class="modal-body">
+          <input type="hidden" id="editUnitTagId" name="tag_id">
+          
+          <div class="mb-3">
+            <label for="editUnitValue" class="form-label">Unit</label>
+            <input type="text" class="form-control" id="editUnitValue" name="unit" 
+                   placeholder="Enter unit (e.g., °C, V, A, kW, %, etc.)" maxlength="20">
+            <div class="form-text">Common units: °C, °F, V, A, W, kW, MW, %, Hz, Bar, PSI, m/s, rpm</div>
+          </div>
+          
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            This will update the unit display for this tag across all dashboards.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Update Unit</button>
         </div>
       </form>
     </div>
@@ -737,6 +769,96 @@
       toggleBtn.innerHTML = '<i class="bi bi-plus-circle"></i> New';
       toggleBtn.className = 'btn btn-outline-secondary';
     }
+  }
+
+  // Handle Edit Unit buttons
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.edit-unit-btn')) {
+      const btn = e.target.closest('.edit-unit-btn');
+      const tagId = btn.getAttribute('data-tag-id');
+      const currentUnit = btn.getAttribute('data-current-unit');
+      
+      // Populate modal
+      document.getElementById('editUnitTagId').value = tagId;
+      document.getElementById('editUnitValue').value = currentUnit || '';
+      
+      // Show modal
+      const modal = new bootstrap.Modal(document.getElementById('editUnitModal'));
+      modal.show();
+    }
+  });
+
+  // Handle Edit Unit form submission
+  const editUnitForm = document.getElementById('editUnitForm');
+  if (editUnitForm) {
+    editUnitForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const tagId = document.getElementById('editUnitTagId').value;
+      const newUnit = document.getElementById('editUnitValue').value.trim();
+      
+      // Show loading
+      Swal.fire({
+        title: 'Updating...',
+        text: 'Updating unit',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      // Send AJAX request
+      fetch(`/tags/${tagId}/update-unit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `unit=${encodeURIComponent(newUnit)}`
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Success',
+            text: 'Unit updated successfully',
+            timer: 2000,
+            showConfirmButton: false
+          });
+          
+          // Update display
+          const unitDisplay = document.getElementById(`tag-unit-${tagId}`);
+          if (unitDisplay) {
+            unitDisplay.textContent = newUnit || 'No Unit';
+          }
+          
+          // Update button data
+          const editBtn = document.querySelector(`[data-tag-id="${tagId}"].edit-unit-btn`);
+          if (editBtn) {
+            editBtn.setAttribute('data-current-unit', newUnit);
+          }
+          
+          // Close modal
+          const modal = bootstrap.Modal.getInstance(document.getElementById('editUnitModal'));
+          modal.hide();
+          
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: data.message || 'Failed to update unit'
+          });
+        }
+      })
+      .catch(error => {
+        Swal.close();
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Network error occurred'
+        });
+      });
+    });
   }
 
   // Socket connection variables (global)

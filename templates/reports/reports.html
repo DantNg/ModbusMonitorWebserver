@@ -4,126 +4,132 @@
 
 <!-- Toolbar - Fixed position -->
 <div id="toolbar" class="sticky-top bg-white shadow-sm" style="z-index: 100;">
-<form class="card border-0 shadow-soft mb-3" method="get" action="{{ url_for('reports_bp.reports') }}">
-  <div class="card-body">
-    <div class="row mb-3">
-      <div class="col-md-4">
-        <!-- Data Logger -->
-        <div class="d-flex flex-column">
-          <label class="small text-muted mb-1">Data Logger</label>
-          <select class="form-select" name="logger" onchange="this.form.submit()">
-            <option value="all" {{ 'selected' if current_logger_id=='all' else '' }}>
-              ALL DATALOGGERS
-            </option>
-            {% for lg in loggers %}
-            <option value="{{ lg.id }}" {{ 'selected' if lg.id==current_logger_id else '' }}>
-              {{ lg.name }}
-            </option>
-            {% endfor %}
-          </select>
+  <form class="card border-0 shadow-soft mb-3" method="get" action="{{ url_for('reports_bp.reports') }}">
+    <div class="card-body">
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <!-- Data Logger -->
+          <div class="d-flex flex-column">
+            <label class="small text-muted mb-1">Data Logger</label>
+            <select class="form-select" name="logger" onchange="this.form.submit()">
+              <option value="all" {{ 'selected' if current_logger_id=='all' else '' }}>
+                ALL DATALOGGERS
+              </option>
+              {% for lg in loggers %}
+              <option value="{{ lg.id }}" {{ 'selected' if lg.id==current_logger_id else '' }}>
+                {{ lg.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
-      </div>
-      <div class="col-md-4">
-        <!-- Time Filter -->
-        <div class="d-flex flex-column">
-          <label class="small text-muted mb-1">Time Filter</label>
-          <select class="form-select" name="time_filter" id="timeFilterSelect" onchange="toggleCustomRange(); this.form.submit();">
-            <option value="all" {{ 'selected' if time_filter == 'all' else '' }}>All Time</option>
-            <option value="today" {{ 'selected' if time_filter == 'today' else '' }}>Today</option>
-            <option value="yesterday" {{ 'selected' if time_filter == 'yesterday' else '' }}>Yesterday</option>
-            <option value="last7days" {{ 'selected' if time_filter == 'last7days' else '' }}>Last 7 Days</option>
-            <option value="last30days" {{ 'selected' if time_filter == 'last30days' else '' }}>Last 30 Days</option>
-            <option value="custom" {{ 'selected' if time_filter == 'custom' else '' }}>Custom Range</option>
-          </select>
+        <div class="col-md-4">
+          <!-- Time Filter -->
+          <div class="d-flex flex-column">
+            <label class="small text-muted mb-1">Time Filter</label>
+            <select class="form-select" name="time_filter" id="timeFilterSelect"
+              onchange="toggleCustomRange(); this.form.submit();">
+              <option value="all" {{ 'selected' if time_filter=='all' else '' }}>All Time</option>
+              <option value="today" {{ 'selected' if time_filter=='today' else '' }}>Today</option>
+              <option value="yesterday" {{ 'selected' if time_filter=='yesterday' else '' }}>Yesterday</option>
+              <option value="last7days" {{ 'selected' if time_filter=='last7days' else '' }}>Last 7 Days</option>
+              <option value="last30days" {{ 'selected' if time_filter=='last30days' else '' }}>Last 30 Days</option>
+              <option value="custom" {{ 'selected' if time_filter=='custom' else '' }}>Custom Range</option>
+            </select>
+          </div>
         </div>
-      </div>
-      <div class="col-md-4">
-        <!-- Filter Status -->
-        {% if time_filter and time_filter != 'all' %}
-        <div class="d-flex align-items-end h-100 pb-2">
-          <small class="text-muted">
-            Active: 
-            {% if time_filter == 'today' %}
+        <div class="col-md-4">
+          <!-- Filter Status -->
+          {% if time_filter and time_filter != 'all' %}
+          <div class="d-flex align-items-end h-100 pb-2">
+            <small class="text-muted">
+              Active:
+              {% if time_filter == 'today' %}
               <span class="badge bg-info">Today</span>
-            {% elif time_filter == 'yesterday' %}
+              {% elif time_filter == 'yesterday' %}
               <span class="badge bg-info">Yesterday</span>
-            {% elif time_filter == 'last7days' %}
+              {% elif time_filter == 'last7days' %}
               <span class="badge bg-info">Last 7 Days</span>
-            {% elif time_filter == 'last30days' %}
+              {% elif time_filter == 'last30days' %}
               <span class="badge bg-info">Last 30 Days</span>
-            {% elif time_filter == 'custom' %}
+              {% elif time_filter == 'custom' %}
               <span class="badge bg-info">Custom Range</span>
-            {% endif %}
-            <a href="{{ url_for('reports_bp.reports', logger=current_logger_id) }}" class="text-decoration-none ms-1" title="Clear filter">✕</a>
-          </small>
+              {% endif %}
+              <a href="{{ url_for('reports_bp.reports', logger=current_logger_id) }}" class="text-decoration-none ms-1"
+                title="Clear filter">✕</a>
+            </small>
+          </div>
+          {% endif %}
         </div>
-        {% endif %}
       </div>
-    </div>
 
-    <!-- Custom Date Range (shown when custom is selected) -->
-    <div class="row mb-3 {% if time_filter != 'custom' %}d-none{% endif %}" id="customDateRange">
-      <div class="col-md-4">
-        <label class="small text-muted mb-1">From Date:</label>
-        <input type="datetime-local" class="form-control" name="from" value="{{ from_dt|default('', true) }}">
+      <!-- Custom Date Range (shown when custom is selected) -->
+      <div class="row mb-3 {% if time_filter != 'custom' %}d-none{% endif %}" id="customDateRange">
+        <div class="col-md-4">
+          <label class="small text-muted mb-1">From Date:</label>
+          <input type="datetime-local" class="form-control" name="from" value="{{ from_dt|default('', true) }}">
+        </div>
+        <div class="col-md-4">
+          <label class="small text-muted mb-1">To Date:</label>
+          <input type="datetime-local" class="form-control" name="to" value="{{ to_dt|default('', true) }}">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary">Apply Filter</button>
+        </div>
       </div>
-      <div class="col-md-4">
-        <label class="small text-muted mb-1">To Date:</label>
-        <input type="datetime-local" class="form-control" name="to" value="{{ to_dt|default('', true) }}">
-      </div>
-      <div class="col-md-4 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary">Apply Filter</button>
-      </div>
-    </div>
 
-    <!-- Search & Export -->
-    <div class="d-flex gap-3 align-items-center justify-content-between">
-      <div class="position-relative" style="min-width:260px;">
-        <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
-        <input id="q" class="form-control ps-5" placeholder="Search..." oninput="filterRows(this.value)">
-      </div>
-      <div class="btn-group">
-        <button type="button" class="btn btn-primary" onclick="exportReport('xlsx')">Export XLSX</button>
-        
-        <!-- Clear Data buttons - chỉ admin -->
-        {% if session.get("role") == "admin" %}
-        <div class="btn-group ms-2">
-          <button class="btn btn-outline-danger btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-            <i class="bi bi-trash"></i> Clear Data
-          </button>
-          <ul class="dropdown-menu">
-            {% if current_logger_id != 'all' %}
-            <li>
-              <form method="post" action="{{ url_for('reports_bp.clear_logger_report_data', logger_id=current_logger_id) }}"
-                onsubmit="return confirm('Clear all data for {{ current_logger_name }}? This cannot be undone!')" style="display:inline;">
-                <button type="submit" class="dropdown-item text-warning">
+      <!-- Search & Export -->
+      <div class="d-flex gap-3 align-items-center justify-content-between">
+        <div class="position-relative" style="min-width:260px;">
+          <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
+          <input id="q" class="form-control ps-5" placeholder="Search..." oninput="filterRows(this.value)">
+        </div>
+        <div class="btn-group">
+          <button type="button" class="btn btn-primary" onclick="exportReport('xlsx')">Export XLSX</button>
+
+          <!-- Clear Data buttons - chỉ admin -->
+          {% if session.get("role") == "admin" %}
+          <div class="btn-group ms-2">
+            <button class="btn btn-outline-danger btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              <i class="bi bi-trash"></i> Clear Data
+            </button>
+            <ul class="dropdown-menu">
+              {% if current_logger_id != 'all' %}
+                <li>
+                <form id="clear-logger-form" method="post" action="{{ url_for('reports_bp.clear_logger_report_data', logger_id=current_logger_id) }}" style="display:inline;">
+                  <button type="submit" class="dropdown-item text-warning"
+                  onclick="return confirm('Clear all data for {{ current_logger_name }}? This cannot be undone!')">
                   <i class="bi bi-trash"></i> Clear {{ current_logger_name }}
-                </button>
-              </form>
-            </li>
-            <li><hr class="dropdown-divider"></li>
-            {% endif %}
-            <li>
-              <form method="post" action="{{ url_for('reports_bp.clear_all_report_data') }}"
-                onsubmit="return confirm('Clear ALL report data from ALL loggers? This cannot be undone!')" style="display:inline;">
-                <button type="submit" class="dropdown-item text-danger">
-                  <i class="bi bi-exclamation-triangle"></i> Clear All Data
-                </button>
-              </form>
-            </li>
-          </ul>
+                  </button>
+                </form>
+                </li>
+              <li>
+                <hr class="dropdown-divider">
+              </li>
+              {% endif %}
+
+              <li>
+                <form method="post" action="{{ url_for('reports_bp.clear_all_report_data') }}"
+                  onsubmit="return confirm('Clear ALL report data from ALL loggers? This cannot be undone!')"
+                  style="display:inline;">
+                  <button type="submit" class="dropdown-item text-danger">
+                    <i class="bi bi-exclamation-triangle"></i> Clear All Data
+                  </button>
+                </form>
+              </li>
+            </ul>
+          </div>
+          {% endif %}
         </div>
-        {% endif %}
       </div>
     </div>
-  </div>
-</form>
+  </form>
 </div>
 
 <!-- Back to top button -->
-<button id="backToTop" class="btn btn-primary position-fixed shadow" 
-        style="bottom: 20px; right: 20px; z-index: 1000; border-radius: 50%; width: 50px; height: 50px;" 
-        onclick="scrollToTop()" title="Back to Top">
+<button id="backToTop" class="btn btn-primary position-fixed shadow"
+  style="bottom: 20px; right: 20px; z-index: 1000; border-radius: 50%; width: 50px; height: 50px;"
+  onclick="scrollToTop()" title="Back to Top">
   <i class="bi bi-arrow-up fs-5"></i>
 </button>
 
@@ -172,7 +178,7 @@
   }
 
   // Show/hide back to top button
-  window.addEventListener('scroll', function() {
+  window.addEventListener('scroll', function () {
     const backToTop = document.getElementById('backToTop');
     if (window.scrollY > 200) {  // Hiện sớm hơn (200px thay vì 300px)
       backToTop.style.display = 'block';
@@ -182,7 +188,7 @@
   });
 
   // Initialize - show button if already scrolled
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     const backToTop = document.getElementById('backToTop');
     if (window.scrollY > 200) {
       backToTop.style.display = 'block';

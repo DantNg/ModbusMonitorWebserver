@@ -37,7 +37,7 @@ class DataLoggerService(threading.Thread):
             
             if rows:
                 dbsync.insert_tag_values_bulk(rows)
-                print(f"✅ {logger_name}: Logged at {ts.isoformat()}")
+                # print(f"✅ {logger_name}: Logged at {ts.isoformat()}")
             else:
                 print(f"📝 {logger_name}: No data to log")
                 
@@ -59,14 +59,14 @@ class DataLoggerService(threading.Thread):
                     # print(f"⏱️ Checking Logger {lid} (interval={interval}s)")
                     # Check if interval changed
                     if self._intervals.get(lid) != interval:
-                        print(f"🔄 Logger {lid}: Interval changed to {interval}s")
+                        # print(f"🔄 Logger {lid}: Interval changed to {interval}s")
                         self._intervals[lid] = interval
                         self._next_runs[lid] = now + 0.1  # Run soon for immediate effect
                         continue
                     
                     # Initialize if new logger
                     if lid not in self._next_runs:
-                        print(f"🆕 Logger {lid}: First run - interval {interval}s")
+                        # print(f"🆕 Logger {lid}: First run - interval {interval}s")
                         self._intervals[lid] = interval
                         self._next_runs[lid] = now + 0.1  # Run soon for immediate effect
                         continue

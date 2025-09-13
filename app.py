@@ -2,7 +2,7 @@ import eventlet
 eventlet.monkey_patch()
 
 import os
-from flask import redirect, url_for
+from flask import redirect, url_for, request, jsonify, session
 from modbus_monitor import create_app
 from modbus_monitor.extensions import socketio
 from modbus_monitor.services.runner import start_services
@@ -13,6 +13,28 @@ app = create_app()
 def root():
     print("Start login")
     return redirect(url_for("auth_bp.login"))
+
+@app.route("/tags/<int:tag_id>/update-unit", methods=["POST"])
+def update_tag_unit(tag_id):
+    """Update unit for a specific tag"""
+    # Check if user is admin
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    
+    try:
+        unit = request.form.get("unit", "").strip()
+        
+        # Update unit in database
+        result = db.update_tag_unit(tag_id, unit)
+        
+        if result:
+            return jsonify({"success": True, "message": "Unit updated successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to update unit"})
+            
+    except Exception as e:
+        print(f"Error updating tag unit: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 # Cache subdashboards để tránh query mỗi request
 _subdashboards_cache = None
 _cache_timestamp = 0
