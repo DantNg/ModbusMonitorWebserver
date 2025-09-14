@@ -14,6 +14,7 @@ from pymodbus.exceptions import ModbusIOException
 from pymodbus.exceptions import ConnectionException
 import socketio
 
+
 def _apply_sf(raw: float, scale: float, offset: float) -> float:
     return raw * (scale or 1.0) + (offset or 0.0)
 
@@ -31,6 +32,7 @@ def _unpack_float(lo: int, hi: int, byte_order: str, word_order: str) -> float:
 
 class _DeviceReader:
     def __init__(self, dev_row: Dict, db_queue: Queue, push_queue: Queue, cache: LatestCache):
+        self._ensure_connected_count = 0
         self.d = dev_row
         self.dbq = db_queue
         self.pushq = push_queue
@@ -107,7 +109,6 @@ class _DeviceReader:
             
         print(f"🔄 Device {self.d.get('name')} ({self.d['protocol']}): Attempting connection (retry #{getattr(self, '_retry_count', 0) + 1})")
         ok = self._connect()
-        
         if ok:
             self._connected = True
             self._backoff = 1.0
@@ -125,7 +126,7 @@ class _DeviceReader:
                     "ok": True,
                     "status": "connected",
                     "seq": self._seq,
-                    "ts": time.time()
+                    "ts": datetime.now().strftime("%H:%M:%S")  # Use PC local time
                 }, room=f"dashboard_device_{self.d['id']}")
             except Exception:
                 pass
@@ -706,7 +707,7 @@ class _DeviceReader:
                     "error": "Connection failed",
                     "status": "disconnected",
                     "seq": self._seq,
-                    "ts": time.time()
+                    "ts": datetime.now().strftime("%H:%M:%S")  # Use PC local time
                 }, room=f"dashboard_device_{self.d['id']}")
             except Exception:
                 pass
@@ -719,7 +720,7 @@ class _DeviceReader:
         # Group tags by function code
         function_code_groups = {}
         device_default_fc = self.d.get("default_function_code", 3)
-        
+       
         for tag in tags:
             fc = tag.get("function_code") or device_default_fc
             if fc not in function_code_groups:
@@ -774,7 +775,7 @@ class _DeviceReader:
                                 "name": t.get("name", "tag_test"),
                                 "value": float(val),
                                 "datatype":t["datatype"],
-                                "ts": ts.strftime("%H:%M:%S") if ts else "--:--:--"
+                                "ts": datetime.now().strftime("%H:%M:%S") if ts else "--:--:--"
                             })
 
                     except Exception as e:
@@ -812,7 +813,7 @@ class _DeviceReader:
                             "tags": subdash_tags,
                             "seq": self._seq,
                             "latency_ms": latency_ms,
-                            "ts": time.time(),
+                            "ts": datetime.now().strftime("%H:%M:%S"),  # Use PC local time
                             "tag_count": len(subdash_tags)
                         }, room=f"subdashboard_{subdash_id}")
             except Exception as e:
@@ -866,9 +867,9 @@ class _DeviceReader:
                         "ok": False,
                         "error": str(e),
                         "seq": self._seq,
-                        "ts": time.time()
+                        "ts": datetime.now().strftime("%H:%M:%S")  # Use PC local time
                     }, room=f"dashboard_device_{self.d['id']}")
-                
+                    
                 # Schedule next run (anti-drift)
                 next_run += interval
                 
@@ -911,9 +912,7 @@ class ModbusService:
         if not devices:
             print("No devices found for Modbus monitoring")
             return
-            
-        print(f"Starting high-speed Modbus service for {len(devices)} devices")
-        
+
         # Create barrier for synchronized start
         self._barrier = threading.Barrier(len(devices))
         
@@ -935,6 +934,7 @@ class ModbusService:
                     daemon=True, 
                     name=f"Modbus-{d['name']}"
                 )
+                
                 t.start()
                 self._threads[d["id"]] = t
                 started_devices += 1

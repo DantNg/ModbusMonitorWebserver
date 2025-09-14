@@ -113,7 +113,7 @@
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
                   {{ tag.value }}
                 </div>
-                <div class="unit position-relative"><span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% if session.get("role") == "admin" %}<button class="btn btn-sm btn-outline-secondary edit-unit-btn ms-2" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Edit Unit"><i class="bi bi-pencil"></i></button>{% endif %}</div>
+                <div class="unit position-relative">{% if session.get("role") == "admin" %}<span id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit" style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{% else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
               </div>
               <div class="meter mt-2">
                 <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:100%"></div>
@@ -187,7 +187,7 @@
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
                   {{ tag.value }}
                 </div>
-                <div class="unit position-relative"><span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% if session.get("role") == "admin" %}<button class="btn btn-sm btn-outline-secondary edit-unit-btn ms-2" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Edit Unit"><i class="bi bi-pencil"></i></button>{% endif %}</div>
+                <div class="unit position-relative">{% if session.get("role") == "admin" %}<span id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit" style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{% else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
               </div>
               <div class="meter mt-2">
                 <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:100%"></div>
@@ -771,12 +771,12 @@
     }
   }
 
-  // Handle Edit Unit buttons
-  document.addEventListener('click', function(e) {
-    if (e.target.closest('.edit-unit-btn')) {
-      const btn = e.target.closest('.edit-unit-btn');
-      const tagId = btn.getAttribute('data-tag-id');
-      const currentUnit = btn.getAttribute('data-current-unit');
+  // Handle Edit Unit double-click
+  document.addEventListener('dblclick', function(e) {
+    if (e.target.closest('.unit-editable')) {
+      const span = e.target.closest('.unit-editable');
+      const tagId = span.getAttribute('data-tag-id');
+      const currentUnit = span.getAttribute('data-current-unit');
       
       // Populate modal
       document.getElementById('editUnitTagId').value = tagId;
@@ -785,6 +785,21 @@
       // Show modal
       const modal = new bootstrap.Modal(document.getElementById('editUnitModal'));
       modal.show();
+    }
+  });
+
+  // Add hover effect for editable units
+  document.addEventListener('mouseover', function(e) {
+    if (e.target.closest('.unit-editable')) {
+      const span = e.target.closest('.unit-editable');
+      span.style.backgroundColor = '#e9ecef';
+    }
+  });
+
+  document.addEventListener('mouseout', function(e) {
+    if (e.target.closest('.unit-editable')) {
+      const span = e.target.closest('.unit-editable');
+      span.style.backgroundColor = '';
     }
   });
 
@@ -830,12 +845,8 @@
           const unitDisplay = document.getElementById(`tag-unit-${tagId}`);
           if (unitDisplay) {
             unitDisplay.textContent = newUnit || 'No Unit';
-          }
-          
-          // Update button data
-          const editBtn = document.querySelector(`[data-tag-id="${tagId}"].edit-unit-btn`);
-          if (editBtn) {
-            editBtn.setAttribute('data-current-unit', newUnit);
+            // Update data attribute for future edits
+            unitDisplay.setAttribute('data-current-unit', newUnit);
           }
           
           // Close modal
@@ -978,7 +989,6 @@
 
         const oldVal = valEl.textContent;
         const newVal = formatValue(tag.value, tag.datatype);
-        console.log(`Tag ${tag.id} value changed from ${oldVal} to ${newVal}`);
         // Only update if value actually changed
         if (oldVal != newVal) {
           updates.push({ valEl, newVal, oldVal, tag });
