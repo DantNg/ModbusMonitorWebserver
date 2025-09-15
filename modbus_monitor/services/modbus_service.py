@@ -1,10 +1,19 @@
 from __future__ import annotations
 import threading, time, math, os
 from queue import Queue
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from datetime import datetime
 from modbus_monitor.database import db as dbsync
 from modbus_monitor.services.common import LatestCache, utc_now
+from modbus_monitor.services.rtu_connection_pool import (
+    RTUConnectionPool, RTUConnectionConfig, get_rtu_pool, shutdown_rtu_pool
+)
+from modbus_monitor.services.config_cache import (
+    ConfigCache, DeviceConfig, TagConfig, FunctionCodeGroup, get_config_cache
+)
+from modbus_monitor.services.socket_emission_manager import (
+    SocketEmissionManager, get_emission_manager, shutdown_emission_manager
+)
 from pymodbus.exceptions import ModbusIOException
 import asyncio
 import struct
@@ -31,62 +40,87 @@ def _unpack_float(lo: int, hi: int, byte_order: str, word_order: str) -> float:
     return struct.unpack(">f", b)[0]
 
 class _DeviceReader:
-    def __init__(self, dev_row: Dict, db_queue: Queue, push_queue: Queue, cache: LatestCache):
+    def __init__(self, device_config: DeviceConfig, db_queue: Queue, push_queue: Queue, 
+                 cache: LatestCache, config_cache: ConfigCache):
         self._ensure_connected_count = 0
-        self.d = dev_row
+        self.device_config = device_config
+        self.d = device_config  # Backward compatibility
         self.dbq = db_queue
         self.pushq = push_queue
         self.cache = cache
+        self.config_cache = config_cache
         self.client = None
-        self.byte_order = self.d.get("byte_order") or "BigEndian"
-        self.word_order = self.d.get("word_order") or "AB"
-        self.unit_id = int(self.d.get("unit_id") or 1)
+        self.rtu_entry = None  # RTU connection pool entry
         
+        # Device properties
+        self.byte_order = device_config.byte_order
+        self.word_order = device_config.word_order
+        self.unit_id = device_config.unit_id
+        self.timeout = min(device_config.timeout_ms / 1000.0, 0.2)
         
-        self.timeout = min((int(self.d.get("timeout_ms") or 200))/1000.0, 0.2)  # Fast 200ms timeout
+        # Connection state
         self._connected = False
         self._backoff = 1.0
         self._next_retry_ts = 0.0
-        self._seq = 0  # Sequence counter for debugging
-        self._device_id_str = f"dev{self.d['id']}"  # String ID for socket emissions
+        self._seq = 0
+        self._device_id_str = f"dev{device_config.id}"
+        
+        # Cache pre-calculated function code groups
+        self._fc_groups = config_cache.get_device_fc_groups(device_config.id)
+        
+        # Get emission manager with error handling
+        try:
+            # Check if we should use direct emission (for debugging)
+            if os.getenv("USE_DIRECT_EMISSION") == "1":
+                print("Using direct socket emission (debug mode)")
+                self.emission_manager = None
+            else:
+                self.emission_manager = get_emission_manager()
+        except Exception as e:
+            print(f"Warning: Could not initialize emission manager: {e}")
+            print("Falling back to direct socket emission")
+            self.emission_manager = None
 
     def _connect(self) -> bool:
-        # if os.getenv("FAKE_MODBUS") == "1":
-        #     self.client = "FAKE"
-        #     return True
-
         try:
-            if self.d["protocol"] == "ModbusTCP":
-                host = self.d.get("host")
-                port = int(self.d.get("port") or 502)
+            if self.device_config.protocol == "ModbusTCP":
+                host = self.device_config.host
+                port = self.device_config.port or 502
                 print(f"🔌 Connecting to ModbusTCP: host={host}, port={port}")
                 self.client = ModbusTcpClient(host, port=port, timeout=self.timeout)
-            else:
-                serial_port = self.d.get("serial_port")
-                baudrate = int(self.d.get("baudrate") or 9600)
-                parity = self.d.get("parity") or "N"
-                print(f"🔌 Connecting to ModbusRTU: port={serial_port}, baudrate={baudrate}, parity={parity}")
-                self.client = ModbusSerialClient(
-                    port=serial_port,
-                    baudrate=baudrate,
-                    bytesize=int(self.d.get("bytesize") or 8),
-                    parity=parity,
-                    stopbits=int(self.d.get("stopbits") or 1),
+                connected = self.client.connect()
+                
+            else:  # ModbusRTU - use connection pool
+                rtu_config = RTUConnectionConfig(
+                    serial_port=self.device_config.serial_port,
+                    baudrate=self.device_config.baudrate,
+                    bytesize=self.device_config.bytesize,
+                    parity=self.device_config.parity,
+                    stopbits=self.device_config.stopbits,
                     timeout=self.timeout
                 )
+                
+                print(f"🔌 Getting RTU connection from pool: {rtu_config.serial_port}")
+                rtu_pool = get_rtu_pool()
+                self.rtu_entry = rtu_pool.get_connection(rtu_config)
+                
+                if self.rtu_entry:
+                    self.client = self.rtu_entry.client
+                    connected = self.rtu_entry.is_connected
+                else:
+                    connected = False
             
-            connected = self.client.connect()
-            status = "SUCCESS" if connected else "FAILED" 
+            status = "SUCCESS" if connected else "FAILED"
             
-            if not connected and self.d["protocol"] == "ModbusTCP":
-                print(f"💡 TCP connection tips: Check if device is online at {self.d.get('host')}:{self.d.get('port', 502)}")
-            elif not connected and self.d["protocol"] == "ModbusRTU":
+            if not connected and self.device_config.protocol == "ModbusTCP":
+                print(f"💡 TCP connection tips: Check if device is online at {host}:{port}")
+            elif not connected and self.device_config.protocol == "ModbusRTU":
                 print(f"💡 RTU connection tips: Check COM port, baudrate, and cable connection")
                 
             return connected
             
         except Exception as e:
-            print(f"❌ Connection error for {self.d.get('name')}: {e}")
+            print(f"❌ Connection error for {self.device_config.name}: {e}")
             return False
 
     def _ensure_connected(self) -> bool:
@@ -95,7 +129,7 @@ class _DeviceReader:
             # Test connection periodically by attempting a simple operation
             if hasattr(self, '_last_connection_test') and now - self._last_connection_test > 30:
                 if not self._test_connection():
-                    print(f"🔄 Device {self.d.get('name')} ({self.d['protocol']}): Connection lost, reconnecting...")
+                    print(f"🔄 Device {self.device_config.name} ({self.device_config.protocol}): Connection lost, reconnecting...")
                     self._connected = False
                     self._close()
                 else:
@@ -107,27 +141,37 @@ class _DeviceReader:
         if now < self._next_retry_ts:
             return False
             
-        print(f"🔄 Device {self.d.get('name')} ({self.d['protocol']}): Attempting connection (retry #{getattr(self, '_retry_count', 0) + 1})")
+        print(f"🔄 Device {self.device_config.name} ({self.device_config.protocol}): Attempting connection (retry #{getattr(self, '_retry_count', 0) + 1})")
         ok = self._connect()
         if ok:
             self._connected = True
             self._backoff = 1.0
             self._retry_count = 0
             self._last_connection_test = now
-            # print(f"✅ Device {self.d.get('name')} ({self.d['protocol']}): Connection successful")
             
-            # Emit connection success to UI
+            # Emit connection success
             try:
-                from modbus_monitor.extensions import socketio
-                socketio.emit("modbus_update", {
-                    "device_id": self._device_id_str,
-                    "device_name": self.d.get("name", "Unknown"),
-                    "unit": self.d.get("unit_id", 1),
-                    "ok": True,
-                    "status": "connected",
-                    "seq": self._seq,
-                    "ts": datetime.now().strftime("%H:%M:%S")  # Use PC local time
-                }, room=f"dashboard_device_{self.d['id']}")
+                if self.emission_manager:
+                    self.emission_manager.emit_device_update(
+                        device_id=self._device_id_str,
+                        device_name=self.device_config.name,
+                        unit=self.device_config.unit_id,
+                        ok=True,
+                        seq=self._seq,
+                        status="connected"
+                    )
+                else:
+                    # Direct emission when emission manager not available
+                    from modbus_monitor.extensions import socketio
+                    socketio.emit("modbus_update", {
+                        "device_id": self._device_id_str,
+                        "device_name": self.device_config.name,
+                        "unit": self.device_config.unit_id,
+                        "ok": True,
+                        "status": "connected",
+                        "seq": self._seq,
+                        "ts": datetime.now().strftime("%H:%M:%S")
+                    }, room=f"dashboard_device_{self.device_config.id}")
             except Exception:
                 pass
         else:
@@ -142,7 +186,7 @@ class _DeviceReader:
                 self._backoff = min(self._backoff * 1.5, 30.0)
             
             self._next_retry_ts = now + retry_delay
-            print(f"❌ Device {self.d.get('name')} ({self.d['protocol']}): Connection failed, retry in {retry_delay}s (attempt #{self._retry_count})")
+            print(f"❌ Device {self.device_config.name} ({self.device_config.protocol}): Connection failed, retry in {retry_delay}s (attempt #{self._retry_count})")
         
         return ok
 
@@ -153,24 +197,43 @@ class _DeviceReader:
                 return False
                 
             # Try to read a single register/coil to test connection
-            if self.d["protocol"] == "ModbusTCP":
+            if self.device_config.protocol == "ModbusTCP":
                 # For TCP, try to read 1 holding register
                 result = self.client.read_holding_registers(0, 1, slave=self.unit_id)
                 return not result.isError()
             else:
-                # For RTU, try to read 1 holding register  
-                result = self.client.read_holding_registers(0, 1, slave=self.unit_id)
-                return not result.isError()
+                # For RTU, test via connection pool entry
+                if self.rtu_entry:
+                    result = self.client.read_holding_registers(0, 1, slave=self.unit_id)
+                    return not result.isError()
+                return False
         except Exception:
             return False
 
     def _close(self):
         try:
-            if self.client and self.client != "FAKE":
-                self.client.close()
+            if self.device_config.protocol == "ModbusTCP":
+                # TCP: close directly
+                if self.client and self.client != "FAKE":
+                    self.client.close()
+                self.client = None
+            else:
+                # RTU: release connection back to pool
+                if self.rtu_entry:
+                    rtu_config = RTUConnectionConfig(
+                        serial_port=self.device_config.serial_port,
+                        baudrate=self.device_config.baudrate,
+                        bytesize=self.device_config.bytesize,
+                        parity=self.device_config.parity,
+                        stopbits=self.device_config.stopbits,
+                        timeout=self.timeout
+                    )
+                    rtu_pool = get_rtu_pool()
+                    rtu_pool.release_connection(rtu_config)
+                    self.rtu_entry = None
+                self.client = None
         except Exception:
             pass
-        self.client = None
         self._connected = False
     def _normalize_hr_address(self, addr: int) -> int:
         """
@@ -197,51 +260,46 @@ class _DeviceReader:
 
         # Use device default function code if not specified
         if function_code is None:
-            function_code = self.d.get("default_function_code", 3)
+            function_code = self.device_config.default_function_code
 
         start_read_byte = self._normalize_hr_address(address)
         
         try:
-            if self.d["protocol"] in ("ModbusTCP", "ModbusRTU"):
+            if self.device_config.protocol in ("ModbusTCP", "ModbusRTU"):
                 if self.client is None:
                     if not self._ensure_connected():
                         raise ConnectionException("Failed to connect to Modbus client")
 
-
                 # Choose appropriate read function based on function code
                 if function_code == 1:  # Read Coils
-                    rr = self.client.read_coils(start_read_byte, count=count, slave=int(self.d["unit_id"]))
+                    rr = self.client.read_coils(start_read_byte, count=count, slave=self.device_config.unit_id)
                     if rr.isError():
                         print(f"❌ FC01 Read Coils error: {rr}")
                         return None
-                    # print(f"✅ FC01 Read Coils success: {[int(bit) for bit in rr.bits[:count]]}")
                     return [int(bit) for bit in rr.bits[:count]]
                 elif function_code == 2:  # Read Discrete Inputs
-                    rr = self.client.read_discrete_inputs(start_read_byte, count=count, slave=int(self.d["unit_id"]))
+                    rr = self.client.read_discrete_inputs(start_read_byte, count=count, slave=self.device_config.unit_id)
                     if rr.isError():
                         print(f"❌ FC02 Read Discrete Inputs error: {rr}")
                         return None
-                    # print(f"✅ FC02 Read Discrete Inputs success: {[int(bit) for bit in rr.bits[:count]]}")
                     return [int(bit) for bit in rr.bits[:count]]
                 elif function_code == 3:  # Read Holding Registers
-                    rr = self.client.read_holding_registers(start_read_byte, count=count, slave=int(self.d["unit_id"]))
+                    rr = self.client.read_holding_registers(start_read_byte, count=count, slave=self.device_config.unit_id)
                     if rr.isError():
                         print(f"❌ FC03 Read Holding Registers error: {rr}")
                         return None
-                    # print(f"✅ FC03 Read Holding Registers success: {rr.registers}")
                     return rr.registers
                 elif function_code == 4:  # Read Input Registers
-                    rr = self.client.read_input_registers(start_read_byte, count=count, slave=int(self.d["unit_id"]))
+                    rr = self.client.read_input_registers(start_read_byte, count=count, slave=self.device_config.unit_id)
                     if rr.isError():
                         print(f"❌ FC04 Read Input Registers error: {rr}")
                         return None
-                    # print(f"✅ FC04 Read Input Registers success: {rr.registers}")
                     return rr.registers
                 else:
                     raise ValueError(f"Unsupported function code: {function_code}")
                     
             else:
-                raise ValueError("Unsupported protocol: {}".format(self.d["protocol"]))
+                raise ValueError("Unsupported protocol: {}".format(self.device_config.protocol))
 
         except (ConnectionException, ModbusIOException, IOError) as e:
             self._connected = False  # Mark as disconnected to trigger reconnection
@@ -635,28 +693,28 @@ class _DeviceReader:
             return False
             
         try:
-            # Lấy thông tin tag từ database
-            tag = dbsync.get_tag(tag_id)
-            if not tag or tag["device_id"] != self.d["id"]:
-                print(f"Tag {tag_id} not found or doesn't belong to device {self.d['name']}")
+            # Lấy thông tin tag từ config cache
+            tag = self.config_cache.get_tag(tag_id)
+            if not tag or tag.device_id != self.device_config.id:
+                print(f"Tag {tag_id} not found or doesn't belong to device {self.device_config.name}")
                 return False
             
             # Xác định function code - ưu tiên function code của tag, sau đó là device default
-            function_code = tag.get("function_code") or self.d.get("default_function_code", 3)
+            function_code = tag.function_code or self.device_config.default_function_code
             
             # Chỉ cho phép ghi vào function code có thể ghi được
             if function_code == 1:  # Coils - có thể ghi (function code 05/15)
                 return self._write_coil(tag, value)
             elif function_code == 2:  # Discrete Inputs - READ ONLY
-                print(f"Cannot write to discrete input tag {tag['name']} (function code 02)")
+                print(f"Cannot write to discrete input tag {tag.name} (function code 02)")
                 return False
             elif function_code == 3:  # Holding Registers - có thể ghi (function code 06/16)
                 return self._write_holding_register(tag, value)
             elif function_code == 4:  # Input Registers - READ ONLY  
-                print(f"Cannot write to input register tag {tag['name']} (function code 04)")
+                print(f"Cannot write to input register tag {tag.name} (function code 04)")
                 return False
             else:
-                print(f"Unsupported function code {function_code} for tag {tag['name']}")
+                print(f"Unsupported function code {function_code} for tag {tag.name}")
                 return False
                 
         except Exception as e:
@@ -664,187 +722,205 @@ class _DeviceReader:
             self._close()
             return False
 
-    def _write_coil(self, tag: dict, value: float) -> bool:
+    def _write_coil(self, tag: TagConfig, value: float) -> bool:
         """Ghi giá trị vào coil (function code 05/15)"""
         try:
             # Convert value to boolean
             bool_value = bool(int(value))
-            write_addr = self._normalize_hr_address(int(tag["address"]))
+            write_addr = self._normalize_hr_address(tag.address)
             
             # Use write_coil for single coil (function code 05)
-            result = self.client.write_coil(write_addr, bool_value, slave=int(self.d["unit_id"]))
+            result = self.client.write_coil(write_addr, bool_value, slave=self.device_config.unit_id)
             
             if result.isError():
-                print(f"Modbus coil write error for tag {tag['name']}: {result}")
+                print(f"Modbus coil write error for tag {tag.name}: {result}")
                 return False
                 
-            print(f"Successfully wrote coil value {bool_value} to tag {tag['name']} (device: {self.d['name']})")
+            print(f"Successfully wrote coil value {bool_value} to tag {tag.name} (device: {self.device_config.name})")
             return True
             
         except Exception as e:
-            print(f"Error writing coil to tag {tag['name']}: {e}")
+            print(f"Error writing coil to tag {tag.name}: {e}")
             return False
 
-    def _write_holding_register(self, tag: dict, value: float) -> bool:
+    def _write_holding_register(self, tag: TagConfig, value: float) -> bool:
         """Ghi giá trị vào holding register (function code 06/16)"""
         try:
             # Áp dụng scale/offset ngược (từ giá trị thật về raw)
-            scale = float(tag.get("scale") or 1.0)
-            offset = float(tag.get("offset") or 0.0)
+            scale = tag.scale
+            offset = tag.offset
             raw_value = (value - offset) / scale if scale != 0 else value
             
             # Encode giá trị thành registers
-            registers = self._encode_value_for_write(raw_value, tag["datatype"])
+            registers = self._encode_value_for_write(raw_value, tag.datatype)
             
             # Tính địa chỉ ghi
-            write_addr = self._normalize_hr_address(int(tag["address"]))
+            write_addr = self._normalize_hr_address(tag.address)
             
             # Thực hiện ghi
             if len(registers) == 1:
                 # Ghi single register (function code 06)
-                result = self.client.write_register(write_addr, registers[0], slave=int(self.d["unit_id"]))
+                result = self.client.write_register(write_addr, registers[0], slave=self.device_config.unit_id)
             else:
                 # Ghi multiple registers (function code 16)
-                result = self.client.write_registers(write_addr, registers, slave=int(self.d["unit_id"]))
+                result = self.client.write_registers(write_addr, registers, slave=self.device_config.unit_id)
             
             if result.isError():
-                print(f"Modbus register write error for tag {tag['name']}: {result}")
+                print(f"Modbus register write error for tag {tag.name}: {result}")
                 return False
                 
-            print(f"Successfully wrote register value {value} to tag {tag['name']} (device: {self.d['name']})")
+            print(f"Successfully wrote register value {value} to tag {tag.name} (device: {self.device_config.name})")
             return True
             
         except Exception as e:
-            print(f"Error writing register to tag {tag['name']}: {e}")
+            print(f"Error writing register to tag {tag.name}: {e}")
             return False
 
     def loop_once(self):
-        """Đọc 1 vòng cho device này với timing tracking và immediate socket emission."""
+        """Đọc 1 vòng cho device này với optimized caching và batch socket emission."""
         t0 = time.perf_counter()  # Start timing
         
         if not self._ensure_connected():
-            # Emit disconnection status to UI
-            from modbus_monitor.extensions import socketio
+            # Emit disconnection status
             try:
-                socketio.emit("modbus_update", {
-                    "device_id": self._device_id_str,
-                    "device_name": self.d.get("name", "Unknown"),
-                    "unit": self.d.get("unit_id", 1),
-                    "ok": False,
-                    "error": "Connection failed",
-                    "status": "disconnected",
-                    "seq": self._seq,
-                    "ts": datetime.now().strftime("%H:%M:%S")  # Use PC local time
-                }, room=f"dashboard_device_{self.d['id']}")
-            except Exception:
-                pass
-            return  # chưa đến giờ retry, quay lại sau
-
-        tags = dbsync.list_tags(self.d["id"])
-        if not tags:
+                if self.emission_manager:
+                    self.emission_manager.emit_device_update(
+                        device_id=self._device_id_str,
+                        device_name=self.device_config.name,
+                        unit=self.device_config.unit_id,
+                        ok=False,
+                        seq=self._seq,
+                        error="Connection failed",
+                        status="disconnected"
+                    )
+                else:
+                    # Direct emission when emission manager not available
+                    from modbus_monitor.extensions import socketio
+                    socketio.emit("modbus_update", {
+                        "device_id": self._device_id_str,
+                        "device_name": self.device_config.name,
+                        "unit": self.device_config.unit_id,
+                        "ok": False,
+                        "error": "Connection failed",
+                        "status": "disconnected",
+                        "seq": self._seq,
+                        "ts": datetime.now().strftime("%H:%M:%S")
+                    }, room=f"dashboard_device_{self.device_config.id}")
+            except Exception as e:
+                print(f"Failed to emit disconnection status: {e}")
             return
-        # print(f"Reading device {self.d['name']} with {len(tags)} tags")
-        # Group tags by function code
-        function_code_groups = {}
-        device_default_fc = self.d.get("default_function_code", 3)
-       
-        for tag in tags:
-            fc = tag.get("function_code") or device_default_fc
-            if fc not in function_code_groups:
-                function_code_groups[fc] = []
-            function_code_groups[fc].append(tag)
+
+        # Use cached function code groups (no DB access)
+        if not self._fc_groups:
+            return
+
         ts = utc_now()
         self._seq += 1
-        all_successful_tags = []  # Track all successfully read tags for immediate emission
+        all_successful_tags = []  # Track all successfully read tags for emission
         
-        # Process each function code group separately
-        for function_code, fc_tags in function_code_groups.items():
+        # Process each pre-calculated function code group
+        for fc_group in self._fc_groups:
             try:
-                # Calculate read range for this function code group
-                start_addr, count = self._calculate_read_range(fc_tags)
-                if count == 0:
+                if fc_group.count == 0:
                     continue
 
-                # Read all registers/bits for this function code
-                bulk_data = self._read_registers(start_addr, count, function_code)
+                # Single bulk read per function code using pre-calculated range
+                bulk_data = self._read_registers(fc_group.start_addr, fc_group.count, fc_group.function_code)
                 if not bulk_data or all(r is None for r in bulk_data):
                     continue
-                # Parse each tag from bulk data
-                for t in fc_tags:
+                    
+                # Process all tags in this group
+                for tag in fc_group.tags:
                     try:
-                        addr = self._normalize_hr_address(int(t["address"]))
-                        dt = t["datatype"]
-                        scale = float(t.get("scale") or 1.0)
-                        offs = float(t.get("offset") or 0.0)
+                        addr = self._normalize_hr_address(tag.address)
+                        offset_in_bulk = addr - fc_group.start_addr
                         
-                        # Calculate offset in bulk_data array
-                        offset_in_bulk = addr - start_addr
-                
-                        # For bit-based function codes (1,2), handle differently
-                        if function_code in [1, 2]:
-                            # For coils/discrete inputs, each element is already a single bit
+                        # Extract value based on function code type
+                        if fc_group.function_code in [1, 2]:
+                            # Bit-based function codes
                             if 0 <= offset_in_bulk < len(bulk_data):
                                 raw_val = bulk_data[offset_in_bulk]
-                                val = float(raw_val) * scale + offs if raw_val is not None else None
+                                val = float(raw_val) * tag.scale + tag.offset if raw_val is not None else None
                             else:
                                 val = None
                         else:
-                            # For register-based function codes (3,4), extract according to datatype
-                            val = self._extract(bulk_data, offset_in_bulk, dt, scale, offs)
-                        # Save to cache and queue
-                        self.cache.set(int(t["id"]), ts, val)
-                        # print(val)
+                            # Register-based function codes
+                            val = self._extract(bulk_data, offset_in_bulk, tag.datatype, tag.scale, tag.offset)
+                        
                         if val is not None:
-                            self.dbq.put((int(t["id"]), ts, float(val)))
-                            # Track for immediate emission
+                            # Cache and queue for DB write
+                            self.cache.set(tag.id, ts, val)
+                            self.dbq.put((tag.id, ts, float(val)))
+                            
+                            # Track for socket emission
                             all_successful_tags.append({
-                                "id": int(t["id"]),
-                                "name": t.get("name", "tag_test"),
+                                "id": tag.id,
+                                "name": tag.name,
                                 "value": float(val),
-                                "datatype":t["datatype"],
-                                "ts": datetime.now().strftime("%H:%M:%S") if ts else "--:--:--"
+                                "datatype": tag.datatype,
+                                "ts": datetime.now().strftime("%H:%M:%S")
                             })
 
                     except Exception as e:
-                        print(f"Error processing tag {t.get('name', '?')}: {e}")
+                        print(f"Error processing tag {tag.name}: {e}")
                         continue
 
             except Exception as e:
-                print(f"Error reading function code {function_code} for device {self.d['name']}: {e}")
+                print(f"Error reading FC{fc_group.function_code} for device {self.device_config.name}: {e}")
                 self._close()
                 continue
         
-        # Calculate latency and emit immediately to Socket.IO
-        latency_ms = int((time.perf_counter() - t0) * 1000)
-        
+        # Socket emission with fallback
         if all_successful_tags:
-            # Immediate socket emission for this device
-            from modbus_monitor.extensions import socketio
+            latency_ms = int((time.perf_counter() - t0) * 1000)
             
-            # Emit to relevant subdashboards
+            # Try emission manager first, fallback to direct emission
             try:
-                subdashboards = dbsync.list_subdashboards() or []
-                tag_ids = [tag["id"] for tag in all_successful_tags]
-                
-                for subdash in subdashboards:
-                    subdash_id = subdash['id']
-                    subdash_tag_ids = [t['id'] for t in dbsync.get_subdashboard_tags(subdash_id) or []]
-                    # Filter tags that belong to this subdashboard
-                    subdash_tags = [tag for tag in all_successful_tags if tag['id'] in subdash_tag_ids]
-                    if subdash_tags:
-                        socketio.emit("modbus_update", {
-                            "device_id": self._device_id_str,
-                            "device_name": self.d.get("name", "Unknown"),
-                            "unit": self.d.get("unit_id", 1),
-                            "ok": True,
-                            "tags": subdash_tags,
-                            "seq": self._seq,
-                            "latency_ms": latency_ms,
-                            "ts": datetime.now().strftime("%H:%M:%S"),  # Use PC local time
-                            "tag_count": len(subdash_tags)
-                        }, room=f"subdashboard_{subdash_id}")
+                if self.emission_manager:
+                    self.emission_manager.emit_device_update(
+                        device_id=self._device_id_str,
+                        device_name=self.device_config.name,
+                        unit=self.device_config.unit_id,
+                        ok=True,
+                        tags=all_successful_tags,
+                        seq=self._seq,
+                        latency_ms=latency_ms
+                    )
+                else:
+                    # Direct emission when emission manager not available
+                    from modbus_monitor.extensions import socketio
+                    socketio.emit("modbus_update", {
+                        "device_id": self._device_id_str,
+                        "device_name": self.device_config.name,
+                        "unit": self.device_config.unit_id,
+                        "ok": True,
+                        "tags": all_successful_tags,
+                        "seq": self._seq,
+                        "latency_ms": latency_ms,
+                        "ts": datetime.now().strftime("%H:%M:%S")
+                    }, room=f"dashboard_device_{self.device_config.id}")
+                    
             except Exception as e:
-                print(f"Error emitting to subdashboards: {e}")
+                print(f"Socket emission failed: {e}")
+                # Final fallback to direct emission
+                try:
+                    from modbus_monitor.extensions import socketio
+                    socketio.emit("modbus_update", {
+                        "device_id": self._device_id_str,
+                        "device_name": self.device_config.name,
+                        "unit": self.device_config.unit_id,
+                        "ok": True,
+                        "tags": all_successful_tags,
+                        "seq": self._seq,
+                        "latency_ms": latency_ms,
+                        "ts": datetime.now().strftime("%H:%M:%S")
+                    }, room=f"dashboard_device_{self.device_config.id}")
+                except Exception as fallback_error:
+                    print(f"Direct emission also failed: {fallback_error}")
+
+    def update_cached_configs(self):
+        """Update cached function code groups when config changes"""
+        self._fc_groups = self.config_cache.get_device_fc_groups(self.device_config.id)
                 
 
     def loop_with_timing(self, start_epoch: float, barrier: threading.Barrier):
@@ -854,21 +930,18 @@ class _DeviceReader:
         """
         try:
             # IMPORTANT: Always wait for barrier regardless of connection status
-            # This prevents blocking other devices when one device fails to connect
-            print(f"Device {self.d['name']}: Waiting for synchronized start...")
+            print(f"Device {self.device_config.name}: Waiting for synchronized start...")
             try:
                 barrier.wait(timeout=10.0)  # 10 second timeout to prevent infinite wait
             except threading.BrokenBarrierError:
-                print(f"Device {self.d['name']}: Barrier broken, starting independently")
+                print(f"Device {self.device_config.name}: Barrier broken, starting independently")
             except Exception as e:
-                print(f"Device {self.d['name']}: Barrier error: {e}, starting independently")
+                print(f"Device {self.device_config.name}: Barrier error: {e}, starting independently")
             
             # Wait until the synchronized start time
             now = time.monotonic()
             if now < start_epoch:
                 time.sleep(start_epoch - now)
-            
-            # print(f"Device {self.d['name']}: Starting monitoring loop...")
             
             # High-speed mode intervals
             interval = max(self._get_optimal_interval(), 0.05)  # Ultra-fast minimum 50ms (20 updates/sec)
@@ -880,22 +953,39 @@ class _DeviceReader:
                 if now < next_run:
                     time.sleep(next_run - now)
                 
+                # Reload configs if needed
+                self.config_cache.reload_if_needed()
+                
                 # Execute one read cycle (this will handle connection internally)
                 try:
                     self.loop_once()
                 except Exception as e:
-                    print(f"[Device {self.d['name']}] Error in loop_once: {e}")
+                    print(f"[Device {self.device_config.name}] Error in loop_once: {e}")
                     # Emit error status
-                    from modbus_monitor.extensions import socketio
-                    socketio.emit("modbus_update", {
-                        "device_id": self._device_id_str,
-                        "device_name": self.d.get("name", "Unknown"),
-                        "unit": self.d.get("unit_id", 1),
-                        "ok": False,
-                        "error": str(e),
-                        "seq": self._seq,
-                        "ts": datetime.now().strftime("%H:%M:%S")  # Use PC local time
-                    }, room=f"dashboard_device_{self.d['id']}")
+                    try:
+                        if self.emission_manager:
+                            self.emission_manager.emit_device_update(
+                                device_id=self._device_id_str,
+                                device_name=self.device_config.name,
+                                unit=self.device_config.unit_id,
+                                ok=False,
+                                error=str(e),
+                                seq=self._seq
+                            )
+                        else:
+                            # Direct emission when emission manager not available
+                            from modbus_monitor.extensions import socketio
+                            socketio.emit("modbus_update", {
+                                "device_id": self._device_id_str,
+                                "device_name": self.device_config.name,
+                                "unit": self.device_config.unit_id,
+                                "ok": False,
+                                "error": str(e),
+                                "seq": self._seq,
+                                "ts": datetime.now().strftime("%H:%M:%S")
+                            }, room=f"dashboard_device_{self.device_config.id}")
+                    except Exception:
+                        pass
                     
                 # Schedule next run (anti-drift)
                 next_run += interval
@@ -905,14 +995,14 @@ class _DeviceReader:
                     next_run += interval
                     
         except Exception as e:
-            print(f"Device {self.d['name']}: Fatal error in timing loop: {e}")
+            print(f"Device {self.device_config.name}: Fatal error in timing loop: {e}")
         finally:
             self._close()
     
     def _get_optimal_interval(self) -> float:
         """Get the optimal read interval for this device based on tag loggers."""
         try:
-            tag_logger_map = dbsync.get_tag_logger_map(self.d["id"])
+            tag_logger_map = dbsync.get_tag_logger_map(self.device_config.id)
             intervals = [v["interval_sec"] for v in tag_logger_map.values()]
             
             # Ultra-high-speed mode: 50ms to 500ms range
@@ -924,7 +1014,7 @@ class _DeviceReader:
             return 0.2 # Default 200ms
 
 class ModbusService:
-    """High-performance multi-threaded Modbus service with precision timing and immediate socket emission."""
+    """High-performance multi-threaded Modbus service with RTU connection pooling and config caching."""
     def __init__(self, db_queue: Queue, push_queue: Queue, cache: LatestCache):
         self.dbq = db_queue
         self.pushq = push_queue
@@ -933,9 +1023,26 @@ class ModbusService:
         self._threads: Dict[int, threading.Thread] = {}
         self._readers: Dict[int, _DeviceReader] = {}  # Store device readers for write access
         self._barrier = None  # Synchronization barrier for coordinated start
+        
+        # Get singleton instances with error handling
+        self.config_cache = get_config_cache()
+        try:
+            # Check if we should use direct emission (for debugging)
+            if os.getenv("USE_DIRECT_EMISSION") == "1":
+                print("ModbusService: Using direct socket emission (debug mode)")
+                self.emission_manager = None
+            else:
+                self.emission_manager = get_emission_manager()
+        except Exception as e:
+            print(f"Warning: Could not initialize emission manager in ModbusService: {e}")
+            print("Falling back to direct socket emission")
+            self.emission_manager = None
 
     def start(self):
-        devices = dbsync.list_devices()
+        # Load initial configs
+        self.config_cache.reload_configs()
+        devices = self.config_cache.get_devices()
+        
         if not devices:
             print("No devices found for Modbus monitoring")
             return
@@ -949,36 +1056,61 @@ class ModbusService:
         
         # Start devices with individual error handling
         started_devices = 0
-        for d in devices:
+        for device_id, device_config in devices.items():
             try:
-                reader = _DeviceReader(d, db_queue=self.dbq, push_queue=self.pushq, cache=self.cache)
-                self._readers[d["id"]] = reader  # Store reader reference
+                reader = _DeviceReader(
+                    device_config=device_config,
+                    db_queue=self.dbq,
+                    push_queue=self.pushq,
+                    cache=self.cache,
+                    config_cache=self.config_cache
+                )
+                self._readers[device_id] = reader  # Store reader reference
                 
                 # Use high-precision timing loop
                 t = threading.Thread(
                     target=reader.loop_with_timing, 
                     args=(start_epoch, self._barrier), 
                     daemon=True, 
-                    name=f"Modbus-{d['name']}"
+                    name=f"Modbus-{device_config.name}"
                 )
                 
                 t.start()
-                self._threads[d["id"]] = t
+                self._threads[device_id] = t
                 started_devices += 1
-                # print(f"✅ Started thread for device: {d['name']} ({d['protocol']})")
                 
             except Exception as e:
-                print(f"❌ Failed to start device {d.get('name', 'Unknown')}: {e}")
-                # If barrier is broken, remaining devices will start independently
-        
+                print(f"❌ Failed to start device {device_config.name}: {e}")
 
     def stop(self):
         print("Stopping Modbus service...")
         self._stop.set()
+        
         for device_id, t in self._threads.items():
             t.join(timeout=2)  # Longer timeout for clean shutdown
+        
         self._readers.clear()
+        
+        # Shutdown global singletons
+        try:
+            shutdown_rtu_pool()
+        except Exception as e:
+            print(f"Error shutting down RTU pool: {e}")
+        
+        try:
+            shutdown_emission_manager()
+        except Exception as e:
+            print(f"Error shutting down emission manager: {e}")
+        
         print("Modbus service stopped")
+
+    def reload_configs(self):
+        """Reload configurations for all devices"""
+        self.config_cache.reload_configs()
+        # Update all readers with new configs
+        for reader in self._readers.values():
+            reader.update_cached_configs()
+        print("Modbus service configurations reloaded")
 
     def write_tag_value(self, tag_id: int, value: float) -> bool:
         """
@@ -987,12 +1119,12 @@ class ModbusService:
         """
         try:
             # Get tag info to find which device it belongs to
-            tag = dbsync.get_tag(tag_id)
+            tag = self.config_cache.get_tag(tag_id)
             if not tag:
                 print(f"Tag {tag_id} not found")
                 return False
                 
-            device_id = tag["device_id"]
+            device_id = tag.device_id
             reader = self._readers.get(device_id)
             if not reader:
                 print(f"No active reader for device {device_id}")
@@ -1003,11 +1135,16 @@ class ModbusService:
             print(f"Error in global write function: {e}")
             return False
 
-    def _get_device_interval(self, device_id: int) -> float:
-        """DEPRECATED: Now using optimal intervals per device"""
-        return 1.0
-
-    def _device_loop(self, dev_row: Dict, reader: _DeviceReader):
-        """DEPRECATED: Replaced by loop_with_timing for precision"""
-        pass
+    def get_stats(self) -> Dict:
+        """Get service statistics"""
+        rtu_pool = get_rtu_pool()
+        emission_manager = get_emission_manager()
+        
+        return {
+            "active_devices": len(self._readers),
+            "active_threads": sum(1 for t in self._threads.values() if t.is_alive()),
+            "rtu_pool_stats": rtu_pool.get_stats(),
+            "emission_stats": emission_manager.get_stats(),
+            "config_cache_devices": len(self.config_cache.get_devices())
+        }
 

@@ -26,11 +26,20 @@ def start_services():
     global _started, _cache, _dbq, _pushq, _writer, _modbus, _alarm, _logger
     with _lock:
         if _started:
+            print("Services already started, skipping...")
             return
-        print("🚀 Starting services...")
+        
+        # Check if we're in the main process to avoid COM port conflicts
+        import multiprocessing
+        current_process = multiprocessing.current_process()
+        if current_process.name != 'MainProcess':
+            print(f"Skipping services start in worker process: {current_process.name}")
+            return
+            
+        print("🚀 Starting services in main process...")
         _cache = LatestCache()
-        _dbq = Queue(maxsize=5000)
-        _pushq = Queue(maxsize=5000)
+        _dbq = Queue(maxsize=50000)
+        _pushq = Queue(maxsize=50000)
         _writer = DBWriter(_dbq)
         _modbus = ModbusService(_dbq, _pushq, _cache)
         _alarm = AlarmService(_cache)
@@ -41,7 +50,7 @@ def start_services():
         _alarm.start()
         _logger.start()
         _started = True
-        print("✅ All services started successfully")
+        print("✅ All services started successfully in main process")
 
 def stop_services():
     global _started, _cache, _dbq, _pushq, _writer, _modbus, _alarm, _logger
@@ -68,13 +77,22 @@ def stop_services():
 
 def restart_services():
     """Restart all services to pick up configuration changes."""
-    print("🔄 Restarting services to reload configuration...")
-    stop_services()
-    # Small delay to ensure clean shutdown
-    import time
-    time.sleep(0.1)
-    start_services()
-    print("🔄 Services restarted successfully")
+    global _lock
+    with _lock:
+        # Thay vì restart toàn bộ, chỉ reload configs
+        if _modbus:
+            _modbus.reload_configs()
+        print("Services configuration reloaded")
+
+def reload_device_configs():
+    """Reload device configs without full restart"""
+    global _modbus, _lock
+    with _lock:
+        if _modbus:
+            _modbus.reload_configs()
+            print("Device configurations reloaded")
+        else:
+            print("Modbus service not started")
 
 def write_tag_value(tag_id: int, value: float) -> bool:
     """
@@ -93,6 +111,12 @@ def get_modbus_service():
 
 def services_status():
     """Check if services are running."""
-    return {
+    global _modbus
+    status = {
         "running": _started
     }
+    
+    if _modbus:
+        status["modbus_stats"] = _modbus.get_stats()
+    
+    return status

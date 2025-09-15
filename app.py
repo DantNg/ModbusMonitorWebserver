@@ -68,11 +68,16 @@ app.clear_subdashboards_cache = clear_subdashboards_cache
 
 if __name__ == "__main__":
     try:
-        # Luôn start services trong production
-        start_services()
+        # Chỉ start services trong main process để tránh xung đột COM port
+        import multiprocessing
+        if multiprocessing.current_process().name == 'MainProcess':
+            print("Starting services in main process...")
+            start_services()
+        else:
+            print(f"Skipping services in worker process: {multiprocessing.current_process().name}")
 
-        # Debug=False để cải thiện performance
-        socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+        # Start SocketIO server (single process để tránh COM port conflicts)  
+        socketio.run(app, host="0.0.0.0", port=5000, debug=False, use_reloader=False)
 
     except Exception as e:
         print(f"Error starting the application: {e}")

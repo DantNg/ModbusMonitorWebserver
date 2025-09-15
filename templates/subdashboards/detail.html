@@ -882,7 +882,7 @@
   const currentSubdashId = "{{ subdash.id }}";
   
   // Timeout tracking for tags
-  const TAG_TIMEOUT_MS = 20000; // 20 seconds
+  const TAG_TIMEOUT_MS = 60000; // 60 seconds
   const tagLastUpdates = new Map(); // tag_id -> last_update_timestamp
   let timeoutCheckInterval = null;
 
