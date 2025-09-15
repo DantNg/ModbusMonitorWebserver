@@ -20,21 +20,16 @@
         <div class="col-md-4">
           <label class="form-label">Datatype</label>
           <select name="datatype" class="form-select">
-            <option {{ 'selected' if (form and form.datatype == 'Word') or (not form) else '' }}>Word</option>
-            <option {{ 'selected' if form and form.datatype == 'Short' else '' }}>Short</option>
-            <option {{ 'selected' if form and form.datatype == 'DWord' else '' }}>DWord</option>
-            <option {{ 'selected' if form and form.datatype == 'DInt' else '' }}>DInt</option>
-            <option {{ 'selected' if form and form.datatype == 'Float' else '' }}>Float</option>
-            <option {{ 'selected' if form and form.datatype == 'Bit' else '' }}>Bit</option>
             <option {{ 'selected' if form and form.datatype == 'Signed' else '' }}>Signed</option>
             <option {{ 'selected' if form and form.datatype == 'Unsigned' else '' }}>Unsigned</option>
             <option {{ 'selected' if form and form.datatype == 'Hex' else '' }}>Hex</option>
-            <option {{ 'selected' if form and form.datatype == 'Raw' else '' }}>Raw</option>
             <option {{ 'selected' if form and form.datatype == 'Binary' else '' }}>Binary</option>
-            <option {{ 'selected' if form and form.datatype == 'Double' else '' }}>Double</option>
+            <option {{ 'selected' if form and form.datatype == 'Float' else '' }}>Float</option>
             <option {{ 'selected' if form and form.datatype == 'Float_inverse' else '' }}>Float_inverse</option>
-            <option {{ 'selected' if form and form.datatype == 'Long' else '' }}>Long</option>
+            <option {{ 'selected' if form and form.datatype == 'Double' else '' }}>Double</option>
             <option {{ 'selected' if form and form.datatype == 'Double_inverse' else '' }}>Double_inverse</option>
+            <option {{ 'selected' if form and form.datatype == 'Long' else '' }}>Long</option>
+            <option {{ 'selected' if form and form.datatype == 'Long_inverse' else '' }}>Long_inverse</option>
           </select>
           <div class="form-text">
             <strong>Basic:</strong> Word (16-bit unsigned), Short (16-bit signed), DWord (32-bit unsigned), DInt (32-bit signed)<br>

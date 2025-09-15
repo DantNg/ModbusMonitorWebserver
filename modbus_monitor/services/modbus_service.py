@@ -260,7 +260,7 @@ class _DeviceReader:
     def _extract(self, regs: list[int], offset: int, datatype: str, scale: float, offs: float) -> float | int | None:
         """
         Chuyển regs -> giá trị thật theo datatype.
-        Hỗ trợ các datatype: Signed, Unsigned, Hex, Raw, Float, Binary, Double, Float_inverse, Long, Double_inverse
+        Hỗ trợ các datatype: Signed, Unsigned, Hex, Binary, Float, Float_inverse, Double, Double_inverse, Long, Long_inverse
         và các alias: word/uint16/ushort, short/int16, dword/uint32/udint, dint/int32/int,
                     float/real, bit/bool/boolean.
         Tôn trọng self.word_order ('AB'|'BA') và self.byte_order ('BigEndian'|'LittleEndian').
@@ -378,6 +378,20 @@ class _DeviceReader:
                     return math.nan
                 val = struct.unpack(">q", b)[0]  # signed 64-bit
 
+            # Long_inverse (64-bit signed integer with inverse word order)
+            elif name in ("long_inverse", "longinverse", "long-inverse"):
+                if offset + 3 >= len(regs) or any(regs[offset + i] is None for i in range(4)):
+                    return math.nan
+                # Force inverse word order
+                words = [regs[offset + i] for i in range(4)]
+                b = words[3].to_bytes(2, "big") + words[2].to_bytes(2, "big") + words[1].to_bytes(2, "big") + words[0].to_bytes(2, "big")
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    result = b""
+                    for i in range(0, 8, 2):
+                        result += b[i+1:i+2] + b[i:i+1]
+                    b = result
+                val = struct.unpack(">q", b)[0]  # signed 64-bit
+
             # === Legacy aliases for backward compatibility ===
             
             # 32-bit unsigned
@@ -476,7 +490,7 @@ class _DeviceReader:
     def _encode_value_for_write(self, value: float, datatype: str) -> List[int]:
         """
         Chuyển đổi giá trị thành danh sách registers để ghi.
-        Hỗ trợ các datatype: Signed, Unsigned, Hex, Raw, Float, Binary, Double, Float_inverse, Long, Double_inverse
+        Hỗ trợ các datatype: Signed, Unsigned, Hex, Binary, Float, Float_inverse, Double, Double_inverse, Long, Long_inverse
         Tôn trọng self.word_order ('AB'|'BA') và self.byte_order ('BigEndian'|'LittleEndian').
         """
         name = (datatype or "").strip().lower()
@@ -573,6 +587,19 @@ class _DeviceReader:
                     words = words[::-1]
                     
                 return words
+                
+            # Long_inverse (64-bit signed integer with forced inverse word order)
+            elif name in ("long_inverse", "longinverse", "long-inverse"):
+                import struct
+                val = int(value)
+                packed = struct.pack('>q', val)
+                words = list(struct.unpack('>HHHH', packed))
+                
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    words = [((w & 0xFF) << 8) | ((w >> 8) & 0xFF) for w in words]
+                
+                # Force inverse order
+                return words[::-1]
                 
             # === Legacy datatypes for backward compatibility ===
                 

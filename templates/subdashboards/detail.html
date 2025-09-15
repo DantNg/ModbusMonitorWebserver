@@ -77,24 +77,26 @@
                   <div class="fw-semibold">{{ tag.name }}</div>
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                  {% if tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or
-                  tag.function_code == "3" %}
-                  <button class="btn btn-sm btn-outline-primary write-btn" data-tag-id="{{ tag.id }}"
-                    data-tag-name="{{ tag.name }}" title="Write Value">
-                    <i class="bi bi-pencil-square"></i>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-gear"></i>
                   </button>
-                  {% endif %}
-                  {% if session.get("role") == "admin" %}
-
-                  <button class="btn btn-sm btn-outline-danger remove-tag-btn" data-tag-id="{{ tag.id }}"
-                    data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}" title="Remove tag from group">
-
-                    <i class="bi bi-x-circle"></i>
-
-                  </button>
-
-                  {% endif %}
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    {% if tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or tag.function_code == "3" %}
+                    <li>
+                      <button class="dropdown-item write-btn" data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}">
+                        <i class="bi bi-pencil-square me-2"></i>Write Value
+                      </button>
+                    </li>
+                    {% endif %}
+                    {% if session.get("role") == "admin" %}
+                    <li>
+                      <button class="dropdown-item text-danger remove-tag-btn" data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}">
+                        <i class="bi bi-x-circle me-2"></i>Remove from Group
+                      </button>
+                    </li>
+                    {% endif %}
+                  </ul>
                 </div>
               </div>
               <div class="d-flex justify-content-between mt-2">
@@ -150,25 +152,26 @@
                   <div class="fw-semibold">{{ tag.name }}</div>
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                  <!-- Debug FC: {{ tag.function_code }} Type: {{ tag.function_code.__class__.__name__ }} -->{% if
-                  tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or tag.function_code ==
-                  "3" %}
-                  <button class="btn btn-sm btn-outline-primary write-btn" data-tag-id="{{ tag.id }}"
-                    data-tag-name="{{ tag.name }}" title="Write Value">
-                    <i class="bi bi-pencil-square"></i>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-gear"></i>
                   </button>
-                  {% endif %}
-                  {% if session.get("role") == "admin" %}
-
-                  <button class="btn btn-sm btn-outline-danger remove-tag-btn" data-tag-id="{{ tag.id }}"
-                    data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}" title="Remove tag from group">
-
-                    <i class="bi bi-x-circle"></i>
-
-                  </button>
-
-                  {% endif %}
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <!-- Debug FC: {{ tag.function_code }} Type: {{ tag.function_code.__class__.__name__ }} -->{% if tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or tag.function_code == "3" %}
+                    <li>
+                      <button class="dropdown-item write-btn" data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}">
+                        <i class="bi bi-pencil-square me-2"></i>Write Value
+                      </button>
+                    </li>
+                    {% endif %}
+                    {% if session.get("role") == "admin" %}
+                    <li>
+                      <button class="dropdown-item text-danger remove-tag-btn" data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}">
+                        <i class="bi bi-x-circle me-2"></i>Remove from Group
+                      </button>
+                    </li>
+                    {% endif %}
+                  </ul>
                 </div>
               </div>
               <div class="d-flex justify-content-between mt-2">
@@ -948,7 +951,7 @@
         return fixedValue.toString(); // Raw unprocessed value
       }
       // Integer types: show without decimals if whole number
-      else if (['word', 'short', 'dword', 'dint', 'bit', 'signed', 'unsigned', 'long', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint'].includes(datatypeLower)) {
+      else if (['word', 'short', 'dword', 'dint', 'bit', 'signed', 'unsigned', 'long', 'long_inverse', 'longinverse', 'long-inverse', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint'].includes(datatypeLower)) {
         if (Number.isInteger(fixedValue)) {
           return fixedValue.toString();
         } else {

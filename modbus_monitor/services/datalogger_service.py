@@ -37,7 +37,7 @@ class DataLoggerService(threading.Thread):
             
             if rows:
                 dbsync.insert_tag_values_bulk(rows)
-                # print(f"✅ {logger_name}: Logged at {ts.isoformat()}")
+                print(f"✅ {logger_name}: Logged at {ts.isoformat()}")
             else:
                 print(f"📝 {logger_name}: No data to log")
                 

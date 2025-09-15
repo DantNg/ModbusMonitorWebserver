@@ -57,22 +57,22 @@ def create_app():
             datatype_lower = datatype.lower()
             
             # IEEE754 Float types: show with 2 decimal places
-            if datatype_lower in ('float', 'float32', 'real', 'float_inverse'):
+            if datatype_lower in ('float', 'float32', 'real', 'float_inverse', 'floatinverse', 'float-inverse'):
                 return f"{num_value:.2f}"
             # IEEE754 Double types: show with 4 decimal places for higher precision
-            elif datatype_lower in ('double', 'double_inverse'):
+            elif datatype_lower in ('double', 'float64', 'double_inverse', 'doubleinverse', 'double-inverse'):
                 return f"{num_value:.4f}"
             # Display formats
             elif datatype_lower == 'hex':
                 int_val = int(abs(num_value))
                 return f"0x{int_val:X}"
-            elif datatype_lower == 'binary':
+            elif datatype_lower in ('binary', 'bit', 'bool', 'boolean'):
                 int_val = int(abs(num_value))
                 return f"0b{int_val:b}"
             elif datatype_lower == 'raw':
                 return str(num_value)  # Raw unprocessed value
             # Integer types: show without decimals if whole number
-            elif datatype_lower in ('word', 'short', 'dword', 'dint', 'bit', 'signed', 'unsigned', 'long', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint'):
+            elif datatype_lower in ('signed', 'unsigned', 'word', 'short', 'dword', 'dint', 'long', 'long_inverse', 'longinverse', 'long-inverse', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint', 'int64'):
                 if num_value.is_integer():
                     return f"{int(num_value)}"
                 else:

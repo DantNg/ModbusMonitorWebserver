@@ -210,7 +210,7 @@
         return fixedValue.toString(); // Raw unprocessed value
       }
       // Integer types: show without decimals if whole number
-      else if (['word', 'short', 'dword', 'dint', 'bit', 'signed', 'unsigned', 'long', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint'].includes(datatypeLower)) {
+      else if (['word', 'short', 'dword', 'dint', 'bit', 'signed', 'unsigned', 'long', 'long_inverse', 'longinverse', 'long-inverse', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint'].includes(datatypeLower)) {
         if (Number.isInteger(fixedValue)) {
           return fixedValue.toString();
         } else {

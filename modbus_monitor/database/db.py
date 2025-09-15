@@ -741,7 +741,7 @@ def get_latest_tag_value(tag_id: int):
         value, ts, datatype = row
         
         # Format giá trị theo datatype
-        if datatype in ["Word", "Short", "DWord", "DInt", "Bit", "Signed", "Unsigned", "Long"]:
+        if datatype in ["Word", "Short", "DWord", "DInt", "Bit", "Signed", "Unsigned", "Long", "Long_inverse", "Hex", "Binary"]:
             # Các kiểu số nguyên - loại bỏ .0, hỗ trợ số âm
             try:
                 if float(value).is_integer():
@@ -784,7 +784,7 @@ def get_latest_tag_values_batch(tag_ids: list[int]) -> dict:
             datatype = row['datatype']
             
             # Format giá trị theo datatype
-            if datatype in ["Word", "Short", "DWord", "DInt", "Bit", "Signed", "Unsigned", "Long"]:
+            if datatype in ["Word", "Short", "DWord", "DInt", "Bit", "Signed", "Unsigned", "Long", "Long_inverse", "Hex", "Binary"]:
                 # Các kiểu số nguyên - loại bỏ .0, hỗ trợ số âm
                 try:
                     if float(value).is_integer():
