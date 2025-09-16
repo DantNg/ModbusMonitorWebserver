@@ -1073,3 +1073,200 @@ def update_tag_unit(tag_id: int, unit: str) -> bool:
     except Exception as e:
         print(f"Error updating tag unit: {e}")
         return False
+
+# ----------- DATA LOGGERS -----------
+def list_data_loggers():
+    """Get all data loggers"""
+    try:
+        with init_engine().connect() as con:
+            rows = con.execute(select(data_loggers).order_by(data_loggers.c.id.asc())).mappings().all()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"Error listing data loggers: {e}")
+        return []
+
+def get_logger_tag_ids(logger_id: int) -> list[int]:
+    """Get tag IDs associated with a logger"""
+    try:
+        with init_engine().connect() as con:
+            rows = con.execute(
+                select(data_logger_tags.c.tag_id)
+                .where(data_logger_tags.c.logger_id == logger_id)
+            ).fetchall()
+            return [row[0] for row in rows]
+    except Exception as e:
+        print(f"Error getting logger tag IDs: {e}")
+        return []
+
+def get_tag_logger_map(device_id: int = None) -> dict:
+    """Get mapping of tag_id -> logger info for a device"""
+    try:
+        with init_engine().connect() as con:
+            # Query to get tag_id -> logger mapping
+            query = select(
+                data_logger_tags.c.tag_id,
+                data_loggers.c.id.label("logger_id"),
+                data_loggers.c.name.label("logger_name"),
+                data_loggers.c.interval_sec,
+                data_loggers.c.enabled
+            ).select_from(
+                data_logger_tags.join(data_loggers, data_logger_tags.c.logger_id == data_loggers.c.id)
+            )
+            
+            if device_id:
+                # Filter by device if specified
+                query = query.select_from(
+                    data_logger_tags
+                    .join(data_loggers, data_logger_tags.c.logger_id == data_loggers.c.id)
+                    .join(tags, data_logger_tags.c.tag_id == tags.c.id)
+                ).where(tags.c.device_id == device_id)
+            
+            rows = con.execute(query).mappings().all()
+            
+            result = {}
+            for row in rows:
+                result[row["tag_id"]] = {
+                    "logger_id": row["logger_id"],
+                    "logger_name": row["logger_name"],
+                    "interval_sec": row["interval_sec"],
+                    "enabled": row["enabled"]
+                }
+            
+            return result
+    except Exception as e:
+        print(f"Error getting tag logger map: {e}")
+        return {}
+
+def batch_insert_data_logs(log_entries: list[dict]):
+    """Batch insert data log entries into tag_values table"""
+    try:
+        if not log_entries:
+            return
+            
+        # Convert log entries to tag_values format
+        tag_value_entries = []
+        current_time = safe_datetime_now()
+        
+        for entry in log_entries:
+            tag_value_entries.append({
+                'tag_id': entry['tag_id'],
+                'ts': datetime.fromtimestamp(entry['timestamp']) if isinstance(entry['timestamp'], (int, float)) else entry['timestamp'],
+                'value': entry['value']
+            })
+        
+        with init_engine().begin() as con:
+            # Batch insert into tag_values table
+            con.execute(tag_values.insert(), tag_value_entries)
+            
+            # Also update tag_latest_values for quick access
+            for entry in tag_value_entries:
+                con.execute(
+                    text("""
+                        INSERT INTO tag_latest_values (tag_id, value, ts, updated_at)
+                        VALUES (:tag_id, :value, :ts, :updated_at)
+                        ON DUPLICATE KEY UPDATE
+                        value = VALUES(value),
+                        ts = VALUES(ts),
+                        updated_at = VALUES(updated_at)
+                    """),
+                    {
+                        'tag_id': entry['tag_id'],
+                        'value': entry['value'],
+                        'ts': entry['ts'],
+                        'updated_at': current_time
+                    }
+                )
+            
+        print(f"Batch inserted {len(tag_value_entries)} data log entries")
+        
+    except Exception as e:
+        print(f"Error batch inserting data logs: {e}")
+        raise
+
+def add_data_logger(name: str, interval_sec: float, enabled: bool = True, description: str = "") -> int:
+    """Add a new data logger"""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                insert(data_loggers).values(
+                    name=name,
+                    interval_sec=interval_sec,
+                    enabled=enabled,
+                    description=description
+                )
+            )
+            return result.inserted_primary_key[0]
+    except Exception as e:
+        print(f"Error adding data logger: {e}")
+        raise
+
+def update_data_logger(logger_id: int, data: dict) -> int:
+    """Update data logger"""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(data_loggers)
+                .where(data_loggers.c.id == logger_id)
+                .values(**data)
+            )
+            return result.rowcount
+    except Exception as e:
+        print(f"Error updating data logger: {e}")
+        raise
+
+def delete_data_logger(logger_id: int) -> int:
+    """Delete data logger and its tag associations"""
+    try:
+        with init_engine().begin() as con:
+            # Delete tag associations first (CASCADE should handle this, but explicit is better)
+            con.execute(
+                delete(data_logger_tags).where(data_logger_tags.c.logger_id == logger_id)
+            )
+            
+            # Delete the logger
+            result = con.execute(
+                delete(data_loggers).where(data_loggers.c.id == logger_id)
+            )
+            return result.rowcount
+    except Exception as e:
+        print(f"Error deleting data logger: {e}")
+        raise
+
+def assign_tag_to_logger(logger_id: int, tag_id: int):
+    """Assign a tag to a data logger"""
+    try:
+        with init_engine().begin() as con:
+            # Check if already exists
+            exists = con.execute(
+                select(data_logger_tags)
+                .where(
+                    data_logger_tags.c.logger_id == logger_id,
+                    data_logger_tags.c.tag_id == tag_id
+                )
+            ).first()
+            
+            if not exists:
+                con.execute(
+                    data_logger_tags.insert().values(
+                        logger_id=logger_id,
+                        tag_id=tag_id
+                    )
+                )
+    except Exception as e:
+        print(f"Error assigning tag to logger: {e}")
+        raise
+
+def remove_tag_from_logger(logger_id: int, tag_id: int):
+    """Remove a tag from a data logger"""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(data_logger_tags).where(
+                    data_logger_tags.c.logger_id == logger_id,
+                    data_logger_tags.c.tag_id == tag_id
+                )
+            )
+            return result.rowcount
+    except Exception as e:
+        print(f"Error removing tag from logger: {e}")
+        raise

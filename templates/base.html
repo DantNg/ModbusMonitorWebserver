@@ -153,28 +153,38 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    // Theme toggle
+    // Theme toggle with debugging
     (function () {
       const KEY = 'theme';
       const root = document.documentElement;
-      const btn = document.getElementById('themeToggle');
-      if (!btn) return;
+      
+      // Use DOMContentLoaded to ensure button exists
+      document.addEventListener('DOMContentLoaded', function() {
+        const btn = document.getElementById('themeToggle');
+        console.log('Theme toggle button found:', btn); // Debug
+        if (!btn) {
+          console.warn('Theme toggle button not found!');
+          return;
+        }
 
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const saved = localStorage.getItem(KEY);
-      const initTheme = saved || (prefersDark ? 'dark' : 'light');
-      root.setAttribute('data-bs-theme', initTheme);
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const saved = localStorage.getItem(KEY);
+        const initTheme = saved || (prefersDark ? 'dark' : 'light');
+        root.setAttribute('data-bs-theme', initTheme);
 
-      const setIcon = () => btn.textContent =
-        (root.getAttribute('data-bs-theme') === 'dark') ? '🌙' : '🌤️';
-      setIcon();
-
-      btn.addEventListener('click', () => {
-        const cur = root.getAttribute('data-bs-theme');
-        const next = (cur === 'dark') ? 'light' : 'dark';
-        root.setAttribute('data-bs-theme', next);
-        localStorage.setItem(KEY, next);
+        const setIcon = () => btn.textContent =
+          (root.getAttribute('data-bs-theme') === 'dark') ? '🌙' : '🌤️';
         setIcon();
+
+        btn.addEventListener('click', () => {
+          console.log('Theme toggle clicked!'); // Debug
+          const cur = root.getAttribute('data-bs-theme');
+          const next = (cur === 'dark') ? 'light' : 'dark';
+          root.setAttribute('data-bs-theme', next);
+          localStorage.setItem(KEY, next);
+          setIcon();
+          console.log('Theme switched to:', next); // Debug
+        });
       });
     })();
 

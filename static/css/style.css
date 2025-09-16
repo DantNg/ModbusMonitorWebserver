@@ -48,7 +48,7 @@ a{text-decoration:none}
 .value{font-size:1.8rem;font-weight:700}
 .unit{opacity:.7;font-weight:600}
 .meter{height:8px;background:#1f283b;border:1px solid #29344e;border-radius:10px;overflow:hidden}
-.meter-bar{height:100%;background:linear-gradient(90deg,#34d399,#3b82f6,#a78bfa);transition:width .6s ease}
+.meter-bar{height:100%;background:linear-gradient(90deg,#34d399,#3b82f6,#a78bfa);transition:width .6s ease, background-color .3s ease}
 
 /* Tables / toolbar */
 .table-dark-subtle th{background:#0f1628 !important;border-bottom:1px solid var(--border);color:#cfd9ea}

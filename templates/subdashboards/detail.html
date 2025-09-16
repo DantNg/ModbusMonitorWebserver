@@ -342,8 +342,12 @@
   // Wrap everything in DOMContentLoaded to ensure buttons exist
   document.addEventListener('DOMContentLoaded', function () {
 
-    // App globals for subdashboard
+    // App globals for subdashboard - preserve existing App properties
     window.App = window.App || {};
+    
+    // Preserve any existing properties from app.js
+    const existingApp = window.App;
+    window.App = Object.assign({}, existingApp);
 
     const currentSubdashId = "{{ subdash.id }}";
     const currentGroup = "{{ current_group }}";
@@ -893,24 +897,30 @@
     tagLastUpdates.forEach((lastUpdate, tagId) => {
       if (now - lastUpdate > TAG_TIMEOUT_MS) {
         const valEl = document.getElementById('tag-val-' + tagId);
-        if (valEl && valEl.textContent !== '0') {
-          // console.log(`⏰ Tag ${tagId} timeout (${(now - lastUpdate)/1000}s) - resetting to 0`);
+        const barEl = document.getElementById('tag-bar-' + tagId);
+        const tsEl = document.getElementById('tag-ts-' + tagId);
+        
+        // Only update if not already timed out to avoid repeated processing
+        if (valEl && valEl.textContent !== 'TIMEOUT') {
+          // console.log(`⏰ Tag ${tagId} timeout (${(now - lastUpdate)/1000}s) - resetting`);
+          
+          // Reset value display
           valEl.textContent = '0';
           valEl.style.color = '#666';
           valEl.style.opacity = '0.7';
           
-          // Reset bar to 0 width
-          const barEl = document.getElementById('tag-bar-' + tagId);
+          // Turn off progress bar (set width to 0%)
           if (barEl) {
             barEl.style.width = '0%';
-            barEl.style.backgroundColor = '#ccc';
+            barEl.style.background = '#dc3545'; // Red color to indicate timeout (overrides gradient)
+            barEl.style.transition = 'width 0.8s ease, background 0.3s ease'; // Smooth transition
           }
           
           // Update timestamp to show timeout
-          const tsEl = document.getElementById('tag-ts-' + tagId);
           if (tsEl) {
             tsEl.textContent = 'TIMEOUT';
-            tsEl.style.color = '#999';
+            tsEl.style.color = '#dc3545'; // Red color to indicate timeout
+            tsEl.style.fontWeight = 'bold';
           }
         }
       }
@@ -1009,22 +1019,26 @@
         valEl.style.color = '';
         valEl.style.opacity = '';
         
-        // Update timestamp
+        // Update timestamp and reset timeout styling
         const tsEl = document.getElementById('tag-ts-' + tag.id);
         if (tsEl && tag.ts) {
           tsEl.textContent = tag.ts;
           tsEl.style.color = '';
+          tsEl.style.fontWeight = '';
         }
 
-        // // Add visual feedback for value changes
-        // valEl.style.transition = 'all 0.2s ease';
-        // valEl.style.backgroundColor = '#e3f2fd';
+        // Update progress bar - turn ON when receiving data
         const barEl = document.getElementById('tag-bar-' + tag.id);
         if (barEl) {
           barEl.style.width = "100%";
-          barEl.style.backgroundColor = "green";
-
+          barEl.style.background = ''; // Reset to CSS default (gradient)
+          barEl.style.backgroundColor = ''; // Clear any override
+          barEl.style.transition = 'width 0.3s ease, background 0.3s ease';
         }
+        
+        // Add visual feedback for value changes
+        valEl.style.transition = 'all 0.2s ease';
+        // valEl.style.backgroundColor = '#e3f2fd';
         setTimeout(() => {
           valEl.style.backgroundColor = '';
         }, 1000);
@@ -1071,9 +1085,9 @@
       tagLastUpdates.set(parseInt(tagId), Date.now());
     });
     
-    // Start timeout checking interval
-    timeoutCheckInterval = setInterval(checkTagTimeouts, 60000); // Check every 60 seconds
-    // console.log('✅ Tag timeout monitoring started (60s timeout)');
+    // Start timeout checking interval - check every 5 seconds for faster response
+    timeoutCheckInterval = setInterval(checkTagTimeouts, 5000); // Check every 5 seconds
+    // console.log('✅ Tag timeout monitoring started (60s timeout, checked every 5s)');
 
     // Handle reconnection - rejoin room
     socket.on('connect', function () {
