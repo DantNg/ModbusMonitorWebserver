@@ -56,7 +56,9 @@ class _DeviceReader:
         self.byte_order = device_config.byte_order
         self.word_order = device_config.word_order
         self.unit_id = device_config.unit_id
-        self.timeout = min(device_config.timeout_ms / 1000.0, 0.2)
+        
+        # Adaptive timeout and settings based on connection type and baudrate
+        self._setup_adaptive_settings()
         
         # Connection state
         self._connected = False
@@ -80,6 +82,40 @@ class _DeviceReader:
             print(f"Warning: Could not initialize emission manager: {e}")
             print("Falling back to direct socket emission")
             self.emission_manager = None
+
+    def _setup_adaptive_settings(self):
+        """Setup adaptive settings based on protocol and baudrate"""
+        if self.device_config.protocol == "ModbusTCP":
+            # TCP settings - fast
+            self.timeout = min(self.device_config.timeout_ms / 1000.0, 0.5)
+            self.max_retries = 2
+            self.retry_delay = 0.1
+            self.read_chunk_size = 50
+        else:
+            # RTU settings - adaptive based on baudrate
+            baudrate = getattr(self.device_config, 'baudrate', 9600)
+            
+            if baudrate <= 9600:
+                # Slow baudrate - conservative settings
+                self.timeout = max(2.0, self.device_config.timeout_ms / 1000.0)  # Min 2s timeout
+                self.max_retries = 3
+                self.retry_delay = 0.3  # 300ms between retries
+                self.read_chunk_size = 10  # Read fewer registers at once
+                print(f"🐌 Slow RTU settings for {self.device_config.name}: timeout={self.timeout}s, chunk_size={self.read_chunk_size}")
+            elif baudrate <= 19200:
+                # Medium baudrate
+                self.timeout = max(1.0, self.device_config.timeout_ms / 1000.0)
+                self.max_retries = 2
+                self.retry_delay = 0.2
+                self.read_chunk_size = 20
+                print(f"⚡ Medium RTU settings for {self.device_config.name}: timeout={self.timeout}s")
+            else:
+                # Fast baudrate
+                self.timeout = min(self.device_config.timeout_ms / 1000.0, 0.5)
+                self.max_retries = 2
+                self.retry_delay = 0.1
+                self.read_chunk_size = 50
+                print(f"🚀 Fast RTU settings for {self.device_config.name}: timeout={self.timeout}s")
 
     def _connect(self) -> bool:
         try:
@@ -252,7 +288,7 @@ class _DeviceReader:
 
     def _read_registers(self, address: int, count: int, function_code: int = None):
         """
-        Read data from Modbus device using specified function code.
+        Read data from Modbus device using specified function code with adaptive chunking.
         function_code: 1=Read Coils, 2=Read Discrete Inputs, 3=Read Holding Registers, 4=Read Input Registers
         """
         if count <= 0:
@@ -264,56 +300,120 @@ class _DeviceReader:
 
         start_read_byte = self._normalize_hr_address(address)
         
-        try:
-            if self.device_config.protocol in ("ModbusTCP", "ModbusRTU"):
+        # Determine if we need chunking
+        chunk_size = min(count, self.read_chunk_size)
+        
+        # For small reads, no chunking needed
+        if count <= chunk_size:
+            return self._read_single_chunk(start_read_byte, count, function_code)
+        
+        # For large reads, use chunking (especially important for slow RTU)
+        print(f"📦 Chunking read: {count} registers into chunks of {chunk_size}")
+        all_results = []
+        current_address = start_read_byte
+        remaining = count
+        
+        while remaining > 0:
+            chunk_count = min(remaining, chunk_size)
+            chunk_result = self._read_single_chunk(current_address, chunk_count, function_code)
+            
+            if chunk_result is None:
+                # If any chunk fails, return None values for the entire request
+                return [None] * count
+                
+            all_results.extend(chunk_result)
+            current_address += chunk_count
+            remaining -= chunk_count
+            
+            # Small delay between chunks for slow RTU
+            if remaining > 0 and self.device_config.protocol == "ModbusRTU":
+                time.sleep(0.05)  # 50ms delay between chunks
+        
+        return all_results
+
+    def _read_single_chunk(self, address: int, count: int, function_code: int):
+        """Read a single chunk of data with retry logic"""
+        for attempt in range(self.max_retries + 1):
+            try:
                 if self.client is None:
                     if not self._ensure_connected():
                         raise ConnectionException("Failed to connect to Modbus client")
 
                 # Choose appropriate read function based on function code
                 if function_code == 1:  # Read Coils
-                    rr = self.client.read_coils(start_read_byte, count=count, slave=self.device_config.unit_id)
+                    rr = self.client.read_coils(address, count=count, slave=self.device_config.unit_id)
                     if rr.isError():
-                        print(f"❌ FC01 Read Coils error: {rr}")
-                        return None
+                        error_msg = f"FC01 Read Coils error: {rr}"
+                        if attempt < self.max_retries:
+                            print(f"⚠️ {error_msg} (attempt {attempt + 1}/{self.max_retries + 1})")
+                            time.sleep(self.retry_delay)
+                            continue
+                        else:
+                            print(f"❌ {error_msg} (final attempt)")
+                            return None
                     return [int(bit) for bit in rr.bits[:count]]
+                    
                 elif function_code == 2:  # Read Discrete Inputs
-                    rr = self.client.read_discrete_inputs(start_read_byte, count=count, slave=self.device_config.unit_id)
+                    rr = self.client.read_discrete_inputs(address, count=count, slave=self.device_config.unit_id)
                     if rr.isError():
-                        print(f"❌ FC02 Read Discrete Inputs error: {rr}")
-                        return None
+                        error_msg = f"FC02 Read Discrete Inputs error: {rr}"
+                        if attempt < self.max_retries:
+                            print(f"⚠️ {error_msg} (attempt {attempt + 1}/{self.max_retries + 1})")
+                            time.sleep(self.retry_delay)
+                            continue
+                        else:
+                            print(f"❌ {error_msg} (final attempt)")
+                            return None
                     return [int(bit) for bit in rr.bits[:count]]
+                    
                 elif function_code == 3:  # Read Holding Registers
-                    rr = self.client.read_holding_registers(start_read_byte, count=count, slave=self.device_config.unit_id)
+                    rr = self.client.read_holding_registers(address, count=count, slave=self.device_config.unit_id)
                     if rr.isError():
-                        print(f"❌ FC03 Read Holding Registers error: {rr}")
-                        return None
+                        error_msg = f"FC03 Read Holding Registers error: {rr}"
+                        if attempt < self.max_retries:
+                            print(f"⚠️ {error_msg} (attempt {attempt + 1}/{self.max_retries + 1})")
+                            time.sleep(self.retry_delay)
+                            continue
+                        else:
+                            print(f"❌ {error_msg} (final attempt)")
+                            return None
                     return rr.registers
+                    
                 elif function_code == 4:  # Read Input Registers
-                    rr = self.client.read_input_registers(start_read_byte, count=count, slave=self.device_config.unit_id)
+                    rr = self.client.read_input_registers(address, count=count, slave=self.device_config.unit_id)
                     if rr.isError():
-                        print(f"❌ FC04 Read Input Registers error: {rr}")
-                        return None
+                        error_msg = f"FC04 Read Input Registers error: {rr}"
+                        if attempt < self.max_retries:
+                            print(f"⚠️ {error_msg} (attempt {attempt + 1}/{self.max_retries + 1})")
+                            time.sleep(self.retry_delay)
+                            continue
+                        else:
+                            print(f"❌ {error_msg} (final attempt)")
+                            return None
                     return rr.registers
                 else:
                     raise ValueError(f"Unsupported function code: {function_code}")
                     
-            else:
-                raise ValueError("Unsupported protocol: {}".format(self.device_config.protocol))
+            except (ConnectionException, ModbusIOException, IOError) as e:
+                if attempt < self.max_retries:
+                    print(f"⚠️ Connection error (attempt {attempt + 1}/{self.max_retries + 1}): {e}")
+                    self._connected = False
+                    self._close()
+                    time.sleep(self.retry_delay)
+                    continue
+                else:
+                    print(f"❌ Connection error (final attempt): {e}")
+                    self._connected = False
+                    self._close()
+                    if isinstance(e, ConnectionException):
+                        self._next_retry_ts = time.time() + 1.0
+                    return None
 
-        except (ConnectionException, ModbusIOException, IOError) as e:
-            self._connected = False  # Mark as disconnected to trigger reconnection
-            self._close()
-            # Trigger immediate retry by resetting backoff for connection errors
-            if isinstance(e, ConnectionException):
-                self._next_retry_ts = time.time() + 1.0  # Quick retry for connection errors
-            # Return None values to indicate read failure
-            return [None] * count  
-
-        except Exception as e:
-            print("Unexpected error during Modbus read:", e)
-            self._close()
-            return [None] * count
+            except Exception as e:
+                print(f"❌ Unexpected error during Modbus read: {e}")
+                return None
+        
+        return None
 
     def _extract(self, regs: list[int], offset: int, datatype: str, scale: float, offs: float) -> float | int | None:
         """

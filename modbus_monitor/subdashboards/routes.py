@@ -42,9 +42,9 @@ def subdash_detail(sid):
     all_tags = db.list_all_tags() if hasattr(db, "list_all_tags") else []
     
     # Debug logging
-    print(f"Subdash {sid}: Found {len(tags)} tags")
-    for tag in tags[:5]:  # Show first 5 tags
-        print(f"  Tag {tag.get('id')}: {tag.get('tag_name')} - {tag.get('device_name')}")
+    # print(f"Subdash {sid}: Found {len(tags)} tags")
+    # for tag in tags[:5]:  # Show first 5 tags
+    #     print(f"  Tag {tag.get('id')}: {tag.get('tag_name')} - {tag.get('device_name')}")
     
     # Get groups for this specific subdashboard
     if hasattr(db, "list_subdash_groups_for_dashboard"):
@@ -55,7 +55,7 @@ def subdash_detail(sid):
     # Handle group filtering
     current_group = request.args.get('group', '__all__')
     
-    print("G: ",groups)
+    # print("G: ",groups)
     for g in groups:
         g["tags"] = db.get_tags_of_group(g["id"])
     

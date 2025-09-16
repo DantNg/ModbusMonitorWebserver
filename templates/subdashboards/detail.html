@@ -894,7 +894,7 @@
       if (now - lastUpdate > TAG_TIMEOUT_MS) {
         const valEl = document.getElementById('tag-val-' + tagId);
         if (valEl && valEl.textContent !== '0') {
-          console.log(`⏰ Tag ${tagId} timeout (${(now - lastUpdate)/1000}s) - resetting to 0`);
+          // console.log(`⏰ Tag ${tagId} timeout (${(now - lastUpdate)/1000}s) - resetting to 0`);
           valEl.textContent = '0';
           valEl.style.color = '#666';
           valEl.style.opacity = '0.7';
@@ -972,7 +972,7 @@
   // Real-time socket listener for modbus updates (immediate connection)
   if (typeof socket !== 'undefined') {
     socket.on("modbus_update", function (data) {
-      console.log(`Received modbus_update `);
+      // console.log(`Received modbus_update `);
       if (!data || !data.tags) return;
 
       // Mark that we're receiving socket updates
@@ -980,7 +980,7 @@
 
       // Debug: Log first update to confirm socket is working
       if (!window.socketUpdateLogged) {
-        console.log('✅ First socket update received - real-time connection working!');
+        // console.log('✅ First socket update received - real-time connection working!');
         window.socketUpdateLogged = true;
       }
 
@@ -1060,7 +1060,6 @@
       }
     });
 
-    console.log('✅ Socket listeners initialized immediately for maximum speed');
 
     // Join subdashboard room for targeted updates
     socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
@@ -1073,8 +1072,8 @@
     });
     
     // Start timeout checking interval
-    timeoutCheckInterval = setInterval(checkTagTimeouts, 5000); // Check every 5 seconds
-    console.log('✅ Tag timeout monitoring started (20s timeout)');
+    timeoutCheckInterval = setInterval(checkTagTimeouts, 60000); // Check every 60 seconds
+    // console.log('✅ Tag timeout monitoring started (60s timeout)');
 
     // Handle reconnection - rejoin room
     socket.on('connect', function () {
@@ -1104,13 +1103,12 @@
       if (!socketConnected) {
         console.warn('Socket.IO not receiving updates after 2s, falling back to polling');
         pollingInterval = setInterval(function () {
-          console.log('Polling fallback - refreshing tags...');
           if (window.App && window.App.refreshTags) {
             window.App.refreshTags();
           }
         }, 2000);
       } else {
-        console.log('✅ Real-time socket updates working, polling disabled');
+        console.log('Socket.IO updates detected, no polling needed');
       }
     }, 2000);
   });
