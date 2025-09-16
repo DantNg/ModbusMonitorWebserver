@@ -58,6 +58,7 @@ class TagConfig:
     scale: float = 1.0
     offset: float = 0.0
     function_code: Optional[int] = None
+    unit: str = ""  # Add unit field
     
     @classmethod
     def from_db_row(cls, row: Dict) -> 'TagConfig':
@@ -70,7 +71,8 @@ class TagConfig:
             datatype=row.get("datatype", "unsigned"),
             scale=float(row.get("scale", 1.0)) if row.get("scale") is not None else 1.0,
             offset=float(row.get("offset", 0.0)) if row.get("offset") is not None else 0.0,
-            function_code=row.get("function_code")
+            function_code=row.get("function_code"),
+            unit=row.get("unit", "")  # Add unit from database
         )
 
 @dataclass

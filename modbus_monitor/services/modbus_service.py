@@ -14,6 +14,9 @@ from modbus_monitor.services.config_cache import (
 from modbus_monitor.services.socket_emission_manager import (
     SocketEmissionManager, get_emission_manager, shutdown_emission_manager
 )
+from modbus_monitor.services.value_queue_service import (
+    ValueQueueService, RawModbusValue, value_queue_service
+)
 from pymodbus.exceptions import ModbusIOException
 import asyncio
 import struct
@@ -40,14 +43,10 @@ def _unpack_float(lo: int, hi: int, byte_order: str, word_order: str) -> float:
     return struct.unpack(">f", b)[0]
 
 class _DeviceReader:
-    def __init__(self, device_config: DeviceConfig, db_queue: Queue, push_queue: Queue, 
-                 cache: LatestCache, config_cache: ConfigCache):
+    def __init__(self, device_config: DeviceConfig, config_cache: ConfigCache):
         self._ensure_connected_count = 0
         self.device_config = device_config
         self.d = device_config  # Backward compatibility
-        self.dbq = db_queue
-        self.pushq = push_queue
-        self.cache = cache
         self.config_cache = config_cache
         self.client = None
         self.rtu_entry = None  # RTU connection pool entry
@@ -69,19 +68,6 @@ class _DeviceReader:
         
         # Cache pre-calculated function code groups
         self._fc_groups = config_cache.get_device_fc_groups(device_config.id)
-        
-        # Get emission manager with error handling
-        try:
-            # Check if we should use direct emission (for debugging)
-            if os.getenv("USE_DIRECT_EMISSION") == "1":
-                print("Using direct socket emission (debug mode)")
-                self.emission_manager = None
-            else:
-                self.emission_manager = get_emission_manager()
-        except Exception as e:
-            print(f"Warning: Could not initialize emission manager: {e}")
-            print("Falling back to direct socket emission")
-            self.emission_manager = None
 
     def _setup_adaptive_settings(self):
         """Setup adaptive settings based on protocol and baudrate"""
@@ -877,46 +863,19 @@ class _DeviceReader:
             return False
 
     def loop_once(self):
-        """Đọc 1 vòng cho device này với optimized caching và batch socket emission."""
+        """Đọc raw values từ device và đẩy vào queue - KHÔNG parse hoặc emit."""
         t0 = time.perf_counter()  # Start timing
         
         if not self._ensure_connected():
-            # Emit disconnection status
-            try:
-                if self.emission_manager:
-                    self.emission_manager.emit_device_update(
-                        device_id=self._device_id_str,
-                        device_name=self.device_config.name,
-                        unit=self.device_config.unit_id,
-                        ok=False,
-                        seq=self._seq,
-                        error="Connection failed",
-                        status="disconnected"
-                    )
-                else:
-                    # Direct emission when emission manager not available
-                    from modbus_monitor.extensions import socketio
-                    socketio.emit("modbus_update", {
-                        "device_id": self._device_id_str,
-                        "device_name": self.device_config.name,
-                        "unit": self.device_config.unit_id,
-                        "ok": False,
-                        "error": "Connection failed",
-                        "status": "disconnected",
-                        "seq": self._seq,
-                        "ts": datetime.now().strftime("%H:%M:%S")
-                    }, room=f"dashboard_device_{self.device_config.id}")
-            except Exception as e:
-                print(f"Failed to emit disconnection status: {e}")
             return
 
         # Use cached function code groups (no DB access)
         if not self._fc_groups:
             return
 
-        ts = utc_now()
+        ts = time.time()  # Use timestamp for raw values
         self._seq += 1
-        all_successful_tags = []  # Track all successfully read tags for emission
+        raw_values_batch = []  # Batch raw values for queue
         
         # Process each pre-calculated function code group
         for fc_group in self._fc_groups:
@@ -929,40 +888,64 @@ class _DeviceReader:
                 if not bulk_data or all(r is None for r in bulk_data):
                     continue
                     
-                # Process all tags in this group
+                # Create raw values for all tags in this group
                 for tag in fc_group.tags:
                     try:
                         addr = self._normalize_hr_address(tag.address)
                         offset_in_bulk = addr - fc_group.start_addr
                         
-                        # Extract value based on function code type
+                        # Extract raw value based on function code type
                         if fc_group.function_code in [1, 2]:
                             # Bit-based function codes
                             if 0 <= offset_in_bulk < len(bulk_data):
                                 raw_val = bulk_data[offset_in_bulk]
-                                val = float(raw_val) * tag.scale + tag.offset if raw_val is not None else None
                             else:
-                                val = None
+                                raw_val = None
                         else:
-                            # Register-based function codes
-                            val = self._extract(bulk_data, offset_in_bulk, tag.datatype, tag.scale, tag.offset)
-                        
-                        if val is not None:
-                            # Cache and queue for DB write
-                            self.cache.set(tag.id, ts, val)
-                            self.dbq.put((tag.id, ts, float(val)))
+                            # Register-based function codes - get multiple registers if needed
+                            datatype = (tag.datatype or "").strip().lower()
                             
-                            # Track for socket emission
-                            all_successful_tags.append({
-                                "id": tag.id,
-                                "name": tag.name,
-                                "value": float(val),
-                                "datatype": tag.datatype,
-                                "ts": datetime.now().strftime("%H:%M:%S")
-                            })
+                            # Determine how many registers this datatype needs
+                            if datatype in ("float", "float32", "real", "float_inverse", "floatinverse", "float-inverse",
+                                           "dword", "uint32", "udint", "dint", "int32", "int", "long_inverse", "longinverse"):
+                                # 32-bit values need 2 registers
+                                if offset_in_bulk + 1 < len(bulk_data):
+                                    raw_val = [bulk_data[offset_in_bulk], bulk_data[offset_in_bulk + 1]]
+                                else:
+                                    raw_val = None
+                            elif datatype in ("double", "double_inverse", "doubleinverse", "long"):
+                                # 64-bit values need 4 registers  
+                                if offset_in_bulk + 3 < len(bulk_data):
+                                    raw_val = [bulk_data[offset_in_bulk + i] for i in range(4)]
+                                else:
+                                    raw_val = None
+                            else:
+                                # 16-bit values need 1 register
+                                if 0 <= offset_in_bulk < len(bulk_data):
+                                    raw_val = bulk_data[offset_in_bulk]
+                                else:
+                                    raw_val = None
+                        
+                        if raw_val is not None:
+                            # Create RawModbusValue object
+                            raw_modbus_value = RawModbusValue(
+                                device_id=self.device_config.id,
+                                tag_id=tag.id,
+                                tag_name=tag.name,
+                                function_code=fc_group.function_code,
+                                address=tag.address,
+                                raw_value=raw_val,
+                                timestamp=ts,
+                                data_type=tag.datatype,
+                                scale=tag.scale,
+                                offset=tag.offset,
+                                unit=tag.unit  # Now TagConfig has unit field
+                            )
+                            
+                            raw_values_batch.append(raw_modbus_value)
 
                     except Exception as e:
-                        print(f"Error processing tag {tag.name}: {e}")
+                        print(f"Error preparing raw value for tag {tag.name}: {e}")
                         continue
 
             except Exception as e:
@@ -970,53 +953,18 @@ class _DeviceReader:
                 self._close()
                 continue
         
-        # Socket emission with fallback
-        if all_successful_tags:
+        # Enqueue batch of raw values
+        if raw_values_batch:
+            success_count = value_queue_service.enqueue_raw_values_batch(raw_values_batch)
             latency_ms = int((time.perf_counter() - t0) * 1000)
             
-            # Try emission manager first, fallback to direct emission
-            try:
-                if self.emission_manager:
-                    self.emission_manager.emit_device_update(
-                        device_id=self._device_id_str,
-                        device_name=self.device_config.name,
-                        unit=self.device_config.unit_id,
-                        ok=True,
-                        tags=all_successful_tags,
-                        seq=self._seq,
-                        latency_ms=latency_ms
-                    )
-                else:
-                    # Direct emission when emission manager not available
-                    from modbus_monitor.extensions import socketio
-                    socketio.emit("modbus_update", {
-                        "device_id": self._device_id_str,
-                        "device_name": self.device_config.name,
-                        "unit": self.device_config.unit_id,
-                        "ok": True,
-                        "tags": all_successful_tags,
-                        "seq": self._seq,
-                        "latency_ms": latency_ms,
-                        "ts": datetime.now().strftime("%H:%M:%S")
-                    }, room=f"dashboard_device_{self.device_config.id}")
-                    
-            except Exception as e:
-                print(f"Socket emission failed: {e}")
-                # Final fallback to direct emission
-                try:
-                    from modbus_monitor.extensions import socketio
-                    socketio.emit("modbus_update", {
-                        "device_id": self._device_id_str,
-                        "device_name": self.device_config.name,
-                        "unit": self.device_config.unit_id,
-                        "ok": True,
-                        "tags": all_successful_tags,
-                        "seq": self._seq,
-                        "latency_ms": latency_ms,
-                        "ts": datetime.now().strftime("%H:%M:%S")
-                    }, room=f"dashboard_device_{self.device_config.id}")
-                except Exception as fallback_error:
-                    print(f"Direct emission also failed: {fallback_error}")
+            if success_count == len(raw_values_batch):
+                print(f"✅ Device {self.device_config.name}: Enqueued {success_count} raw values (latency: {latency_ms}ms)")
+            else:
+                print(f"⚠️ Device {self.device_config.name}: Enqueued {success_count}/{len(raw_values_batch)} raw values (queue full)")
+        
+        # Note: No parsing, caching, DB writing, or socket emission here!
+        # Those will be handled by separate consumer services
 
     def update_cached_configs(self):
         """Update cached function code groups when config changes"""
@@ -1114,11 +1062,8 @@ class _DeviceReader:
             return 0.2 # Default 200ms
 
 class ModbusService:
-    """High-performance multi-threaded Modbus service with RTU connection pooling and config caching."""
-    def __init__(self, db_queue: Queue, push_queue: Queue, cache: LatestCache):
-        self.dbq = db_queue
-        self.pushq = push_queue
-        self.cache = cache
+    """High-performance multi-threaded Modbus service - Producer only (đọc raw values vào queue)."""
+    def __init__(self):
         self._stop = threading.Event()
         self._threads: Dict[int, threading.Thread] = {}
         self._readers: Dict[int, _DeviceReader] = {}  # Store device readers for write access
@@ -1126,17 +1071,10 @@ class ModbusService:
         
         # Get singleton instances with error handling
         self.config_cache = get_config_cache()
-        try:
-            # Check if we should use direct emission (for debugging)
-            if os.getenv("USE_DIRECT_EMISSION") == "1":
-                print("ModbusService: Using direct socket emission (debug mode)")
-                self.emission_manager = None
-            else:
-                self.emission_manager = get_emission_manager()
-        except Exception as e:
-            print(f"Warning: Could not initialize emission manager in ModbusService: {e}")
-            print("Falling back to direct socket emission")
-            self.emission_manager = None
+        
+        # Start value queue service
+        print("Starting ValueQueueService distributor...")
+        value_queue_service.start_distributor()
 
     def start(self):
         # Load initial configs
@@ -1160,9 +1098,6 @@ class ModbusService:
             try:
                 reader = _DeviceReader(
                     device_config=device_config,
-                    db_queue=self.dbq,
-                    push_queue=self.pushq,
-                    cache=self.cache,
                     config_cache=self.config_cache
                 )
                 self._readers[device_id] = reader  # Store reader reference
@@ -1181,6 +1116,8 @@ class ModbusService:
                 
             except Exception as e:
                 print(f"❌ Failed to start device {device_config.name}: {e}")
+        
+        print(f"✅ Started {started_devices} Modbus device readers (producer mode)")
 
     def stop(self):
         print("Stopping Modbus service...")
@@ -1198,11 +1135,11 @@ class ModbusService:
             print(f"Error shutting down RTU pool: {e}")
         
         try:
-            shutdown_emission_manager()
+            value_queue_service.stop()
         except Exception as e:
-            print(f"Error shutting down emission manager: {e}")
+            print(f"Error stopping value queue service: {e}")
         
-        print("Modbus service stopped")
+        print("✅ Modbus service stopped")
 
     def reload_configs(self):
         """Reload configurations for all devices"""

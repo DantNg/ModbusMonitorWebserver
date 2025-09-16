@@ -1,13 +1,22 @@
 from __future__ import annotations
 import threading, time
 from typing import Dict, List, Tuple
+import logging
 
 import socketio
 from modbus_monitor.database import db as dbsync
 from modbus_monitor.services.common import LatestCache, utc_now
+from modbus_monitor.services.value_queue_service import (
+    ValueQueueService, RawModbusValue, value_queue_service
+)
+
+logger = logging.getLogger(__name__)
 
 class DataLoggerService(threading.Thread):
-    """Simple precise timing scheduler với anti-drift logic."""
+    """
+    DataLogger service đọc từ value queue và ghi DB
+    Consumer từ value queue với precise timing scheduler
+    """
     def __init__(self, cache: LatestCache):
         super().__init__(name="datalogger-service", daemon=True)
         self.cache = cache
@@ -17,84 +26,89 @@ class DataLoggerService(threading.Thread):
         self._next_runs: Dict[int, float] = {}
         # Track intervals: logger_id -> interval_sec
         self._intervals: Dict[int, float] = {}
-
-    def _execute_logger(self, logger_config: dict):
-        """Execute logging for a single logger"""
-        lid = int(logger_config["id"])
-        logger_name = logger_config.get("name", f"Logger_{lid}")
         
-        try:
-            tag_ids = dbsync.list_data_logger_tags(lid) or []
-            rows = []
-            ts = utc_now().astimezone().replace(tzinfo=None)
-            
-            if tag_ids:
-                kv = self.cache.get_many(tag_ids)
-                for tid, rec in kv.items():
-                    if rec:
-                        _, val = rec
-                        rows.append((int(tid), ts, float(val)))
-            
-            if rows:
-                dbsync.insert_tag_values_bulk(rows)
-                print(f"✅ {logger_name}: Logged at {ts.isoformat()}")
-            else:
-                print(f"📝 {logger_name}: No data to log")
-                
-        except Exception as e:
-            print(f"❌ {logger_name}: Error - {e}")
+        # Value buffer for logging (tag_id -> latest_value)
+        self._value_buffer: Dict[int, Tuple[float, float]] = {}  # tag_id -> (timestamp, value)
+        self._buffer_lock = threading.Lock()
+        
+        # Queue consumer thread
+        self._queue_consumer_thread = None
+        
+        # Stats
+        self.stats = {
+            'values_consumed': 0,
+            'values_logged': 0,
+            'log_executions': 0,
+            'start_time': time.time()
+        }
+        self.stats_lock = threading.Lock()
+        
+        logger.info("DataLoggerService initialized with queue consumer")
 
-    def run(self):
-        """Main loop with anti-drift timing"""
+    def start(self):
+        """Start both queue consumer and logger scheduler"""
+        # Start queue consumer thread
+        self._queue_consumer_thread = threading.Thread(
+            target=self._queue_consumer_loop,
+            daemon=True,
+            name="DataLogger-Consumer"
+        )
+        self._queue_consumer_thread.start()
+        
+        # Start main thread (scheduler)
+        super().start()
+        
+        logger.info("DataLogger service started with queue consumer")
+
+    def _queue_consumer_loop(self):
+        """Consumer loop để đọc parsed values từ queue và update buffer"""
+        logger.info("DataLogger queue consumer started")
+        
         while not self._stop.is_set():
             try:
-                now = time.monotonic()
+                # Lấy batch values từ datalogger queue
+                raw_values = value_queue_service.get_datalogger_values_batch(max_count=100, timeout=0.5)
                 
-                for logger in (dbsync.list_data_loggers() or []):
-                    if not logger.get("enabled", True):
-                        continue
-                        
-                    lid = int(logger["id"])
-                    interval = max(0.1, float(logger.get("interval_sec") or 60))
-                    # print(f"⏱️ Checking Logger {lid} (interval={interval}s)")
-                    # Check if interval changed
-                    if self._intervals.get(lid) != interval:
-                        # print(f"🔄 Logger {lid}: Interval changed to {interval}s")
-                        self._intervals[lid] = interval
-                        self._next_runs[lid] = now + 0.1  # Run soon for immediate effect
-                        continue
-                    
-                    # Initialize if new logger
-                    if lid not in self._next_runs:
-                        # print(f"🆕 Logger {lid}: First run - interval {interval}s")
-                        self._intervals[lid] = interval
-                        self._next_runs[lid] = now + 0.1  # Run soon for immediate effect
-                        continue
-                    
-                    # Check if due to run
-                    next_run = self._next_runs[lid]
-                    if now >= next_run:  # Avoid huge catch-up runs
-                        # print(f"🚀 Logger {lid}: Executing (interval={interval}s)")
-                        
-                        # Execute logging
-                        self._execute_logger(logger)
-                        
-                        # Schedule next run (anti-drift)
-                        self._next_runs[lid] = next_run + interval
-                        
-                        # If we're behind, catch up gradually (but don't spam)
-                        max_catchup = 3  # Maximum 3 intervals to catch up
-                        catchup_count = 0
-                        while self._next_runs[lid] < now and catchup_count < max_catchup:
-                            self._next_runs[lid] += interval
-                            catchup_count += 1
+                if not raw_values:
+                    continue
+                
+                # Update value buffer
+                with self._buffer_lock:
+                    for raw_value in raw_values:
+                        # Parse value
+                        try:
+                            parsed_value = self._parse_raw_value(raw_value)
+                            
+                            if parsed_value is not None:
+                                # Update buffer with latest value
+                                self._value_buffer[raw_value.tag_id] = (raw_value.timestamp, parsed_value)
+                                
+                                # Also update cache for other services
+                                self.cache.set(raw_value.tag_id, raw_value.timestamp, parsed_value)
+                                
+                        except Exception as e:
+                            logger.error(f"Error parsing raw value for tag {raw_value.tag_name}: {e}")
+                
+                # Update stats
+                value_queue_service.mark_logged(len(raw_values))
+                
+                with self.stats_lock:
+                    self.stats['values_consumed'] += len(raw_values)
                 
             except Exception as e:
-                print(f"❌ DataLogger main loop error: {e}")
-                
-            self._stop.wait(0.1)
-    
-    def stop(self):
-        """Stop the datalogger service"""
-        print("🛑 Stopping DataLogger service...")
-        self._stop.set()
+                logger.error(f"Error in datalogger queue consumer: {e}")
+                time.sleep(0.1)
+        
+        logger.info("DataLogger queue consumer stopped")
+
+    def _parse_raw_value(self, raw_value: RawModbusValue) -> float:
+        """
+        Parse raw value using simplified logic
+        Reuse parsing logic từ value_parser_service
+        """
+        from modbus_monitor.services.value_parser_service import ValueParserService
+        
+        # Create a temporary parser instance for parsing logic
+        # Note: This is not ideal but reuses the parsing code
+        parser = ValueParserService(self.cache)
+        return parser._parse_single_value(raw_value)
