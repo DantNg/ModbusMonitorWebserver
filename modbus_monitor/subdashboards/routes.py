@@ -2,6 +2,7 @@ from flask import jsonify, render_template, request, redirect, url_for, flash, s
 from . import subdash_bp
 from datetime import datetime,timedelta
 from modbus_monitor.database import db
+from modbus_monitor.services.socket_emission_manager import get_emission_manager
 
 @subdash_bp.get("/")
 def list_subdash():
@@ -91,6 +92,13 @@ def add_tag_to_subdash(sid):
         
         # Add tag to subdashboard first
         db.add_tag_to_subdashboard(sid, int(tag_id))
+        
+        # Force refresh subdashboard cache for real-time updates
+        try:
+            emission_manager = get_emission_manager()
+            emission_manager.force_refresh_subdash_cache()
+        except Exception as e:
+            print(f"Warning: Could not refresh subdashboard cache: {e}")
         
         # Handle group assignment
         group_id = None
@@ -189,6 +197,13 @@ def delete_group(sid, gid):
         # Delete the group (this will cascade to delete group_tags due to ON DELETE CASCADE)
         db.delete_subdash_group(gid)
         
+        # Force refresh subdashboard cache for real-time updates
+        try:
+            emission_manager = get_emission_manager()
+            emission_manager.force_refresh_subdash_cache()
+        except Exception as e:
+            print(f"Warning: Could not refresh subdashboard cache: {e}")
+        
         return jsonify({
             "success": True,
             "message": f"Group '{group_name}' deleted successfully"
@@ -229,6 +244,13 @@ def remove_tag_from_group(sid):
         
         # Remove tag from group
         db.remove_tag_from_subdash_group(int(group_id), int(tag_id))
+        
+        # Force refresh subdashboard cache for real-time updates
+        try:
+            emission_manager = get_emission_manager()
+            emission_manager.force_refresh_subdash_cache()
+        except Exception as e:
+            print(f"Warning: Could not refresh subdashboard cache: {e}")
         
         tag_name = tag.get("name", "Unknown") if tag else "Unknown"
         group_name = group.get("name", "Unknown")

@@ -383,7 +383,7 @@ def delete_device(did):
 def edit_tag(did, tid):
     device = config_cache.get_device(did)
     tag = config_cache.get_tag(tid)
-    if not device or not tag or tag.get("device_id") != did:
+    if not device or not tag or tag.device_id != did:
         flash("Tag not found.", "warning")
         return redirect(url_for("devices_bp.device_detail", did=did))
 
@@ -456,7 +456,7 @@ def edit_tag(did, tid):
 @devices_bp.route("/devices/<int:did>/tags/<int:tid>/delete", methods=["POST"])
 def delete_tag(did, tid):
     tag = config_cache.get_tag(tid)
-    if not tag or tag.get("device_id") != did:
+    if not tag or tag.device_id != did:
         flash("Tag not found.", "warning")
         return redirect(url_for("devices_bp.device_detail", did=did))
     
@@ -475,7 +475,7 @@ def write_tag(did, tid):
     from modbus_monitor.services import runner
     
     tag = config_cache.get_tag(tid)
-    if not tag or tag.get("device_id") != did:
+    if not tag or tag.device_id != did:
         return {"success": False, "error": "Tag not found"}, 404
     
     try:
@@ -486,7 +486,7 @@ def write_tag(did, tid):
     success = runner.write_tag_value(tid, value)
     
     if success:
-        return {"success": True, "message": f"Successfully wrote {value} to {tag['name']}"}
+        return {"success": True, "message": f"Successfully wrote {value} to {tag.name}"}
     else:
         return {"success": False, "error": "Failed to write to tag"}, 500
 
@@ -511,6 +511,6 @@ def api_write_tag(tid):
     success = runner.write_tag_value(tid, value)
     
     if success:
-        return {"success": True, "message": f"Successfully wrote {value} to {tag['name']}", "tag_name": tag['name']}
+        return {"success": True, "message": f"Successfully wrote {value} to {tag.name}", "tag_name": tag.name}
     else:
         return {"success": False, "error": "Failed to write to tag"}, 500

@@ -41,7 +41,7 @@ class SocketEmissionManager:
         # Cache cho subdashboard mappings
         self._subdash_cache: Dict[int, set] = {}
         self._subdash_cache_time = 0.0
-        self._subdash_cache_interval = 60.0  # Reload mỗi 60s
+        self._subdash_cache_interval = 10.0  # Reload mỗi 10s (reduced from 60s)
         
         self._start_worker()
     
@@ -234,6 +234,27 @@ class SocketEmissionManager:
                 
             except Exception as e:
                 print(f"Error updating subdashboard cache: {e}")
+    
+    def force_refresh_subdash_cache(self):
+        """Force immediate refresh of subdashboard cache"""
+        try:
+            from modbus_monitor.database import db as dbsync
+            
+            self._subdash_cache.clear()
+            subdashboards = dbsync.list_subdashboards() or []
+            
+            for subdash in subdashboards:
+                subdash_id = subdash['id']
+                tag_ids = [
+                    t['id'] for t in dbsync.get_subdashboard_tags(subdash_id) or []
+                ]
+                self._subdash_cache[subdash_id] = set(tag_ids)
+            
+            self._subdash_cache_time = time.time()
+            print(f"Force refreshed subdashboard cache: {len(self._subdash_cache)} subdashboards")
+            
+        except Exception as e:
+            print(f"Error force refreshing subdashboard cache: {e}")
     
     def get_stats(self) -> Dict:
         """Lấy thống kê emission manager"""
