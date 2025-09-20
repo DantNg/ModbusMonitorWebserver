@@ -287,7 +287,11 @@ class ConfigCache:
                     tags = self._tags_by_device[device_id]
                     self._fc_groups_by_device[device_id] = self._calculate_fc_groups(tags, device)
                 
-                print(f"✅ Added tag {tag_id} to cache and DB")
+                # Invalidate subdashboard cache since tags changed
+                self._subdashboard_cache.clear()
+                self._subdash_cache_time = 0.0
+                
+                print(f"✅ Added tag {tag_id} to cache and DB, invalidated subdashboard cache")
                 return tag_id
                 
             except Exception as e:
@@ -348,6 +352,13 @@ class ConfigCache:
     def get_device_config(self, device_id: int) -> Optional[DeviceConfig]:
         """Legacy method - use get_device() instead"""
         return self.get_device(device_id)
+
+    def invalidate_subdashboard_cache(self):
+        """Force invalidate subdashboard cache"""
+        with self._lock:
+            self._subdashboard_cache.clear()
+            self._subdash_cache_time = 0.0
+            logger.info("Subdashboard cache invalidated")
     
     def get_device_fc_groups(self, device_id: int) -> List[FunctionCodeGroup]:
         """Get pre-calculated function code groups for device"""
@@ -691,3 +702,8 @@ def invalidate_config_cache():
     global _config_cache
     with _cache_lock:
         _config_cache = None
+
+def invalidate_subdashboard_cache_global():
+    """Global function to invalidate subdashboard cache"""
+    cache = get_config_cache()
+    cache.invalidate_subdashboard_cache()

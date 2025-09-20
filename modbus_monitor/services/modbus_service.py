@@ -14,6 +14,7 @@ from modbus_monitor.services.config_cache import (
 from modbus_monitor.services.socket_emission_manager import (
     SocketEmissionManager, get_emission_manager, shutdown_emission_manager
 )
+from modbus_monitor.services.rtu_com_service import get_rtu_com_service
 from modbus_monitor.services.value_queue_service import (
     ValueQueueService, RawModbusValue, value_queue_service
 )
@@ -1108,39 +1109,68 @@ class ModbusService:
             print("No devices found for Modbus monitoring")
             return
 
-        # Create barrier for synchronized start
-        self._barrier = threading.Barrier(len(devices))
+        # Separate RTU and TCP devices
+        tcp_devices = {}
+        rtu_devices = {}
         
-        # Calculate synchronized start epoch (next full second + 1 second buffer)
-        start_epoch = math.ceil(time.monotonic()) + 1
-        print(f"Synchronized start scheduled for epoch: {start_epoch}")
-        
-        # Start devices with individual error handling
-        started_devices = 0
         for device_id, device_config in devices.items():
-            try:
-                reader = _DeviceReader(
-                    device_config=device_config,
-                    config_cache=self.config_cache
-                )
-                self._readers[device_id] = reader  # Store reader reference
-                
-                # Use high-precision timing loop
-                t = threading.Thread(
-                    target=reader.loop_with_timing, 
-                    args=(start_epoch, self._barrier), 
-                    daemon=True, 
-                    name=f"Modbus-{device_config.name}"
-                )
-                
-                t.start()
-                self._threads[device_id] = t
-                started_devices += 1
-                
-            except Exception as e:
-                print(f"❌ Failed to start device {device_config.name}: {e}")
+            if device_config.protocol == "ModbusRTU":
+                rtu_devices[device_id] = device_config
+            else:
+                tcp_devices[device_id] = device_config
         
-        print(f"✅ Started {started_devices} Modbus device readers (producer mode)")
+        # Start RTU COM service for RTU devices
+        if rtu_devices:
+            print(f"🔧 Starting RTU COM service for {len(rtu_devices)} RTU devices...")
+            rtu_com_service = get_rtu_com_service()
+            for device_id, device_config in rtu_devices.items():
+                rtu_com_service.add_device(device_config)
+                print(f"  ➤ Added RTU device: {device_config.name} (Unit ID: {device_config.unit_id}, COM: {device_config.serial_port})")
+
+        # Handle TCP devices with individual threads (existing approach)
+        if tcp_devices:
+            print(f"🔧 Starting individual threads for {len(tcp_devices)} TCP devices...")
+            
+            # Create barrier for synchronized start of TCP devices only
+            self._barrier = threading.Barrier(len(tcp_devices))
+            
+            # Calculate synchronized start epoch (next full second + 1 second buffer)
+            start_epoch = math.ceil(time.monotonic()) + 1
+            print(f"TCP devices synchronized start scheduled for epoch: {start_epoch}")
+            
+            # Start TCP devices with individual error handling
+            started_devices = 0
+            for device_id, device_config in tcp_devices.items():
+                try:
+                    reader = _DeviceReader(
+                        device_config=device_config,
+                        config_cache=self.config_cache
+                    )
+                    self._readers[device_id] = reader  # Store reader reference
+                    
+                    # Use high-precision timing loop
+                    t = threading.Thread(
+                        target=reader.loop_with_timing, 
+                        args=(start_epoch, self._barrier), 
+                        daemon=True, 
+                        name=f"Modbus-{device_config.name}"
+                    )
+                    
+                    t.start()
+                    self._threads[device_id] = t
+                    started_devices += 1
+                    
+                except Exception as e:
+                    print(f"❌ Failed to start TCP device {device_config.name}: {e}")
+            
+            print(f"✅ Started {started_devices} TCP device readers")
+        
+        # Start value queue service distributor
+        print("Starting ValueQueueService distributor...")
+        value_queue_service.start_distributor()
+        
+        total_devices = len(rtu_devices) + len(tcp_devices)
+        print(f"✅ Modbus service started with {total_devices} total devices ({len(rtu_devices)} RTU via COM service, {len(tcp_devices)} TCP individual)")
 
     def stop(self):
         print("Stopping Modbus service...")
@@ -1157,6 +1187,13 @@ class ModbusService:
         except Exception as e:
             print(f"Error shutting down RTU pool: {e}")
         
+        # Shutdown RTU COM service
+        try:
+            from modbus_monitor.services.rtu_com_service import shutdown_rtu_com_service
+            shutdown_rtu_com_service()
+        except Exception as e:
+            print(f"Error shutting down RTU COM service: {e}")
+        
         try:
             value_queue_service.stop()
         except Exception as e:
@@ -1167,9 +1204,18 @@ class ModbusService:
     def reload_configs(self):
         """Reload configurations for all devices"""
         self.config_cache.reload_configs()
-        # Update all readers with new configs
+        
+        # Update all TCP readers with new configs
         for reader in self._readers.values():
             reader.update_cached_configs()
+        
+        # Update RTU COM service configs
+        try:
+            rtu_com_service = get_rtu_com_service()
+            rtu_com_service.reload_configs()
+        except Exception as e:
+            print(f"Error reloading RTU COM service configs: {e}")
+        
         print("Modbus service configurations reloaded")
 
     def write_tag_value(self, tag_id: int, value: float) -> bool:
@@ -1183,14 +1229,27 @@ class ModbusService:
             if not tag:
                 print(f"Tag {tag_id} not found")
                 return False
-                
+            
             device_id = tag.device_id
-            reader = self._readers.get(device_id)
-            if not reader:
-                print(f"No active reader for device {device_id}")
+            device = self.config_cache.get_device(device_id)
+            if not device:
+                print(f"Device {device_id} not found")
                 return False
+            
+            # Route to appropriate service based on protocol
+            if device.protocol == "ModbusRTU":
+                # Use RTU COM service for RTU devices
+                rtu_com_service = get_rtu_com_service()
+                return rtu_com_service.write_tag_value(tag_id, value)
+            else:
+                # Use individual reader for TCP devices
+                reader = self._readers.get(device_id)
+                if not reader:
+                    print(f"No active reader for TCP device {device_id}")
+                    return False
+                    
+                return reader.write_tag_value(tag_id, value)
                 
-            return reader.write_tag_value(tag_id, value)
         except Exception as e:
             print(f"Error in global write function: {e}")
             return False

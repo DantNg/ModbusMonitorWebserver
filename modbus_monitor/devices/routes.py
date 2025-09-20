@@ -266,10 +266,23 @@ def add_tag(did):
                 form=request.form
             )
         
-        # Restart services to pick up new tag
-        restart_services()
+        # Force reload configs instead of restarting services
+        try:
+            from modbus_monitor.services.runner import get_modbus_service
+            modbus_service = get_modbus_service()
+            if modbus_service:
+                modbus_service.reload_configs()
+                
+            # Also force reload config cache for immediate effect
+            config_cache.reload_configs()
+            
+            # Force invalidate subdashboard cache to ensure new tags appear
+            config_cache.invalidate_subdashboard_cache()
+            
+            flash("Tag added and configs reloaded.", "success")
+        except Exception as e:
+            flash(f"Tag added but config reload failed: {e}", "warning")
         
-        flash("Tag added.", "success")
         return redirect(url_for("devices_bp.device_detail", did=did))
 
     # GET
