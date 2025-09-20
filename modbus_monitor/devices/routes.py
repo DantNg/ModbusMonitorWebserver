@@ -314,7 +314,7 @@ def edit_device(did):
         flash("Device not found.", "warning")
         return redirect(url_for("devices_bp.devices"))
 
-    protocol = dev.get("protocol") or "ModbusTCP"
+    protocol = dev.protocol or "ModbusTCP"
 
     if request.method == "POST":
         name = (request.form.get("name") or "").strip()
@@ -412,8 +412,9 @@ def edit_device(did):
     # GET: prefill form từ dev
     class F: pass
     f = F()
-    for k, v in dev.items():
-        setattr(f, k, v)
+    # Convert dataclass to dict-like object for template
+    for k in ['name', 'protocol', 'host', 'port', 'serial_port', 'baudrate', 'parity', 'stopbits', 'bytesize', 'unit_id', 'timeout_ms', 'default_function_code', 'description']:
+        setattr(f, k, getattr(dev, k, None))
     return render_template("devices/device_form.html",
                            protocol=protocol,
                            form=f,
@@ -499,8 +500,9 @@ def edit_tag(did, tid):
     # GET: prefill
     class F: pass
     f = F()
-    for k, v in tag.items():
-        setattr(f, k, v)
+    # Convert dataclass to dict-like object for template
+    for k in ['name', 'address', 'datatype', 'unit', 'scale', 'offset', 'grp', 'function_code', 'description']:
+        setattr(f, k, getattr(tag, k, None))
     return render_template("devices/tag_form.html",
                            device=device, tag=tag, form=f, editing=True)
 
