@@ -20,7 +20,7 @@ class DataLoggerService(threading.Thread):
     def __init__(self, cache: LatestCache):
         super().__init__(name="datalogger-service", daemon=True)
         self.cache = cache
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
         
         # Per-logger scheduling (anti-drift): logger_id -> next_run_time
         self._next_runs: Dict[int, float] = {}
@@ -64,7 +64,7 @@ class DataLoggerService(threading.Thread):
         """Consumer loop để đọc parsed values từ queue và update buffer"""
         logger.info("DataLogger queue consumer started")
         
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             try:
                 # Lấy batch values từ datalogger queue
                 raw_values = value_queue_service.get_datalogger_values_batch(max_count=100, timeout=0.5)
@@ -118,7 +118,7 @@ class DataLoggerService(threading.Thread):
         logger.info("DataLogger scheduler started")
         
         try:
-            while not self._stop.is_set():
+            while not self._stop_event.is_set():
                 now = time.monotonic()
                 
                 # Load loggers và check intervals
@@ -155,7 +155,7 @@ class DataLoggerService(threading.Thread):
                             catchup_count += 1
                 
                 # Sleep ngắn để không waste CPU
-                self._stop.wait(0.1)
+                self._stop_event.wait(0.1)
                 
         except Exception as e:
             logger.error(f"DataLogger scheduler error: {e}")
@@ -243,7 +243,7 @@ class DataLoggerService(threading.Thread):
     def stop(self):
         """Stop service gracefully"""
         logger.info("🛑 Stopping DataLogger service...")
-        self._stop.set()
+        self._stop_event.set()
         
         # Wait for consumer thread
         if self._queue_consumer_thread and self._queue_consumer_thread.is_alive():

@@ -27,4 +27,4 @@ def emit_dashboard_device_update(device_id, data):
     socketio.emit('update_tags', data, room=f'dashboard_device_{device_id}')
 
 def emit_subdashboard_update(subdash_id, data):
-    socketio.emit('update_tags', data, room=f'subdashboard_{subdash_id}')
+    socketio.emit('modbus_update', data, room=f'subdashboard_{subdash_id}')

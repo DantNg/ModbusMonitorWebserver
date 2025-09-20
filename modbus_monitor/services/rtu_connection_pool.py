@@ -20,7 +20,7 @@ class RTUConnectionConfig:
     bytesize: int = 8
     parity: str = "N"
     stopbits: int = 1
-    timeout: float = 0.2
+    timeout: float = 1
     
     def __hash__(self):
         """Tạo hash key để làm key cho dictionary"""

@@ -17,7 +17,7 @@ class AlarmService(threading.Thread):
         super().__init__(name="alarm-service", daemon=True)
         self.cache = cache
         self.period = period_sec
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
         self._state = {}    # trạng thái mở rộng: on_since/off_since
         self._active: Dict[int, bool] = {}
         self._since: Dict[int, float] = {}
@@ -65,7 +65,7 @@ class AlarmService(threading.Thread):
             print(f"Notification debounce: {notification_type} for rule {rule_id} - {remaining:.1f}s remaining (debounce: {debounce_time}s)")
             return False
     def run(self):
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             try:
                 devs = dbsync.list_devices()
                 now = time.time()
@@ -361,6 +361,6 @@ class AlarmService(threading.Thread):
 
 
     def stop(self):
-        self._stop.set()
+        self._stop_event.set()
 
     

@@ -83,9 +83,9 @@ class _DeviceReader:
             
             if baudrate <= 9600:
                 # Slow baudrate - conservative settings
-                self.timeout = max(2.0, self.device_config.timeout_ms / 1000.0)  # Min 2s timeout
+                self.timeout = max(5.0, self.device_config.timeout_ms / 1000.0)  # Min 5s timeout
                 self.max_retries = 3
-                self.retry_delay = 0.3  # 300ms between retries
+                self.retry_delay = 1  # 300ms between retries
                 self.read_chunk_size = 10  # Read fewer registers at once
                 print(f"🐌 Slow RTU settings for {self.device_config.name}: timeout={self.timeout}s, chunk_size={self.read_chunk_size}")
             elif baudrate <= 19200:
@@ -1064,7 +1064,7 @@ class _DeviceReader:
 class ModbusService:
     """High-performance multi-threaded Modbus service - Producer only (đọc raw values vào queue)."""
     def __init__(self):
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
         self._threads: Dict[int, threading.Thread] = {}
         self._readers: Dict[int, _DeviceReader] = {}  # Store device readers for write access
         self._barrier = None  # Synchronization barrier for coordinated start
@@ -1121,7 +1121,7 @@ class ModbusService:
 
     def stop(self):
         print("Stopping Modbus service...")
-        self._stop.set()
+        self._stop_event.set()
         
         for device_id, t in self._threads.items():
             t.join(timeout=2)  # Longer timeout for clean shutdown

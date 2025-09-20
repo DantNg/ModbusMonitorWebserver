@@ -881,6 +881,12 @@ def add_tag_to_subdashboard(sid: int, tag_id: int):
             con.execute(
                 dashboard_tags.insert().values(dashboard_id=sid, tag_id=tag_id)
             )
+
+def get_subdashboard(sid: int):
+    """Get subdashboard by id"""
+    with init_engine().connect() as con:
+        r = con.execute(select(dashboards).where(dashboards.c.id == sid)).mappings().first()
+        return dict(r) if r else None
         
 def add_subdashboard_row(data: dict, tag_ids: list[int] = None) -> int:
     """Add a new subdashboard and optionally attach tags."""
@@ -904,7 +910,7 @@ def delete_subdashboard_row(sid: int) -> int:
 def get_subdashboard_tags(sid: int):
     """
     Trả về danh sách tag (dict) thuộc subdashboard (dashboard) có id=sid.
-    Chỉ lấy thông tin tag cơ bản, value và timestamp sẽ được update qua realtime.
+    Lấy cả giá trị latest và timestamp.
     """
     with init_engine().connect() as con:
         rows = con.execute(
@@ -929,10 +935,11 @@ def get_subdashboard_tags(sid: int):
         result = []
         for r in rows:
             tag_dict = dict(r)
-            # Set default values - will be updated by realtime updates
-            tag_dict['value'] = None
-            tag_dict['ts'] = "--:--"
-            tag_dict['alarm_status'] = "Normal"
+            # Get latest value and timestamp for each tag
+            value, ts = get_latest_tag_value(tag_dict['id'])
+            tag_dict['value'] = value
+            tag_dict['ts'] = ts.strftime("%H:%M:%S") if ts else "--:--"
+            tag_dict['alarm_status'] = "Normal"  # You can add alarm logic here
             result.append(tag_dict)
         
         return result
@@ -1103,23 +1110,30 @@ def get_tag_logger_map(device_id: int = None) -> dict:
     try:
         with init_engine().connect() as con:
             # Query to get tag_id -> logger mapping
-            query = select(
-                data_logger_tags.c.tag_id,
-                data_loggers.c.id.label("logger_id"),
-                data_loggers.c.name.label("logger_name"),
-                data_loggers.c.interval_sec,
-                data_loggers.c.enabled
-            ).select_from(
-                data_logger_tags.join(data_loggers, data_logger_tags.c.logger_id == data_loggers.c.id)
-            )
-            
             if device_id:
                 # Filter by device if specified
-                query = query.select_from(
+                query = select(
+                    data_logger_tags.c.tag_id,
+                    data_loggers.c.id.label("logger_id"),
+                    data_loggers.c.name.label("logger_name"),
+                    data_loggers.c.interval_sec,
+                    data_loggers.c.enabled
+                ).select_from(
                     data_logger_tags
                     .join(data_loggers, data_logger_tags.c.logger_id == data_loggers.c.id)
                     .join(tags, data_logger_tags.c.tag_id == tags.c.id)
                 ).where(tags.c.device_id == device_id)
+            else:
+                # Get all tag logger mappings
+                query = select(
+                    data_logger_tags.c.tag_id,
+                    data_loggers.c.id.label("logger_id"),
+                    data_loggers.c.name.label("logger_name"),
+                    data_loggers.c.interval_sec,
+                    data_loggers.c.enabled
+                ).select_from(
+                    data_logger_tags.join(data_loggers, data_logger_tags.c.logger_id == data_loggers.c.id)
+                )
             
             rows = con.execute(query).mappings().all()
             

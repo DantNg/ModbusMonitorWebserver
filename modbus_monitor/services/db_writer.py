@@ -16,12 +16,12 @@ class DBWriter(threading.Thread):
         self.buf: List[Tuple[int, datetime, float]] = []
         self.flush_every = flush_every
         self.batch_size = batch_size
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
         self._last_emission = 0  # Track last emission time to avoid spam
 
     def run(self):
         last = time.time()
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             try:
                 # Shorter timeout for more responsive processing
                 item = self.q.get(timeout=0.1)
@@ -118,4 +118,4 @@ class DBWriter(threading.Thread):
             self.buf.clear()
 
     def stop(self):
-        self._stop.set()
+        self._stop_event.set()
