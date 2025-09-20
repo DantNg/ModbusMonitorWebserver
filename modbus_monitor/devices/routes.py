@@ -50,6 +50,25 @@ def devices():
     
     return render_template("devices/devices.html", items=items)
 
+@devices_bp.route("/debug/status")
+def debug_device_status():
+    """Debug endpoint to check device statuses"""
+    try:
+        device_statuses = config_cache.get_all_device_statuses()
+        cached_devices = config_cache.get_all_devices()
+        
+        debug_info = {
+            "device_count": len(cached_devices),
+            "status_count": len(device_statuses),
+            "devices": {device_id: device.__dict__ for device_id, device in cached_devices.items()},
+            "statuses": device_statuses,
+            "timestamp": time.time()
+        }
+        
+        return jsonify(debug_info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # Device detail (using cache)
 @devices_bp.route("/devices/<int:did>")
 def device_detail(did):

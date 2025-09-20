@@ -32,11 +32,7 @@ window.App = {
           const val = document.getElementById('tag-val-' + row.id);
           const ts  = document.getElementById('tag-ts-' + row.id);
           
-          // For initial load, don't show activity bars
-          if (bar) {
-            bar.style.width = "0%";
-            bar.style.backgroundColor = "";
-          }
+          // Don't modify bar style - it's controlled by device status from server template
           if (val) val.textContent = isFinite(v) ? v.toFixed(2) : row.value;
           if (ts) ts.textContent = new Date(row.ts || Date.now()).toLocaleTimeString();
         }

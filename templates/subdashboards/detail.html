@@ -118,7 +118,7 @@
                 <div class="unit position-relative">{% if session.get("role") == "admin" %}<span id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit" style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{% else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
               </div>
               <div class="meter mt-2">
-                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:100%"></div>
+                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" data-device-status="{{ tag.device_status or 'unknown' }}" style="width: {% if tag.device_status == 'connected' %}100%{% else %}0%{% endif %}; background: {% if tag.device_status == 'connected' %}#28a745{% elif tag.device_status == 'disconnected' %}#dc3545{% else %}#6c757d{% endif %}"></div>
               </div>
               <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
             </div>
@@ -193,7 +193,7 @@
                 <div class="unit position-relative">{% if session.get("role") == "admin" %}<span id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit" style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{% else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
               </div>
               <div class="meter mt-2">
-                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" style="width:100%"></div>
+                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" data-device-status="{{ tag.device_status or 'unknown' }}" style="width: {% if tag.device_status == 'connected' %}100%{% else %}0%{% endif %}; background: {% if tag.device_status == 'connected' %}#28a745{% elif tag.device_status == 'disconnected' %}#dc3545{% else %}#6c757d{% endif %}"></div>
               </div>
               <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
             </div>

@@ -167,15 +167,15 @@ class RTUComReader:
             self._backoff = 1.0
             self._last_connection_test = now
             
-            # Update all devices status to connected
-            for unit_id, device in self.devices.items():
-                self.config_cache.update_device_status(device.id, "connected")
+            # Don't automatically set all devices to connected
+            # Device status will be updated individually during read cycles
+            logger.info(f"RTU COM {self.com_config.serial_port}: Connection established")
         else:
             self.connected = False
             self._backoff = min(self._backoff * 2, 60)
             self._next_retry_ts = now + self._backoff
             
-            # Update all devices status to disconnected
+            # Update all devices status to disconnected when COM fails
             for unit_id, device in self.devices.items():
                 self.config_cache.update_device_status(device.id, "disconnected")
         
@@ -395,11 +395,13 @@ class RTUComReader:
                     success_count = self.value_queue.enqueue_raw_values_batch(raw_values)
                     total_values += len(raw_values)
                     
-                    # Update device status
+                    # Update device status to connected only if we got data
                     self.config_cache.update_device_status(device.id, "connected")
                     
                     logger.debug(f"Device {device.name} (Unit {unit_id}): Read {len(raw_values)} values ({success_count} queued) in {read_time:.3f}s")
                 else:
+                    # No values read - this could indicate communication failure
+                    self.config_cache.update_device_status(device.id, "disconnected")
                     logger.warning(f"Device {device.name} (Unit {unit_id}): No values read")
                 
                 # Small delay between devices to prevent overwhelming RTU bus

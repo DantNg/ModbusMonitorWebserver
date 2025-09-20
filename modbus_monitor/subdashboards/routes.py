@@ -37,10 +37,23 @@ def add_subdash():
 @subdash_bp.get("/<int:sid>")
 def subdash_detail(sid):
     from flask import make_response
+    from modbus_monitor.services.config_cache import get_config_cache
     
     subdash = db.get_subdashboard(sid) if hasattr(db, "get_subdashboard") else {"id": sid, "name": "Demo"}
     tags = db.get_subdashboard_tags(sid) if hasattr(db, "get_subdashboard_tags") else []
     all_tags = db.list_all_tags() if hasattr(db, "list_all_tags") else []
+    
+    # Add device status to each tag
+    config_cache = get_config_cache()
+    for tag in tags:
+        device_id = tag.get('device_id')
+        if device_id:
+            device_status = config_cache.get_device_status(device_id)
+            tag['device_status'] = device_status.get('status', 'unknown') if device_status else 'unknown'
+            tag['device_last_seen'] = device_status.get('last_seen') if device_status else None
+        else:
+            tag['device_status'] = 'unknown'
+            tag['device_last_seen'] = None
     
     # Debug logging
     # print(f"Subdash {sid}: Found {len(tags)} tags")
