@@ -28,6 +28,8 @@ class DeviceConfig:
     default_function_code: int = 3
     byte_order: str = "BigEndian"
     word_order: str = "AB"
+    status: str = "unknown"  # Status: "connected", "disconnected", "unknown"
+    last_seen: Optional[float] = None  # Timestamp of last successful communication
     
     @classmethod
     def from_db_row(cls, row: Dict) -> 'DeviceConfig':
@@ -352,6 +354,42 @@ class ConfigCache:
         with self._lock:
             self.reload_if_needed()
             return self._fc_groups_by_device.get(device_id, [])
+    
+    def update_device_status(self, device_id: int, status: str, last_seen: Optional[float] = None):
+        """Update device connection status in cache"""
+        import time
+        with self._lock:
+            device = self._devices.get(device_id)
+            if device:
+                device.status = status
+                device.last_seen = last_seen or time.time()
+                logger.debug(f"Updated device {device_id} status to {status}")
+    
+    def get_device_status(self, device_id: int) -> Dict[str, Any]:
+        """Get device status information"""
+        with self._lock:
+            device = self._devices.get(device_id)
+            if device:
+                return {
+                    "id": device.id,
+                    "name": device.name,
+                    "status": device.status,
+                    "last_seen": device.last_seen
+                }
+            return {"id": device_id, "name": "Unknown", "status": "unknown", "last_seen": None}
+    
+    def get_all_device_statuses(self) -> Dict[int, Dict[str, Any]]:
+        """Get status information for all devices"""
+        with self._lock:
+            statuses = {}
+            for device_id, device in self._devices.items():
+                statuses[device_id] = {
+                    "id": device.id,
+                    "name": device.name,
+                    "status": device.status,
+                    "last_seen": device.last_seen
+                }
+            return statuses
     
     def invalidate_device(self, device_id: int):
         """Invalidate specific device cache - force reload on next access"""

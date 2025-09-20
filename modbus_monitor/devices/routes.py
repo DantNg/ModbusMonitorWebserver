@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, jsonify
 from . import devices_bp
 from modbus_monitor.database.db import (
     list_devices, list_tags  # Keep these for now as fallback
@@ -6,6 +6,7 @@ from modbus_monitor.database.db import (
 from modbus_monitor.services.runner import restart_services
 from modbus_monitor.services.config_cache import get_config_cache
 from datetime import datetime
+import time
 
 # Get config cache instance
 config_cache = get_config_cache()
@@ -15,15 +16,33 @@ config_cache = get_config_cache()
 def devices():
     # Use cache for listing devices
     cached_devices = config_cache.get_all_devices()
-    items = [
-        {
+    device_statuses = config_cache.get_all_device_statuses()
+    
+    items = []
+    for device in cached_devices.values():
+        status_info = device_statuses.get(device.id, {})
+        status = status_info.get("status", "unknown")
+        last_seen = status_info.get("last_seen")
+        
+        # Determine online status based on status and last_seen
+        is_online = None
+        if status == "connected":
+            # Consider online if last seen within 30 seconds
+            if last_seen and (time.time() - last_seen) < 30:
+                is_online = True
+            else:
+                is_online = False
+        elif status == "disconnected":
+            is_online = False
+        
+        items.append({
             **device.__dict__,
             "created_at": datetime.now(),  # Mock for template compatibility
             "updated_at": datetime.now(),
-            "is_online": False  # Mock for template compatibility
-        }
-        for device in cached_devices.values()
-    ]
+            "is_online": is_online,
+            "status": status,
+            "last_seen": last_seen
+        })
     
     # Fallback to DB if cache is empty
     if not items:
@@ -514,3 +533,21 @@ def api_write_tag(tid):
         return {"success": True, "message": f"Successfully wrote {value} to {tag.name}", "tag_name": tag.name}
     else:
         return {"success": False, "error": "Failed to write to tag"}, 500
+
+@devices_bp.route("/api/devices/status", methods=["GET"])
+def get_devices_status():
+    """API endpoint to get all device status information"""
+    try:
+        statuses = config_cache.get_all_device_statuses()
+        return jsonify({"success": True, "devices": statuses})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@devices_bp.route("/api/devices/<int:device_id>/status", methods=["GET"])  
+def get_device_status(device_id):
+    """API endpoint to get specific device status"""
+    try:
+        status = config_cache.get_device_status(device_id)
+        return jsonify({"success": True, "device": status})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

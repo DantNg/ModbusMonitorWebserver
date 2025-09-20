@@ -171,6 +171,13 @@ class _DeviceReader:
             self._retry_count = 0
             self._last_connection_test = now
             
+            # Update device status in config cache
+            self.config_cache.update_device_status(
+                device_id=self.device_config.id,
+                status="connected",
+                last_seen=now
+            )
+            
             # Emit connection success
             try:
                 if self.emission_manager:
@@ -198,6 +205,14 @@ class _DeviceReader:
                 pass
         else:
             self._retry_count = getattr(self, '_retry_count', 0) + 1
+            
+            # Update device status in config cache
+            self.config_cache.update_device_status(
+                device_id=self.device_config.id,
+                status="disconnected",
+                last_seen=getattr(self, '_last_successful_read', None)
+            )
+            
             # Faster retry for first few attempts, then backoff
             if self._retry_count <= 3:
                 retry_delay = 2.0  # Quick retry for first 3 attempts
@@ -957,6 +972,14 @@ class _DeviceReader:
         if raw_values_batch:
             success_count = value_queue_service.enqueue_raw_values_batch(raw_values_batch)
             latency_ms = int((time.perf_counter() - t0) * 1000)
+            
+            # Update successful read timestamp and status
+            self._last_successful_read = ts
+            self.config_cache.update_device_status(
+                device_id=self.device_config.id,
+                status="connected",
+                last_seen=ts
+            )
             
             if success_count == len(raw_values_batch):
                 print(f"✅ Device {self.device_config.name}: Enqueued {success_count} raw values (latency: {latency_ms}ms)")
