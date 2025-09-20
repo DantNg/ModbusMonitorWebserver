@@ -4,6 +4,7 @@ from typing import Dict, List
 from modbus_monitor.database import db as dbsync
 from modbus_monitor.services.common import LatestCache, utc_now
 from modbus_monitor.services.notification_service import *
+from modbus_monitor.services.config_cache import get_config_cache
 from modbus_monitor.extensions import socketio
 def _cmp(v: float, op: str, th: float) -> bool:
     if math.isnan(v): return False
@@ -18,6 +19,7 @@ class AlarmService(threading.Thread):
         self.cache = cache
         self.period = period_sec
         self._stop_event = threading.Event()
+        self.config_cache = get_config_cache()
         self._state = {}    # trạng thái mở rộng: on_since/off_since
         self._active: Dict[int, bool] = {}
         self._since: Dict[int, float] = {}
@@ -67,10 +69,10 @@ class AlarmService(threading.Thread):
     def run(self):
         while not self._stop_event.is_set():
             try:
-                devs = dbsync.list_devices()
+                devices_dict = self.config_cache.get_devices()
                 now = time.time()
-                for d in devs:
-                    rules = dbsync.list_alarm_rules_for_device(d["id"]) or []
+                for device_id, device_config in devices_dict.items():
+                    rules = dbsync.list_alarm_rules_for_device(device_id) or []
                     for r in rules:
                         if not r.get("enabled", True):
                             continue
@@ -149,14 +151,14 @@ class AlarmService(threading.Thread):
                                     alarm_event_data = {
                                         'title': f"🚨 ALARM: '{r.get('name', 'Alarm')}'",
                                         'message': (
-                                            f"Device: {d.get('name', '')}\n"
+                                            f"Device: {device_config.name}\n"
                                             f"Tag: {r.get('name', 'Unknown')}\n"
                                             f"Value: {val} {op} {th}\n"
                                             f"Level: {r.get('level', 'Critical')}"
                                         ),
                                         'status': "INCOMING",
                                         'level': r.get('level', 'Critical'),
-                                        'device': d.get('name', ''),
+                                        'device': device_config.name,
                                         'tag': r.get('name', 'Unknown'),
                                         'value': val,
                                         'threshold': th,
@@ -199,7 +201,7 @@ class AlarmService(threading.Thread):
                                                         f"ALARM NOTIFICATION\n"
                                                         f"==================\n\n"
                                                         f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
-                                                        f"Device: {d.get('name', 'Unknown Device')}\n"
+                                                        f"Device: {device_config.name}\n"
                                                         f"Alarm Name: {r.get('name', 'Unknown Alarm')}\n"
                                                         f"Tag Value: {val}\n"
                                                         f"Threshold: {th}\n"
@@ -215,7 +217,7 @@ class AlarmService(threading.Thread):
                                                 self.start_send_sms_thread(
                                                     phone_number=to_sms.strip(),
                                                     message=(
-                                                        f"🚨 ALARM: '{r.get('name', 'Alarm')}' triggered for device '{d.get('name', 'Unknown')}'.\n"
+                                                        f"🚨 ALARM: '{r.get('name', 'Alarm')}' triggered for device '{device_config.name}'.\n"
                                                         f"Value: {val}, Threshold: {op} {th}, Level: {r.get('level', 'Critical')}\n"
                                                         f"Time: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}"
                                                     )
@@ -267,14 +269,14 @@ class AlarmService(threading.Thread):
                                     alarm_clear_data = {
                                         'title': f"✅ CLEAR: '{r.get('name', 'Alarm')}'",
                                         'message': (
-                                            f"Device: {d.get('name', '')}\n"
+                                            f"Device: {device_config.name}\n"
                                             f"Tag: {r.get('name', 'Unknown')}\n"
                                             f"Value: {val} (Normal)\n" 
                                             f"Alarm cleared"
                                         ),
                                         'status': "OUTGOING",
                                         'level': "Normal",
-                                        'device': d.get('name', ''),
+                                        'device': device_config.name,
                                         'tag': r.get('name', 'Unknown'),
                                         'value': val,
                                         'threshold': th,
@@ -317,7 +319,7 @@ class AlarmService(threading.Thread):
                                                         f"ALARM CLEAR NOTIFICATION\n"
                                                         f"========================\n\n"
                                                         f"DateTime: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}\n"
-                                                        f"Device: {d.get('name', 'Unknown Device')}\n"
+                                                        f"Device: {device_config.name}\n"
                                                         f"Alarm Name: {r.get('name', 'Unknown Alarm')}\n"
                                                         f"Tag Value: {val}\n"
                                                         f"Threshold: {th}\n"
@@ -332,7 +334,7 @@ class AlarmService(threading.Thread):
                                                 self.start_send_sms_thread(
                                                     phone_number=to_sms.strip(),
                                                     message=(
-                                                        f"✅ CLEAR: '{r.get('name', 'Alarm')}' for device '{d.get('name', 'Unknown')}'.\n"
+                                                        f"✅ CLEAR: '{r.get('name', 'Alarm')}' for device '{device_config.name}'.\n"
                                                         f"Value: {val} (Normal), Time: {utc_now().strftime('%d/%m/%Y %H:%M:%S')}"
                                                     )
                                                 )

@@ -6,6 +6,7 @@ from typing import Tuple, List
 from datetime import datetime
 from modbus_monitor.extensions import socketio
 from modbus_monitor.database import db as dbsync
+from modbus_monitor.services.config_cache import get_config_cache
 
 class DBWriter(threading.Thread):
     """High-speed database writer optimized for real-time updates with immediate socket emission support"""
@@ -18,6 +19,7 @@ class DBWriter(threading.Thread):
         self.batch_size = batch_size
         self._stop_event = threading.Event()
         self._last_emission = 0  # Track last emission time to avoid spam
+        self.config_cache = get_config_cache()
 
     def run(self):
         last = time.time()
@@ -49,10 +51,10 @@ class DBWriter(threading.Thread):
                             value = 0
                         cleaned.append((tag_id, ts, value))
                         
-                        # Get tag info to determine device
-                        tag_info = dbsync.get_tag(tag_id)
+                        # Get tag info to determine device (using cache)
+                        tag_info = self.config_cache.get_tag(tag_id)
                         if tag_info:
-                            device_id = tag_info["device_id"]
+                            device_id = tag_info.device_id
                             if device_id not in device_updates:
                                 device_updates[device_id] = []
                             

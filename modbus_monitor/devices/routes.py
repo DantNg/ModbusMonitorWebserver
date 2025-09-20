@@ -1,28 +1,60 @@
 from flask import render_template, request, redirect, url_for, flash
 from . import devices_bp
 from modbus_monitor.database.db import (
-    add_device_row, list_devices, get_device, list_tags,
-    update_device_row, delete_device_row, get_tag, add_tag_row,
-    update_tag_row, delete_tag_row
+    list_devices, list_tags  # Keep these for now as fallback
 )
 from modbus_monitor.services.runner import restart_services
+from modbus_monitor.services.config_cache import get_config_cache
 from datetime import datetime
 
-# List Devices (giữ nguyên nếu bạn đã có)
+# Get config cache instance
+config_cache = get_config_cache()
+
+# List Devices (using cache)
 @devices_bp.route("/devices")
 def devices():
-    items = list_devices()
+    # Use cache for listing devices
+    cached_devices = config_cache.get_all_devices()
+    items = [
+        {
+            **device.__dict__,
+            "created_at": datetime.now(),  # Mock for template compatibility
+            "updated_at": datetime.now(),
+            "is_online": False  # Mock for template compatibility
+        }
+        for device in cached_devices.values()
+    ]
+    
+    # Fallback to DB if cache is empty
+    if not items:
+        items = list_devices()
+    
     return render_template("devices/devices.html", items=items)
 
-# (tuỳ chọn) trang chi tiết để các link "Open/View" không lỗi
+# Device detail (using cache)
 @devices_bp.route("/devices/<int:did>")
 def device_detail(did):
-    dev = get_device(did)
-    if not dev:
-        flash("Device not found", "warning")
-        return redirect(url_for("devices_bp.devices"))
-    tags = list_tags(did)
-    return render_template("devices/device_detail.html", device=dev, tags=tags)
+    # Use cache first
+    dev = config_cache.get_device(did)
+    if dev:
+        dev_dict = dev.__dict__.copy()
+        dev_dict.update({
+            "created_at": datetime.now(),  # Mock for template compatibility
+            "updated_at": datetime.now(),
+            "is_online": False  # Mock for template compatibility
+        })
+    else:
+        # Fallback to DB
+        dev_dict = config_cache.get_device(did)
+        if not dev_dict:
+            flash("Device not found", "warning")
+            return redirect(url_for("devices_bp.devices"))
+    
+    # Get tags from cache
+    cached_tags = config_cache.get_device_tags(did)
+    tags = [tag.__dict__ for tag in cached_tags] if cached_tags else list_tags(did)
+    
+    return render_template("devices/device_detail.html", device=dev_dict, tags=tags)
 
 # ---------- ADD DEVICE ----------
 @devices_bp.route("/devices/add", methods=["GET", "POST"])
@@ -129,8 +161,14 @@ def add_device():
                                    form=request.form,
                                    errors=errors)
 
-        # Insert DB
-        new_id = add_device_row(data)
+        # Insert to cache and DB
+        new_id = config_cache.add_device(data)
+        if not new_id:
+            flash("Failed to create device.", "error")
+            return render_template("devices/device_form.html",
+                                   protocol=protocol,
+                                   form=request.form,
+                                   errors={"general": "Database error"})
         
         # Restart services to pick up new device
         restart_services()
@@ -143,7 +181,7 @@ def add_device():
 
 @devices_bp.route("/devices/<int:did>/tags/add", methods=["GET", "POST"])
 def add_tag(did):
-    device = get_device(did)
+    device = config_cache.get_device(did)
     if not device:
         flash("Device not found", "warning")
         return redirect(url_for("devices_bp.devices"))
@@ -186,7 +224,7 @@ def add_tag(did):
                 form=request.form
             )
 
-        add_tag_row(did, {
+        tag_data = {
             "name": name,
             "address": address,
             "datatype": datatype,
@@ -196,7 +234,18 @@ def add_tag(did):
             "grp": grp,
             "function_code": function_code,
             "description": description,
-        })
+        }
+        
+        # Add tag to cache and DB
+        new_tag_id = config_cache.add_tag(did, tag_data)
+        if not new_tag_id:
+            flash("Failed to add tag.", "error")
+            return render_template(
+                "devices/tag_form.html",
+                device=device,
+                errors={"general": "Database error"},
+                form=request.form
+            )
         
         # Restart services to pick up new tag
         restart_services()
@@ -209,7 +258,7 @@ def add_tag(did):
 
 @devices_bp.route("/devices/<int:did>/edit", methods=["GET", "POST"])
 def edit_device(did):
-    dev = get_device(did)
+    dev = config_cache.get_device(did)
     if not dev:
         flash("Device not found.", "warning")
         return redirect(url_for("devices_bp.devices"))
@@ -296,7 +345,16 @@ def edit_device(did):
                                    editing=True,
                                    device_id=did)
 
-        update_device_row(did, data)
+        # Update device in cache and DB
+        if not config_cache.update_device(did, data):
+            flash("Failed to update device.", "error")
+            return render_template("devices/device_form.html",
+                                   protocol=protocol,
+                                   form=request.form,
+                                   errors={"general": "Database error"},
+                                   editing=True,
+                                   device_id=did)
+        
         flash("Device updated.", "success")
         return redirect(url_for("devices_bp.device_detail", did=did))
 
@@ -313,8 +371,7 @@ def edit_device(did):
 
 @devices_bp.route("/devices/<int:did>/delete", methods=["POST"])
 def delete_device(did):
-    cnt = delete_device_row(did)
-    if cnt:
+    if config_cache.delete_device(did):
         # Restart services to remove deleted device
         restart_services()
         flash("Device deleted.", "success")
@@ -324,9 +381,9 @@ def delete_device(did):
 
 @devices_bp.route("/devices/<int:did>/tags/<int:tid>/edit", methods=["GET","POST"])
 def edit_tag(did, tid):
-    device = get_device(did)
-    tag = get_tag(tid)
-    if not device or not tag or tag["device_id"] != did:
+    device = config_cache.get_device(did)
+    tag = config_cache.get_tag(tid)
+    if not device or not tag or tag.get("device_id") != did:
         flash("Tag not found.", "warning")
         return redirect(url_for("devices_bp.device_detail", did=did))
 
@@ -369,11 +426,18 @@ def edit_tag(did, tid):
                                    device=device, tag=tag, form=request.form,
                                    errors=errors, editing=True)
 
-        update_tag_row(tid, {
+        tag_data = {
             "name": name, "address": address, "datatype": datatype,
             "unit": unit, "scale": scale, "offset": offset,
             "grp": grp, "function_code": function_code, "description": description
-        })
+        }
+        
+        # Update tag in cache and DB
+        if not config_cache.update_tag(tid, tag_data):
+            flash("Failed to update tag.", "error")
+            return render_template("devices/tag_form.html",
+                                   device=device, tag=tag, form=request.form,
+                                   errors={"general": "Database error"}, editing=True)
         
         # Restart services to pick up tag changes
         restart_services()
@@ -391,16 +455,18 @@ def edit_tag(did, tid):
 
 @devices_bp.route("/devices/<int:did>/tags/<int:tid>/delete", methods=["POST"])
 def delete_tag(did, tid):
-    tag = get_tag(tid)
-    if not tag or tag["device_id"] != did:
+    tag = config_cache.get_tag(tid)
+    if not tag or tag.get("device_id") != did:
         flash("Tag not found.", "warning")
         return redirect(url_for("devices_bp.device_detail", did=did))
-    delete_tag_row(tid)
     
-    # Restart services to remove deleted tag
-    restart_services()
+    if config_cache.delete_tag(tid):
+        # Restart services to remove deleted tag
+        restart_services()
+        flash("Tag deleted.", "success")
+    else:
+        flash("Failed to delete tag.", "error")
     
-    flash("Tag deleted.", "success")
     return redirect(url_for("devices_bp.device_detail", did=did))
 
 @devices_bp.route("/devices/<int:did>/tags/<int:tid>/write", methods=["POST"])
@@ -408,8 +474,8 @@ def write_tag(did, tid):
     """Write a value to a specific tag."""
     from modbus_monitor.services import runner
     
-    tag = get_tag(tid)
-    if not tag or tag["device_id"] != did:
+    tag = config_cache.get_tag(tid)
+    if not tag or tag.get("device_id") != did:
         return {"success": False, "error": "Tag not found"}, 404
     
     try:
@@ -429,7 +495,7 @@ def api_write_tag(tid):
     """API endpoint to write a value to a tag (accepts JSON)."""
     from modbus_monitor.services import runner
     
-    tag = get_tag(tid)
+    tag = config_cache.get_tag(tid)
     if not tag:
         return {"success": False, "error": "Tag not found"}, 404
     

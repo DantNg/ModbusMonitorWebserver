@@ -1050,7 +1050,7 @@ class _DeviceReader:
     def _get_optimal_interval(self) -> float:
         """Get the optimal read interval for this device based on tag loggers."""
         try:
-            tag_logger_map = dbsync.get_tag_logger_map(self.device_config.id)
+            tag_logger_map = self.config_cache.get_tag_logger_map(self.device_config.id)
             intervals = [v["interval_sec"] for v in tag_logger_map.values()]
             
             # Ultra-high-speed mode: 50ms to 500ms range
