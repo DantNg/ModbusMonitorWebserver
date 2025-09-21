@@ -73,7 +73,7 @@ def subdash_detail(sid):
     for g in groups:
         g["tags"] = db.get_tags_of_group(g["id"])
     
-    # Render template and add no-cache headers
+    # Render template and add selective cache headers
     response = make_response(render_template("subdashboards/detail.html", 
                          subdash=subdash, 
                          tags=tags, 
@@ -81,10 +81,9 @@ def subdash_detail(sid):
                          groups=groups,
                          current_group=current_group))
     
-    # Disable caching
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    # Disable caching for dynamic content only, not JavaScript/CSS
+    response.headers['Cache-Control'] = 'no-cache'
     response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
     
     return response
 

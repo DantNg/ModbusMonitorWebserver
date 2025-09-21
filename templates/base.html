@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
 
 <head>
   <meta charset="utf-8">
@@ -170,16 +170,22 @@
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         const saved = localStorage.getItem(KEY);
         const initTheme = saved || (prefersDark ? 'dark' : 'light');
+        console.log('Initial theme:', initTheme, 'Saved:', saved, 'Prefers dark:', prefersDark); // Debug
         root.setAttribute('data-bs-theme', initTheme);
 
-        const setIcon = () => btn.textContent =
-          (root.getAttribute('data-bs-theme') === 'dark') ? '🌙' : '🌤️';
+        const setIcon = () => {
+          const currentTheme = root.getAttribute('data-bs-theme');
+          const newIcon = (currentTheme === 'dark') ? '🌙' : '🌤️';
+          btn.textContent = newIcon;
+          console.log('Icon updated:', newIcon, 'for theme:', currentTheme); // Debug
+        };
         setIcon();
 
         btn.addEventListener('click', () => {
           console.log('Theme toggle clicked!'); // Debug
           const cur = root.getAttribute('data-bs-theme');
           const next = (cur === 'dark') ? 'light' : 'dark';
+          console.log('Switching from:', cur, 'to:', next); // Debug
           root.setAttribute('data-bs-theme', next);
           localStorage.setItem(KEY, next);
           setIcon();

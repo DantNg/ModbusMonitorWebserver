@@ -48,6 +48,20 @@ a{text-decoration:none}
 .value{font-size:1.8rem;font-weight:700}
 .unit{opacity:.7;font-weight:600}
 .meter{height:8px;background:#1f283b;border:1px solid #29344e;border-radius:10px;overflow:hidden}
+
+/* Device status for meter bars */
+.meter-bar.device-connected {
+  width: 100%;
+  background-color: #28a745 !important; /* Green for connected */
+}
+.meter-bar.device-disconnected {
+  width: 0%;
+  background-color: #dc3545 !important; /* Red for disconnected */
+}
+.meter-bar.device-unknown {
+  width: 0%;
+  background-color: #6c757d !important; /* Gray for unknown */
+}
 .meter-bar{height:100%;background:linear-gradient(90deg,#34d399,#3b82f6,#a78bfa);transition:width .6s ease, background-color .3s ease}
 
 /* Tables / toolbar */

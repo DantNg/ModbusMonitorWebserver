@@ -983,7 +983,8 @@ class _DeviceReader:
             )
             
             if success_count == len(raw_values_batch):
-                print(f"✅ Device {self.device_config.name}: Enqueued {success_count} raw values (latency: {latency_ms}ms)")
+                pass
+                # print(f"✅ Device {self.device_config.name}: Enqueued {success_count} raw values (latency: {latency_ms}ms)")
             else:
                 print(f"⚠️ Device {self.device_config.name}: Enqueued {success_count}/{len(raw_values_batch)} raw values (queue full)")
         

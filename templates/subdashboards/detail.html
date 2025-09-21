@@ -118,7 +118,11 @@
                 <div class="unit position-relative">{% if session.get("role") == "admin" %}<span id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit" style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{% else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
               </div>
               <div class="meter mt-2">
-                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" data-device-status="{{ tag.device_status or 'unknown' }}" style="width: {% if tag.device_status == 'connected' %}100%{% else %}0%{% endif %}; background: {% if tag.device_status == 'connected' %}#28a745{% elif tag.device_status == 'disconnected' %}#dc3545{% else %}#6c757d{% endif %}"></div>
+                <div class="meter-bar 
+                     {% if tag.device_status == 'connected' %}device-connected{% elif tag.device_status == 'disconnected' %}device-disconnected{% else %}device-unknown{% endif %}"
+                     id="tag-bar-{{ tag.id }}" 
+                     data-device-status="{{ tag.device_status or 'unknown' }}">
+                </div>
               </div>
               <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
             </div>
@@ -193,7 +197,11 @@
                 <div class="unit position-relative">{% if session.get("role") == "admin" %}<span id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit" style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{% else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
               </div>
               <div class="meter mt-2">
-                <div class="meter-bar bg-info" id="tag-bar-{{ tag.id }}" data-device-status="{{ tag.device_status or 'unknown' }}" style="width: {% if tag.device_status == 'connected' %}100%{% else %}0%{% endif %}; background: {% if tag.device_status == 'connected' %}#28a745{% elif tag.device_status == 'disconnected' %}#dc3545{% else %}#6c757d{% endif %}"></div>
+                <div class="meter-bar 
+                     {% if tag.device_status == 'connected' %}device-connected{% elif tag.device_status == 'disconnected' %}device-disconnected{% else %}device-unknown{% endif %}"
+                     id="tag-bar-{{ tag.id }}" 
+                     data-device-status="{{ tag.device_status or 'unknown' }}">
+                </div>
               </div>
               <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
             </div>
@@ -342,32 +350,34 @@
   // Wrap everything in DOMContentLoaded to ensure buttons exist
   document.addEventListener('DOMContentLoaded', function () {
 
-    // App globals for subdashboard - preserve existing App properties
-    window.App = window.App || {};
+    // App globals for subdashboard - ensure we don't override existing App
+    if (!window.App) {
+      window.App = {};
+    }
     
-    // Preserve any existing properties from app.js
-    const existingApp = window.App;
-    window.App = Object.assign({}, existingApp);
+    // Preserve all existing properties and only add new ones
+    const subdashApp = {
+      changeGroup: function (groupId) {
+        console.log(`🔄 Changing from group '{{ current_group }}' to group '${groupId}'`);
+
+        // Leave current room before navigating
+        if (typeof socket !== 'undefined') {
+          socket.emit('leave', { room: `subdashboard_{{ subdash.id }}` });
+          console.log(`Left subdashboard room: subdashboard_{{ subdash.id }}`);
+        }
+
+        // Navigate to new group (this will reload the page)
+        const url = new URL(window.location);
+        url.searchParams.set('group', groupId);
+        window.location.href = url.toString();
+      }
+    };
+    
+    // Only assign new functions without overriding existing ones
+    Object.assign(window.App, subdashApp);
 
     const currentSubdashId = "{{ subdash.id }}";
     const currentGroup = "{{ current_group }}";
-
-
-    // Change group function
-    App.changeGroup = function (groupId) {
-      console.log(`🔄 Changing from group '${currentGroup}' to group '${groupId}'`);
-
-      // Leave current room before navigating
-      if (typeof socket !== 'undefined') {
-        socket.emit('leave', { room: `subdashboard_${currentSubdashId}` });
-        console.log(`Left subdashboard room: subdashboard_${currentSubdashId}`);
-      }
-
-      // Navigate to new group (this will reload the page)
-      const url = new URL(window.location);
-      url.searchParams.set('group', groupId);
-      window.location.href = url.toString();
-    };
 
     // Initialize App for subdashboard
     // App.startDashboard('/api/tags?subdash={{ subdash.id }}');
