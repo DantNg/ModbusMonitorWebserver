@@ -212,6 +212,12 @@ class SimpleDeviceReader:
                             self.cache.set(int(t["id"]), ts, val)
                             self.dbq.put((int(t["id"]), ts, float(val)))
                             
+                            # SAVE ALL TAG VALUES TO DATABASE - not just datalogger tags
+                            try:
+                                dbsync.update_tag_latest_value(int(t["id"]), float(val), ts)
+                            except Exception as db_err:
+                                print(f"Warning: Failed to save latest value for tag {t['id']}: {db_err}")
+                            
                             # Add to emission list
                             all_successful_tags.append({
                                 "id": int(t["id"]),

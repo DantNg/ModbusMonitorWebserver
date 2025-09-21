@@ -1284,3 +1284,31 @@ def remove_tag_from_logger(logger_id: int, tag_id: int):
     except Exception as e:
         print(f"Error removing tag from logger: {e}")
         raise
+
+def update_tag_latest_value(tag_id: int, value: float, timestamp: datetime):
+    """
+    Update or insert latest value for a single tag.
+    This ensures ALL tags get their latest values saved, not just datalogger tags.
+    """
+    try:
+        with init_engine().begin() as con:
+            # Use MySQL's ON DUPLICATE KEY UPDATE for efficient upsert
+            con.execute(
+                text("""
+                    INSERT INTO tag_latest_values (tag_id, value, ts, updated_at)
+                    VALUES (:tag_id, :value, :ts, :updated_at)
+                    ON DUPLICATE KEY UPDATE
+                    value = VALUES(value),
+                    ts = VALUES(ts),
+                    updated_at = VALUES(updated_at)
+                """),
+                {
+                    'tag_id': tag_id,
+                    'value': value,
+                    'ts': timestamp,
+                    'updated_at': safe_datetime_now()
+                }
+            )
+    except Exception as e:
+        print(f"Error updating latest value for tag {tag_id}: {e}")
+        raise

@@ -8,6 +8,7 @@ import math
 import struct
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from modbus_monitor.database import db as dbsync
 import logging
 
 from modbus_monitor.services.value_queue_service import (
@@ -135,6 +136,13 @@ class ValueParserService:
                     
                     # Update cache
                     self.cache.set(raw_value.tag_id, raw_value.timestamp, parsed_value)
+                    
+                    # SAVE ALL RTU TAG VALUES TO DATABASE - not just datalogger tags  
+                    try:
+                        ts = datetime.fromtimestamp(raw_value.timestamp)
+                        dbsync.update_tag_latest_value(raw_value.tag_id, float(parsed_value), ts)
+                    except Exception as db_err:
+                        logger.warning(f"Failed to save latest value for RTU tag {raw_value.tag_id}: {db_err}")
                 
             except Exception as e:
                 logger.error(f"Error parsing value for tag {raw_value.tag_name}: {e}")

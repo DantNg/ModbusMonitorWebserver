@@ -921,9 +921,10 @@
           
           // Turn off progress bar (set width to 0%)
           if (barEl) {
+            // Add live-update class for smooth transitions during timeout
+            barEl.classList.add('live-update');
             barEl.style.width = '0%';
             barEl.style.background = '#dc3545'; // Red color to indicate timeout (overrides gradient)
-            barEl.style.transition = 'width 0.8s ease, background 0.3s ease'; // Smooth transition
           }
           
           // Update timestamp to show timeout
@@ -1037,17 +1038,17 @@
           tsEl.style.fontWeight = '';
         }
 
-        // Update progress bar - turn ON when receiving data
+        // Update progress bar - turn ON when receiving data  
         const barEl = document.getElementById('tag-bar-' + tag.id);
         if (barEl) {
+          // Add live-update class for smooth transitions during real-time updates
+          barEl.classList.add('live-update');
           barEl.style.width = "100%";
           barEl.style.background = ''; // Reset to CSS default (gradient)
           barEl.style.backgroundColor = ''; // Clear any override
-          barEl.style.transition = 'width 0.3s ease, background 0.3s ease';
         }
         
-        // Add visual feedback for value changes
-        valEl.style.transition = 'all 0.2s ease';
+        // Add visual feedback for value changes (removed transition to prevent flicker)
         // valEl.style.backgroundColor = '#e3f2fd';
         setTimeout(() => {
           valEl.style.backgroundColor = '';

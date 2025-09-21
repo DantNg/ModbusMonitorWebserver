@@ -62,7 +62,12 @@ a{text-decoration:none}
   width: 0%;
   background-color: #6c757d !important; /* Gray for unknown */
 }
-.meter-bar{height:100%;background:linear-gradient(90deg,#34d399,#3b82f6,#a78bfa);transition:width .6s ease, background-color .3s ease}
+.meter-bar{height:100%;background:linear-gradient(90deg,#34d399,#3b82f6,#a78bfa)}
+
+/* Only animate during live updates, not on page load */
+.meter-bar.live-update {
+  transition: width 0.3s ease, background-color 0.2s ease;
+}
 
 /* Tables / toolbar */
 .table-dark-subtle th{background:#0f1628 !important;border-bottom:1px solid var(--border);color:#cfd9ea}
