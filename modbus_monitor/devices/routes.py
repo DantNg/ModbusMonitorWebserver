@@ -128,7 +128,12 @@ def add_device():
         # Base fields
         unit_id = to_int(request.form.get("unit_id"), 1, "unit_id")
         timeout_ms = to_int(request.form.get("timeout_ms"), 2000, "timeout_ms")
+        read_interval_ms = to_int(request.form.get("read_interval_ms"), 1000, "read_interval_ms")
         default_function_code = to_int(request.form.get("default_function_code"), 3, "default_function_code")
+        
+        # Validate reading interval
+        if read_interval_ms < 50 or read_interval_ms > 10000:
+            errors["read_interval_ms"] = "Reading interval must be between 50ms and 10000ms."
         
         # Validate function code
         if default_function_code not in [1, 2, 3, 4]:
@@ -139,6 +144,7 @@ def add_device():
             "protocol": "ModbusTCP" if protocol == "ModbusTCP" else "ModbusRTU",
             "unit_id": unit_id,
             "timeout_ms": timeout_ms,
+            "read_interval_ms": read_interval_ms,
             "default_function_code": default_function_code,
             "description": description or None,
         }
@@ -336,7 +342,12 @@ def edit_device(did):
 
         unit_id = to_int(request.form.get("unit_id"), 1, "unit_id")
         timeout_ms = to_int(request.form.get("timeout_ms"), 2000, "timeout_ms")
+        read_interval_ms = to_int(request.form.get("read_interval_ms"), 1000, "read_interval_ms")
         default_function_code = to_int(request.form.get("default_function_code"), 3, "default_function_code")
+        
+        # Validate reading interval
+        if read_interval_ms < 50 or read_interval_ms > 10000:
+            errors["read_interval_ms"] = "Reading interval must be between 50ms and 10000ms."
         
         # Validate function code
         if default_function_code not in [1, 2, 3, 4]:
@@ -347,6 +358,7 @@ def edit_device(did):
             "protocol": protocol,  # không cho đổi protocol trong edit (đơn giản)
             "unit_id": unit_id,
             "timeout_ms": timeout_ms,
+            "read_interval_ms": read_interval_ms,
             "default_function_code": default_function_code,
             "description": description or None,
         }
@@ -413,7 +425,7 @@ def edit_device(did):
     class F: pass
     f = F()
     # Convert dataclass to dict-like object for template
-    for k in ['name', 'protocol', 'host', 'port', 'serial_port', 'baudrate', 'parity', 'stopbits', 'bytesize', 'unit_id', 'timeout_ms', 'default_function_code', 'description']:
+    for k in ['name', 'protocol', 'host', 'port', 'serial_port', 'baudrate', 'parity', 'stopbits', 'bytesize', 'unit_id', 'timeout_ms', 'read_interval_ms', 'default_function_code', 'description']:
         setattr(f, k, getattr(dev, k, None))
     return render_template("devices/device_form.html",
                            protocol=protocol,

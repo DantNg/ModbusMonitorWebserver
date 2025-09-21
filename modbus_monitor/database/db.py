@@ -85,6 +85,7 @@ devices = Table(
     Column("bytesize", Integer),
     Column("unit_id", Integer, default=1),
     Column("timeout_ms", Integer, default=2000),
+    Column("read_interval_ms", Integer, default=1000),  # Reading interval in milliseconds (default 1000ms = 1s)
     Column("byte_order", String(20), default="BigEndian"),
     Column("default_function_code", Integer, default=3),  # 1=Read Coils, 2=Read Discrete Inputs, 3=Read Holding Registers, 4=Read Input Registers
     Column("description", String(255)),

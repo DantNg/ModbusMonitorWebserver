@@ -25,6 +25,7 @@ class DeviceConfig:
     stopbits: int = 1
     unit_id: int = 1
     timeout_ms: int = 200
+    read_interval_ms: int = 1000  # Reading interval in milliseconds
     default_function_code: int = 3
     byte_order: str = "BigEndian"
     word_order: str = "AB"
@@ -47,6 +48,7 @@ class DeviceConfig:
             stopbits=int(row.get("stopbits", 1)) if row.get("stopbits") is not None else 1,
             unit_id=int(row.get("unit_id", 1)) if row.get("unit_id") is not None else 1,
             timeout_ms=int(row.get("timeout_ms", 200)) if row.get("timeout_ms") is not None else 200,
+            read_interval_ms=int(row.get("read_interval_ms", 1000)) if row.get("read_interval_ms") is not None else 1000,
             default_function_code=int(row.get("default_function_code", 3)) if row.get("default_function_code") is not None else 3,
             byte_order=row.get("byte_order", "BigEndian"),
             word_order=row.get("word_order", "AB")

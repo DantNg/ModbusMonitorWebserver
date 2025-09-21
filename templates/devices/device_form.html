@@ -45,6 +45,14 @@
             <label class="form-label">Timeout (ms) *</label>
             <input name="timeout_ms" type="number" class="form-control" value="{{ (form.timeout_ms if form else 5000) or 5000 }}" required>
           </div>
+          <div class="col-md-6">
+            <label class="form-label">Reading Speed (ms) *</label>
+            <input name="read_interval_ms" type="number" class="form-control" 
+                   value="{{ (form.read_interval_ms if form else 1000) or 1000 }}" 
+                   min="50" max="10000" step="50" required
+                   title="Reading interval: 50ms (fast) to 10000ms (slow)">
+            <div class="form-text">Reading interval: 50ms=20Hz, 1000ms=1Hz, 5000ms=0.2Hz</div>
+          </div>
 
           <div class="col-md-6">
             <label class="form-label">Baudrate *</label>
@@ -113,6 +121,14 @@
           <div class="col-md-6">
             <label class="form-label">Timeout (ms) *</label>
             <input name="timeout_ms" type="number" class="form-control" value="{{ (form.timeout_ms if form else 5000) or 5000 }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Reading Speed (ms) *</label>
+            <input name="read_interval_ms" type="number" class="form-control" 
+                   value="{{ (form.read_interval_ms if form else 1000) or 1000 }}" 
+                   min="50" max="10000" step="50" required
+                   title="Reading interval: 50ms (fast) to 10000ms (slow)">
+            <div class="form-text">Reading interval: 50ms=20Hz, 1000ms=1Hz, 5000ms=0.2Hz</div>
           </div>
 
           <div class="col-md-12">

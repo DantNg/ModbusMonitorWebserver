@@ -445,9 +445,9 @@ class RTUComReader:
                 cycle_start = time.time()
                 self._read_cycle()
                 
-                # Calculate cycle time and sleep
+                # Calculate cycle time and sleep using configured reading speed
                 cycle_time = time.time() - cycle_start
-                target_interval = 1.0  # 1 second between cycles
+                target_interval = self._get_optimal_read_interval()  # Dynamic interval based on device configs
                 sleep_time = max(0, target_interval - cycle_time)
                 
                 # Sleep in small chunks to be responsive to stop signal
@@ -460,6 +460,32 @@ class RTUComReader:
                 time.sleep(1)
         
         logger.info(f"RTU COM reader thread stopped for {self.com_config.serial_port}")
+
+    def _get_optimal_read_interval(self) -> float:
+        """Calculate optimal reading interval based on device configurations"""
+        try:
+            if not self.devices:
+                return 1.0  # Default 1 second if no devices
+            
+            # Get the minimum read_interval_ms from all devices on this COM port
+            intervals_ms = []
+            for device in self.devices.values():
+                # Get read_interval_ms from device config, default to 1000ms
+                interval_ms = getattr(device, 'read_interval_ms', 1000) or 1000
+                intervals_ms.append(interval_ms)
+            
+            # Use the fastest (minimum) interval requested
+            min_interval_ms = min(intervals_ms)
+            
+            # Convert to seconds and apply safety limits
+            interval_sec = min_interval_ms / 1000.0
+            
+            # Safety limits: 50ms to 10 seconds
+            return max(min(interval_sec, 10.0), 0.05)
+            
+        except Exception as e:
+            logger.warning(f"Error calculating read interval: {e}, using default 1s")
+            return 1.0
 
     def _normalize_address(self, addr: int) -> int:
         """Normalize Modbus address to 0-based (same logic as ConfigCache)"""
