@@ -897,22 +897,35 @@
   
   // Timeout tracking for tags
   const TAG_TIMEOUT_MS = 60000; // 60 seconds
+  const INITIAL_GRACE_PERIOD_MS = 10000; // 10 seconds grace period after page load
   const tagLastUpdates = new Map(); // tag_id -> last_update_timestamp
+  const tagInitialLoadTime = new Map(); // tag_id -> page_load_timestamp
   let timeoutCheckInterval = null;
+  const pageLoadTime = Date.now(); // Track when page was loaded
 
   // Check for timed out tags and reset to 0
   function checkTagTimeouts() {
     const now = Date.now();
     
     tagLastUpdates.forEach((lastUpdate, tagId) => {
-      if (now - lastUpdate > TAG_TIMEOUT_MS) {
+      const timeSincePageLoad = now - pageLoadTime;
+      const timeSinceLastUpdate = now - lastUpdate;
+      
+      // During initial grace period (10s after page load), keep bars active
+      if (timeSincePageLoad < INITIAL_GRACE_PERIOD_MS) {
+        // console.log(`⏰ Tag ${tagId} in grace period (${timeSincePageLoad/1000}s since page load) - keeping active`);
+        return; // Skip timeout check during grace period
+      }
+      
+      // After grace period, check for actual timeout
+      if (timeSinceLastUpdate > TAG_TIMEOUT_MS) {
         const valEl = document.getElementById('tag-val-' + tagId);
         const barEl = document.getElementById('tag-bar-' + tagId);
         const tsEl = document.getElementById('tag-ts-' + tagId);
         
         // Only update if not already timed out to avoid repeated processing
         if (valEl && valEl.textContent !== 'TIMEOUT') {
-          // console.log(`⏰ Tag ${tagId} timeout (${(now - lastUpdate)/1000}s) - resetting`);
+          console.log(`⏰ Tag ${tagId} timeout (${timeSinceLastUpdate/1000}s since last update, ${timeSincePageLoad/1000}s since page load) - resetting`);
           
           // Reset value display
           valEl.textContent = '0';
@@ -992,6 +1005,43 @@
     } else {
       return fixedValue.toFixed(2);
     }
+  }
+
+  // Initialize all progress bars to active state when page loads (grace period)
+  function initializeProgressBarsOnLoad() {
+    console.log('🚀 Initializing progress bars on page load - 10s grace period started');
+    
+    const allTagBars = document.querySelectorAll('[id^="tag-bar-"]');
+    allTagBars.forEach(barEl => {
+      const tagId = barEl.id.replace('tag-bar-', '');
+      
+      // Set initial active state for all bars during grace period WITHOUT animation
+      // Do NOT add 'live-update' class to avoid CSS transitions during initial load
+      barEl.style.width = "100%";
+      barEl.style.background = ''; // Use CSS gradient
+      barEl.style.backgroundColor = '';
+      
+      // Set initial device status as connected during grace period
+      barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
+      barEl.classList.add('device-connected');
+      barEl.setAttribute('data-device-status', 'connected');
+      
+      console.log(`📶 Tag ${tagId}: Initialized as active during grace period (no animation)`);
+    });
+    
+    // After grace period, check if any tags haven't received updates
+    setTimeout(() => {
+      console.log('⏰ Grace period ended - checking for tags without updates');
+      
+      // Enable animations for all progress bars after grace period
+      const allTagBars = document.querySelectorAll('[id^="tag-bar-"]');
+      allTagBars.forEach(barEl => {
+        barEl.classList.add('live-update'); // Now enable animations
+      });
+      console.log('🎬 Progress bar animations enabled after grace period');
+      
+      checkTagTimeouts(); // Force timeout check after grace period
+    }, INITIAL_GRACE_PERIOD_MS);
   }
 
 
@@ -1099,8 +1149,20 @@
         const tagInUpdate = data.tags && data.tags.some(tag => tag.id == tagId);
         
         if (tagInUpdate) {
-          // Update progress bar based on device status, not value change
-          barEl.classList.add('live-update');
+          // Check if we're still in grace period
+          const timeSincePageLoad = Date.now() - pageLoadTime;
+          const inGracePeriod = timeSincePageLoad < INITIAL_GRACE_PERIOD_MS;
+          
+          if (inGracePeriod) {
+            // During grace period, keep bars active and just update last update time
+            tagLastUpdates.set(parseInt(tagId), Date.now());
+            console.log(`⏳ Tag ${tagId}: In grace period (${(timeSincePageLoad/1000).toFixed(1)}s) - keeping bar active, got update from device`);
+            return; // Skip device status-based bar updates during grace period
+          }
+          
+          // After grace period, update progress bar based on device status, not value change
+          // Only add animation class if not in grace period
+          barEl.classList.add('live-update'); // Add animation after grace period
           
           if (deviceStatus === 'connected') {
             barEl.style.width = "100%";
@@ -1166,12 +1228,16 @@
     // Initialize tag tracking and start timeout checker
     document.querySelectorAll('[id^="tag-val-"]').forEach(el => {
       const tagId = el.id.replace('tag-val-', '');
-      tagLastUpdates.set(parseInt(tagId), Date.now());
+      tagLastUpdates.set(parseInt(tagId), pageLoadTime); // Set initial time to page load time
+      tagInitialLoadTime.set(parseInt(tagId), pageLoadTime);
     });
+    
+    // Initialize all progress bars to active state on page load (grace period)
+    initializeProgressBarsOnLoad();
     
     // Start timeout checking interval - check every 5 seconds for faster response
     timeoutCheckInterval = setInterval(checkTagTimeouts, 5000); // Check every 5 seconds
-    // console.log('✅ Tag timeout monitoring started (60s timeout, checked every 5s)');
+    console.log('✅ Tag timeout monitoring started (60s timeout, 10s grace period, checked every 5s)');
 
     // Handle reconnection - rejoin room
     socket.on('connect', function () {

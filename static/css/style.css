@@ -69,6 +69,11 @@ a{text-decoration:none}
   transition: width 0.3s ease, background-color 0.2s ease;
 }
 
+/* Prevent any animation on initial page load */
+.meter-bar:not(.live-update) {
+  transition: none !important;
+}
+
 /* Tables / toolbar */
 .table-dark-subtle th{background:#0f1628 !important;border-bottom:1px solid var(--border);color:#cfd9ea}
 .table-hover tbody tr:hover{background:#131c30}
