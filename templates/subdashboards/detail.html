@@ -919,12 +919,17 @@
           valEl.style.color = '#666';
           valEl.style.opacity = '0.7';
           
-          // Turn off progress bar (set width to 0%)
+          // Turn off progress bar and set device status to unknown/timeout
           if (barEl) {
             // Add live-update class for smooth transitions during timeout
             barEl.classList.add('live-update');
             barEl.style.width = '0%';
             barEl.style.background = '#dc3545'; // Red color to indicate timeout (overrides gradient)
+            
+            // Update device status classes to show timeout/unknown
+            barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
+            barEl.classList.add('device-unknown');
+            barEl.setAttribute('data-device-status', 'unknown');
           }
           
           // Update timestamp to show timeout
@@ -994,7 +999,7 @@
   if (typeof socket !== 'undefined') {
     socket.on("modbus_update", function (data) {
       // console.log(`Received modbus_update `);
-      if (!data || !data.tags) return;
+      if (!data) return;
 
       // Mark that we're receiving socket updates
       socketConnected = true;
@@ -1005,54 +1010,122 @@
         window.socketUpdateLogged = true;
       }
 
-      // Batch DOM updates for better performance
-      const updates = [];
-      data.tags.forEach(tag => {
-        const valEl = document.getElementById('tag-val-' + tag.id);
-        if (!valEl) return;
+      // Update device status first (affects all tags from this device)
+      const deviceStatus = data.status || data.ok ? 'connected' : 'disconnected';
+      const deviceId = data.device_id || `dev${data.device_id}`;
+      
+      console.log(`🔌 Device ${data.device_name || deviceId}: Status = ${deviceStatus}`);
 
-        const oldVal = valEl.textContent;
-        const newVal = formatValue(tag.value, tag.datatype);
-        // Only update if value actually changed
-        if (oldVal != newVal) {
-          updates.push({ valEl, newVal, oldVal, tag });
-        }
+      // Process individual tag updates if available
+      if (data.tags && Array.isArray(data.tags)) {
+        // Batch DOM updates for better performance
+        const updates = [];
+        data.tags.forEach(tag => {
+          const valEl = document.getElementById('tag-val-' + tag.id);
+          if (!valEl) return;
 
-      });
+          const oldVal = valEl.textContent;
+          const newVal = formatValue(tag.value, tag.datatype);
+          // Only update if value actually changed
+          if (oldVal != newVal) {
+            updates.push({ valEl, newVal, oldVal, tag });
+          }
 
-      // Apply all updates in a single batch
-      updates.forEach(({ valEl, newVal, oldVal, tag }) => {
-        valEl.textContent = newVal;
-        // Track last update time for timeout detection
-        tagLastUpdates.set(tag.id, Date.now());
+        });
+
+        // Apply all updates in a single batch
+        updates.forEach(({ valEl, newVal, oldVal, tag }) => {
+          valEl.textContent = newVal;
+          // Track last update time for timeout detection
+          tagLastUpdates.set(tag.id, Date.now());
+          
+          // Reset visual styling (remove timeout indicators)
+          valEl.style.color = '';
+          valEl.style.opacity = '';
+          
+          // Update timestamp and reset timeout styling
+          const tsEl = document.getElementById('tag-ts-' + tag.id);
+          if (tsEl && tag.ts) {
+            tsEl.textContent = tag.ts;
+            tsEl.style.color = '';
+            tsEl.style.fontWeight = '';
+          }
+          
+          // Debug: Log value change
+          console.log(`📊 Tag ${tag.id} (${tag.name || 'unknown'}): Value changed ${oldVal} → ${newVal}`);
+        });
+
+        // For tags that received updates but values didn't change, 
+        // still update timestamps without triggering progress bar animation
+        data.tags.forEach(tag => {
+          const valEl = document.getElementById('tag-val-' + tag.id);
+          if (!valEl) return;
+
+          const oldVal = valEl.textContent;
+          const newVal = formatValue(tag.value, tag.datatype);
+          
+          // If value didn't change but we got an update, just update timestamp quietly
+          if (oldVal === newVal) {
+            // Track last update time for timeout detection
+            tagLastUpdates.set(tag.id, Date.now());
+            
+            // Debug: Log when value stays the same
+            console.log(`🔄 Tag ${tag.id}: Value unchanged (${newVal}), updating timestamp only`);
+            
+            // Update timestamp only
+            const tsEl = document.getElementById('tag-ts-' + tag.id);
+            if (tsEl && tag.ts) {
+              tsEl.textContent = tag.ts;
+              tsEl.style.color = '';
+              tsEl.style.fontWeight = '';
+            }
+            
+            // Reset timeout indicators
+            valEl.style.color = '';
+            valEl.style.opacity = '';
+          }
+        });
+      }
+
+      // Update progress bars for ALL tags from this device based on device status
+      // This happens regardless of individual tag value changes
+      const allTagsFromDevice = document.querySelectorAll('[id^="tag-bar-"]');
+      allTagsFromDevice.forEach(barEl => {
+        const tagId = barEl.id.replace('tag-bar-', '');
+        const valEl = document.getElementById('tag-val-' + tagId);
         
-        // Reset visual styling (remove timeout indicators)
-        valEl.style.color = '';
-        valEl.style.opacity = '';
+        // Check if this tag belongs to the device that sent the update
+        // We can identify this by checking if the tag received an update in this message
+        const tagInUpdate = data.tags && data.tags.some(tag => tag.id == tagId);
         
-        // Update timestamp and reset timeout styling
-        const tsEl = document.getElementById('tag-ts-' + tag.id);
-        if (tsEl && tag.ts) {
-          tsEl.textContent = tag.ts;
-          tsEl.style.color = '';
-          tsEl.style.fontWeight = '';
-        }
-
-        // Update progress bar - turn ON when receiving data  
-        const barEl = document.getElementById('tag-bar-' + tag.id);
-        if (barEl) {
-          // Add live-update class for smooth transitions during real-time updates
+        if (tagInUpdate) {
+          // Update progress bar based on device status, not value change
           barEl.classList.add('live-update');
-          barEl.style.width = "100%";
-          barEl.style.background = ''; // Reset to CSS default (gradient)
-          barEl.style.backgroundColor = ''; // Clear any override
+          
+          if (deviceStatus === 'connected') {
+            barEl.style.width = "100%";
+            barEl.style.background = ''; // Use CSS gradient
+            barEl.style.backgroundColor = '';
+            
+            // Update CSS classes for device status
+            barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
+            barEl.classList.add('device-connected');
+            barEl.setAttribute('data-device-status', 'connected');
+            
+            console.log(`📶 Tag ${tagId}: Device connected - progress bar ON`);
+          } else {
+            barEl.style.width = "0%";
+            barEl.style.background = '#dc3545'; // Red for disconnected
+            barEl.style.backgroundColor = '#dc3545';
+            
+            // Update CSS classes for device status
+            barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
+            barEl.classList.add('device-disconnected');
+            barEl.setAttribute('data-device-status', 'disconnected');
+            
+            console.log(`📵 Tag ${tagId}: Device disconnected - progress bar OFF`);
+          }
         }
-        
-        // Add visual feedback for value changes (removed transition to prevent flicker)
-        // valEl.style.backgroundColor = '#e3f2fd';
-        setTimeout(() => {
-          valEl.style.backgroundColor = '';
-        }, 1000);
       });
 
     });
