@@ -632,3 +632,115 @@ def get_device_status(device_id):
         return jsonify({"success": True, "device": status})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@devices_bp.route("/api/devices/mysql-sync", methods=["POST"])
+def sync_device_status_to_mysql():
+    """API endpoint to sync device status from config_cache to MySQL database"""
+    try:
+        from modbus_monitor.database.db import sync_device_status_to_mysql
+        
+        result = sync_device_status_to_mysql()
+        
+        if result.get("success"):
+            return jsonify({
+                "success": True, 
+                "message": f"Device status synced to MySQL successfully",
+                "updated_count": result.get("updated_count", 0),
+                "skipped_count": result.get("skipped_count", 0),
+                "total_processed": result.get("total_processed", 0)
+            })
+        else:
+            return jsonify({
+                "success": False, 
+                "error": result.get("error", "Unknown error")
+            }), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@devices_bp.route("/api/devices/mysql-sync/force", methods=["POST"])
+def force_sync_mysql():
+    """API endpoint to force immediate device status sync to MySQL"""
+    try:
+        from modbus_monitor.services.device_sync_service import force_device_sync
+        
+        result = force_device_sync()
+        
+        if result.get("success"):
+            return jsonify({
+                "success": True, 
+                "message": f"Device status force-synced to MySQL successfully",
+                "updated_count": result.get("updated_count", 0),
+                "skipped_count": result.get("skipped_count", 0),
+                "total_processed": result.get("total_processed", 0)
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": result.get("error", "Unknown error")
+            }), 500
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@devices_bp.route("/api/devices/mysql-sync/compare", methods=["GET"])
+def compare_device_status():
+    """API endpoint to compare device status between config_cache and MySQL"""
+    try:
+        from modbus_monitor.database.db import get_device_status_comparison
+        
+        result = get_device_status_comparison()
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@devices_bp.route("/api/devices/mysql-sync/stats", methods=["GET"])
+def get_mysql_sync_stats():
+    """API endpoint to get MySQL sync service stats"""
+    try:
+        from modbus_monitor.services.device_sync_service import get_device_sync_service
+        
+        service = get_device_sync_service()
+        if service:
+            stats = service.get_stats()
+            return jsonify({"success": True, "stats": stats})
+        else:
+            return jsonify({"success": False, "error": "Device sync service not running"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@devices_bp.route("/debug/mysql-sync", methods=["GET"])
+def debug_mysql_sync():
+    """Debug endpoint để kiểm tra trạng thái sync"""
+    try:
+        from modbus_monitor.services.device_sync_service import get_device_sync_service
+        from modbus_monitor.database.db import get_device_status_comparison
+        from modbus_monitor.services.config_cache import get_config_cache
+        
+        # Lấy thông tin service
+        service = get_device_sync_service()
+        service_info = {
+            "running": service is not None and service.is_alive() if service else False,
+            "stats": service.get_stats() if service else None
+        }
+        
+        # Lấy thông tin config_cache
+        config_cache = get_config_cache()
+        cache_statuses = config_cache.get_all_device_statuses()
+        
+        # So sánh với database
+        comparison = get_device_status_comparison()
+        
+        debug_data = {
+            "timestamp": time.time(),
+            "service": service_info,
+            "cache_devices": len(cache_statuses),
+            "cache_statuses": cache_statuses,
+            "comparison": comparison
+        }
+        
+        return jsonify(debug_data)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

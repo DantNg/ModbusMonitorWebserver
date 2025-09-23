@@ -8,6 +8,7 @@ from modbus_monitor.services.modbus_service import ModbusService
 from modbus_monitor.services.alarm_service import AlarmService
 from modbus_monitor.services.datalogger_service import DataLoggerService
 from modbus_monitor.services.value_parser_service import ValueParserService
+from modbus_monitor.services.device_sync_service import start_device_sync_service, stop_device_sync_service, get_device_sync_service
 
 # Singleton đơn giản
 from typing import Optional
@@ -64,6 +65,10 @@ def start_services():
         print("💾 Starting DBWriter (Legacy)...")
         _writer = DBWriter(_dbq)
         
+        # Start Device Sync Service - đồng bộ mỗi 10 giây
+        print("🔄 Starting DeviceSyncService (MySQL sync every 10s)...")
+        start_device_sync_service(sync_interval=10)
+        
         # Start all services
         _writer.start()
         _modbus.start()      # Starts Modbus readers (producers)
@@ -73,7 +78,7 @@ def start_services():
         
         _started = True
         print("✅ All services started successfully with queue-based architecture!")
-        print("🏗️ Architecture: Modbus(Producer) → Queue → Parser(UI) + DataLogger(DB)")
+        print("🏗️ Architecture: Modbus(Producer) → Queue → Parser(UI) + DataLogger(DB) + DeviceSync(MySQL/10s)")
 
 def stop_services():
     global _started, _cache, _dbq, _pushq, _writer, _modbus, _alarm, _logger, _parser

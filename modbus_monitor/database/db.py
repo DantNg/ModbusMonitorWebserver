@@ -380,6 +380,140 @@ def update_device_status_by_tag(tag_id,status):
         print(f"No device associated with tag ID {tag_id}.")
         return
     update_device_row(device_id, {"is_online": status, "updated_at": safe_datetime_now()})
+
+def sync_device_status_to_mysql():
+    """
+    Đồng bộ trạng thái device từ config_cache vào MySQL table devices
+    Cập nhật is_online và updated_at cho từng device
+    """
+    try:
+        from modbus_monitor.services.config_cache import get_config_cache
+        config_cache = get_config_cache()
+        
+        # Lấy tất cả device statuses từ config_cache
+        device_statuses = config_cache.get_all_device_statuses()
+        print(f"� Found {len(device_statuses)} devices in config_cache")
+        
+        if not device_statuses:
+            print("⚠️ No devices found in config_cache - skipping sync")
+            return {
+                "success": True,
+                "updated_count": 0,
+                "skipped_count": 0,
+                "total_processed": 0,
+                "message": "No devices to sync"
+            }
+        
+        # Cập nhật MySQL database
+        with init_engine().begin() as con:
+            updated_count = 0
+            skipped_count = 0
+            
+            for device_id, status_info in device_statuses.items():
+                try:
+                    device_status = status_info.get('status', 'unknown')
+                    last_seen = status_info.get('last_seen')
+                    
+                    # Chuyển đổi status từ cache sang is_online boolean
+                    # connected = True, disconnected/unknown = False
+                    is_online = (device_status == 'connected')
+                    
+                    # Cập nhật MySQL table devices
+                    res = con.execute(
+                        update(devices)
+                        .where(devices.c.id == device_id)
+                        .values(
+                            is_online=is_online,
+                            updated_at=safe_datetime_now()
+                        )
+                    )
+                    
+                    if res.rowcount > 0:
+                        updated_count += 1
+                        print(f"✅ Device {device_id}: MySQL synced - {device_status} -> is_online={is_online}")
+                    else:
+                        skipped_count += 1
+                        print(f"⚠️ Device {device_id}: Not found in MySQL table")
+                        
+                except Exception as device_error:
+                    skipped_count += 1
+                    print(f"❌ Error syncing device {device_id}: {device_error}")
+                    continue
+            
+            # Summary log
+            total_processed = len(device_statuses)
+            print(f"📊 MySQL Sync Summary: {updated_count} updated, {skipped_count} skipped, {total_processed} total")
+            
+            return {
+                "success": True,
+                "updated_count": updated_count,
+                "skipped_count": skipped_count,
+                "total_processed": total_processed,
+                "message": f"Sync completed: {updated_count}/{total_processed} devices updated"
+            }
+            
+    except Exception as e:
+        error_msg = f"MySQL device sync failed: {e}"
+        print(f"❌ {error_msg}")
+        return {
+            "success": False,
+            "error": error_msg,
+            "updated_count": 0,
+            "skipped_count": 0,
+            "total_processed": 0
+        }
+
+def get_device_status_comparison():
+    """
+    So sánh trạng thái device giữa config_cache và MySQL database
+    Để debug và kiểm tra sự đồng bộ
+    """
+    try:
+        from modbus_monitor.services.config_cache import get_config_cache
+        config_cache = get_config_cache()
+        
+        # Lấy status từ config_cache
+        cache_statuses = config_cache.get_all_device_statuses()
+        
+        # Lấy status từ MySQL
+        with init_engine().connect() as con:
+            db_devices = con.execute(
+                select(devices.c.id, devices.c.name, devices.c.is_online, devices.c.updated_at)
+            ).mappings().all()
+        
+        comparison = []
+        for db_device in db_devices:
+            device_id = db_device['id']
+            cache_status = cache_statuses.get(device_id, {})
+            
+            cache_online = cache_status.get('status') == 'connected' if cache_status else None
+            db_online = db_device['is_online']
+            
+            is_synced = (cache_online == db_online) if cache_online is not None else False
+            
+            comparison.append({
+                "device_id": device_id,
+                "device_name": db_device['name'],
+                "cache_status": cache_status.get('status', 'not_found'),
+                "cache_online": cache_online,
+                "db_online": db_online,
+                "is_synced": is_synced,
+                "db_updated_at": db_device['updated_at']
+            })
+        
+        return {
+            "success": True,
+            "comparison": comparison,
+            "total_devices": len(comparison),
+            "synced_count": sum(1 for item in comparison if item['is_synced']),
+            "unsynced_count": sum(1 for item in comparison if not item['is_synced'])
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 # ---------- TAG ----------
 def get_tag(tag_id: int):
     with init_engine().connect() as con:
