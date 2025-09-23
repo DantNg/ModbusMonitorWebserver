@@ -115,6 +115,17 @@
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
                   {{ tag.value }}
                 </div>
+                <!-- <div class="small text-muted">
+                  Status: 
+                  {% print(tag) %}
+                  {% if tag.device_status == 'connected' %}
+                    <span class="text-success">Connected</span>
+                  {% elif tag.device_status == 'disconnected' %}
+                    <span class="text-danger">Disconnected</span>
+                  {% else %}
+                    <span class="text-secondary">1</span>
+                  {% endif %}
+                  </div> -->
                 <div class="unit position-relative">{% if session.get("role") == "admin" %}<span id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit" style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{% else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
               </div>
               <div class="meter mt-2">
@@ -345,8 +356,7 @@
 <script>
   // Initialize Socket.IO client
   const socket = io();
-
-  console.log('Initializing Socket.IO listeners for subdashboard...');
+  
   // Wrap everything in DOMContentLoaded to ensure buttons exist
   document.addEventListener('DOMContentLoaded', function () {
 
@@ -358,12 +368,9 @@
     // Preserve all existing properties and only add new ones
     const subdashApp = {
       changeGroup: function (groupId) {
-        console.log(`🔄 Changing from group '{{ current_group }}' to group '${groupId}'`);
-
         // Leave current room before navigating
         if (typeof socket !== 'undefined') {
           socket.emit('leave', { room: `subdashboard_{{ subdash.id }}` });
-          console.log(`Left subdashboard room: subdashboard_{{ subdash.id }}`);
         }
 
         // Navigate to new group (this will reload the page)
@@ -375,6 +382,25 @@
     
     // Only assign new functions without overriding existing ones
     Object.assign(window.App, subdashApp);
+
+    // Set meter bar widths immediately based on device_status
+    function initializeMeterBars() {
+      const allMeterBars = document.querySelectorAll('[id^="tag-bar-"]');
+      allMeterBars.forEach(barEl => {
+        const deviceStatus = barEl.getAttribute('data-device-status');
+        // Set width based on device status
+        if (deviceStatus === 'connected') {
+          barEl.style.width = '100%';
+        } else if (deviceStatus === 'disconnected') {
+          barEl.style.width = '0%';
+        } else { // unknown or null
+          barEl.style.width = '0%';
+        }
+      });
+    }
+
+    // Initialize meter bars immediately
+    initializeMeterBars();
 
     const currentSubdashId = "{{ subdash.id }}";
     const currentGroup = "{{ current_group }}";
@@ -890,71 +916,10 @@
   }
 
   // Socket connection variables (global)
-
   let socketConnected = false;
   let pollingInterval = null;
   const currentSubdashId = "{{ subdash.id }}";
   
-  // Timeout tracking for tags
-  const TAG_TIMEOUT_MS = 60000; // 60 seconds
-  const INITIAL_GRACE_PERIOD_MS = 10000; // 10 seconds grace period after page load
-  const tagLastUpdates = new Map(); // tag_id -> last_update_timestamp
-  const tagInitialLoadTime = new Map(); // tag_id -> page_load_timestamp
-  let timeoutCheckInterval = null;
-  const pageLoadTime = Date.now(); // Track when page was loaded
-
-  // Check for timed out tags and reset to 0
-  function checkTagTimeouts() {
-    const now = Date.now();
-    
-    tagLastUpdates.forEach((lastUpdate, tagId) => {
-      const timeSincePageLoad = now - pageLoadTime;
-      const timeSinceLastUpdate = now - lastUpdate;
-      
-      // During initial grace period (10s after page load), keep bars active
-      if (timeSincePageLoad < INITIAL_GRACE_PERIOD_MS) {
-        // console.log(`⏰ Tag ${tagId} in grace period (${timeSincePageLoad/1000}s since page load) - keeping active`);
-        return; // Skip timeout check during grace period
-      }
-      
-      // After grace period, check for actual timeout
-      if (timeSinceLastUpdate > TAG_TIMEOUT_MS) {
-        const valEl = document.getElementById('tag-val-' + tagId);
-        const barEl = document.getElementById('tag-bar-' + tagId);
-        const tsEl = document.getElementById('tag-ts-' + tagId);
-        
-        // Only update if not already timed out to avoid repeated processing
-        if (valEl && valEl.textContent !== 'TIMEOUT') {
-          console.log(`⏰ Tag ${tagId} timeout (${timeSinceLastUpdate/1000}s since last update, ${timeSincePageLoad/1000}s since page load) - resetting`);
-          
-          // Reset value display
-          valEl.textContent = '0';
-          valEl.style.color = '#666';
-          valEl.style.opacity = '0.7';
-          
-          // Turn off progress bar and set device status to unknown/timeout
-          if (barEl) {
-            // Add live-update class for smooth transitions during timeout
-            barEl.classList.add('live-update');
-            barEl.style.width = '0%';
-            barEl.style.background = '#dc3545'; // Red color to indicate timeout (overrides gradient)
-            
-            // Update device status classes to show timeout/unknown
-            barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
-            barEl.classList.add('device-unknown');
-            barEl.setAttribute('data-device-status', 'unknown');
-          }
-          
-          // Update timestamp to show timeout
-          if (tsEl) {
-            tsEl.textContent = 'TIMEOUT';
-            tsEl.style.color = '#dc3545'; // Red color to indicate timeout
-            tsEl.style.fontWeight = 'bold';
-          }
-        }
-      }
-    });
-  }
   // Format value function (matches Python filter)
   function formatValue(value, datatype) {
     
@@ -1007,44 +972,6 @@
     }
   }
 
-  // Initialize all progress bars to active state when page loads (grace period)
-  function initializeProgressBarsOnLoad() {
-    console.log('🚀 Initializing progress bars on page load - 10s grace period started');
-    
-    const allTagBars = document.querySelectorAll('[id^="tag-bar-"]');
-    allTagBars.forEach(barEl => {
-      const tagId = barEl.id.replace('tag-bar-', '');
-      
-      // Set initial active state for all bars during grace period WITHOUT animation
-      // Do NOT add 'live-update' class to avoid CSS transitions during initial load
-      barEl.style.width = "100%";
-      barEl.style.background = ''; // Use CSS gradient
-      barEl.style.backgroundColor = '';
-      
-      // Set initial device status as connected during grace period
-      barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
-      barEl.classList.add('device-connected');
-      barEl.setAttribute('data-device-status', 'connected');
-      
-      console.log(`📶 Tag ${tagId}: Initialized as active during grace period (no animation)`);
-    });
-    
-    // After grace period, check if any tags haven't received updates
-    setTimeout(() => {
-      console.log('⏰ Grace period ended - checking for tags without updates');
-      
-      // Enable animations for all progress bars after grace period
-      const allTagBars = document.querySelectorAll('[id^="tag-bar-"]');
-      allTagBars.forEach(barEl => {
-        barEl.classList.add('live-update'); // Now enable animations
-      });
-      console.log('🎬 Progress bar animations enabled after grace period');
-      
-      checkTagTimeouts(); // Force timeout check after grace period
-    }, INITIAL_GRACE_PERIOD_MS);
-  }
-
-
   // Real-time socket listener for modbus updates (immediate connection)
   if (typeof socket !== 'undefined') {
     socket.on("modbus_update", function (data) {
@@ -1063,8 +990,6 @@
       // Update device status first (affects all tags from this device)
       const deviceStatus = data.status || data.ok ? 'connected' : 'disconnected';
       const deviceId = data.device_id || `dev${data.device_id}`;
-      
-      console.log(`🔌 Device ${data.device_name || deviceId}: Status = ${deviceStatus}`);
 
       // Process individual tag updates if available
       if (data.tags && Array.isArray(data.tags)) {
@@ -1086,23 +1011,19 @@
         // Apply all updates in a single batch
         updates.forEach(({ valEl, newVal, oldVal, tag }) => {
           valEl.textContent = newVal;
-          // Track last update time for timeout detection
-          tagLastUpdates.set(tag.id, Date.now());
           
-          // Reset visual styling (remove timeout indicators)
+          
+          // Reset visual styling
           valEl.style.color = '';
           valEl.style.opacity = '';
           
-          // Update timestamp and reset timeout styling
+          // Update timestamp
           const tsEl = document.getElementById('tag-ts-' + tag.id);
           if (tsEl && tag.ts) {
             tsEl.textContent = tag.ts;
             tsEl.style.color = '';
             tsEl.style.fontWeight = '';
           }
-          
-          // Debug: Log value change
-          console.log(`📊 Tag ${tag.id} (${tag.name || 'unknown'}): Value changed ${oldVal} → ${newVal}`);
         });
 
         // For tags that received updates but values didn't change, 
@@ -1114,13 +1035,8 @@
           const oldVal = valEl.textContent;
           const newVal = formatValue(tag.value, tag.datatype);
           
-          // If value didn't change but we got an update, just update timestamp quietly
+          // If value didn't change but we got an update, just update timestamp
           if (oldVal === newVal) {
-            // Track last update time for timeout detection
-            tagLastUpdates.set(tag.id, Date.now());
-            
-            // Debug: Log when value stays the same
-            console.log(`🔄 Tag ${tag.id}: Value unchanged (${newVal}), updating timestamp only`);
             
             // Update timestamp only
             const tsEl = document.getElementById('tag-ts-' + tag.id);
@@ -1138,54 +1054,31 @@
       }
 
       // Update progress bars for ALL tags from this device based on device status
-      // This happens regardless of individual tag value changes
       const allTagsFromDevice = document.querySelectorAll('[id^="tag-bar-"]');
       allTagsFromDevice.forEach(barEl => {
         const tagId = barEl.id.replace('tag-bar-', '');
-        const valEl = document.getElementById('tag-val-' + tagId);
         
         // Check if this tag belongs to the device that sent the update
-        // We can identify this by checking if the tag received an update in this message
         const tagInUpdate = data.tags && data.tags.some(tag => tag.id == tagId);
         
         if (tagInUpdate) {
-          // Check if we're still in grace period
-          const timeSincePageLoad = Date.now() - pageLoadTime;
-          const inGracePeriod = timeSincePageLoad < INITIAL_GRACE_PERIOD_MS;
           
-          if (inGracePeriod) {
-            // During grace period, keep bars active and just update last update time
-            tagLastUpdates.set(parseInt(tagId), Date.now());
-            console.log(`⏳ Tag ${tagId}: In grace period (${(timeSincePageLoad/1000).toFixed(1)}s) - keeping bar active, got update from device`);
-            return; // Skip device status-based bar updates during grace period
-          }
-          
-          // After grace period, update progress bar based on device status, not value change
-          // Only add animation class if not in grace period
-          barEl.classList.add('live-update'); // Add animation after grace period
-          
+          // Update progress bar based on device status immediately
           if (deviceStatus === 'connected') {
             barEl.style.width = "100%";
-            barEl.style.background = ''; // Use CSS gradient
-            barEl.style.backgroundColor = '';
-            
-            // Update CSS classes for device status
             barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
             barEl.classList.add('device-connected');
             barEl.setAttribute('data-device-status', 'connected');
-            
-            console.log(`📶 Tag ${tagId}: Device connected - progress bar ON`);
-          } else {
+          } else if (deviceStatus === 'disconnected') {
             barEl.style.width = "0%";
-            barEl.style.background = '#dc3545'; // Red for disconnected
-            barEl.style.backgroundColor = '#dc3545';
-            
-            // Update CSS classes for device status
             barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
             barEl.classList.add('device-disconnected');
             barEl.setAttribute('data-device-status', 'disconnected');
-            
-            console.log(`📵 Tag ${tagId}: Device disconnected - progress bar OFF`);
+          } else {
+            barEl.style.width = "0%";
+            barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
+            barEl.classList.add('device-unknown');
+            barEl.setAttribute('data-device-status', 'unknown');
           }
         }
       });
@@ -1194,8 +1087,6 @@
 
     // Listen for alarm events from subdashboard tags
     socket.on('alarm_event', function (data) {
-      console.log('Received alarm event in subdash:', data);
-
       // Only show notifications for tags that belong to current subdashboard
       if (window.NotificationSystem) {
         window.NotificationSystem.addNotification({
@@ -1223,7 +1114,6 @@
 
     // Join subdashboard room for targeted updates
     socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
-    console.log(`Joined room: subdashboard_${currentSubdashId}`);
     
     // Initialize tag tracking and start timeout checker
     document.querySelectorAll('[id^="tag-val-"]').forEach(el => {
@@ -1231,31 +1121,18 @@
       tagLastUpdates.set(parseInt(tagId), pageLoadTime); // Set initial time to page load time
       tagInitialLoadTime.set(parseInt(tagId), pageLoadTime);
     });
-    
-    // Initialize all progress bars to active state on page load (grace period)
-    initializeProgressBarsOnLoad();
-    
-    // Start timeout checking interval - check every 5 seconds for faster response
-    timeoutCheckInterval = setInterval(checkTagTimeouts, 5000); // Check every 5 seconds
-    console.log('✅ Tag timeout monitoring started (60s timeout, 10s grace period, checked every 5s)');
 
     // Handle reconnection - rejoin room
     socket.on('connect', function () {
-      console.log('Socket reconnected, rejoining room...');
       socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
       socketConnected = false; // Reset flag to redetect updates
     });
 
     socket.on('disconnect', function () {
-      console.log('Socket disconnected');
       socketConnected = false;
-      
-      // Stop timeout checking when disconnected
-      if (timeoutCheckInterval) {
-        clearInterval(timeoutCheckInterval);
-        timeoutCheckInterval = null;
-      }
     });
+    
+    
   } else {
     console.warn('Socket not available, falling back to polling only');
   }
@@ -1279,9 +1156,6 @@
 
   // Cleanup on page unload
   window.addEventListener('beforeunload', function() {
-    if (timeoutCheckInterval) {
-      clearInterval(timeoutCheckInterval);
-    }
     if (pollingInterval) {
       clearInterval(pollingInterval);
     }

@@ -38,53 +38,45 @@ def add_subdash():
 def subdash_detail(sid):
     from flask import make_response
     from modbus_monitor.services.config_cache import get_config_cache
-    
+
+    # Fetch subdashboard, tags, and all tags
     subdash = db.get_subdashboard(sid) if hasattr(db, "get_subdashboard") else {"id": sid, "name": "Demo"}
     tags = db.get_subdashboard_tags(sid) if hasattr(db, "get_subdashboard_tags") else []
     all_tags = db.list_all_tags() if hasattr(db, "list_all_tags") else []
-    
-    # Add device status to each tag
+
     config_cache = get_config_cache()
-    for tag in tags:
+
+    def enrich_tag(tag):
         device_id = tag.get('device_id')
         if device_id:
-            device_status = config_cache.get_device_status(device_id)
-            tag['device_status'] = device_status.get('status', 'unknown') if device_status else 'unknown'
-            tag['device_last_seen'] = device_status.get('last_seen') if device_status else None
+            device_status = config_cache.get_device_status(device_id) or {}
+            tag['device_status'] = device_status.get('status', 'unknown')
+            tag['device_last_seen'] = device_status.get('last_seen')
         else:
             tag['device_status'] = 'unknown'
             tag['device_last_seen'] = None
-    
-    # Debug logging
-    # print(f"Subdash {sid}: Found {len(tags)} tags")
-    # for tag in tags[:5]:  # Show first 5 tags
-    #     print(f"  Tag {tag.get('id')}: {tag.get('tag_name')} - {tag.get('device_name')}")
-    
-    # Get groups for this specific subdashboard
-    if hasattr(db, "list_subdash_groups_for_dashboard"):
-        groups = [dict(g) for g in db.list_subdash_groups_for_dashboard(sid)]
-    else:
-        groups = []
-    
-    # Handle group filtering
-    current_group = request.args.get('group', '__all__')
-    
-    # print("G: ",groups)
+        if tag.get('device_status') == 'disconnected':
+            tag['value'] = 0
+        return tag
+
+    tags = [enrich_tag(tag) for tag in tags]
+
+    # Get groups for this subdashboard
+    groups = [dict(g) for g in db.list_subdash_groups_for_dashboard(sid)] if hasattr(db, "list_subdash_groups_for_dashboard") else []
     for g in groups:
-        g["tags"] = db.get_tags_of_group(g["id"])
-    
-    # Render template and add selective cache headers
-    response = make_response(render_template("subdashboards/detail.html", 
-                         subdash=subdash, 
-                         tags=tags, 
-                         all_tags=all_tags, 
-                         groups=groups,
-                         current_group=current_group))
-    
-    # Disable caching for dynamic content only, not JavaScript/CSS
+        g["tags"] = [enrich_tag(tag) for tag in db.get_tags_of_group(g["id"])]
+
+    current_group = request.args.get('group', '__all__')
+
+    response = make_response(render_template(
+        "subdashboards/detail.html",
+        subdash=subdash,
+        all_tags=all_tags,
+        groups=groups,
+        current_group=current_group
+    ))
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['Pragma'] = 'no-cache'
-    
     return response
 
 @subdash_bp.route("/<int:sid>/add_tag", methods=["POST"])

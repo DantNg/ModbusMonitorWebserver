@@ -51,7 +51,9 @@ class DeviceConfig:
             read_interval_ms=int(row.get("read_interval_ms", 1000)) if row.get("read_interval_ms") is not None else 1000,
             default_function_code=int(row.get("default_function_code", 3)) if row.get("default_function_code") is not None else 3,
             byte_order=row.get("byte_order", "BigEndian"),
-            word_order=row.get("word_order", "AB")
+            word_order=row.get("word_order", "AB"),
+            status="connected" if row.get("is_online") else "disconnected",  # Map is_online to status
+            last_seen=row.get("last_seen")  # Load last_seen from DB if available
         )
 
 @dataclass 
