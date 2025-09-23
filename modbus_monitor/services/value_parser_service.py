@@ -171,7 +171,11 @@ class ValueParserService:
             
             # Handle multi-register values (list)
             elif isinstance(raw_val, list):
-                val = self._parse_multi_register(raw_val, datatype)
+                # Special case: hex/binary với 1 register
+                if len(raw_val) == 1 and datatype in ("hex", "hexadecimal", "binary", "bin"):
+                    val = self._parse_single_register(raw_val[0], datatype)
+                else:
+                    val = self._parse_multi_register(raw_val, datatype, raw_value)
             
             else:
                 logger.warning(f"Unknown raw value type: {type(raw_val)}")
@@ -189,7 +193,7 @@ class ValueParserService:
             return None
     
     def _parse_single_register(self, raw_val: int, datatype: str) -> Optional[float]:
-        """Parse single 16-bit register value"""
+        """Parse single 16-bit register value with enhanced datatype support"""
         
         if datatype in ("signed", "short", "int16"):
             # 16-bit signed
@@ -198,63 +202,112 @@ class ValueParserService:
             else:
                 return float(raw_val)
         
-        elif datatype in ("unsigned", "word", "uint16", "ushort", "hex", "raw"):
+        elif datatype in ("unsigned", "word", "uint16", "ushort"):
             # 16-bit unsigned
+            return float(raw_val)
+        
+        elif datatype in ("hex", "hexadecimal"):
+            # Hex representation - return as string converted to float
+            # Store hex string in format that can be converted back
+            # For UI display, we'll need special handling
+            return float(raw_val)  # Keep numeric value, UI can format as hex
+        
+        elif datatype in ("binary", "bin"):
+            # Binary representation - return as numeric value
+            # UI can format as binary display
             return float(raw_val)
         
         elif datatype in ("bit", "bool", "boolean"):
             # Boolean
             return float(1 if raw_val else 0)
         
+        elif datatype in ("raw"):
+            # Raw value
+            return float(raw_val)
+        
         else:
             # Default to unsigned
             return float(raw_val)
     
-    def _parse_multi_register(self, raw_val: List[int], datatype: str) -> Optional[float]:
-        """Parse multi-register values (32-bit, 64-bit)"""
+    def _parse_multi_register(self, raw_val: List[int], datatype: str, raw_value: RawModbusValue) -> Optional[float]:
+        """Parse multi-register values (32-bit, 64-bit) with enhanced datatype support"""
         
         if len(raw_val) < 2:
             return None
         
         try:
+            # Get word and byte order from device config
+            word_order = getattr(raw_value, 'word_order', 'BA')
+            byte_order = getattr(raw_value, 'byte_order', 'BigEndian')
+            
+            # FLOAT TYPES
             if datatype in ("float", "float32", "real"):
-                # 32-bit IEEE754 float - standard word order
-                return self._parse_float32(raw_val[0], raw_val[1], word_order="AB")
+                # Float: Default BA word order
+                return self._parse_float32(raw_val[0], raw_val[1], 
+                                         word_order='BA', 
+                                         byte_order='BigEndian')
             
-            elif datatype in ("float_inverse", "floatinverse", "float-inverse"):
-                # 32-bit IEEE754 float - inverse word order
-                return self._parse_float32(raw_val[0], raw_val[1], word_order="BA")
+            elif datatype in ("invert_float", "float_inverse", "floatinverse", "float-inverse"):
+                # Invert Float: Default AB word order
+                return self._parse_float32(raw_val[0], raw_val[1], 
+                                         word_order='AB', 
+                                         byte_order='BigEndian')
             
+            # DOUBLE TYPES
+            elif datatype in ("double", "double64", "float64") and len(raw_val) >= 4:
+                # Double: Default DCBA word order (like BA for float)
+                return self._parse_float64(raw_val[:4], word_order='DCBA', byte_order=byte_order)
+            
+            elif datatype in ("invert_double", "double_inverse", "doubleinverse") and len(raw_val) >= 4:
+                # Invert Double: Default ABCD word order (like AB for invert_float)
+                return self._parse_float64(raw_val[:4], word_order='ABCD', byte_order=byte_order)
+            
+            # LONG/INTEGER TYPES  
+            elif datatype in ("long", "int32", "dint", "signed_long"):
+                # Long: AB word order, signed (đã test và xác nhận với invert_long)
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order='AB', signed=True))
+            
+            elif datatype in ("invert_long", "long_inverse", "longinverse"):
+                # Invert Long: BA word order, signed
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order='BA', signed=True))
+            
+            elif datatype in ("ulong", "uint32", "dword", "udint", "unsigned_long"):
+                # Unsigned Long: AB word order (đã test và xác nhận với invert_ulong)
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order='AB', signed=False))
+            
+            elif datatype in ("invert_ulong", "ulong_inverse", "ulonginverse"):
+                # Invert Unsigned Long: BA word order
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order='BA', signed=False))
+            
+            # LEGACY SUPPORT
             elif datatype in ("dword", "uint32", "udint"):
-                # 32-bit unsigned integer
-                return float(self._parse_uint32(raw_val[0], raw_val[1]))
+                # Legacy 32-bit unsigned integer
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order=word_order, signed=False))
             
             elif datatype in ("dint", "int32", "int"):
-                # 32-bit signed integer
-                uint_val = self._parse_uint32(raw_val[0], raw_val[1])
-                if uint_val > 2147483647:
-                    return float(uint_val - 4294967296)
-                else:
-                    return float(uint_val)
+                # Legacy 32-bit signed integer
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order=word_order, signed=True))
             
-            elif datatype in ("long_inverse", "longinverse"):
-                # 32-bit with inverse word order
-                return float(self._parse_uint32(raw_val[1], raw_val[0]))
+            # HEX/BINARY - treat as single register
+            elif datatype in ("hex", "hexadecimal"):
+                # Hex representation - use first register
+                return float(raw_val[0])
             
-            elif datatype in ("double", "double_inverse") and len(raw_val) >= 4:
-                # 64-bit double (requires 4 registers)
-                return self._parse_float64(raw_val, datatype)
+            elif datatype in ("binary", "bin"):
+                # Binary representation - use first register  
+                return float(raw_val[0])
             
             else:
                 # Default: treat as 32-bit unsigned
-                return float(self._parse_uint32(raw_val[0], raw_val[1]))
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order=word_order, signed=False))
                 
         except Exception as e:
             logger.error(f"Error parsing multi-register value {raw_val} as {datatype}: {e}")
             return None
     
-    def _parse_float32(self, reg1: int, reg2: int, word_order: str = "AB") -> float:
+    def _parse_float32(self, reg1: int, reg2: int, word_order: str = "AB", byte_order: str = "BigEndian") -> float:
         """Parse 32-bit IEEE754 float from 2 registers"""
+        
         if word_order == "AB":
             # Standard order: reg1 is high word, reg2 is low word
             w1, w2 = reg1, reg2
@@ -262,40 +315,81 @@ class ValueParserService:
             # Inverse order: reg2 is high word, reg1 is low word  
             w1, w2 = reg2, reg1
         
-        # Pack to bytes (big endian)
+        # Pack to bytes (big endian for each word)
         b1 = w1.to_bytes(2, "big")
         b2 = w2.to_bytes(2, "big")
         b = b1 + b2
         
-        # Unpack as float
-        return struct.unpack(">f", b)[0]
+        # Apply byte order within words if needed
+        if byte_order == "LittleEndian":
+            # Swap bytes within each word: [b0,b1,b2,b3] -> [b1,b0,b3,b2]
+            b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
+        
+        # Unpack as big-endian float
+        result = struct.unpack(">f", b)[0]
+        
+        return result
     
     def _parse_uint32(self, reg1: int, reg2: int) -> int:
         """Parse 32-bit unsigned integer from 2 registers (AB word order)"""
         return (reg1 << 16) | reg2
     
-    def _parse_float64(self, regs: List[int], datatype: str) -> float:
-        """Parse 64-bit double from 4 registers"""
+    def _parse_float64(self, regs: List[int], word_order: str = 'ABCD', byte_order: str = 'BigEndian') -> float:
+        """Parse 64-bit double from 4 registers with enhanced word/byte order support"""
         if len(regs) < 4:
             return math.nan
         
         try:
-            if "inverse" in datatype:
-                # Inverse word order
+            # Apply word order
+            if word_order == 'DCBA':
+                # Reverse word order for invert_double
                 words = [regs[3], regs[2], regs[1], regs[0]]
             else:
-                # Normal word order
+                # Normal ABCD order
                 words = regs[:4]
             
-            # Pack to bytes
-            b = b"".join(w.to_bytes(2, "big") for w in words)
+            # Pack words to bytes
+            bytes_data = b''
+            for word in words:
+                word_bytes = word.to_bytes(2, "big")
+                if byte_order == "LittleEndian":
+                    # Swap bytes within word
+                    word_bytes = word_bytes[1:2] + word_bytes[0:1]
+                bytes_data += word_bytes
             
-            # Unpack as double
-            return struct.unpack(">d", b)[0]
+            # Unpack as IEEE754 double
+            result = struct.unpack(">d", bytes_data)[0]
+            
+            return result
             
         except Exception as e:
             logger.error(f"Error parsing float64: {e}")
             return math.nan
+    
+    def _parse_int32(self, reg1: int, reg2: int, word_order: str = 'AB', signed: bool = True) -> int:
+        """Parse 32-bit integer with word order support"""
+        
+        try:
+            # Apply word order
+            if word_order == 'BA':
+                high_word, low_word = reg2, reg1
+            else:  # AB
+                high_word, low_word = reg1, reg2
+            
+            # Combine words
+            value = (high_word << 16) | low_word
+            
+            # Handle signed/unsigned
+            if signed and value & 0x80000000:  # Check MSB for negative
+                result = value - 0x100000000
+            else:
+                result = value
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error parsing int32: {e}")
+            return 0
     
     def _emit_parsed_results(self, device_results: Dict[int, Dict[str, Any]]):
         """Emit parsed results grouped by device"""

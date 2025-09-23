@@ -144,15 +144,68 @@ class SimpleDeviceReader:
                 if offset + 1 >= len(regs):
                     return None
                 lo, hi = regs[offset], regs[offset+1]
-                w1, w2 = (hi, lo) if self.word_order == "AB" else (lo, hi)
-                b = w1.to_bytes(2, "big") + w2.to_bytes(2, "big")
+                
+                # Apply word order (AB = high word first, BA = low word first)
+                w1, w2 = (hi, lo) if (self.word_order or "AB") == "AB" else (lo, hi)
+                
+                # Pack words into bytes
+                b1 = w1.to_bytes(2, "big")  # Big endian for each word
+                b2 = w2.to_bytes(2, "big")
+                b = b1 + b2
+                
+                # Apply byte order within words if needed
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    # Swap bytes within each word: [b0,b1,b2,b3] -> [b1,b0,b3,b2]
+                    b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
+                
+                # Unpack as big-endian float
                 val = struct.unpack(">f", b)[0]
+                
+            elif name in ("float_inverse", "floatinverse", "float-inverse"):
+                if offset + 1 >= len(regs):
+                    return None
+                lo, hi = regs[offset], regs[offset+1]
+                
+                # Force inverse word order for this datatype
+                w1, w2 = (lo, hi)  # Opposite of normal AB order
+                
+                # Pack words into bytes
+                b1 = w1.to_bytes(2, "big")
+                b2 = w2.to_bytes(2, "big")
+                b = b1 + b2
+                
+                # Apply byte order
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
+                
+                val = struct.unpack(">f", b)[0]
+                print(f"🔍 Float_inverse decode: lo={lo:04X}, hi={hi:04X}, bytes={b.hex()}, result={val}")
+                
+            elif name in ("dword", "uint32", "udint"):
+                if offset + 1 >= len(regs):
+                    return None
+                lo, hi = regs[offset], regs[offset+1]
+                # 32-bit unsigned integer
+                val = (hi << 16) | lo if (self.word_order or "AB") == "AB" else (lo << 16) | hi
+                
+            elif name in ("dint", "int32", "int"):
+                if offset + 1 >= len(regs):
+                    return None
+                lo, hi = regs[offset], regs[offset+1]
+                # 32-bit signed integer
+                u32 = (hi << 16) | lo if (self.word_order or "AB") == "AB" else (lo << 16) | hi
+                if u32 >= 2147483648:  # 2^31
+                    val = u32 - 4294967296  # 2^32
+                else:
+                    val = u32
+                    
             else:
                 val = regs[offset]  # Default to unsigned
             
             return val * scale + offs
             
-        except Exception:
+        except Exception as e:
+            print(f"❌ Extract error for datatype {datatype}: {e}")
             return None
 
     def loop_once(self):

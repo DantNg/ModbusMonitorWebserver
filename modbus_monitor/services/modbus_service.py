@@ -436,14 +436,23 @@ class _DeviceReader:
         def _two_words():
             if offset + 1 >= len(regs) or regs[offset + 1] is None:
                 return None, None, None
-            lo, hi = regs[offset], regs[offset+1]
-            # word order: AB = hi->lo, BA = lo->hi
-            w1, w2 = (hi, lo) if (self.word_order or "AB") == "AB" else (lo, hi)
-            b = w1.to_bytes(2, "big") + w2.to_bytes(2, "big")
-            # byte order trong từng word
+            reg1, reg2 = regs[offset], regs[offset+1]
+            
+            # word order: AB = reg1 is high word, reg2 is low word
+            #            BA = reg1 is low word, reg2 is high word  
+            if (self.word_order or "AB") == "AB":
+                high_word, low_word = reg1, reg2  # AB: first reg is high word
+            else:
+                high_word, low_word = reg2, reg1  # BA: first reg is low word
+                
+            # Pack high word first, then low word (standard IEEE754 layout)
+            b = high_word.to_bytes(2, "big") + low_word.to_bytes(2, "big")
+            
+            # byte order swap within each word if needed
             if (self.byte_order or "BigEndian") == "LittleEndian":
                 b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
-            return lo, hi, b
+                
+            return reg1, reg2, b
 
         def _four_words():
             """Helper for 64-bit datatypes (Double, Long)"""
@@ -486,22 +495,28 @@ class _DeviceReader:
             elif name in ("hex", "raw"):
                 val = regs[offset]  # Same as unsigned but UI might display differently
 
-            # Float (32-bit IEEE754)
+            # Float (32-bit IEEE754) - default AB word order
             elif name in ("float", "float32", "real"):
-                print("Decoding float at offset", offset, "with regs:", regs)
-                lo, hi, b = _two_words()
-                if b is None:
-                    return math.nan
-                val = float(struct.unpack(">f", b)[0])
-
-            # Float_inverse (32-bit IEEE754 with inverse word order)
-            elif name in ("float_inverse", "floatinverse", "float-inverse"):
                 if offset + 1 >= len(regs) or regs[offset + 1] is None:
                     return math.nan
-                lo, hi = regs[offset], regs[offset+1]
-                # Force inverse word order for this datatype
-                w1, w2 = (lo, hi)  # Opposite of normal AB order
-                b = w1.to_bytes(2, "big") + w2.to_bytes(2, "big")
+                reg1, reg2 = regs[offset], regs[offset+1]
+                # Default AB word order for standard float (reg1=high, reg2=low)
+                high_word, low_word = reg1, reg2
+                    
+                b = high_word.to_bytes(2, "big") + low_word.to_bytes(2, "big")
+                if (self.byte_order or "BigEndian") == "LittleEndian":
+                    b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
+                val = float(struct.unpack(">f", b)[0])
+
+            # Invert Float (32-bit IEEE754) - default BA word order
+            elif name in ("invert_float", "float_inverse", "floatinverse", "float-inverse"):
+                if offset + 1 >= len(regs) or regs[offset + 1] is None:
+                    return math.nan
+                reg1, reg2 = regs[offset], regs[offset+1]
+                # Default BA word order for invert float (reg2=high, reg1=low)
+                high_word, low_word = reg2, reg1
+                    
+                b = high_word.to_bytes(2, "big") + low_word.to_bytes(2, "big")
                 if (self.byte_order or "BigEndian") == "LittleEndian":
                     b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
                 val = float(struct.unpack(">f", b)[0])
@@ -510,18 +525,63 @@ class _DeviceReader:
             elif name in ("binary", "bit", "bool", "boolean"):
                 val = 1 if regs[offset] != 0 else 0
 
-            # Double (64-bit IEEE754)
-            elif name in ("double", "float64"):
-                b = _four_words()
-                if b is None:
+            # Long (32-bit signed integer) - AB word order
+            elif name in ("long", "int32", "dint", "signed_long"):
+                reg1, reg2, b = _two_words()
+                if reg1 is None or reg2 is None:
                     return math.nan
-                val = float(struct.unpack(">d", b)[0])
+                # Use word order for 32-bit signed
+                if (self.word_order or "AB") == "AB":
+                    u32 = (reg1 << 16) | reg2  # AB: reg1=high, reg2=low
+                else:
+                    u32 = (reg2 << 16) | reg1  # BA: reg2=high, reg1=low
+                # Convert to signed
+                val = u32 if u32 <= 2147483647 else u32 - 4294967296
 
-            # Double_inverse (64-bit IEEE754 with inverse word order)
-            elif name in ("double_inverse", "doubleinverse", "double-inverse"):
+            # Invert Long (32-bit signed integer) - BA word order  
+            elif name in ("invert_long", "long_inverse", "longinverse", "long-inverse"):
+                if offset + 1 >= len(regs) or regs[offset + 1] is None:
+                    return math.nan
+                reg1, reg2 = regs[offset], regs[offset+1]
+                # Force opposite word order
+                if (self.word_order or "AB") == "AB":
+                    # Device normally AB, so invert means BA: reg2=high, reg1=low
+                    u32 = (reg2 << 16) | reg1
+                else:
+                    # Device normally BA, so invert means AB: reg1=high, reg2=low
+                    u32 = (reg1 << 16) | reg2
+                # Convert to signed
+                val = u32 if u32 <= 2147483647 else u32 - 4294967296
+
+            # ULong (32-bit unsigned integer) - AB word order
+            elif name in ("ulong", "uint32", "dword", "udint", "unsigned_long"):
+                reg1, reg2, b = _two_words()
+                if reg1 is None or reg2 is None:
+                    return math.nan
+                # Use word order for 32-bit unsigned
+                if (self.word_order or "AB") == "AB":
+                    val = (reg1 << 16) | reg2  # AB: reg1=high, reg2=low
+                else:
+                    val = (reg2 << 16) | reg1  # BA: reg2=high, reg1=low
+
+            # Invert ULong (32-bit unsigned integer) - BA word order
+            elif name in ("invert_ulong", "ulong_inverse", "ulonginverse", "ulong-inverse"):
+                if offset + 1 >= len(regs) or regs[offset + 1] is None:
+                    return math.nan
+                reg1, reg2 = regs[offset], regs[offset+1]
+                # Force opposite word order
+                if (self.word_order or "AB") == "AB":
+                    # Device normally AB, so invert means BA: reg2=high, reg1=low
+                    val = (reg2 << 16) | reg1
+                else:
+                    # Device normally BA, so invert means AB: reg1=high, reg2=low
+                    val = (reg1 << 16) | reg2
+
+            # Double (64-bit IEEE754) - default DCBA word order (like BA for float)
+            elif name in ("double", "float64", "double64"):
                 if offset + 3 >= len(regs) or any(regs[offset + i] is None for i in range(4)):
                     return math.nan
-                # Force inverse word order
+                # Default DCBA word order for standard double (reverse of ABCD)
                 words = [regs[offset + i] for i in range(4)]
                 b = words[3].to_bytes(2, "big") + words[2].to_bytes(2, "big") + words[1].to_bytes(2, "big") + words[0].to_bytes(2, "big")
                 if (self.byte_order or "BigEndian") == "LittleEndian":
@@ -531,47 +591,21 @@ class _DeviceReader:
                     b = result
                 val = float(struct.unpack(">d", b)[0])
 
-            # Long (64-bit signed integer)
-            elif name in ("long", "int64"):
-                b = _four_words()
-                if b is None:
-                    return math.nan
-                val = struct.unpack(">q", b)[0]  # signed 64-bit
-
-            # Long_inverse (64-bit signed integer with inverse word order)
-            elif name in ("long_inverse", "longinverse", "long-inverse"):
+            # Invert Double (64-bit IEEE754) - default ABCD word order  
+            elif name in ("invert_double", "double_inverse", "doubleinverse", "double-inverse"):
                 if offset + 3 >= len(regs) or any(regs[offset + i] is None for i in range(4)):
                     return math.nan
-                # Force inverse word order
+                # Default ABCD word order for invert double (normal order)
                 words = [regs[offset + i] for i in range(4)]
-                b = words[3].to_bytes(2, "big") + words[2].to_bytes(2, "big") + words[1].to_bytes(2, "big") + words[0].to_bytes(2, "big")
+                b = words[0].to_bytes(2, "big") + words[1].to_bytes(2, "big") + words[2].to_bytes(2, "big") + words[3].to_bytes(2, "big")
                 if (self.byte_order or "BigEndian") == "LittleEndian":
                     result = b""
                     for i in range(0, 8, 2):
                         result += b[i+1:i+2] + b[i:i+1]
                     b = result
-                val = struct.unpack(">q", b)[0]  # signed 64-bit
+                val = float(struct.unpack(">d", b)[0])
 
             # === Legacy aliases for backward compatibility ===
-            
-            # 32-bit unsigned
-            elif name in ("dword", "uint32", "udint"):
-                lo, hi, b = _two_words()
-                if lo is None or hi is None:
-                    return math.nan
-                u32 = (hi << 16) | lo if (self.word_order or "AB") == "AB" else (lo << 16) | hi
-                val = u32
-
-            # 32-bit signed
-            elif name.lower() in ("dint", "int32", "int"):
-                lo, hi, b = _two_words()
-                if lo is None or hi is None:
-                    return math.nan
-                u32 = (hi << 16) | lo if (self.word_order or "AB") == "AB" else (lo << 16) | hi
-                if u32 >= 2147483648:  # 2^31
-                    val = u32 - 4294967296  # 2^32
-                else:
-                    val = u32
 
             else:
                 # Datatype chưa biết → trả NaN để UI thấy rõ
@@ -588,8 +622,10 @@ class _DeviceReader:
             # Else: giữ nguyên val (có thể là int)
 
             # Nếu là float/double/real thì luôn trả về float
-            if name in ("float", "float32", "real", "float_inverse", "floatinverse", "float-inverse", 
-                       "double", "float64", "double_inverse", "doubleinverse", "double-inverse"):
+            if name in ("float", "float32", "real", 
+                       "invert_float", "float_inverse", "floatinverse", "float-inverse", 
+                       "double", "float64", "double64",
+                       "invert_double", "double_inverse", "doubleinverse", "double-inverse"):
                 rounded_val = round(val, 6)  # More precision for double
                 if rounded_val == 0.0:
                     rounded_val = 0.0
@@ -597,7 +633,9 @@ class _DeviceReader:
 
             # Nếu là kiểu số nguyên
             if name in ("signed", "unsigned", "word", "uint16", "ushort", "short", "int16", "hex", "raw",
-                       "dword", "uint32", "udint", "dint", "int32", "int", "long", "int64"):
+                       "dword", "uint32", "udint", "dint", "int32", "int", 
+                       "long", "signed_long", "invert_long", "long_inverse", "longinverse", "long-inverse",
+                       "ulong", "unsigned_long", "invert_ulong", "ulong_inverse", "ulonginverse", "ulong-inverse"):
                 # Nếu val vẫn là int và chưa bị modify bởi scale/offset
                 if isinstance(val, int):
                     return val
@@ -955,7 +993,9 @@ class _DeviceReader:
                                 data_type=tag.datatype,
                                 scale=tag.scale,
                                 offset=tag.offset,
-                                unit=tag.unit  # Now TagConfig has unit field
+                                unit=tag.unit,  # Now TagConfig has unit field
+                                byte_order=self.device_config.byte_order or "BigEndian",
+                                word_order=self.device_config.word_order or "AB"
                             )
                             
                             raw_values_batch.append(raw_modbus_value)

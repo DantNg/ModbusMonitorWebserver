@@ -253,7 +253,9 @@ class RTUComReader:
                             data_type=tag.datatype,
                             scale=tag.scale,
                             offset=tag.offset,
-                            unit=tag.unit
+                            unit=tag.unit,
+                            byte_order=device.byte_order or "BigEndian",
+                            word_order=device.word_order or "AB"
                         ))
                         logger.debug(f"Individual tag {tag.name}: Successfully read value {raw_value}")
                     else:
@@ -328,7 +330,29 @@ class RTUComReader:
                             if not hasattr(result, 'registers') or offset >= len(result.registers):
                                 logger.warning(f"Tag {tag.name}: Offset {offset} out of range for registers (length: {len(result.registers) if hasattr(result, 'registers') else 'N/A'})")
                                 continue
-                            raw_value = result.registers[offset]
+                            
+                            # Determine how many registers this datatype needs
+                            datatype = (tag.datatype or "").strip().lower()
+                            
+                            if datatype in ("float", "float32", "real", "invert_float", "float_inverse", "floatinverse", "float-inverse",
+                                           "dword", "uint32", "udint", "dint", "int32", "int", "long", "invert_long", "long_inverse", "longinverse", "long-inverse",
+                                           "ulong", "invert_ulong", "ulong_inverse", "ulonginverse", "ulong-inverse"):
+                                # 32-bit values need 2 registers
+                                if offset + 1 < len(result.registers):
+                                    raw_value = [result.registers[offset], result.registers[offset + 1]]
+                                else:
+                                    logger.warning(f"Tag {tag.name}: Not enough registers for 32-bit datatype {datatype} (need 2, available: {len(result.registers) - offset})")
+                                    continue
+                            elif datatype in ("double", "double64", "float64", "invert_double", "double_inverse", "doubleinverse", "double-inverse"):
+                                # 64-bit values need 4 registers
+                                if offset + 3 < len(result.registers):
+                                    raw_value = [result.registers[offset + i] for i in range(4)]
+                                else:
+                                    logger.warning(f"Tag {tag.name}: Not enough registers for 64-bit datatype {datatype} (need 4, available: {len(result.registers) - offset})")
+                                    continue
+                            else:
+                                # 16-bit values need 1 register (signed, unsigned, hex, binary, etc.)
+                                raw_value = result.registers[offset]
                         
                         raw_values.append(RawModbusValue(
                             device_id=device.id,
@@ -341,7 +365,9 @@ class RTUComReader:
                             data_type=tag.datatype,
                             scale=tag.scale,
                             offset=tag.offset,
-                            unit=tag.unit
+                            unit=tag.unit,
+                            byte_order=device.byte_order or "BigEndian",
+                            word_order=device.word_order or "AB"
                         ))
                         
                         logger.debug(f"Tag {tag.name}: Successfully read value {raw_value}")

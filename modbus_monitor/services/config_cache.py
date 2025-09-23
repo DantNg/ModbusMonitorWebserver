@@ -523,11 +523,11 @@ class ConfigCache:
     def _get_register_count(self, datatype: str) -> int:
         """Estimate số register cần cho datatype"""
         name = (datatype or "").strip().lower()
-        if name in ("float", "float32", "real", "float_inverse", "floatinverse", "float-inverse",
-                   "dword", "uint32", "udint", "dint", "int32", "int"):
+        if name in ("float", "float32", "real", "invert_float", "float_inverse", "floatinverse", "float-inverse",
+                   "dword", "uint32", "udint", "dint", "int32", "int", "long", "invert_long", "long_inverse", "longinverse", "long-inverse",
+                   "ulong", "invert_ulong", "ulong_inverse", "ulonginverse", "ulong-inverse"):
             return 2
-        elif name in ("double", "float64", "double_inverse", "doubleinverse", "double-inverse",
-                     "long", "int64", "long_inverse", "longinverse", "long-inverse"):
+        elif name in ("double", "double64", "float64", "invert_double", "double_inverse", "doubleinverse", "double-inverse"):
             return 4
         else:
             return 1  # single register
@@ -672,12 +672,15 @@ class ConfigCache:
     
     def _get_register_count(self, datatype: str) -> int:
         """Get register count for datatype"""
-        if datatype in ["DWord", "DInt", "Float", "Double"]:
+        name = (datatype or "").strip().lower()
+        if name in ("float", "float32", "real", "invert_float", "float_inverse", "floatinverse", "float-inverse",
+                   "dword", "uint32", "udint", "dint", "int32", "int", "long", "invert_long", "long_inverse", "longinverse", "long-inverse",
+                   "ulong", "invert_ulong", "ulong_inverse", "ulonginverse", "ulong-inverse"):
             return 2
-        elif datatype in ["Long", "Long_inverse"]:
+        elif name in ("double", "double64", "float64", "invert_double", "double_inverse", "doubleinverse", "double-inverse"):
             return 4
         else:
-            return 1  # Word, Short, Bit, etc.
+            return 1  # single register
 
 
 # ===== GLOBAL CACHE INSTANCE =====

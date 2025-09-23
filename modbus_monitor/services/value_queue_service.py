@@ -25,6 +25,8 @@ class RawModbusValue:
     scale: float
     offset: float
     unit: str
+    byte_order: str = "BigEndian"  # Device byte order setting
+    word_order: str = "AB"         # Device word order setting
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for easy processing"""
@@ -39,7 +41,9 @@ class RawModbusValue:
             'data_type': self.data_type,
             'scale': self.scale,
             'offset': self.offset,
-            'unit': self.unit
+            'unit': self.unit,
+            'byte_order': self.byte_order,
+            'word_order': self.word_order
         }
 
 class ValueQueueService:
