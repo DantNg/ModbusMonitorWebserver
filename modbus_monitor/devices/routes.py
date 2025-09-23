@@ -3,13 +3,35 @@ from . import devices_bp
 from modbus_monitor.database.db import (
     list_devices, list_tags  # Keep these for now as fallback
 )
-from modbus_monitor.services.runner import restart_services
 from modbus_monitor.services.config_cache import get_config_cache
 from datetime import datetime
 import time
 
 # Get config cache instance
 config_cache = get_config_cache()
+
+def reload_all_configs():
+    """
+    Reload all configurations without restarting the entire service
+    """
+    try:
+        from modbus_monitor.services.runner import get_modbus_service
+        
+        # Reload config cache first
+        config_cache.reload_configs()
+        
+        # Reload modbus service configs
+        modbus_service = get_modbus_service()
+        if modbus_service:
+            modbus_service.reload_configs()
+        
+        # Force invalidate subdashboard cache to ensure UI updates
+        config_cache.invalidate_subdashboard_cache()
+        
+        return True
+    except Exception as e:
+        print(f"❌ Config reload failed: {e}")
+        return False
 
 # List Devices (using cache)
 @devices_bp.route("/devices")
@@ -214,10 +236,12 @@ def add_device():
                                    form=request.form,
                                    errors={"general": "Database error"})
         
-        # Restart services to pick up new device
-        restart_services()
+        # Reload configs instead of restarting services
+        if reload_all_configs():
+            flash("Device created and configs reloaded successfully.", "success")
+        else:
+            flash("Device created but config reload failed. You may need to restart manually.", "warning")
         
-        flash("Device created successfully.", "success")
         return redirect(url_for("devices_bp.device_detail", did=new_id))
 
     # GET: mở form theo protocol (giữ param ?protocol=)
@@ -418,7 +442,12 @@ def edit_device(did):
                                    editing=True,
                                    device_id=did)
         
-        flash("Device updated.", "success")
+        # Reload configs to pick up device changes
+        if reload_all_configs():
+            flash("Device updated and configs reloaded successfully.", "success")
+        else:
+            flash("Device updated but config reload failed. You may need to restart manually.", "warning")
+        
         return redirect(url_for("devices_bp.device_detail", did=did))
 
     # GET: prefill form từ dev
@@ -436,9 +465,11 @@ def edit_device(did):
 @devices_bp.route("/devices/<int:did>/delete", methods=["POST"])
 def delete_device(did):
     if config_cache.delete_device(did):
-        # Restart services to remove deleted device
-        restart_services()
-        flash("Device deleted.", "success")
+        # Reload configs instead of restarting services
+        if reload_all_configs():
+            flash("Device deleted and configs reloaded successfully.", "success")
+        else:
+            flash("Device deleted but config reload failed. You may need to restart manually.", "warning")
     else:
         flash("Device not found.", "warning")
     return redirect(url_for("devices_bp.devices"))
@@ -503,10 +534,12 @@ def edit_tag(did, tid):
                                    device=device, tag=tag, form=request.form,
                                    errors={"general": "Database error"}, editing=True)
         
-        # Restart services to pick up tag changes
-        restart_services()
+        # Reload configs instead of restarting services
+        if reload_all_configs():
+            flash("Tag updated and configs reloaded successfully.", "success")
+        else:
+            flash("Tag updated but config reload failed. You may need to restart manually.", "warning")
         
-        flash("Tag updated.", "success")
         return redirect(url_for("devices_bp.device_detail", did=did))
 
     # GET: prefill
@@ -526,9 +559,11 @@ def delete_tag(did, tid):
         return redirect(url_for("devices_bp.device_detail", did=did))
     
     if config_cache.delete_tag(tid):
-        # Restart services to remove deleted tag
-        restart_services()
-        flash("Tag deleted.", "success")
+        # Reload configs instead of restarting services
+        if reload_all_configs():
+            flash("Tag deleted and configs reloaded successfully.", "success")
+        else:
+            flash("Tag deleted but config reload failed. You may need to restart manually.", "warning")
     else:
         flash("Failed to delete tag.", "error")
     
