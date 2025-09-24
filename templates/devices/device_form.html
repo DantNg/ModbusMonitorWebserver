@@ -134,8 +134,8 @@
           <div class="col-md-12">
             <label class="form-label">Byte Orders *</label>
             <select name="byte_order" class="form-select">
-              <option {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'BigEndian' %}selected{% endif %}>BigEndian</option>
-              <option {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'LittleEndian' %}selected{% endif %}>LittleEndian</option>
+              <option value="BigEndian" {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'BigEndian' %}selected{% endif %}>BigEndian</option>
+              <option value="LittleEndian" {% if ((form.byte_order if form else 'BigEndian') or 'BigEndian') == 'LittleEndian' %}selected{% endif %}>LittleEndian</option>
             </select>
           </div>
         {% endif %}
