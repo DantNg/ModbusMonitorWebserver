@@ -242,42 +242,69 @@ class ValueParserService:
             
             # FLOAT TYPES
             if datatype in ("float", "float32", "real"):
-                # Float: Default BA word order
-                return self._parse_float32(raw_val[0], raw_val[1], 
-                                         word_order='BA', 
-                                         byte_order='BigEndian')
+                # Float: Both BigEndian and LittleEndian devices should use AB word order
+                # The difference is in how bytes within each register are interpreted
+                float_word_order = 'AB'  # Always use AB for standard float
+                
+                # Debug logging
+                print(f"DEBUG Float: device_byte_order={byte_order}, using_word_order={float_word_order}, raw_values={raw_val[0:2]}")
+                
+                result = self._parse_float32(raw_val[0], raw_val[1], 
+                                         word_order=float_word_order, 
+                                         byte_order=byte_order)
+                print(f"DEBUG Float result: {result}")
+                return result
             
             elif datatype in ("invert_float", "float_inverse", "floatinverse", "float-inverse"):
-                # Invert Float: Default AB word order
-                return self._parse_float32(raw_val[0], raw_val[1], 
-                                         word_order='AB', 
-                                         byte_order='BigEndian')
+                # Invert Float: Use BA word order (opposite of standard)
+                # BigEndian device -> use BA word order (inverted)
+                # LittleEndian device -> use BA word order (inverted)
+                invert_word_order = 'BA'  # Always use BA for invert_float
+                
+                # Debug logging
+                print(f"DEBUG Invert Float: device_byte_order={byte_order}, using_word_order={invert_word_order}, raw_values={raw_val[0:2]}")
+                
+                result = self._parse_float32(raw_val[0], raw_val[1], 
+                                         word_order=invert_word_order, 
+                                         byte_order=byte_order)
+                print(f"DEBUG Invert Float result: {result}")
+                return result
             
             # DOUBLE TYPES
             elif datatype in ("double", "double64", "float64") and len(raw_val) >= 4:
-                # Double: Default DCBA word order (like BA for float)
-                return self._parse_float64(raw_val[:4], word_order='DCBA', byte_order=byte_order)
+                # Double: Map device byte_order to appropriate word_order for 64-bit values
+                # BigEndian device -> use DCBA word order (big word first)
+                # LittleEndian device -> use ABCD word order (little word first)
+                double_word_order = 'DCBA' if byte_order == 'BigEndian' else 'ABCD'
+                return self._parse_float64(raw_val[:4], word_order=double_word_order, byte_order=byte_order)
             
             elif datatype in ("invert_double", "double_inverse", "doubleinverse") and len(raw_val) >= 4:
-                # Invert Double: Default ABCD word order (like AB for invert_float)
-                return self._parse_float64(raw_val[:4], word_order='ABCD', byte_order=byte_order)
+                # Invert Double: Use opposite of device's natural word order
+                # BigEndian device -> use ABCD word order (inverted)
+                # LittleEndian device -> use DCBA word order (inverted)
+                double_word_order = 'ABCD' if byte_order == 'BigEndian' else 'DCBA'
+                return self._parse_float64(raw_val[:4], word_order=double_word_order, byte_order=byte_order)
             
             # LONG/INTEGER TYPES  
             elif datatype in ("long", "int32", "dint", "signed_long"):
-                # Long: AB word order, signed (đã test và xác nhận với invert_long)
-                return float(self._parse_int32(raw_val[0], raw_val[1], word_order='AB', signed=True))
+                # Long: Map device byte_order to appropriate word_order
+                long_word_order = 'BA' if byte_order == 'BigEndian' else 'AB'
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order=long_word_order, signed=True))
             
             elif datatype in ("invert_long", "long_inverse", "longinverse"):
-                # Invert Long: BA word order, signed
-                return float(self._parse_int32(raw_val[0], raw_val[1], word_order='BA', signed=True))
+                # Invert Long: Use opposite of device's natural word order
+                invert_word_order = 'AB' if byte_order == 'BigEndian' else 'BA'
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order=invert_word_order, signed=True))
             
             elif datatype in ("ulong", "uint32", "dword", "udint", "unsigned_long"):
-                # Unsigned Long: AB word order (đã test và xác nhận với invert_ulong)
-                return float(self._parse_int32(raw_val[0], raw_val[1], word_order='AB', signed=False))
+                # Unsigned Long: Map device byte_order to appropriate word_order
+                ulong_word_order = 'BA' if byte_order == 'BigEndian' else 'AB'
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order=ulong_word_order, signed=False))
             
             elif datatype in ("invert_ulong", "ulong_inverse", "ulonginverse"):
-                # Invert Unsigned Long: BA word order
-                return float(self._parse_int32(raw_val[0], raw_val[1], word_order='BA', signed=False))
+                # Invert Unsigned Long: Use opposite of device's natural word order
+                invert_word_order = 'AB' if byte_order == 'BigEndian' else 'BA'
+                return float(self._parse_int32(raw_val[0], raw_val[1], word_order=invert_word_order, signed=False))
             
             # LEGACY SUPPORT
             elif datatype in ("dword", "uint32", "udint"):
@@ -315,19 +342,25 @@ class ValueParserService:
             # Inverse order: reg2 is high word, reg1 is low word  
             w1, w2 = reg2, reg1
         
-        # Pack to bytes (big endian for each word)
-        b1 = w1.to_bytes(2, "big")
-        b2 = w2.to_bytes(2, "big")
-        b = b1 + b2
+        # Debug logging
+        print(f"DEBUG _parse_float32: word_order={word_order}, byte_order={byte_order}, w1=0x{w1:04X}, w2=0x{w2:04X}")
         
-        # Apply byte order within words if needed
-        if byte_order == "LittleEndian":
-            # Swap bytes within each word: [b0,b1,b2,b3] -> [b1,b0,b3,b2]
-            b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
+        if byte_order == "BigEndian":
+            # Big endian: pack each word as big endian, then combine
+            b1 = w1.to_bytes(2, "big")
+            b2 = w2.to_bytes(2, "big") 
+            b = b1 + b2
+            # Unpack as big-endian float
+            result = struct.unpack(">f", b)[0]
+        else:
+            # Little endian: pack each word as little endian, then combine
+            b1 = w1.to_bytes(2, "little")
+            b2 = w2.to_bytes(2, "little")
+            b = b1 + b2
+            # Unpack as little-endian float
+            result = struct.unpack("<f", b)[0]
         
-        # Unpack as big-endian float
-        result = struct.unpack(">f", b)[0]
-        
+        print(f"DEBUG _parse_float32: bytes={[hex(x) for x in b]}, result={result}")
         return result
     
     def _parse_uint32(self, reg1: int, reg2: int) -> int:
