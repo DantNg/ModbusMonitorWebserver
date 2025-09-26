@@ -137,6 +137,11 @@ class ValueParserService:
                     # Update cache
                     self.cache.set(raw_value.tag_id, raw_value.timestamp, parsed_value)
                     
+                    # Update tag status monitor timestamp
+                    from modbus_monitor.services.tag_status_monitor import get_tag_status_monitor
+                    tag_monitor = get_tag_status_monitor()
+                    tag_monitor.update_tag_timestamp(raw_value.tag_id, raw_value.timestamp)
+                    
                     # SAVE ALL RTU TAG VALUES TO DATABASE - not just datalogger tags  
                     try:
                         ts = datetime.fromtimestamp(raw_value.timestamp)
@@ -247,12 +252,12 @@ class ValueParserService:
                 float_word_order = 'AB'  # Always use AB for standard float
                 
                 # Debug logging
-                print(f"DEBUG Float: device_byte_order={byte_order}, using_word_order={float_word_order}, raw_values={raw_val[0:2]}")
+                # print(f"DEBUG Float: device_byte_order={byte_order}, using_word_order={float_word_order}, raw_values={raw_val[0:2]}")
                 
                 result = self._parse_float32(raw_val[0], raw_val[1], 
                                          word_order=float_word_order, 
                                          byte_order=byte_order)
-                print(f"DEBUG Float result: {result}")
+                # print(f"DEBUG Float result: {result}")
                 return result
             
             elif datatype in ("invert_float", "float_inverse", "floatinverse", "float-inverse"):
@@ -262,12 +267,12 @@ class ValueParserService:
                 invert_word_order = 'BA'  # Always use BA for invert_float
                 
                 # Debug logging
-                print(f"DEBUG Invert Float: device_byte_order={byte_order}, using_word_order={invert_word_order}, raw_values={raw_val[0:2]}")
+                # print(f"DEBUG Invert Float: device_byte_order={byte_order}, using_word_order={invert_word_order}, raw_values={raw_val[0:2]}")
                 
                 result = self._parse_float32(raw_val[0], raw_val[1], 
                                          word_order=invert_word_order, 
                                          byte_order=byte_order)
-                print(f"DEBUG Invert Float result: {result}")
+                # print(f"DEBUG Invert Float result: {result}")
                 return result
             
             # DOUBLE TYPES
@@ -343,7 +348,7 @@ class ValueParserService:
             w1, w2 = reg2, reg1
         
         # Debug logging
-        print(f"DEBUG _parse_float32: word_order={word_order}, byte_order={byte_order}, w1=0x{w1:04X}, w2=0x{w2:04X}")
+        # print(f"DEBUG _parse_float32: word_order={word_order}, byte_order={byte_order}, w1=0x{w1:04X}, w2=0x{w2:04X}")
         
         if byte_order == "BigEndian":
             # Big endian: pack each word as big endian, then combine
@@ -360,7 +365,7 @@ class ValueParserService:
             # Unpack as little-endian float
             result = struct.unpack("<f", b)[0]
         
-        print(f"DEBUG _parse_float32: bytes={[hex(x) for x in b]}, result={result}")
+        # print(f"DEBUG _parse_float32: bytes={[hex(x) for x in b]}, result={result}")
         return result
     
     def _parse_uint32(self, reg1: int, reg2: int) -> int:

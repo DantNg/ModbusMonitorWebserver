@@ -55,6 +55,7 @@ class RTUComReader:
         self.connected = False
         self.devices: Dict[int, DeviceConfig] = {}  # unit_id -> DeviceConfig
         self.device_tags: Dict[int, List[TagConfig]] = {}  # unit_id -> tags
+        self.device_last_read: Dict[int, float] = {}  # unit_id -> timestamp of last read
         
         self._last_connection_test = 0
         self._next_retry_ts = 0
@@ -71,12 +72,13 @@ class RTUComReader:
         with self._lock:
             unit_id = device_config.unit_id
             self.devices[unit_id] = device_config
+            self.device_last_read[unit_id] = 0  # Initialize last read time
             
             # Load tags for this device
             tags = self.config_cache.get_device_tags(device_config.id)
             self.device_tags[unit_id] = tags
             
-            logger.info(f"Added device {device_config.name} (Unit ID: {unit_id}) to COM {self.com_config.serial_port} with {len(tags)} tags")
+            logger.info(f"Added device {device_config.name} (Unit ID: {unit_id}) to COM {self.com_config.serial_port} with {len(tags)} tags, interval: {getattr(device_config, 'read_interval_ms', 1000)}ms")
 
     def reload_device_configs(self):
         """Reload device configs and tags (minimal impact)"""
@@ -109,6 +111,7 @@ class RTUComReader:
                 device_name = self.devices[unit_id].name
                 del self.devices[unit_id]
                 del self.device_tags[unit_id]
+                del self.device_last_read[unit_id]  # Clean up last read time
                 logger.info(f"Removed device {device_name} (Unit ID: {unit_id}) from COM {self.com_config.serial_port}")
 
     def has_devices(self) -> bool:
@@ -402,19 +405,35 @@ class RTUComReader:
         with self._lock:
             devices_copy = dict(self.devices)
             tags_copy = dict(self.device_tags)
+            last_read_copy = dict(self.device_last_read)
         
         total_values = 0
+        devices_read_count = 0
         
-        # Read each device sequentially (important for RTU)
+        # Read each device only if it's time for that specific device
         for unit_id, device in devices_copy.items():
             tags = tags_copy.get(unit_id, [])
             if not tags:
+                continue
+            
+            # Check if it's time to read this device
+            last_read_time = last_read_copy.get(unit_id, 0)
+            device_interval_ms = getattr(device, 'read_interval_ms', 1000) or 1000
+            device_interval_sec = device_interval_ms / 1000.0
+            
+            time_since_last_read = now - last_read_time
+            if time_since_last_read < device_interval_sec:
+                # Not time yet for this device
                 continue
             
             try:
                 start_time = time.time()
                 raw_values = self._read_device_tags(unit_id, device, tags)
                 read_time = time.time() - start_time
+                
+                # Update last read time
+                with self._lock:
+                    self.device_last_read[unit_id] = start_time
                 
                 if raw_values:
                     # Send to value queue for processing
@@ -424,21 +443,28 @@ class RTUComReader:
                     # Update device status to connected only if we got data
                     self.config_cache.update_device_status(device.id, "connected")
                     
-                    logger.debug(f"Device {device.name} (Unit {unit_id}): Read {len(raw_values)} values ({success_count} queued) in {read_time:.3f}s")
+                    logger.debug(f"Device {device.name} (Unit {unit_id}): Read {len(raw_values)} values ({success_count} queued) in {read_time:.3f}s, next read in {device_interval_sec}s")
                 else:
                     # No values read - this could indicate communication failure
                     self.config_cache.update_device_status(device.id, "disconnected")
                     logger.warning(f"Device {device.name} (Unit {unit_id}): No values read")
                 
-                # Small delay between devices to prevent overwhelming RTU bus
-                time.sleep(0.01)
+                devices_read_count += 1
+                
+                # Delay between devices to prevent overwhelming RTU bus
+                # Use longer delay based on baudrate for RTU stability
+                inter_device_delay = self._calculate_inter_device_delay()
+                time.sleep(inter_device_delay)
                 
             except Exception as e:
                 logger.error(f"Device {device.name} (Unit {unit_id}): Read cycle error: {e}")
                 self.config_cache.update_device_status(device.id, "disconnected")
+                # Still update last read time to prevent immediate retry
+                with self._lock:
+                    self.device_last_read[unit_id] = now
         
         if total_values > 0:
-            logger.debug(f"COM {self.com_config.serial_port}: Read cycle completed, {total_values} total values")
+            logger.debug(f"COM {self.com_config.serial_port}: Read cycle completed, {devices_read_count} devices read, {total_values} total values")
 
     def start(self):
         """Start the RTU COM reader thread"""
@@ -462,6 +488,23 @@ class RTUComReader:
         self._close()
         logger.info(f"Stopped RTU COM reader for {self.com_config.serial_port}")
 
+    def _calculate_inter_device_delay(self) -> float:
+        """Calculate delay between devices based on baudrate for RTU stability"""
+        # Higher baudrate = shorter delay needed
+        # Lower baudrate = longer delay needed
+        baudrate = self.com_config.baudrate
+        
+        if baudrate >= 115200:
+            return 0.02  # 20ms for high speed
+        elif baudrate >= 38400:
+            return 0.05  # 50ms for medium speed  
+        elif baudrate >= 19200:
+            return 0.1   # 100ms for medium-low speed
+        elif baudrate >= 9600:
+            return 0.15  # 150ms for low speed
+        else:
+            return 0.2   # 200ms for very low speed
+
     def _run(self):
         """Main thread loop"""
         logger.info(f"RTU COM reader thread started for {self.com_config.serial_port}")
@@ -471,47 +514,24 @@ class RTUComReader:
                 cycle_start = time.time()
                 self._read_cycle()
                 
-                # Calculate cycle time and sleep using configured reading speed
+                # Calculate cycle time and sleep
                 cycle_time = time.time() - cycle_start
-                target_interval = self._get_optimal_read_interval()  # Dynamic interval based on device configs
+                
+                # Use fixed short interval since individual devices now have their own timing
+                # This ensures responsive checking without overwhelming the system
+                target_interval = 0.1  # 100ms check interval
                 sleep_time = max(0, target_interval - cycle_time)
                 
                 # Sleep in small chunks to be responsive to stop signal
                 end_time = time.time() + sleep_time
                 while time.time() < end_time and self._running:
-                    time.sleep(0.1)
+                    time.sleep(0.01)  # 10ms chunks for responsiveness
                     
             except Exception as e:
                 logger.error(f"RTU COM {self.com_config.serial_port}: Thread error: {e}")
                 time.sleep(1)
         
         logger.info(f"RTU COM reader thread stopped for {self.com_config.serial_port}")
-
-    def _get_optimal_read_interval(self) -> float:
-        """Calculate optimal reading interval based on device configurations"""
-        try:
-            if not self.devices:
-                return 1.0  # Default 1 second if no devices
-            
-            # Get the minimum read_interval_ms from all devices on this COM port
-            intervals_ms = []
-            for device in self.devices.values():
-                # Get read_interval_ms from device config, default to 1000ms
-                interval_ms = getattr(device, 'read_interval_ms', 1000) or 1000
-                intervals_ms.append(interval_ms)
-            
-            # Use the fastest (minimum) interval requested
-            min_interval_ms = min(intervals_ms)
-            
-            # Convert to seconds and apply safety limits
-            interval_sec = min_interval_ms / 1000.0
-            
-            # Safety limits: 50ms to 10 seconds
-            return max(min(interval_sec, 10.0), 0.05)
-            
-        except Exception as e:
-            logger.warning(f"Error calculating read interval: {e}, using default 1s")
-            return 1.0
 
     def _normalize_address(self, addr: int) -> int:
         """Normalize Modbus address to 0-based (same logic as ConfigCache)"""
