@@ -920,6 +920,97 @@
   let pollingInterval = null;
   const currentSubdashId = "{{ subdash.id }}";
   
+  // Simple tag timer system for 30s timeout - DECLARE EARLY
+  const tagTimers = new Map(); // Store timeout IDs for each tag
+
+  // Reset timer for a tag (called when ts is updated)
+  function resetTagTimer(tagId) {
+    // Clear existing timer if any
+    if (tagTimers.has(tagId)) {
+      clearTimeout(tagTimers.get(tagId));
+    }
+    
+    // Set new 30-second timer
+    const timeoutId = setTimeout(() => {
+      markTagInactive(tagId);
+    }, 30000); // 30 seconds
+    
+    // Store the timeout ID
+    tagTimers.set(tagId, timeoutId);
+    
+    // Only restore if tag was actually inactive before
+    const valEl = document.getElementById('tag-val-' + tagId);
+    if (valEl && valEl.style.opacity === '0.5') {
+      restoreTagToActive(tagId);
+    }
+  }
+
+  // Mark tag as inactive (no ts update for 30s)
+  function markTagInactive(tagId) {
+    const valEl = document.getElementById('tag-val-' + tagId);
+    const tsEl = document.getElementById('tag-ts-' + tagId);
+    const barEl = document.getElementById('tag-bar-' + tagId);
+    
+    if (valEl) {
+      // Reset value to 0 and dim it
+      valEl.textContent = '0';
+      valEl.style.opacity = '0.5';
+      valEl.style.color = '#6c757d';
+    }
+    
+    if (tsEl) {
+      // Show timeout message
+      tsEl.textContent = 'No data (30s+)';
+      tsEl.style.color = '#dc3545';
+      tsEl.style.fontWeight = 'bold';
+    }
+    
+    if (barEl) {
+      // Set progress bar to inactive
+      barEl.style.width = '0%';
+      barEl.className = barEl.className.replace(/(device-|tag-)(connected|disconnected|unknown|inactive)/g, '');
+      barEl.classList.add('tag-inactive');
+    }
+    
+    // console.log(`Tag ${tagId} marked inactive (no ts update for 30s)`);
+  }
+
+  // Restore tag to active state
+  function restoreTagToActive(tagId) {
+    const valEl = document.getElementById('tag-val-' + tagId);
+    const tsEl = document.getElementById('tag-ts-' + tagId);
+    const barEl = document.getElementById('tag-bar-' + tagId);
+    
+    if (valEl && valEl.style.opacity === '0.5') {
+      // Restore normal styling only if it was inactive
+      valEl.style.opacity = '';
+      valEl.style.color = '';
+    }
+    
+    if (tsEl && tsEl.textContent.includes('No data')) {
+      // Clear timeout message styling
+      tsEl.style.color = '';
+      tsEl.style.fontWeight = '';
+    }
+    
+    if (barEl && barEl.classList.contains('tag-inactive')) {
+      // Restore normal progress bar based on device status
+      const deviceStatus = barEl.getAttribute('data-device-status') || 'unknown';
+      barEl.classList.remove('tag-inactive');
+      
+      if (deviceStatus === 'connected') {
+        barEl.style.width = '100%';
+        barEl.classList.add('device-connected');
+      } else if (deviceStatus === 'disconnected') {
+        barEl.style.width = '0%';
+        barEl.classList.add('device-disconnected');
+      } else {
+        barEl.style.width = '0%';
+        barEl.classList.add('device-unknown');
+      }
+    }
+  }
+  
   // Format value function (matches Python filter)
   function formatValue(value, datatype) {
     
@@ -975,7 +1066,7 @@
   // Real-time socket listener for modbus updates (immediate connection)
   if (typeof socket !== 'undefined') {
     socket.on("modbus_update", function (data) {
-      // console.log(`Received modbus_update `);
+      // console.log(`🔥 Received modbus_update:`, data); // DEBUG: Check if socket updates are coming
       if (!data) return;
 
       // Mark that we're receiving socket updates
@@ -1023,6 +1114,9 @@
             tsEl.textContent = tag.ts;
             tsEl.style.color = '';
             tsEl.style.fontWeight = '';
+            
+            // RESET 30s TIMER FOR THIS TAG
+            resetTagTimer(tag.id);
           }
         });
 
@@ -1044,6 +1138,9 @@
               tsEl.textContent = tag.ts;
               tsEl.style.color = '';
               tsEl.style.fontWeight = '';
+              
+              // RESET 30s TIMER FOR THIS TAG
+              resetTagTimer(tag.id);
             }
             
             // Reset timeout indicators
@@ -1118,8 +1215,8 @@
     // Initialize tag tracking and start timeout checker
     document.querySelectorAll('[id^="tag-val-"]').forEach(el => {
       const tagId = el.id.replace('tag-val-', '');
-      tagLastUpdates.set(parseInt(tagId), pageLoadTime); // Set initial time to page load time
-      tagInitialLoadTime.set(parseInt(tagId), pageLoadTime);
+      // Start the 30-second timer for each tag on page load
+      resetTagTimer(parseInt(tagId));
     });
 
     // Handle reconnection - rejoin room
@@ -1154,11 +1251,17 @@
     }, 2000);
   });
 
-  // Cleanup on page unload
+  // Cleanup on page unload to prevent memory leaks
   window.addEventListener('beforeunload', function() {
     if (pollingInterval) {
       clearInterval(pollingInterval);
     }
+    
+    // Clear all tag timers
+    tagTimers.forEach((timeoutId) => {
+      clearTimeout(timeoutId);
+    });
+    tagTimers.clear();
   });
 </script>
 
