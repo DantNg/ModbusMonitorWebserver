@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import multiprocessing
 from queue import Queue
 import threading
 
@@ -10,7 +12,7 @@ from modbus_monitor.services.datalogger_service import DataLoggerService
 from modbus_monitor.services.value_parser_service import ValueParserService
 from modbus_monitor.services.device_sync_service import start_device_sync_service, stop_device_sync_service, get_device_sync_service
 
-# Singleton đơn giản
+from modbus_monitor.services.datalogger_process import DataLoggerProcess
 from typing import Optional
 
 _cache: Optional[LatestCache] = None
@@ -19,13 +21,23 @@ _pushq: Optional[Queue] = None
 _writer: Optional[DBWriter] = None
 _modbus: Optional[ModbusService] = None
 _alarm: Optional[AlarmService] = None
-_logger: Optional[DataLoggerService] = None
+_datalogger_process: Optional[DataLoggerProcess] = None
+_datalogger_cmdq: Optional[multiprocessing.Queue] = None
+_datalogger_statusq: Optional[multiprocessing.Queue] = None
 _parser: Optional[ValueParserService] = None
 
 _started = False
 _lock = threading.RLock()
 
 def start_services():
+    global _datalogger_process, _datalogger_cmdq, _datalogger_statusq
+    # Start DataLoggerService in a separate process
+    _datalogger_cmdq = multiprocessing.Queue()
+    _datalogger_statusq = multiprocessing.Queue()
+    _datalogger_process = DataLoggerProcess(_datalogger_cmdq, _datalogger_statusq)
+    _datalogger_process.start()
+    _datalogger_cmdq.put(('start', None))
+    print("🚀 DataLogger process started.")
     global _started, _cache, _dbq, _pushq, _writer, _modbus, _alarm, _logger, _parser
     with _lock:
         if _started:
@@ -33,7 +45,6 @@ def start_services():
             return
         
         # Check if we're in the main process to avoid COM port conflicts
-        import multiprocessing
         current_process = multiprocessing.current_process()
         if current_process.name != 'MainProcess':
             print(f"Skipping services start in worker process: {current_process.name}")
@@ -55,32 +66,44 @@ def start_services():
         print("🔄 Starting ValueParserService (Consumer - UI)...")
         _parser = ValueParserService(_cache)
         
-        print("📊 Starting DataLoggerService (Consumer - DB)...")
-        _logger = DataLoggerService(_cache)
+    # DataLoggerService will run in a separate process
+    print("📊 DataLoggerService will be started in a separate process.")
         
-        print("⚠️ Starting AlarmService...")
-        _alarm = AlarmService(_cache)
+    print("⚠️ Starting AlarmService...")
+    _alarm = AlarmService(_cache)
         
         # Legacy DB writer (may not be needed with new architecture)
-        print("💾 Starting DBWriter (Legacy)...")
-        _writer = DBWriter(_dbq)
+    print("💾 Starting DBWriter (Legacy)...")
+    _writer = DBWriter(_dbq)
         
         # Start Device Sync Service - đồng bộ mỗi 10 giây
-        print("🔄 Starting DeviceSyncService (MySQL sync every 10s)...")
-        start_device_sync_service(sync_interval=10)
+    print("🔄 Starting DeviceSyncService (MySQL sync every 10s)...")
+    start_device_sync_service(sync_interval=10)
         
         # Start all services
-        _writer.start()
-        _modbus.start()      # Starts Modbus readers (producers)
-        _parser.start()      # Starts value parser (consumer)
-        _logger.start()      # Starts datalogger (consumer) 
-        _alarm.start()
+    _modbus.start()      # Starts Modbus readers (producers)
+    _writer.start()
+    _parser.start()      # Starts value parser (consumer)
+    # _logger.start()   # DataLoggerService handled by separate process
+    _alarm.start()
         
-        _started = True
-        print("✅ All services started successfully with queue-based architecture!")
-        print("🏗️ Architecture: Modbus(Producer) → Queue → Parser(UI) + DataLogger(DB) + DeviceSync(MySQL/10s)")
+    _started = True
+    print("✅ All services started successfully with queue-based architecture!")
+    print("🏗️ Architecture: Modbus(Producer) → Queue → Parser(UI) + DataLogger(DB) + DeviceSync(MySQL/10s)")
 
 def stop_services():
+    global _datalogger_process, _datalogger_cmdq, _datalogger_statusq
+    # Stop DataLogger process
+    if _datalogger_cmdq:
+        _datalogger_cmdq.put(('stop', None))
+        _datalogger_cmdq.put(('exit', None))
+        print("🛑 DataLogger process stop/exit signal sent.")
+    if _datalogger_process:
+        _datalogger_process.join(timeout=5)
+        print("🛑 DataLogger process joined.")
+    _datalogger_process = None
+    _datalogger_cmdq = None
+    _datalogger_statusq = None
     global _started, _cache, _dbq, _pushq, _writer, _modbus, _alarm, _logger, _parser
     with _lock:
         if not _started:
@@ -107,12 +130,7 @@ def stop_services():
         finally:
             pass
             
-        try:
-            if _logger: 
-                _logger.stop()
-                print("   ✓ DataLogger service (Consumer-DB) stopped")
-        finally:
-            pass
+        # DataLoggerService will be stopped via separate process API
             
         try:
             if _writer: 
@@ -125,6 +143,34 @@ def stop_services():
         print("✅ All services stopped")
 
 def restart_services():
+    # Restart DataLogger process
+    global _datalogger_process, _datalogger_cmdq, _datalogger_statusq
+    if _datalogger_cmdq:
+        _datalogger_cmdq.put(('stop', None))
+        _datalogger_cmdq.put(('exit', None))
+    if _datalogger_process:
+        _datalogger_process.join(timeout=5)
+    _datalogger_process = None
+    _datalogger_cmdq = None
+    _datalogger_statusq = None
+def datalogger_update():
+    """Trigger update for DataLogger process (reload configs)."""
+    global _datalogger_cmdq
+    if _datalogger_cmdq:
+        _datalogger_cmdq.put(('update', None))
+        print("🔄 DataLogger process update signal sent.")
+    else:
+        print("DataLogger process not running.")
+
+def datalogger_status():
+    """Get last status from DataLogger process."""
+    global _datalogger_statusq
+    if _datalogger_statusq:
+        try:
+            return _datalogger_statusq.get_nowait()
+        except Exception:
+            return None
+    return None
     """Restart all services"""
     print("🔄 Restarting services...")
     stop_services()
@@ -137,7 +183,7 @@ def restart_services():
     _writer = None
     _modbus = None
     _alarm = None
-    _logger = None
+    _logger = None  # DataLoggerService handled by separate process
     _parser = None
     
     start_services()
@@ -152,8 +198,9 @@ def get_value_parser_service():
     return _parser
 
 def get_datalogger_service():
-    """Get the DataLoggerService instance for stats."""
-    return _logger
+    """Get the DataLoggerService instance for stats (not available in main process)."""
+    print("DataLoggerService is now managed in a separate process.")
+    return None
 
 def reload_device_configs():
     """Reload device configs without full restart"""

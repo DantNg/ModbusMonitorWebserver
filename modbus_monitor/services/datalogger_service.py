@@ -215,9 +215,11 @@ class DataLoggerService(threading.Thread):
                 self.stats['log_executions'] += 1
             
             logger.info(f"✅ {logger_name}: Logged {len(values_to_log)} values")
+            print(f"[DataLoggerService] {logger_name}: Logged {len(values_to_log)} values to DB at {time.strftime('%Y-%m-%d %H:%M:%S')}")
             
         except Exception as e:
             logger.error(f"❌ {logger_name}: Error - {e}")
+            print(f"[DataLoggerService][ERROR] {logger_name}: {e}")
 
     def _batch_insert_logs(self, logger_id: int, values: list[dict]):
         """Batch insert log entries vào database"""
@@ -236,9 +238,11 @@ class DataLoggerService(threading.Thread):
             dbsync.batch_insert_data_logs(log_entries)
             
             logger.debug(f"Batch inserted {len(log_entries)} log entries for logger {logger_id}")
+            print(f"[DataLoggerService] Batch inserted {len(log_entries)} log entries for logger {logger_id} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
             
         except Exception as e:
             logger.error(f"Error batch inserting logs for logger {logger_id}: {e}")
+            print(f"[DataLoggerService][ERROR] Batch insert for logger {logger_id}: {e}")
 
     def stop(self):
         """Stop service gracefully"""

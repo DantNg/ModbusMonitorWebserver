@@ -224,6 +224,21 @@ class ValueQueueService:
                     self.datalogger_queue.put_nowait(raw_value)
                     distributed += 1
                 except queue.Full:
+                    logger.warning("Datalogger queue is full, dropping value")
+
+                # Gửi cho DBWriter nếu có (legacy)
+                try:
+                    from modbus_monitor.services.runner import _dbq
+                    if _dbq is not None:
+                        # Chỉ đẩy tuple (tag_id, datetime, value) như DBWriter yêu cầu
+                        import datetime as dt
+                        tag_id = getattr(raw_value, 'tag_id', None)
+                        value = getattr(raw_value, 'raw_value', None)
+                        ts = dt.datetime.fromtimestamp(getattr(raw_value, 'timestamp', time.time()))
+                        _dbq.put_nowait((tag_id, ts, value))
+                except Exception as e:
+                    logger.warning(f"Could not put value to _dbq for DBWriter: {e}")
+                except queue.Full:
                     logger.warning("DataLogger queue is full, dropping value")
                 
                 # Mark task done

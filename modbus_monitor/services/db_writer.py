@@ -40,7 +40,7 @@ class DBWriter(threading.Thread):
                     (now - last) >= self.flush_every
                 )
             )
-            
+            # print(f"DBWriter buffer size: {len(self.buf)}; should_flush: {should_flush}")
             if should_flush:
                 try:
                     cleaned = []
@@ -60,14 +60,15 @@ class DBWriter(threading.Thread):
                             
                             device_updates[device_id].append({
                                 "id": tag_id,
-                                "name": tag_info.get("name", "tag_test"),
+                                "name": getattr(tag_info, "name", "tag_test"),
                                 "value": value,
                                 "ts": ts.strftime("%H:%M:%S") if ts else "--:--:--"
                             })
                     
                     # Save to database (this is still important for persistence)
+                    # print(f"💾 DBWriter: Inserting {len(cleaned)} records to DB")
                     if cleaned:
-                        # dbsync.insert_tag_values_bulk(cleaned)
+                        dbsync.insert_tag_values_bulk(cleaned)
                         # Update device status
                         dbsync.update_device_status_by_tag(cleaned[-1][0], True)
                     
@@ -116,7 +117,7 @@ class DBWriter(threading.Thread):
 
         # flush cuối
         if self.buf:
-            # dbsync.insert_tag_values_bulk(self.buf)
+            dbsync.insert_tag_values_bulk(self.buf)
             self.buf.clear()
 
     def stop(self):

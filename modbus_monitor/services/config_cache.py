@@ -613,9 +613,9 @@ class ConfigCache:
             self._dirty_tags.clear()
             
             load_time = time.time() - start_time
-            print(f"🔄 Config cache reloaded: {len(devices)} devices, "
-                  f"{sum(len(tags) for tags in tags_by_device.values())} tags "
-                  f"in {load_time:.3f}s")
+            # print(f"🔄 Config cache reloaded: {len(devices)} devices, "
+            #       f"{sum(len(tags) for tags in tags_by_device.values())} tags "
+            #       f"in {load_time:.3f}s")
             
         except Exception as e:
             print(f"❌ Error loading configs: {e}")

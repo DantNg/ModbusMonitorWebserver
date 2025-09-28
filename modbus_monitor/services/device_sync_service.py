@@ -54,7 +54,7 @@ class DeviceSyncService(threading.Thread):
                 print(f"❌ DeviceSync error #{self._error_count}: {e}")
             
             # Chờ interval hoặc stop signal
-            print(f"😴 Waiting {self.sync_interval}s until next sync...")
+            # print(f"😴 Waiting {self.sync_interval}s until next sync...")
             self._stop_event.wait(self.sync_interval)
             
         print("🛑 DeviceSyncService stopped")

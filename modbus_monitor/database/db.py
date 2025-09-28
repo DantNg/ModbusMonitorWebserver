@@ -392,7 +392,6 @@ def sync_device_status_to_mysql():
         
         # Lấy tất cả device statuses từ config_cache
         device_statuses = config_cache.get_all_device_statuses()
-        print(f"� Found {len(device_statuses)} devices in config_cache")
         
         if not device_statuses:
             print("⚠️ No devices found in config_cache - skipping sync")
@@ -430,7 +429,7 @@ def sync_device_status_to_mysql():
                     
                     if res.rowcount > 0:
                         updated_count += 1
-                        print(f"✅ Device {device_id}: MySQL synced - {device_status} -> is_online={is_online}")
+                        # print(f"✅ Device {device_id}: MySQL synced - {device_status} -> is_online={is_online}")
                     else:
                         skipped_count += 1
                         print(f"⚠️ Device {device_id}: Not found in MySQL table")
@@ -442,7 +441,7 @@ def sync_device_status_to_mysql():
             
             # Summary log
             total_processed = len(device_statuses)
-            print(f"📊 MySQL Sync Summary: {updated_count} updated, {skipped_count} skipped, {total_processed} total")
+            # print(f"📊 MySQL Sync Summary: {updated_count} updated, {skipped_count} skipped, {total_processed} total")
             
             return {
                 "success": True,
@@ -1167,7 +1166,7 @@ def get_tags_of_group(group_id: int):
             tag_dict = dict(r)
             # Get latest value and timestamp for each tag
             value, ts = get_latest_tag_value(tag_dict['id'])
-            print(f"Tag {tag_dict['name']} latest value: {value} at {ts}")
+            # print(f"Tag {tag_dict['name']} latest value: {value} at {ts}")
             tag_dict['value'] = value
             tag_dict['ts'] = ts.strftime("%H:%M:%S") if ts else "--:--"
             tag_dict['alarm_status'] = "Normal"  # You can add alarm logic here
