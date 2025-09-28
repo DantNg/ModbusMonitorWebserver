@@ -37,7 +37,7 @@ class DeviceSyncService(threading.Thread):
         
         while not self._stop_event.is_set():
             try:
-                print(f"⏰ Starting scheduled sync to MySQL... (interval: {self.sync_interval}s)")
+                # print(f"⏰ Starting scheduled sync to MySQL... (interval: {self.sync_interval}s)")
                 start_time = time.time()
                 
                 # Thực hiện đồng bộ
@@ -48,7 +48,6 @@ class DeviceSyncService(threading.Thread):
                 self._sync_count += 1
                 
                 sync_duration = self._last_sync_time - start_time
-                print(f"📱 DeviceSync #{self._sync_count}: Updated {updated_count} devices in {sync_duration:.2f}s")
                 
             except Exception as e:
                 self._error_count += 1
