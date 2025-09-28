@@ -1110,6 +1110,17 @@
           
           // Update timestamp
           const tsEl = document.getElementById('tag-ts-' + tag.id);
+          const barEl = document.getElementById('tag-bar-' + tag.id);
+          if (tsEl && tag.ts) {
+            tsEl.textContent = tag.ts;
+            tsEl.style.color = '';
+            tsEl.style.fontWeight = '';
+            barEl.classList.add('device-connected');
+            barEl.style.width = '100%';
+
+            // RESET 30s TIMER FOR THIS TAG
+            resetTagTimer(tag.id);
+          }
           if (tsEl && tag.ts) {
             tsEl.textContent = tag.ts;
             tsEl.style.color = '';
@@ -1150,35 +1161,7 @@
         });
       }
 
-      // Update progress bars for ALL tags from this device based on device status
-      const allTagsFromDevice = document.querySelectorAll('[id^="tag-bar-"]');
-      allTagsFromDevice.forEach(barEl => {
-        const tagId = barEl.id.replace('tag-bar-', '');
-        
-        // Check if this tag belongs to the device that sent the update
-        const tagInUpdate = data.tags && data.tags.some(tag => tag.id == tagId);
-        
-        if (tagInUpdate) {
-          
-          // Update progress bar based on device status immediately
-          if (deviceStatus === 'connected') {
-            barEl.style.width = "100%";
-            barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
-            barEl.classList.add('device-connected');
-            barEl.setAttribute('data-device-status', 'connected');
-          } else if (deviceStatus === 'disconnected') {
-            barEl.style.width = "0%";
-            barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
-            barEl.classList.add('device-disconnected');
-            barEl.setAttribute('data-device-status', 'disconnected');
-          } else {
-            barEl.style.width = "0%";
-            barEl.className = barEl.className.replace(/device-(connected|disconnected|unknown)/g, '');
-            barEl.classList.add('device-unknown');
-            barEl.setAttribute('data-device-status', 'unknown');
-          }
-        }
-      });
+      // Đã loại bỏ update progress bar toàn bộ để tránh nhấp nháy, chỉ update bar trong forEach tag khi ts thay đổi
 
     });
 
