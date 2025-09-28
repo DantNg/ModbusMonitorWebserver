@@ -8,7 +8,6 @@ from modbus_monitor.services.common import LatestCache
 from modbus_monitor.services.db_writer import DBWriter
 from modbus_monitor.services.modbus_service import ModbusService
 from modbus_monitor.services.alarm_service import AlarmService
-from modbus_monitor.services.datalogger_service import DataLoggerService
 from modbus_monitor.services.value_parser_service import ValueParserService
 from modbus_monitor.services.device_sync_service import start_device_sync_service, stop_device_sync_service, get_device_sync_service
 
@@ -31,13 +30,6 @@ _lock = threading.RLock()
 
 def start_services():
     global _datalogger_process, _datalogger_cmdq, _datalogger_statusq
-    # Start DataLoggerService in a separate process
-    _datalogger_cmdq = multiprocessing.Queue()
-    _datalogger_statusq = multiprocessing.Queue()
-    _datalogger_process = DataLoggerProcess(_datalogger_cmdq, _datalogger_statusq)
-    _datalogger_process.start()
-    _datalogger_cmdq.put(('start', None))
-    print("🚀 DataLogger process started.")
     global _started, _cache, _dbq, _pushq, _writer, _modbus, _alarm, _logger, _parser
     with _lock:
         if _started:
@@ -66,8 +58,6 @@ def start_services():
         print("🔄 Starting ValueParserService (Consumer - UI)...")
         _parser = ValueParserService(_cache)
         
-    # DataLoggerService will run in a separate process
-    print("📊 DataLoggerService will be started in a separate process.")
         
     print("⚠️ Starting AlarmService...")
     _alarm = AlarmService(_cache)
@@ -84,7 +74,6 @@ def start_services():
     _modbus.start()      # Starts Modbus readers (producers)
     _writer.start()
     _parser.start()      # Starts value parser (consumer)
-    # _logger.start()   # DataLoggerService handled by separate process
     _alarm.start()
         
     _started = True
@@ -130,7 +119,6 @@ def stop_services():
         finally:
             pass
             
-        # DataLoggerService will be stopped via separate process API
             
         try:
             if _writer: 
@@ -183,7 +171,6 @@ def datalogger_status():
     _writer = None
     _modbus = None
     _alarm = None
-    _logger = None  # DataLoggerService handled by separate process
     _parser = None
     
     start_services()
@@ -198,8 +185,6 @@ def get_value_parser_service():
     return _parser
 
 def get_datalogger_service():
-    """Get the DataLoggerService instance for stats (not available in main process)."""
-    print("DataLoggerService is now managed in a separate process.")
     return None
 
 def reload_device_configs():

@@ -70,9 +70,8 @@ class ValueQueueService:
         # Main queue cho raw values
         self.raw_value_queue = queue.Queue(maxsize=10000)  # Buffer 10k values
         
-        # Separate queues cho từng consumer type
+        # Separate queue cho UI parser
         self.parser_queue = queue.Queue(maxsize=5000)      # UI parser
-        self.datalogger_queue = queue.Queue(maxsize=5000)  # DataLogger
         
         # Stats tracking
         self.stats = {
@@ -171,34 +170,6 @@ class ValueQueueService:
         
         return values
     
-    def get_datalogger_value(self, timeout: float = 1.0) -> Optional[RawModbusValue]:
-        """Lấy value từ datalogger queue"""
-        try:
-            return self.datalogger_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
-    
-    def get_datalogger_values_batch(self, max_count: int = 100, timeout: float = 0.1) -> List[RawModbusValue]:
-        """Lấy batch values từ datalogger queue"""
-        values = []
-        
-        try:
-            # Lấy value đầu tiên với timeout
-            first_value = self.datalogger_queue.get(timeout=timeout)
-            values.append(first_value)
-            
-            # Lấy thêm các values khác không đợi
-            for _ in range(max_count - 1):
-                try:
-                    value = self.datalogger_queue.get_nowait()
-                    values.append(value)
-                except queue.Empty:
-                    break
-                    
-        except queue.Empty:
-            pass
-        
-        return values
     
     def _distribute_values(self):
         """Thread function phân phối values từ main queue sang consumer queues"""
@@ -219,12 +190,7 @@ class ValueQueueService:
                 except queue.Full:
                     logger.warning("Parser queue is full, dropping value")
                 
-                # Gửi cho datalogger  
-                try:
-                    self.datalogger_queue.put_nowait(raw_value)
-                    distributed += 1
-                except queue.Full:
-                    logger.warning("Datalogger queue is full, dropping value")
+                # (Removed datalogger queue logic)
 
                 # Gửi cho DBWriter nếu có (legacy)
                 try:
@@ -263,7 +229,7 @@ class ValueQueueService:
                 'runtime_seconds': runtime,
                 'raw_queue_size': self.raw_value_queue.qsize(),
                 'parser_queue_size': self.parser_queue.qsize(),
-                'datalogger_queue_size': self.datalogger_queue.qsize(),
+                # 'datalogger_queue_size': self.datalogger_queue.qsize(),
                 'total_enqueued': self.stats['total_enqueued'],
                 'total_parsed': self.stats['total_parsed'],
                 'total_logged': self.stats['total_logged'],
@@ -292,8 +258,7 @@ class ValueQueueService:
             while not self.parser_queue.empty():
                 self.parser_queue.get_nowait()
                 
-            while not self.datalogger_queue.empty():
-                self.datalogger_queue.get_nowait()
+            # (Removed datalogger queue clear)
                 
             logger.info("All queues cleared")
             
