@@ -1,3 +1,30 @@
+from sqlalchemy import func
+def get_tag_values_with_interval(tag_id: int, dt_from, dt_to, interval_sec: float):
+    """
+    Lấy các giá trị của tag_id trong khoảng thời gian [dt_from, dt_to],
+    chỉ lấy các bản ghi cách nhau >= interval_sec (giây).
+    """
+    with init_engine().connect() as con:
+        stmt = select(
+            tag_values.c.ts,
+            tag_values.c.value
+        ).where(
+            tag_values.c.tag_id == tag_id
+        )
+        if dt_from:
+            stmt = stmt.where(tag_values.c.ts >= dt_from)
+        if dt_to:
+            stmt = stmt.where(tag_values.c.ts <= dt_to)
+        stmt = stmt.order_by(tag_values.c.ts.asc())
+        rows = con.execute(stmt).fetchall()
+        # Lọc theo interval
+        filtered = []
+        last_ts = None
+        for ts, value in rows:
+            if last_ts is None or (ts - last_ts).total_seconds() >= interval_sec:
+                filtered.append((ts, value))
+                last_ts = ts
+        return filtered
 
 from ast import Dict, stmt
 from typing import Optional

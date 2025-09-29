@@ -13,6 +13,47 @@ from modbus_monitor.services.value_queue_service import (
 logger = logging.getLogger(__name__)
 
 class DataLoggerService(threading.Thread):
+    def start(self):
+        """Start both queue consumer, logger scheduler, và watcher thread tự động reload configs."""
+        # Start queue consumer thread
+        self._queue_consumer_thread = threading.Thread(
+            target=self._queue_consumer_loop,
+            daemon=True,
+            name="DataLogger-Consumer"
+        )
+        self._queue_consumer_thread.start()
+
+        # Start watcher thread để tự động reload configs mỗi 10s
+        self._watcher_thread = threading.Thread(
+            target=self._watcher_loop,
+            daemon=True,
+            name="DataLogger-Watcher"
+        )
+        self._watcher_thread.start()
+
+        # Start main thread (scheduler)
+        super().start()
+
+    def _watcher_loop(self):
+        """Thread tự động reload configs mỗi 10s."""
+        while not self._stop_event.is_set():
+            try:
+                self.reload_configs()
+            except Exception as e:
+                logger.error(f"[DataLoggerService] Error auto-reloading configs: {e}")
+            time.sleep(10)
+    def reload_configs(self):
+        """Reload logger configs and reset intervals/next_run for all loggers."""
+        loggers = self._load_loggers()
+        now = time.monotonic()
+        self._intervals.clear()
+        self._next_runs.clear()
+        for logger_config in loggers:
+            logger_id = logger_config['id']
+            interval_sec = float(logger_config.get('interval_sec', 60.0))
+            self._intervals[logger_id] = interval_sec
+            self._next_runs[logger_id] = now + 0.1
+        logger.info(f"Reloaded logger configs: {len(loggers)} loggers, intervals reset.")
     """
     DataLogger service đọc từ value queue và ghi DB
     Consumer từ value queue với precise timing scheduler
