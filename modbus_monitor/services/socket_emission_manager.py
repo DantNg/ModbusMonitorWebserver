@@ -24,6 +24,15 @@ class SocketMessage:
             self.timestamp = time.time()
 
 class SocketEmissionManager:
+    @staticmethod
+    def lamdata(tags: list) -> list:
+        """
+        Remove duplicate tag ids, keep only the last occurrence (latest value) for each tag id.
+        """
+        tag_map = {}
+        for tag in tags:
+            tag_map[tag['id']] = tag
+        return list(tag_map.values())
     """
     Manager để xử lý socket emission batch và async
     - Gom nhiều messages thành batch để giảm overhead
@@ -168,10 +177,16 @@ class SocketEmissionManager:
         try:
             from modbus_monitor.extensions import socketio
             
+
             for device_id, update in device_updates.items():
-                # Emit to device room
+                # Filter duplicate tag ids before emitting
+                if 'tags' in update and isinstance(update['tags'], list):
+                    filtered_tags = self.lamdata(update['tags'])
+                    update['tags'] = filtered_tags
+                    update['tag_count'] = len(filtered_tags)
+                # print(f"Emitting update for device {device_id} with {len(update['tags'])} tags (filtered)")
                 socketio.emit("modbus_update", update, room=f"dashboard_device_{device_id}")
-                
+
                 # Emit to relevant subdashboards
                 if update["ok"] and update["tags"]:
                     self._emit_to_subdashboards(socketio, update)

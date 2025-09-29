@@ -106,54 +106,64 @@ class ValueParserService:
         Returns: {device_id: {parsed_data}}
         """
         device_results = {}
-        
+        # For each device, keep a dict: tag_id -> tag_obj (only latest per tag_id)
+        tag_maps = {}  # device_id -> {tag_id: tag_obj}
+
         for raw_value in raw_values:
             try:
                 # Parse individual value
                 parsed_value = self._parse_single_value(raw_value)
-                
+
                 if parsed_value is not None:
                     device_id = raw_value.device_id
-                    
+
                     # Initialize device result if needed
                     if device_id not in device_results:
                         device_results[device_id] = {
                             'device_id': device_id,
-                            'tags': [],
+                            'tags': [],  # will fill later
                             'timestamp': raw_value.timestamp,
                             'seq': int(time.time() * 1000) % 10000  # Simple sequence
                         }
-                    
-                    # Add parsed tag to device result
-                    device_results[device_id]['tags'].append({
+                        tag_maps[device_id] = {}
+
+                    # Always keep only the latest tag value for each tag_id in this batch
+                    tag_maps[device_id][raw_value.tag_id] = {
                         'id': raw_value.tag_id,
                         'name': raw_value.tag_name,
                         'value': float(parsed_value),
                         'datatype': raw_value.data_type,
                         'unit': raw_value.unit,
                         'ts': datetime.fromtimestamp(raw_value.timestamp).strftime("%H:%M:%S")
-                    })
-                    
+                    }
+
                     # Update cache
                     self.cache.set(raw_value.tag_id, raw_value.timestamp, parsed_value)
-                    
+
                     # Update tag status monitor timestamp
                     from modbus_monitor.services.tag_status_monitor import get_tag_status_monitor
                     tag_monitor = get_tag_status_monitor()
                     tag_monitor.update_tag_timestamp(raw_value.tag_id, raw_value.timestamp)
-                    
+
                     # SAVE ALL RTU TAG VALUES TO DATABASE - not just datalogger tags  
                     try:
                         ts = datetime.fromtimestamp(raw_value.timestamp)
                         dbsync.update_tag_latest_value(raw_value.tag_id, float(parsed_value), ts)
                     except Exception as db_err:
                         logger.warning(f"Failed to save latest value for RTU tag {raw_value.tag_id}: {db_err}")
-                
+
             except Exception as e:
-                logger.error(f"Error parsing value for tag {raw_value.tag_name}: {e}")
+                print(f"Error parsing value for tag {raw_value.tag_name}: {e}")
                 with self.stats_lock:
                     self.stats['parse_errors'] += 1
-        
+
+        # After batch, fill tags list for each device with only latest per tag_id
+        for device_id, tag_map in tag_maps.items():
+            tag_list = list(tag_map.values())
+            device_results[device_id]['tags'] = tag_list
+            # Log emitted tag ids for debug
+            # print(f"Emit device_id={device_id} tags={[t['id'] for t in tag_list]}")
+
         return device_results
     
     def _parse_single_value(self, raw_value: RawModbusValue) -> Optional[float]:
