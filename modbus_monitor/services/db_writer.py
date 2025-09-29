@@ -76,7 +76,7 @@ class DBWriter(threading.Thread):
                     # This DBWriter now focuses on database persistence and backup emissions
                     # Only emit via DBWriter if enough time has passed (backup mechanism)
                     if now - self._last_emission > 2.0:  # Backup emission every 2 seconds
-                        from modbus_monitor.extensions import emit_dashboard_update, emit_dashboard_device_update, emit_subdashboard_update
+                        # from modbus_monitor.extensions import emit_dashboard_update, emit_dashboard_device_update, emit_subdashboard_update
                         
                         # Emit backup updates (lower priority)
                         all_tags = []
@@ -85,11 +85,11 @@ class DBWriter(threading.Thread):
                         
                         if all_tags:
                             # Backup emission with "db_backup" flag
-                            emit_dashboard_update({"tags": all_tags, "source": "db_backup"})
+                            # emit_dashboard_update({"tags": all_tags, "source": "db_backup"})
                             
                             # Emit to specific device views as backup
-                            for device_id, tags in device_updates.items():
-                                emit_dashboard_device_update(device_id, {"tags": tags, "source": "db_backup"})
+                            # for device_id, tags in device_updates.items():
+                                # emit_dashboard_device_update(device_id, {"tags": tags, "source": "db_backup"})
                             
                             # Backup subdashboard emissions
                             try:
@@ -104,8 +104,8 @@ class DBWriter(threading.Thread):
                                             if tag['id'] in subdash_tag_ids:
                                                 subdash_tags.append(tag)
                                     
-                                    if subdash_tags:
-                                        emit_subdashboard_update(subdash_id, {"tags": subdash_tags, "source": "db_backup"})
+                                    # if subdash_tags:
+                                    #     emit_subdashboard_update(subdash_id, {"tags": subdash_tags, "source": "db_backup"})
                             except Exception as e:
                                 print(f"Error in backup subdashboard emission: {e}")
                         

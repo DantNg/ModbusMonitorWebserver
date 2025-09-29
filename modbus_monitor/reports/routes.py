@@ -68,28 +68,27 @@ def reports():
             tag_names = [r["name"] for r in rows]
         columns = ["timestamp"] + tag_names
 
-        # Đồng bộ timestamp theo tag đầu tiên, các tag khác lấy giá trị gần nhất trước đó (forward fill)
+        # Đồng bộ timestamp theo tag đầu tiên, các tag khác lấy giá trị gần nhất trước đó (forward fill, tối ưu index)
         if tag_ids:
-            # Lấy timestamp của tag đầu tiên làm chuẩn
             ref_tag_id = tag_ids[0]
             ref_data = tag_data[ref_tag_id]
-            # Chuẩn bị dict cho từng tag: [(ts, value)] đã sort asc
             tag_series = {}
             for idx, tag_id in enumerate(tag_ids):
                 tag_series[tag_id] = tag_data[tag_id]
-            # Build items
+            # Chuẩn bị index cho từng tag
+            tag_idx = {tag_id: 0 for tag_id in tag_ids}
             items = []
             for ts, _ in ref_data:
                 ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
                 row = {"timestamp": ts_str}
                 for idx, tag_id in enumerate(tag_ids):
-                    # Tìm giá trị gần nhất trước hoặc bằng ts
                     series = tag_series[tag_id]
-                    val = None
-                    for t, v in reversed(series):
-                        if t <= ts:
-                            val = v
-                            break
+                    i = tag_idx[tag_id]
+                    # Tiến index tới vị trí t <= ts gần nhất
+                    while i + 1 < len(series) and series[i + 1][0] <= ts:
+                        i += 1
+                    tag_idx[tag_id] = i
+                    val = series[i][1] if series and series[i][0] <= ts else None
                     row[tag_names[idx]] = val
                 items.append(row)
         else:

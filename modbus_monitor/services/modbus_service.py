@@ -1113,17 +1113,20 @@ class _DeviceReader:
             self._close()
     
     def _get_optimal_interval(self) -> float:
-        """Get the optimal read interval for this device based on tag loggers."""
+        """Ưu tiên lấy read_interval_ms từ DB, nếu không có thì lấy min interval logger."""
         try:
+            # Ưu tiên lấy từ device_config.read_interval_ms nếu có
+            interval_ms = getattr(self.device_config, 'read_interval_ms', None)
+            if interval_ms is not None and interval_ms > 0:
+                interval_sec = interval_ms / 1000.0
+                # Vẫn clamp trong khoảng 50ms-10s để tránh lỗi cấu hình
+                return max(min(interval_sec, 10.0), 0.05)
+            # Nếu không có, lấy min interval logger như cũ
             tag_logger_map = self.config_cache.get_tag_logger_map(self.device_config.id)
             intervals = [v["interval_sec"] for v in tag_logger_map.values()]
-            
-            # Ultra-high-speed mode: 50ms to 500ms range
             min_interval = min(intervals) if intervals else 0.2
             return max(min(min_interval, 0.5), 0.05)  # 50ms to 500ms
-         
         except Exception:
-            # Default based on mode
             return 0.2 # Default 200ms
 
 class ModbusService:

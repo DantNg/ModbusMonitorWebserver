@@ -31,10 +31,10 @@ class SocketEmissionManager:
     - Non-blocking queue để không làm chậm Modbus threads
     """
     
-    def __init__(self, max_batch_size: int = 20, batch_timeout: float = 0.1, queue_size: int = 10000):
+    def __init__(self, max_batch_size: int = 20, batch_timeout: float = 0.3, queue_size: int = 10000):
         self._queue = Queue(maxsize=queue_size)
         self._max_batch_size = max_batch_size
-        self._batch_timeout = batch_timeout
+        self._batch_timeout = batch_timeout  # Increased from 0.1s to 0.3s to reduce emission frequency
         self._worker_thread: Optional[threading.Thread] = None
         self._shutdown = False
         

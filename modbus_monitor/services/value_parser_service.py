@@ -431,7 +431,6 @@ class ValueParserService:
     
     def _emit_parsed_results(self, device_results: Dict[int, Dict[str, Any]]):
         """Emit parsed results grouped by device"""
-        
         for device_id, result in device_results.items():
             try:
                 if self.emission_manager:
@@ -445,6 +444,7 @@ class ValueParserService:
                         seq=result['seq']
                     )
                 else:
+                    pass
                     # Direct emission fallback
                     from modbus_monitor.extensions import socketio
                     socketio.emit("modbus_update", {

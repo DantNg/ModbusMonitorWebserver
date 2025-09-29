@@ -1066,7 +1066,7 @@
   // Real-time socket listener for modbus updates (immediate connection)
   if (typeof socket !== 'undefined') {
     socket.on("modbus_update", function (data) {
-      // console.log(`🔥 Received modbus_update:`, data); // DEBUG: Check if socket updates are coming
+      console.log(`🔥 Received modbus_update:`, data); // DEBUG: Check if socket updates are coming
       if (!data) return;
 
       // Mark that we're receiving socket updates

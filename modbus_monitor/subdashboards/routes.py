@@ -1,4 +1,5 @@
 from flask import jsonify, render_template, request, redirect, url_for, flash, session
+from sqlalchemy import select
 from . import subdash_bp
 from datetime import datetime,timedelta
 from modbus_monitor.database import db
@@ -281,7 +282,7 @@ def debug_subdashboards():
 
 @subdash_bp.get("/api/tags")
 def api_tags_for_subdash():
-
+    print("API request for subdashboard tags")
     try:
         sid = request.args.get("subdash", type=int)
         if not sid:
@@ -289,28 +290,65 @@ def api_tags_for_subdash():
         
         # Get tag IDs for this subdashboard
         tag_ids = [t["id"] for t in db.get_subdashboard_tags(sid)]
+        # Tối ưu: gom luôn info tag và value vào 1 query
+        from modbus_monitor.database.db import tag_latest_values, tags as tags_table, init_engine
         tags = []
-        
-        for tag_id in tag_ids:
+        with init_engine().connect() as con:
+            rows = con.execute(
+                select(
+                    tag_latest_values.c.tag_id,
+                    tag_latest_values.c.value,
+                    tag_latest_values.c.ts,
+                    tags_table.c.name,
+                    tags_table.c.description,
+                    tags_table.c.datatype,
+                    tags_table.c.unit
+                ).select_from(
+                    tag_latest_values.join(tags_table, tag_latest_values.c.tag_id == tags_table.c.id)
+                ).where(tag_latest_values.c.tag_id.in_(tag_ids))
+            ).mappings().all()
+            for row in rows:
+                value = row['value']
+                datatype = row['datatype']
+                # Format giá trị theo datatype
+                if datatype in ["Word", "Short", "DWord", "DInt", "Bit", "Signed", "Unsigned", "Long", "Long_inverse", "Hex", "Binary"]:
+                    try:
+                        if float(value).is_integer():
+                            formatted_value = int(value)
+                        else:
+                            formatted_value = value
+                    except (ValueError, TypeError):
+                        formatted_value = value
+                else:
+                    formatted_value = value
+                tag_info = {
+                    "id": row["tag_id"],
+                    "name": row["name"],
+                    "description": row.get("description", ""),
+                    "datatype": datatype,
+                    "unit": row.get("unit", ""),
+                    "value": formatted_value,
+                    "ts": row["ts"].strftime("%H:%M") if row["ts"] else "--:--",
+                    "alarm_status": "Normal",
+                }
+                tags.append(tag_info)
+        # Đối với các tag không có data, vẫn trả về info
+        missing_ids = set(tag_ids) - {t["id"] for t in tags}
+        for tag_id in missing_ids:
             tag = db.get_tag(tag_id)
             if not tag:
                 continue
-                
-            value, ts = db.get_latest_tag_value(tag_id)
             tag_info = {
                 "id": tag_id,
                 "name": tag["name"],
                 "description": tag.get("description", ""),
                 "datatype": tag.get("datatype", ""),
                 "unit": tag.get("unit", ""),
-                "value": value,
-                "ts": ts.strftime("%H:%M") if ts else "--:--",
-                "alarm_status": "Normal",  # You can add alarm logic here
+                "value": None,
+                "ts": "--:--",
+                "alarm_status": "Normal",
             }
-            print(tag_info)
             tags.append(tag_info)
-            
-        print(f"Subdashboard {sid} tags: {tags}")
         return jsonify({"tags": tags})
     except Exception as e:
         print(f"Error in subdashboard /api/tags: {e}")
