@@ -56,6 +56,10 @@ class RTUComReader:
         self.devices: Dict[int, DeviceConfig] = {}  # unit_id -> DeviceConfig
         self.device_tags: Dict[int, List[TagConfig]] = {}  # unit_id -> tags
         self.device_last_read: Dict[int, float] = {}  # unit_id -> timestamp of last read
+
+        # Per-device error tracking for polling backoff
+        self.device_error_count: Dict[int, int] = {}  # unit_id -> consecutive error count
+        self.device_next_poll_ts: Dict[int, float] = {}  # unit_id -> next allowed poll timestamp
         
         self._last_connection_test = 0
         self._next_retry_ts = 0
@@ -73,6 +77,8 @@ class RTUComReader:
             unit_id = device_config.unit_id
             self.devices[unit_id] = device_config
             self.device_last_read[unit_id] = 0  # Initialize last read time
+            self.device_error_count[unit_id] = 0  # Initialize error count
+            self.device_next_poll_ts[unit_id] = 0  # Initialize next poll timestamp
             
             # Load tags for this device
             tags = self.config_cache.get_device_tags(device_config.id)
@@ -112,6 +118,10 @@ class RTUComReader:
                 del self.devices[unit_id]
                 del self.device_tags[unit_id]
                 del self.device_last_read[unit_id]  # Clean up last read time
+                if unit_id in self.device_error_count:
+                    del self.device_error_count[unit_id]
+                if unit_id in self.device_next_poll_ts:
+                    del self.device_next_poll_ts[unit_id]
                 logger.info(f"Removed device {device_name} (Unit ID: {unit_id}) from COM {self.com_config.serial_port}")
 
     def has_devices(self) -> bool:
@@ -406,6 +416,8 @@ class RTUComReader:
             devices_copy = dict(self.devices)
             tags_copy = dict(self.device_tags)
             last_read_copy = dict(self.device_last_read)
+            error_count_copy = dict(self.device_error_count)
+            next_poll_ts_copy = dict(self.device_next_poll_ts)
         
         total_values = 0
         devices_read_count = 0
@@ -424,6 +436,12 @@ class RTUComReader:
             time_since_last_read = now - last_read_time
             if time_since_last_read < device_interval_sec:
                 # Not time yet for this device
+                continue
+
+            # Check if device is in error backoff
+            next_poll_ts = next_poll_ts_copy.get(unit_id, 0)
+            if now < next_poll_ts:
+                logger.debug(f"Device {device.name} (Unit {unit_id}): Skipping poll due to error backoff until {next_poll_ts:.2f}")
                 continue
             
             try:
@@ -444,10 +462,22 @@ class RTUComReader:
                     self.config_cache.update_device_status(device.id, "connected")
                     
                     logger.debug(f"Device {device.name} (Unit {unit_id}): Read {len(raw_values)} values ({success_count} queued) in {read_time:.3f}s, next read in {device_interval_sec}s")
+
+                    # Reset error counter and backoff on success
+                    with self._lock:
+                        self.device_error_count[unit_id] = 0
+                        self.device_next_poll_ts[unit_id] = 0
                 else:
                     # No values read - this could indicate communication failure
                     self.config_cache.update_device_status(device.id, "disconnected")
                     logger.warning(f"Device {device.name} (Unit {unit_id}): No values read")
+
+                    # Increment error counter and set backoff if needed
+                    with self._lock:
+                        self.device_error_count[unit_id] = self.device_error_count.get(unit_id, 0) + 1
+                        if self.device_error_count[unit_id] >= 3:
+                            self.device_next_poll_ts[unit_id] = now + 15
+                            logger.warning(f"Device {device.name} (Unit {unit_id}): Consecutive read failures reached 3, skipping polling for 15s")
                 
                 devices_read_count += 1
                 
@@ -462,6 +492,10 @@ class RTUComReader:
                 # Still update last read time to prevent immediate retry
                 with self._lock:
                     self.device_last_read[unit_id] = now
+                    self.device_error_count[unit_id] = self.device_error_count.get(unit_id, 0) + 1
+                    if self.device_error_count[unit_id] >= 3:
+                        self.device_next_poll_ts[unit_id] = now + 15
+                        logger.warning(f"Device {device.name} (Unit {unit_id}): Consecutive read failures reached 3, skipping polling for 15s")
         
         if total_values > 0:
             logger.debug(f"COM {self.com_config.serial_port}: Read cycle completed, {devices_read_count} devices read, {total_values} total values")
