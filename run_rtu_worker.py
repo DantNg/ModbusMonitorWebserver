@@ -89,7 +89,7 @@ def main():
         
         # Create RTU worker
         worker = RTUWorker(
-            worker_id=f"RTU_{args.serial_port.replace('/', '_').replace('\\', '_')}",
+            worker_id=f"RTU_{args.serial_port}",
             serial_port=args.serial_port,
             baudrate=args.baudrate,
             timeout=5,

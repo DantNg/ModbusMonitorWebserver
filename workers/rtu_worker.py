@@ -1,295 +1,410 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
-RTU Worker - Handles Modbus RTU communication over serial port
+RTU Worker - Handles Modbus RTU communication over serial port (reworked)
+- Đọc block theo function code, map offset → giá trị từng tag
+- Hỗ trợ datatype: Bit, UInt16/Int16, Float32, Int32/UInt32
+- Poll theo interval riêng từng device (dù cùng 1 COM)
+- Phát Socket.IO 'modbus_update' đúng format frontend
 """
 
+import os
+import sys
 import time
+import struct
 import threading
 from datetime import datetime
-import sys
-import os
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# Try to import pymodbus with correct syntax
+# ==== Optional deps ====
+# DB
+try:
+    from shared.database_manager import DatabaseManager
+    DB_AVAILABLE = True
+except Exception:
+    DB_AVAILABLE = False
+    DatabaseManager = None
+    print("⚠️  DatabaseManager not available. Running without DB writes.")
+
+# Socket.IO
+try:
+    import socketio
+    SIO_AVAILABLE = True
+except Exception:
+    SIO_AVAILABLE = False
+    socketio = None
+    print("⚠️  python-socketio not available. Skipping realtime emission.")
+
+# pymodbus
 try:
     from pymodbus.client import ModbusSerialClient
-    from pymodbus.exceptions import ModbusException
-    import serial
     PYMODBUS_AVAILABLE = True
-except ImportError:
-    print("⚠️ pymodbus not available - RTU worker will use simulation mode")
+except Exception:
     PYMODBUS_AVAILABLE = False
     ModbusSerialClient = None
-    ModbusException = Exception
-    serial = None
+    print("⚠️  pymodbus not available. Worker will not reach PLC (simulation only).")
 
+
+# ==== Helpers ====
+def now_hms():
+    return datetime.now().strftime("%H:%M:%S")
+
+
+def normalize_address(addr: int, base: str = "auto") -> int:
+    """
+    Chuẩn hoá địa chỉ về 0-based cho pymodbus.
+    base:
+      - 'zero' : DB đã 0-based
+      - '10k'  : DB dạng 40001/30001/10001
+      - 'auto' : <10001 => 0-based, >=10001 => 10k
+    """
+    a = int(addr)
+    if base == "zero":
+        return a
+    if base == "10k" or a >= 10001:
+        if a >= 40001: return a - 40001
+        if a >= 30001: return a - 30001
+        if a >= 10001: return a - 10001
+    return a
+
+
+def unpack_from_registers(regs, offset, datatype="Word", word_order="AB"):
+    """
+    Lấy 1 giá trị từ block regs (0-based).
+    Hỗ trợ: Word/UInt16, Int16, Float32, Int32, UInt32
+    """
+    dt = (datatype or "Word").strip().lower()
+
+    # 1 word
+    if dt in ("word", "uint16", "unsigned", "ushort"):
+        return regs[offset]
+    if dt in ("signed", "int16", "short"):
+        v = regs[offset]
+        return v if v < 32768 else v - 65536
+
+    # 2 words
+    if dt in ("float", "float32", "real", "ieee754"):
+        if offset + 1 >= len(regs): return None
+        hi, lo = (regs[offset], regs[offset + 1]) if word_order.upper() == "AB" else (regs[offset + 1], regs[offset])
+        b = hi.to_bytes(2, "big") + lo.to_bytes(2, "big")
+        return struct.unpack(">f", b)[0]
+
+    if dt in ("int32", "dint", "long"):
+        if offset + 1 >= len(regs): return None
+        hi, lo = (regs[offset], regs[offset + 1]) if word_order.upper() == "AB" else (regs[offset + 1], regs[offset])
+        val = (hi << 16) | lo
+        return val if val < 2147483648 else val - 4294967296
+
+    if dt in ("uint32", "dword"):
+        if offset + 1 >= len(regs): return None
+        hi, lo = (regs[offset], regs[offset + 1]) if word_order.upper() == "AB" else (regs[offset + 1], regs[offset])
+        return (hi << 16) | lo
+
+    return regs[offset]
+
+
+# ==== Worker ====
 class RTUWorker:
-    def __init__(self, worker_id, serial_port, baudrate=9600, timeout=5, devices=None, tags=None):
+    def __init__(
+        self,
+        worker_id,
+        serial_port,
+        baudrate=9600,
+        parity='N',
+        stopbits=1,
+        bytesize=8,
+        timeout=1.5,
+        devices=None,
+        tags=None,
+        webapp_url="http://127.0.0.1:5000",
+        address_base="auto",
+        debug=True,
+    ):
+        """
+        devices: objects có .id, .name, .unit_id, .read_interval_ms [ms]
+        tags:    objects có .id, .device_id, .name, .address, .function_code,
+                 .data_type, .scale_factor, .offset, .unit, .word_order
+        """
         self.worker_id = worker_id
         self.serial_port = serial_port
         self.baudrate = baudrate
+        self.parity = parity
+        self.stopbits = stopbits
+        self.bytesize = bytesize
         self.timeout = timeout
+
         self.devices = devices or []
         self.tags = tags or []
-        self.is_running = False
-        self.client = None
-        self.worker_thread = None
-        self.debug = True
-        
-        # Group tags by device for efficient reading
+
+        self.webapp_url = webapp_url
+        self.address_base = address_base
+        self.debug = debug
+
+        # group tag theo device
         self.device_tags = {}
-        for tag in self.tags:
-            if tag.device_id not in self.device_tags:
-                self.device_tags[tag.device_id] = []
-            self.device_tags[tag.device_id].append(tag)
-    
-    def start(self):
-        """Start the RTU worker"""
-        if self.is_running:
-            print(f"⚠️  RTU Worker {self.worker_id} already running")
-            return
-        
-        try:
-            if not PYMODBUS_AVAILABLE:
-                print("🛠️ Running in simulation mode (pymodbus not available)")
-                self.client = None  # Use simulation mode
-            else:
-                # Create Modbus RTU client
-                self.client = ModbusSerialClient(
-                    port=self.serial_port,
-                    baudrate=self.baudrate,
-                    timeout=self.timeout,
-                    parity='N',
-                    stopbits=1,
-                    bytesize=8
-                )
-                
-                if not self.client.connect():
-                    print(f"❌ Failed to connect to {self.serial_port}")
-                    return False
-            
-            print(f"✅ Connected to RTU: {self.serial_port} @ {self.baudrate} baud")
-            
-            self.is_running = True
-            self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
-            self.worker_thread.start()
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ RTU Worker start error: {e}")
-            return False
-    
-    def stop(self):
-        """Stop the RTU worker"""
+        for tg in self.tags:
+            self.device_tags.setdefault(tg.device_id, []).append(tg)
+
+        # DB
+        self.db = DatabaseManager() if DB_AVAILABLE else None
+
+        # Socket.IO
+        self.sio = socketio.Client(reconnection=True) if SIO_AVAILABLE else None
+        self.sio_connected = False
+
+        # Modbus client (1 COM duy nhất cho worker này)
+        self.client = None
+
+        # runtime
         self.is_running = False
-        if self.client:
-            self.client.close()
-        
-        if self.worker_thread:
-            self.worker_thread.join(timeout=5)
-        
-        print(f"🛑 RTU Worker {self.worker_id} stopped")
-    
-    def _worker_loop(self):
-        """Main worker loop"""
-        print(f"🔄 RTU Worker loop started for {len(self.devices)} devices")
-        
-        while self.is_running:
+        self.thread = None
+
+    # ---- lifecycle
+    def start(self):
+        if self.is_running:
+            if self.debug: print("⚠️  RTU worker already running")
+            return True
+
+        if PYMODBUS_AVAILABLE:
+            self.client = ModbusSerialClient(
+                port=self.serial_port,
+                baudrate=self.baudrate,
+                parity=self.parity,
+                stopbits=self.stopbits,
+                bytesize=self.bytesize,
+                timeout=self.timeout,
+            )
+            if not self.client.connect():
+                print(f"❌ RTU connect fail {self.serial_port} @ {self.baudrate}")
+                return False
+            if self.debug: print(f"✅ Connected RTU {self.serial_port} @ {self.baudrate}")
+        else:
+            print("⚠️  pymodbus missing - no PLC access (simulation only)")
+
+        if SIO_AVAILABLE:
             try:
-                for device in self.devices:
-                    if not self.is_running:
-                        break
-                    
-                    self._read_device(device)
-                    
-                # Wait before next polling cycle
-                time.sleep(1)
-                
+                self.sio.connect(self.webapp_url, wait=True)
+                self.sio_connected = True
+                if self.debug: print("✅ Socket.IO connected")
             except Exception as e:
-                print(f"❌ RTU Worker loop error: {e}")
-                time.sleep(5)  # Wait before retrying
-    
+                print(f"⚠️  Socket.IO connect failed: {e}")
+                self.sio_connected = False
+
+        self.is_running = True
+        self.thread = threading.Thread(target=self._loop, daemon=True)
+        self.thread.start()
+        return True
+
+    def stop(self):
+        self.is_running = False
+        try:
+            if self.thread:
+                self.thread.join(timeout=5)
+        except Exception:
+            pass
+        try:
+            if self.client:
+                self.client.close()
+        except Exception:
+            pass
+        try:
+            if self.sio and self.sio_connected:
+                self.sio.disconnect()
+        except Exception:
+            pass
+        print("🛑 RTU Worker stopped")
+
+    # ---- main loop with per-device schedule (cùng 1 COM)
+    def _loop(self):
+        if self.debug:
+            print(f"🔄 RTU loop for {len(self.devices)} devices on {self.serial_port}")
+
+        schedule_next = {}
+        while self.is_running:
+            now = time.time()
+            for dev in self.devices:
+                interval = max(0.1, getattr(dev, "read_interval_ms", 1000) / 1000.0)
+                nxt = schedule_next.get(dev.id, 0)
+                if now >= nxt:
+                    try:
+                        self._read_device(dev)
+                    except Exception as e:
+                        print(f"❌ read device {getattr(dev,'name',dev.id)}: {e}")
+                    schedule_next[dev.id] = now + interval
+            time.sleep(0.01)
+
+    # ---- read one device (multi-block per FC)
     def _read_device(self, device):
-        """Read all tags for a device using optimized block reads"""
-        try:
-            device_tags = self.device_tags.get(device.id, [])
-            if not device_tags:
-                return
-            
-            if self.debug:
-                print(f"📖 Reading device {device.name} (Unit {device.unit_id}) - {len(device_tags)} tags")
-            
-            # Group tags by function code for batch reading
-            tags_by_function = {}
-            for tag in device_tags:
-                function_code = tag.function_code or device.default_function_code or 3
-                if function_code not in tags_by_function:
-                    tags_by_function[function_code] = []
-                tags_by_function[function_code].append(tag)
-            
-            successful_reads = 0
-            
-            # Read each function code group as a block
-            for function_code, tags in tags_by_function.items():
-                try:
-                    values = self._read_tags_block(device, function_code, tags)
-                    if values:
-                        for tag, value in zip(tags, values):
-                            if value is not None:
-                                successful_reads += 1
-                                
-                                # Apply scaling
-                                if tag.scale_factor != 1.0:
-                                    value = value * tag.scale_factor
-                                if tag.offset != 0.0:
-                                    value = value + tag.offset
-                                
-                                if self.debug:
-                                    print(f"   📊 {tag.name}: {value}")
-                                
-                                # Store value
-                                self._store_tag_value(tag.id, value, datetime.now())
-                            else:
-                                if self.debug:
-                                    print(f"   ❌ {tag.name}: No data")
-                                
-                except Exception as block_error:
-                    print(f"❌ Error reading block FC{function_code}: {block_error}")
-                    # Fallback to individual tag reading
-                    for tag in tags:
-                        try:
-                            value = self._read_tag_individual(device, tag)
-                            if value is not None:
-                                successful_reads += 1
-                                
-                                # Apply scaling
-                                if tag.scale_factor != 1.0:
-                                    value = value * tag.scale_factor
-                                if tag.offset != 0.0:
-                                    value = value + tag.offset
-                                
-                                if self.debug:
-                                    print(f"   📊 {tag.name}: {value} (individual)")
-                                
-                                self._store_tag_value(tag.id, value, datetime.now())
-                        except Exception as tag_error:
-                            print(f"❌ Error reading tag {tag.name}: {tag_error}")
-            
-            if self.debug:
-                print(f"✅ Device {device.name}: {successful_reads}/{len(device_tags)} tags read successfully")
-                
-        except Exception as e:
-            print(f"❌ Device read error for {device.name}: {e}")
-    
-    def _read_tags_block(self, device, function_code, tags):
-        """Read multiple tags in a single block read"""
-        try:
-            if not PYMODBUS_AVAILABLE or self.client is None:
-                # Simulation mode - generate fake data for all tags
-                import random
-                return [random.randint(100, 500) for _ in tags]
-            
-            # Sort tags by address
-            sorted_tags = sorted(tags, key=lambda t: t.address)
-            
-            # Find address range
-            min_addr = min(tag.address for tag in sorted_tags)
-            max_addr = max(tag.address for tag in sorted_tags)
-            
-            # Convert to 0-based addressing
-            start_addr = max(0, min_addr - 1) if min_addr > 0 else min_addr
-            count = max_addr - min_addr + 1
-            
-            if self.debug:
-                print(f"   🔍 Block read FC{function_code}: Addr {min_addr}-{max_addr} → {start_addr}+{count}, Unit {device.unit_id}")
-            
-            # Read the block
-            if function_code == 1:  # Read Coils
-                result = self.client.read_coils(start_addr, count, unit=device.unit_id)
-            elif function_code == 2:  # Read Discrete Inputs
-                result = self.client.read_discrete_inputs(start_addr, count, unit=device.unit_id)
-            elif function_code == 3:  # Read Holding Registers
-                result = self.client.read_holding_registers(start_addr, count, unit=device.unit_id)
-            elif function_code == 4:  # Read Input Registers
-                result = self.client.read_input_registers(start_addr, count, unit=device.unit_id)
-            else:
-                print(f"⚠️  Unsupported function code: {function_code}")
-                return None
-            
-            if result.isError():
-                print(f"❌ Modbus block read error FC{function_code}: {result}")
-                return None
-            
-            # Map values to tags
-            values = []
-            for tag in tags:
-                try:
-                    # Calculate offset in the read block
-                    offset = tag.address - min_addr
-                    
-                    if function_code in [1, 2]:  # Coils/Discrete Inputs
-                        value = 1 if result.bits[offset] else 0
-                    else:  # Registers
-                        value = result.registers[offset]
-                    
-                    values.append(value)
-                except (IndexError, AttributeError) as e:
-                    print(f"⚠️  Error mapping tag {tag.name} at offset {offset}: {e}")
-                    values.append(None)
-            
-            return values
-            
-        except Exception as e:
-            print(f"❌ Block read error: {e}")
-            return None
-    
-    def _read_tag_individual(self, device, tag):
-        """Read a single tag value (fallback method)"""
-        try:
-            if not PYMODBUS_AVAILABLE or self.client is None:
-                # Simulation mode - generate fake data
-                import random
-                if tag.data_type in ['Bit']:
-                    return random.choice([0, 1])
+        tags = self.device_tags.get(device.id, [])
+        if not tags:
+            return
+
+        if self.debug:
+            print(f"📖 Device {device.name} (Unit {getattr(device,'unit_id',1)}), tags: {len(tags)}")
+
+        # group theo FC
+        by_fc = {}
+        for tg in tags:
+            fc = getattr(tg, "function_code", 3) or 3
+            by_fc.setdefault(fc, []).append(tg)
+
+        all_rows = []
+        success = 0
+
+        for fc, tg_list in by_fc.items():
+            block = self._read_block(device, fc, tg_list)
+            if not block:
+                continue
+
+            for tg in tg_list:
+                raw = block.get(tg.id)
+                if raw is None:
+                    continue
+
+                val = float(raw)
+                sf = getattr(tg, "scale_factor", 1.0) or 1.0
+                off = getattr(tg, "offset", 0.0) or 0.0
+                if sf != 1.0:
+                    val *= sf
+                if off != 0.0:
+                    val += off
+
+                success += 1
+
+                # DB write (optional)
+                if self.db:
+                    try:
+                        ts_full = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        self.db.update_tag_latest_value(tg.id, val, ts_full)
+                    except Exception as e:
+                        if self.debug: print(f"⚠️  DB update tag {tg.id} error: {e}")
+
+                all_rows.append({
+                    "id": tg.id,
+                    "name": tg.name,
+                    "value": val,
+                    "datatype": getattr(tg, "data_type", "Word"),
+                    "unit": getattr(tg, "unit", ""),
+                    "ts": now_hms(),
+                })
+
+        if all_rows:
+            self._emit_modbus_update(device, all_rows)
+
+        if self.debug:
+            print(f"✅ {device.name}: {success}/{len(tags)} tags")
+
+    # ---- block read + map offsets
+    def _read_block(self, device, function_code, tags):
+        """
+        Trả về dict {tag_id: value}
+        """
+        # Simulation path
+        if not PYMODBUS_AVAILABLE or not self.client:
+            import random
+            values = {}
+            for tg in tags:
+                if function_code in (1, 2):
+                    values[tg.id] = random.choice([0, 1])
                 else:
-                    return random.randint(100, 500)  # Simulate sensor reading
-            
-            function_code = tag.function_code or device.default_function_code or 3
-            
-            # Convert address - some systems use 1-based addressing
-            # Pymodbus uses 0-based addressing, so subtract 1 if address > 0
-            modbus_address = max(0, tag.address - 1) if tag.address > 0 else tag.address
-            
-            if self.debug:
-                print(f"   🔍 Reading {tag.name}: FC={function_code}, Addr={tag.address}→{modbus_address}, Unit={device.unit_id}")
-            
-            if function_code == 1:  # Read Coils
-                result = self.client.read_coils(modbus_address, 1, unit=device.unit_id)
-            elif function_code == 2:  # Read Discrete Inputs
-                result = self.client.read_discrete_inputs(modbus_address, 1, unit=device.unit_id)
-            elif function_code == 3:  # Read Holding Registers
-                result = self.client.read_holding_registers(modbus_address, 1, unit=device.unit_id)
-            elif function_code == 4:  # Read Input Registers
-                result = self.client.read_input_registers(modbus_address, 1, unit=device.unit_id)
+                    values[tg.id] = random.randint(100, 500)
+            return values
+
+        tags_sorted = sorted(tags, key=lambda t: t.address)
+        min_addr = min(t.address for t in tags_sorted)
+        max_addr = max(t.address for t in tags_sorted)
+
+        start = normalize_address(min_addr, self.address_base)
+        end = normalize_address(max_addr, self.address_base)
+        count = end - start + 1
+        unit = getattr(device, "unit_id", 1)
+
+        if self.debug:
+            print(f"   🔍 FC{function_code}: {min_addr}-{max_addr} → start={start}, count={count}, unit={unit}")
+
+        try:
+            if function_code == 1:
+                res = self.client.read_coils(address=start, count=count, slave=unit)
+            elif function_code == 2:
+                res = self.client.read_discrete_inputs(address=start, count=count, slave=unit)
+            elif function_code == 3:
+                res = self.client.read_holding_registers(address=start, count=count, slave=unit)
+            elif function_code == 4:
+                res = self.client.read_input_registers(address=start, count=count, slave=unit)
             else:
-                print(f"⚠️  Unsupported function code: {function_code}")
-                return None
-            
-            if result.isError():
-                print(f"❌ Modbus error reading {tag.name}: {result}")
-                return None
-            
-            # Extract value based on function code
-            if function_code in [1, 2]:  # Coils/Discrete Inputs
-                return 1 if result.bits[0] else 0
-            else:  # Registers
-                return result.registers[0]
-                
+                if self.debug: print(f"⚠️  Unsupported FC {function_code}")
+                return {}
+            if res.isError():
+                if self.debug: print(f"❌ Modbus error FC{function_code}: {res}")
+                return {}
         except Exception as e:
-            print(f"❌ Tag read error {tag.name}: {e}")
-            return None
-    
-    def _store_tag_value(self, tag_id, value, timestamp):
-        """Store tag value (placeholder - in real implementation, save to database)"""
-        # This would interface with your database or queue system
-        pass
+            print(f"❌ Modbus read exception FC{function_code}: {e}")
+            return {}
+
+        vals = {}
+        if function_code in (1, 2):
+            bits = getattr(res, "bits", [])
+            for tg in tags_sorted:
+                off = normalize_address(tg.address, self.address_base) - start
+                try:
+                    vals[tg.id] = 1 if bits[off] else 0
+                except Exception:
+                    vals[tg.id] = None
+        else:
+            regs = getattr(res, "registers", [])
+            for tg in tags_sorted:
+                off = normalize_address(tg.address, self.address_base) - start
+                try:
+                    v = unpack_from_registers(
+                        regs, off,
+                        getattr(tg, "data_type", "Word"),
+                        getattr(tg, "word_order", "AB"),
+                    )
+                    vals[tg.id] = v
+                except Exception:
+                    vals[tg.id] = None
+
+        return vals
+
+    # ---- emit to webapp
+    def _ensure_sio(self):
+        if not SIO_AVAILABLE:
+            return False
+        if self.sio and self.sio_connected:
+            return True
+        try:
+            if not self.sio:
+                self.sio = socketio.Client(reconnection=True)
+            self.sio.connect(self.webapp_url, wait=True)
+            self.sio_connected = True
+            return True
+        except Exception as e:
+            print(f"⚠️  Socket.IO reconnect failed: {e}")
+            self.sio_connected = False
+            return False
+
+    def _emit_modbus_update(self, device, tag_rows):
+        payload = {
+            "device_id": f"dev{device.id}",
+            "device_name": device.name,
+            "unit": getattr(device, "unit_id", 1),
+            "ok": True,
+            "seq": int(time.time()),
+            "latency_ms": 0,  # có thể đo và gán nếu bạn muốn
+            "tags": tag_rows,
+            "ts": now_hms(),
+            # "room": f"subdashboard_{device.subdash_id}"  # nếu device có subdash_id
+        }
+
+        if self._ensure_sio():
+            try:
+                self.sio.emit("modbus_update", payload)
+                if self.debug:
+                    print(f"   📡 Emitted {len(tag_rows)} tags for {device.name}")
+            except Exception as e:
+                print(f"⚠️  emit failed: {e}")
+                self.sio_connected = False
+        else:
+            if self.debug:
+                print("⚠️  Socket.IO unavailable; payload not sent")
