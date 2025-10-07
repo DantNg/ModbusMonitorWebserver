@@ -1,0 +1,20 @@
+{
+  "MYSQL_URI":"mysql+pymysql://root:123456@127.0.0.1:3306/modbus_monitor_db",
+  "POOL_SIZE": 8,
+  "SECRET_KEY":"modbus_monitor_secret_key",
+  "SMTPSettings": {
+    "Host": "smtp.gmail.com",
+    "Port": 587,
+    "Username": "iotthinhtamphat@gmail.com",
+    "Password": "eepv szvc mydo jonu",
+    "Subject":  "Alarm Notification"
+  },
+  "SMSSettings": {
+    "COMPort": "COM2",
+    "BaudRate": 9600,
+    "DataBits": 8,
+    "Parity": "N",
+    "StopBits": 1,
+    "PIN":  "0000"
+  }
+}

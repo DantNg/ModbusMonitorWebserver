@@ -1,0 +1,349 @@
+import eventlet
+eventlet.monkey_patch()
+
+import os
+import sys
+import atexit
+import threading
+import time
+from datetime import datetime
+
+# Add current directory and project root to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.insert(0, current_dir)
+sys.path.insert(0, project_root)
+
+from flask import redirect, url_for, request, jsonify, session
+from modbus_monitor import create_app
+from modbus_monitor.extensions import socketio
+from modbus_monitor.database import db
+
+app = create_app()
+
+# ProcessManager disabled in webapp-only mode
+process_manager = None
+data_queue_thread = None
+
+def initialize_process_manager():
+    """Initialize ProcessManager - disabled in webapp-only mode"""
+    global process_manager
+    # Always return None in webapp-only mode
+    process_manager = None
+    app.process_manager = None  # Explicitly set to None
+    return None
+
+@app.route("/")
+def root():
+    print("Start login")
+    return redirect(url_for("auth_bp.login"))
+
+@app.route("/tags/<int:tag_id>/update-unit", methods=["POST"])
+def update_tag_unit(tag_id):
+    """Update unit for a specific tag"""
+    # Check if user is admin
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    
+    try:
+        unit = request.form.get("unit", "").strip()
+        
+        # Update unit in database
+        result = db.update_tag_unit(tag_id, unit)
+        
+        if result:
+            return jsonify({"success": True, "message": "Unit updated successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to update unit"})
+            
+    except Exception as e:
+        print(f"Error updating tag unit: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/api/emit-tag-update", methods=["POST"])
+def emit_tag_update():
+    """API endpoint for workers to emit tag updates via SocketIO"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "No data provided"}), 400
+        
+        tag_id = data.get("tag_id")
+        value = data.get("value")
+        timestamp = data.get("timestamp")
+        worker_id = data.get("worker_id")
+        worker_type = data.get("worker_type", "unknown")
+        device_id = data.get("device_id")
+        device_name = data.get("device_name")
+        
+        if tag_id is None or value is None:
+            return jsonify({"success": False, "message": "tag_id and value required"}), 400
+        
+        # Prepare SocketIO data
+        socket_data = {
+            "tag_id": tag_id,
+            "value": value,
+            "timestamp": timestamp,
+            "worker_id": worker_id,
+            "worker_type": worker_type,
+            "device_id": device_id,
+            "device_name": device_name
+        }
+        
+        # Determine target rooms for emission
+        rooms_to_emit = []
+        
+        # 1. Dashboard device room
+        if device_id:
+            dashboard_room = f"subdashboard_19"
+            rooms_to_emit.append(dashboard_room)
+        
+        # 2. Subdashboard rooms (get from database if tag belongs to subdashboards)
+        try:
+            # You might want to query which subdashboards contain this tag
+            # For now, we'll use a simple approach
+            subdash_rooms = db.get_subdashboard_rooms_for_tag(tag_id) if hasattr(db, 'get_subdashboard_rooms_for_tag') else []
+            rooms_to_emit.extend(subdash_rooms)
+        except:
+            pass
+        
+        # Emit modbus_update to specific rooms
+        for room in rooms_to_emit:
+            socketio.emit('modbus_update', socket_data, room=room)
+            
+        # Also emit general tag_update for broader listeners
+        socketio.emit('tag_update', socket_data, broadcast=True)
+        
+        return jsonify({
+            "success": True, 
+            "message": f"Tag update emitted to {len(rooms_to_emit)} rooms",
+            "rooms": rooms_to_emit
+        })
+        
+    except Exception as e:
+        print(f"Error in emit_tag_update: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/api/modbus-update", methods=["POST"])
+def modbus_update():
+    """API endpoint for workers to send modbus updates with proper room handling"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "No data provided"}), 400
+        
+        tag_id = data.get("tag_id")
+        value = data.get("value")
+        timestamp = data.get("timestamp")
+        worker_id = data.get("worker_id")
+        worker_type = data.get("worker_type", "unknown")
+        device_id = data.get("device_id")
+        device_name = data.get("device_name")
+        tag_name = data.get("tag_name", f"tag_{tag_id}")
+        
+        if tag_id is None or value is None:
+            return jsonify({"success": False, "message": "tag_id and value required"}), 400
+        
+        # Prepare modbus_update data (format expected by frontend)
+        modbus_data = {
+            "tags": [{
+                "id": tag_id,
+                "name": tag_name,
+                "value": value,
+                "timestamp": timestamp
+            }],
+            "device_id": device_id,
+            "device_name": device_name,
+            "worker_id": worker_id,
+            "worker_type": worker_type,
+            "ok": True
+        }
+        
+        # Determine target rooms
+        rooms_emitted = []
+        
+        # 1. Dashboard device room
+        if device_id:
+            dashboard_room = f"dashboard_device_{device_id}"
+            socketio.emit('modbus_update', modbus_data, room=dashboard_room)
+            rooms_emitted.append(dashboard_room)
+        
+        # 2. Get subdashboard rooms for this tag
+        try:
+            # Query database to find which subdashboards contain this tag
+            subdash_rooms = db.get_subdashboard_rooms_for_tag(tag_id) if hasattr(db, 'get_subdashboard_rooms_for_tag') else []
+            for subdash_room in subdash_rooms:
+                socketio.emit('modbus_update', modbus_data, room=subdash_room)
+                rooms_emitted.append(subdash_room)
+        except Exception as subdash_error:
+            print(f"Warning: Could not get subdashboard rooms: {subdash_error}")
+        
+        return jsonify({
+            "success": True, 
+            "message": f"Modbus update sent to {len(rooms_emitted)} rooms",
+            "rooms": rooms_emitted
+        })
+        
+        return jsonify({"success": True, "message": "Tag update emitted"})
+        
+    except Exception as e:
+        print(f"Error in emit_tag_update: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+# Cache subdashboards để tránh query mỗi request
+_subdashboards_cache = None
+_cache_timestamp = 0
+
+@app.context_processor
+def inject_subdashboards():
+    global _subdashboards_cache, _cache_timestamp
+    import time
+    current_time = time.time()
+    
+    # Cache 30 giây
+    if _subdashboards_cache is None or (current_time - _cache_timestamp) > 30:
+        try:
+            _subdashboards_cache = db.list_subdashboards() if hasattr(db, "list_subdashboards") else []
+            print(f"🔄 Loaded {len(_subdashboards_cache)} subdashboards from DB: {[s.get('name') for s in _subdashboards_cache]}")
+            _cache_timestamp = current_time
+        except Exception as e:
+            print(f"❌ Error loading subdashboards: {e}")
+            _subdashboards_cache = []
+    
+    return dict(subdashboards=_subdashboards_cache)
+
+def clear_subdashboards_cache():
+    """Clear subdashboards cache to force reload"""
+    global _subdashboards_cache
+    _subdashboards_cache = None
+    print("🔄 Subdashboards cache cleared")
+
+# Make function available globally
+app.clear_subdashboards_cache = clear_subdashboards_cache
+
+# Socket.IO event handlers
+from flask_socketio import join_room, leave_room
+
+@socketio.on('connect')
+def handle_connect():
+    print(f"Client connected: {request.sid}")
+
+@socketio.on('leave')
+def on_leave(data):
+    room = data.get('room')
+    if room:
+        leave_room(room)
+        print(f"Client {request.sid} left room: {room}")
+        
+        # Notify workers about room leave
+        socketio.emit('room_left', {
+            'room': room,
+            'client_id': request.sid,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        print(f"📡 Room leave broadcasted: {room}")
+            
+@socketio.on('disconnect')
+def handle_disconnect():
+    print(f"Client disconnected: {request.sid}")
+    # ProcessManager disabled in webapp-only mode
+
+@socketio.on('join')
+def on_join(data):
+    room = data.get('room')
+    if room:
+        join_room(room)  # Join the socket.io room
+        print(f"Client {request.sid} joined room: {room}")
+        
+        # Notify workers about room join for targeted updates
+        socketio.emit('room_joined', {
+            'room': room,
+            'client_id': request.sid,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        print(f"📡 Room join broadcasted: {room}")
+            
+        socketio.emit('join_ack', {'room': room}, to=request.sid)
+
+@socketio.on('modbus_update')
+def on_modbus_update(data):
+    """
+    Handle modbus update from workers and emit to appropriate rooms.
+    Data comes directly from TCP workers via SocketIO client.
+    """
+    try:
+        tags = data.get("tags") or []
+        source = data.get("source", "unknown")
+        
+        # Log occasionally to avoid spam
+        if data.get("seq", 0) % 20 == 0:
+            print(f"[srv] modbus_update from {source}: device={data.get('device_id')} tags={len(tags)} seq={data.get('seq')}")
+
+        # For TCP worker emissions, broadcast to all rooms for now
+        # Later we can implement more sophisticated room filtering
+        if source == 'tcp_worker':
+            # Broadcast to all connected clients
+            socketio.emit('modbus_update', data)
+        else:
+            # Handle legacy format with target_rooms or room
+            target_rooms = data.get("target_rooms") or []
+            
+            if target_rooms:
+                for room in target_rooms:
+                    socketio.emit('modbus_update', data, room=room)
+            else:
+                # Fallback room determination (for backward compatibility)
+                room = data.get("room")
+                if not room:
+                    subdash_id = data.get("subdash_id")
+                    if subdash_id:
+                        room = f"subdashboard_{subdash_id}"
+                
+                if room:
+                    socketio.emit('modbus_update', data, room=room)
+                else:
+                    # Last resort - broadcast to all
+                    socketio.emit('modbus_update', data)
+
+        # Store data in database if needed
+        if data.get('ok', True) and 'tag_id' in data and 'value' in data:
+            try:
+                db.update_tag_latest_value(
+                    data['tag_id'], 
+                    data['value'], 
+                    data.get('timestamp', time.time())
+                )
+            except Exception as e:
+                print(f"Error storing tag value: {e}")
+
+    except Exception as e:
+        print(f"on_modbus_update error: {e}")
+
+def start_data_queue_processor():
+    """Background thread to process data from workers (disabled in webapp-only mode)"""
+    print("INFO: Data queue processor disabled in webapp-only mode")
+    return None
+
+def cleanup_on_exit():
+    """Cleanup function for graceful shutdown (disabled in webapp-only mode)"""
+    print("INFO: Cleanup disabled in webapp-only mode")
+
+if __name__ == "__main__":
+    print("🌐 Starting Flask Modbus Monitor - Webapp Only")
+    print("� This process only handles web interface")
+    print("� Access at: http://localhost:5000")
+    print("--------------------------------------------------")
+    
+    # Initialize ProcessManager (disabled in webapp-only mode)
+    initialize_process_manager()
+    
+    try:
+        # Use socketio.run() for proper eventlet integration
+        socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
+    except KeyboardInterrupt:
+        print("\n🛑 Server stopped")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()

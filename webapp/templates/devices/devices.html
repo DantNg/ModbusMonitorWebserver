@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% set page_title = "Devices & Workers" %}
+{% block content %}
+
+<!-- Toolbar -->
+<div class="card border-0 shadow-soft mb-3">
+  <div class="card-body d-flex flex-wrap gap-2 justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <div class="position-relative" style="min-width:280px;max-width:360px;width:100%;">
+        <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
+        <input class="form-control ps-5" placeholder="Search Devices" oninput="filterTable(this.value)">
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-dark-subtle">⚡ Filter</button>
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#chooseProto">
+        + Add Device
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Devices Table -->
+<div class="card border-0 shadow-soft">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="width:56px;"></th>
+          <th>DEVICE NAME</th>
+          <th style="width:120px">PROTOCOL</th>
+          <th style="width:180px">CONNECTION</th>
+          <th style="width:120px">STATUS</th>
+          <th>DESCRIPTION</th>
+          <th style="width:150px">LAST SEEN</th>
+          <th style="width:140px">WORKER</th>
+          <th style="width:120px" class="text-end">ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for connection_id, connection in connections.items() %}
+          {% for device in connection.devices %}
+          {% set status_txt = (
+          ('Online' if device.is_online else ('Offline' if device.is_online is not none else 'Unknown'))
+          ) %}
+          {% set st = (status_txt|string).lower() %}
+          <tr>
+            <td><input class="form-check-input" type="checkbox"></td>
+            <td class="fw-semibold">
+              <a class="link-light-emphasis" href="{{ url_for('devices_bp.device_detail', did=device.id) }}">{{ device.name }}</a>
+            </td>
+            <td><span class="badge rounded-pill text-bg-primary">{{ connection.protocol }}</span></td>
+            <td>
+              {% if connection.protocol == 'TCP' %}
+                <small class="text-muted">{{ connection.host }}:{{ connection.port }}</small>
+              {% else %}
+                <small class="text-muted">{{ connection.serial_port }}</small>
+              {% endif %}
+            </td>
+            <td>
+              {% if st == "online" %}
+              <span class="badge rounded-pill text-bg-success">Online</span>
+              {% elif st == "offline" %}
+              <span class="badge rounded-pill text-bg-danger">Offline</span>
+              {% else %}
+              <span class="badge rounded-pill text-bg-secondary">Unknown</span>
+              {% endif %}
+            </td>
+            <td>{{ device.description or '-' }}</td>
+            <td>
+              {% if device.last_seen %}
+              <small class="text-muted">{{ (device.last_seen|float)|timestamp_to_datetime }}</small>
+              {% else %}
+              <small class="text-muted">Never</small>
+              {% endif %}
+            </td>
+            <td>
+              {% if connection.worker_status == 'running' %}
+                <span class="badge bg-success">Worker Running</span>
+              {% elif connection.worker_status == 'stopped' %}
+                <span class="badge bg-warning">Worker Stopped</span>
+              {% else %}
+                <span class="badge bg-danger">No Worker</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <div class="dropdown">
+                <button class="btn btn-link link-secondary p-1" type="button" data-bs-toggle="dropdown">
+                  <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="{{ url_for('devices_bp.device_detail', did=device.id) }}">View Details</a></li>
+                  <li><a class="dropdown-item" href="{{ url_for('devices_bp.edit_device', did=device.id) }}">Edit Device</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  {% if connection.worker_status == 'running' %}
+                    <li><a class="dropdown-item" href="#" onclick="workerAction('stop', '{{ connection.worker_id }}')">Stop Worker</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="workerAction('restart', '{{ connection.worker_id }}')">Restart Worker</a></li>
+                  {% elif connection.worker_status == 'stopped' %}
+                    <li><a class="dropdown-item" href="#" onclick="workerAction('start', '{{ connection.worker_id }}')">Start Worker</a></li>
+                  {% else %}
+                    <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); console.log('Clicked create worker for:', '{{ connection_id }}', '{{ connection.protocol }}'); createWorker('{{ connection_id }}', '{{ connection.protocol }}', '{{ connection.host }}', '{{ connection.port }}', '{{ connection.serial_port }}'); return false;">Create Worker</a></li>
+                  {% endif %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item text-danger" href="#" onclick="confirmDelete('{{ device.id }}', '{{ device.name }}')">Delete Device</a></li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+        
+        {% if connections|length == 0 %}
+        <tr>
+          <td colspan="10" class="text-center text-muted py-5">
+            <i class="bi bi-cpu display-4 text-muted"></i>
+            <div class="mt-3">
+              <h5>No Devices Found</h5>
+              <p class="text-muted">Start by adding your first Modbus device</p>
+              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#chooseProto">
+                + Add Device
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Select Protocol Modal -->
+<div class="modal fade" id="chooseProto" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" onsubmit="goAddDevice(event)">
+      <div class="modal-header">
+        <h5 class="modal-title">Select Device Protocol</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="vstack gap-3">
+          <label class="d-flex align-items-center gap-3 border rounded p-3">
+            <input class="form-check-input" type="radio" name="protocol" value="ModbusRTU">
+            <div class="fw-semibold">ModbusRTU</div>
+          </label>
+          <label class="d-flex align-items-center gap-3 border rounded p-3">
+            <input class="form-check-input" type="radio" name="protocol" value="ModbusTCP" checked>
+            <div class="fw-semibold">ModbusTCP</div>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function filterTable(q) {
+    q = (q || '').toLowerCase();
+    document.querySelectorAll('table tbody tr').forEach(tr => {
+      tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+  
+  function goAddDevice(e) {
+    e.preventDefault();
+    const proto = document.querySelector('#chooseProto input[name="protocol"]:checked')?.value || 'ModbusTCP';
+    window.location.href = "{{ url_for('devices_bp.add_device') }}?protocol=" + encodeURIComponent(proto);
+  }
+  
+  function workerAction(action, workerId) {
+    if (confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} worker?`)) {
+      fetch(`/workers/${workerId}/${action}`, { method: 'POST' })
+        .then(() => location.reload());
+    }
+  }
+  
+  function createWorker(connectionId, protocol, host, port, serialPort) {
+    console.log('DEBUG: createWorker called with:', {connectionId, protocol, host, port, serialPort});
+    
+    if (!connectionId || !protocol) {
+      console.error('Missing required parameters');
+      alert('Missing required parameters for worker creation');
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('connection_id', connectionId);
+    formData.append('protocol', protocol);
+    if (host) formData.append('host', host);
+    if (port) formData.append('port', port);
+    if (serialPort) formData.append('serial_port', serialPort);
+    
+    console.log('DEBUG: FormData contents:');
+    for (let pair of formData.entries()) {
+      console.log(pair[0] + ': ' + pair[1]);
+    }
+    
+    console.log('DEBUG: Sending request to /workers/create');
+    
+    fetch('/workers/create', { 
+      method: 'POST', 
+      body: formData 
+    }).then(response => {
+      console.log('DEBUG: Response status:', response.status);
+      console.log('DEBUG: Response:', response);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response;
+    }).then(() => {
+      console.log('DEBUG: Request successful, reloading page');
+      setTimeout(() => location.reload(), 1000); // Add delay to see logs
+    }).catch(error => {
+      console.error('DEBUG: Error:', error);
+      alert('Error creating worker: ' + error.message);
+    });
+  }
+  
+  function confirmDelete(deviceId, deviceName) {
+    if (confirm(`Delete device "${deviceName}"?`)) {
+      fetch(`/devices/${deviceId}/delete`, { method: 'POST' })
+        .then(() => location.reload());
+    }
+  }
+</script>
+{% endblock %}
