@@ -296,8 +296,27 @@ class RTUWorker:
             addr = normalize_address(int(tag.address), self.address_base)
             fc   = int(getattr(tag, "function_code", 3) or 3)
             dtype = getattr(tag, "data_type", None) or getattr(tag, "datatype", "Word")
-            byte_order = getattr(device, "byte_order", "BigEndian")
-            word_order = getattr(tag, "word_order", getattr(device, "word_order", "AB"))
+            
+            # Fix cứng byte_order và word_order theo datatype
+            byte_order = "BigEndian"  # Tất cả đều BigEndian
+            dtype_lower = (dtype or "Word").lower()
+            
+            if dtype_lower in ("signed", "unsigned", "hex", "binary", "word"):
+                word_order = "AB"  # 1 word không cần order
+            elif dtype_lower in ("float", "float32", "real"):
+                word_order = "BA"  # Float chuẩn
+            elif dtype_lower == "float_inverse":
+                word_order = "AB"  # Float inverse
+            elif dtype_lower in ("double", "float64"):
+                word_order = "BADC"  # Double chuẩn
+            elif dtype_lower == "double_inverse":
+                word_order = "ABDC"  # Double inverse
+            elif dtype_lower in ("long", "int32", "uint32", "dint", "dword"):
+                word_order = "BA"  # Long chuẩn
+            elif dtype_lower == "long_inverse":
+                word_order = "AB"  # Long inverse
+            else:
+                word_order = "AB"  # Default
 
             # ===== REVERSE SCALE/OFFSET =====
             # Khi đọc: displayed_value = (raw_value * scale) + offset
@@ -388,7 +407,7 @@ class RTUWorker:
                 all_rows.append({
                     "id": t.id,
                     "name": t.name,
-                    "value": val,
+                    "value": round(val, 2),  # Giới hạn 2 chữ số thập phân
                     "datatype": getattr(t, "data_type", None) or getattr(t, "datatype", "Word"),
                     "unit": getattr(t, "unit", ""),
                     "ts": now_hms()
@@ -450,8 +469,28 @@ class RTUWorker:
             regs = getattr(res, "registers", []) or []
             for t in tg_sorted:
                 dtype = getattr(t, "data_type", None) or getattr(t, "datatype", "Word")
-                byte_order = getattr(device, "byte_order", "BigEndian")
-                word_order = getattr(t, "word_order", getattr(device, "word_order", "AB"))
+                
+                # Fix cứng byte_order và word_order theo datatype
+                byte_order = "BigEndian"  # Tất cả đều BigEndian
+                dtype_lower = (dtype or "Word").lower()
+                
+                if dtype_lower in ("signed", "unsigned", "hex", "binary", "word"):
+                    word_order = "AB"  # 1 word không cần order
+                elif dtype_lower in ("float", "float32", "real"):
+                    word_order = "BA"  # Float chuẩn
+                elif dtype_lower == "float_inverse":
+                    word_order = "AB"  # Float inverse
+                elif dtype_lower in ("double", "float64"):
+                    word_order = "BADC"  # Double chuẩn
+                elif dtype_lower == "double_inverse":
+                    word_order = "ABDC"  # Double inverse
+                elif dtype_lower in ("long", "int32", "uint32", "dint", "dword"):
+                    word_order = "BA"  # Long chuẩn
+                elif dtype_lower == "long_inverse":
+                    word_order = "AB"  # Long inverse
+                else:
+                    word_order = "AB"  # Default
+                
                 off = normalize_address(int(t.address), self.address_base) - start
                 try:
                     if VC_AVAILABLE:

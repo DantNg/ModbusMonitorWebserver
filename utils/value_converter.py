@@ -7,7 +7,7 @@ import struct
 from typing import List, Union, Optional
 
 
-def convert_raw_value_to_web(raw_value: List[int], datatype: str, byte_order: str = "BigEndian", word_order: str = "AB") -> Union[int, float, str, bool, None]:
+def convert_raw_value_to_web(raw_value: List[int], datatype: str, byte_order: str = "BigEndian", word_order: str = "BA") -> Union[int, float, str, bool, None]:
     """
     Convert raw Modbus register values to web-displayable format
     
