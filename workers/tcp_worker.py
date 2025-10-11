@@ -170,6 +170,8 @@ class TCPWorker:
 
         if SIO_AVAILABLE:
             try:
+                # Setup Socket.IO event handlers before connecting
+                self._setup_socketio_handlers()
                 self.sio.connect(self.webapp_url, wait=True)
                 self.sio_connected = True
                 if self.debug: print("✅ Socket.IO connected")
@@ -200,6 +202,170 @@ class TCPWorker:
         except Exception:
             pass
         print("🛑 Worker stopped")
+
+    # ---- Socket.IO Handlers ----
+    def _setup_socketio_handlers(self):
+        """Setup Socket.IO event handlers for write commands"""
+        if not self.sio:
+            return
+
+        @self.sio.event
+        def modbus_write_command(data):
+            """Handle write command from webapp"""
+            if self.debug:
+                print(f"📝 Received write command: {data}")
+            
+            try:
+                tag_id = data.get('tag_id')
+                value = data.get('value')
+                
+                if tag_id is None or value is None:
+                    self._send_write_response(tag_id, False, "Missing tag_id or value", data.get('frontend_client_id'))
+                    return
+                
+                # Find tag by ID - only process if this worker manages this tag
+                tag = None
+                for t in self.tags:
+                    if t.id == tag_id:
+                        tag = t
+                        break
+                
+                if not tag:
+                    # This worker doesn't manage this tag - ignore silently
+                    if self.debug:
+                        print(f"⏭️  Tag {tag_id} not managed by this TCP worker, skipping")
+                    return
+                
+                # Find device for this tag
+                device = None
+                for d in self.devices:
+                    if d.id == tag.device_id:
+                        device = d
+                        break
+                
+                if not device:
+                    self._send_write_response(tag_id, False, f"Device for tag {tag_id} not found", data.get('frontend_client_id'))
+                    return
+                
+                # Perform write operation
+                success, error = self._write_tag(device, tag, value)
+                self._send_write_response(tag_id, success, error, data.get('frontend_client_id'))
+                
+            except Exception as e:
+                error_msg = f"Write command error: {str(e)}"
+                print(f"❌ {error_msg}")
+                self._send_write_response(data.get('tag_id'), False, error_msg, data.get('frontend_client_id'))
+
+    def _send_write_response(self, tag_id, success, error=None, frontend_client_id=None):
+        """Send write response back to webapp"""
+        if not self._ensure_sio():
+            return
+        
+        response = {
+            'tag_id': tag_id,
+            'success': success,
+            'error': error,
+            'timestamp': datetime.now().isoformat(),
+            'frontend_client_id': frontend_client_id  # For webapp to know which client to forward to
+        }
+        
+        try:
+            self.sio.emit('modbus_write_response', response)
+            if self.debug:
+                print(f"📤 Sent write response: {response}")
+        except Exception as e:
+            print(f"❌ Failed to send write response: {e}")
+
+    def _write_tag(self, device, tag, value):
+        """
+        Write value to a single tag
+        Returns: (success: bool, error_message: str)
+        """
+        if not PYMODBUS_AVAILABLE or not self.client:
+            if self.debug:
+                print(f"⚠️  Simulation: Would write {value} to tag {tag.name}")
+            return True, None  # Simulate success for testing
+        
+        try:
+            # Normalize address
+            address = normalize_address(tag.address, self.address_base)
+            unit = getattr(device, 'unit_id', 1)
+            function_code = getattr(tag, 'function_code', 3)
+            data_type = getattr(tag, 'data_type', 'Word')
+            
+            if self.debug:
+                print(f"📝 Writing {value} to {tag.name} (addr={address}, unit={unit}, fc={function_code})")
+            
+            # Convert value based on data type
+            write_value = self._prepare_write_value(value, data_type)
+            
+            # Write based on function code
+            if function_code == 1:  # Coils
+                result = self.client.write_coil(address, bool(write_value), slave=unit)
+            elif function_code == 3:  # Holding Registers
+                if data_type.lower() in ('float', 'float32', 'real', 'ieee754'):
+                    # Convert float to two 16-bit registers
+                    packed = struct.pack('>f', float(write_value))
+                    reg1, reg2 = struct.unpack('>HH', packed)
+                    word_order = getattr(tag, 'word_order', 'AB')
+                    if word_order.upper() == 'AB':
+                        registers = [reg1, reg2]
+                    else:
+                        registers = [reg2, reg1]
+                    result = self.client.write_registers(address, registers, slave=unit)
+                elif data_type.lower() in ('int32', 'uint32', 'dint', 'dword'):
+                    # Convert 32-bit to two 16-bit registers
+                    val = int(write_value)
+                    if data_type.lower() in ('int32', 'dint'):
+                        if val < 0:
+                            val = val + 4294967296  # Convert to unsigned for transmission
+                    reg1 = (val >> 16) & 0xFFFF
+                    reg2 = val & 0xFFFF
+                    word_order = getattr(tag, 'word_order', 'AB')
+                    if word_order.upper() == 'AB':
+                        registers = [reg1, reg2]
+                    else:
+                        registers = [reg2, reg1]
+                    result = self.client.write_registers(address, registers, slave=unit)
+                else:
+                    # Single register (16-bit)
+                    val = int(write_value)
+                    if val < 0:
+                        val = val + 65536  # Convert signed to unsigned
+                    result = self.client.write_register(address, val, slave=unit)
+            else:
+                return False, f"Function code {function_code} not supported for writing"
+            
+            if result.isError():
+                error_msg = f"Modbus write error: {result}"
+                print(f"❌ {error_msg}")
+                return False, error_msg
+            
+            if self.debug:
+                print(f"✅ Successfully wrote {value} to {tag.name}")
+            return True, None
+            
+        except Exception as e:
+            error_msg = f"Write exception: {str(e)}"
+            print(f"❌ {error_msg}")
+            return False, error_msg
+
+    def _prepare_write_value(self, value, data_type):
+        """Prepare value for writing based on data type"""
+        dt = (data_type or "Word").strip().lower()
+        
+        if dt in ("word", "uint16", "unsigned", "ushort"):
+            return max(0, min(65535, int(value)))
+        elif dt in ("signed", "int16", "short"):
+            return max(-32768, min(32767, int(value)))
+        elif dt in ("float", "float32", "real", "ieee754"):
+            return float(value)
+        elif dt in ("int32", "dint", "long"):
+            return max(-2147483648, min(2147483647, int(value)))
+        elif dt in ("uint32", "dword"):
+            return max(0, min(4294967295, int(value)))
+        else:
+            return int(value)
 
     # ---- poll loop with per-device schedule
     def _loop(self):

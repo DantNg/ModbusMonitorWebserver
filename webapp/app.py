@@ -320,6 +320,123 @@ def on_modbus_update(data):
     except Exception as e:
         print(f"on_modbus_update error: {e}")
 
+@socketio.on('modbus_write_command')
+def on_modbus_write_command(data):
+    """
+    Handle write command from frontend and forward to appropriate worker.
+    This acts as a relay between frontend and workers.
+    """
+    try:
+        print(f"📝 Received write command from frontend: {data}")
+        
+        tag_id = data.get('tag_id')
+        if not tag_id:
+            # Send error response back to frontend
+            socketio.emit('modbus_write_response', {
+                'tag_id': None,
+                'success': False,
+                'error': 'Missing tag_id in write command',
+                'timestamp': datetime.now().isoformat()
+            }, to=request.sid)
+            return
+        
+        # Look up tag and device from database to determine which worker should handle this
+        try:
+            from modbus_monitor.database.db import get_tag, get_device
+            
+            tag = get_tag(tag_id)
+            if not tag:
+                print(f"❌ Tag {tag_id} not found in database")
+                socketio.emit('modbus_write_response', {
+                    'tag_id': tag_id,
+                    'success': False,
+                    'error': f'Tag {tag_id} not found',
+                    'timestamp': datetime.now().isoformat()
+                }, to=request.sid)
+                return
+            
+            print(f"📖 Found tag: {tag}")
+            
+            device_id = tag.get('device_id')
+            if not device_id:
+                print(f"❌ Tag {tag_id} has no device_id")
+                socketio.emit('modbus_write_response', {
+                    'tag_id': tag_id,
+                    'success': False,
+                    'error': f'Tag {tag_id} has no device association',
+                    'timestamp': datetime.now().isoformat()
+                }, to=request.sid)
+                return
+            
+            device = get_device(device_id)
+            if not device:
+                print(f"❌ Device {device_id} not found in database")
+                socketio.emit('modbus_write_response', {
+                    'tag_id': tag_id,
+                    'success': False,
+                    'error': f'Device for tag {tag_id} not found',
+                    'timestamp': datetime.now().isoformat()
+                }, to=request.sid)
+                return
+            
+            print(f"📖 Found device: {device}")
+            
+            # Add device info to write command
+            write_data = data.copy()
+            write_data.update({
+                'device_id': device.get('id'),
+                'device_name': device.get('name'),
+                'connection_type': device.get('connection_type', 'tcp'),
+                'frontend_client_id': request.sid  # So worker knows who to respond to
+            })
+            
+            # Forward to all workers (they will filter by their tags)
+            # In a more sophisticated setup, you might want to target specific workers
+            socketio.emit('modbus_write_command', write_data)
+            print(f"📤 Forwarded write command to workers: tag={tag_id}, device={device.get('name')}")
+            
+        except Exception as e:
+            print(f"❌ Database lookup error for write command: {e}")
+            import traceback
+            traceback.print_exc()
+            socketio.emit('modbus_write_response', {
+                'tag_id': tag_id,
+                'success': False,
+                'error': f'Database error: {str(e)}',
+                'timestamp': datetime.now().isoformat()
+            }, to=request.sid)
+            
+    except Exception as e:
+        print(f"on_modbus_write_command error: {e}")
+        socketio.emit('modbus_write_response', {
+            'tag_id': data.get('tag_id'),
+            'success': False,
+            'error': f'Server error: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }, to=request.sid)
+
+@socketio.on('modbus_write_response')
+def on_modbus_write_response(data):
+    """
+    Handle write response from workers and forward to appropriate frontend client.
+    Workers will send responses here, and we forward to the original requester.
+    """
+    try:
+        print(f"📥 Received write response from worker: {data}")
+        
+        # Forward response to the original frontend client
+        frontend_client_id = data.get('frontend_client_id')
+        if frontend_client_id:
+            socketio.emit('modbus_write_response', data, to=frontend_client_id)
+            print(f"📤 Forwarded write response to frontend client: {frontend_client_id}")
+        else:
+            # Fallback: broadcast to all clients (less ideal but works)
+            socketio.emit('modbus_write_response', data)
+            print("📤 Broadcasted write response to all clients")
+            
+    except Exception as e:
+        print(f"on_modbus_write_response error: {e}")
+
 def start_data_queue_processor():
     """Background thread to process data from workers (disabled in webapp-only mode)"""
     print("INFO: Data queue processor disabled in webapp-only mode")

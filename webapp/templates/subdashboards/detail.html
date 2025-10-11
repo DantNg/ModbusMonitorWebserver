@@ -442,20 +442,24 @@
               }
             });
 
-            // Send write request
-            fetch(`/api/tags/${parseInt(tagId)}/write`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                value: parseFloat(value)
-              })
-            })
-              .then(response => response.json())
-              .then(data => {
+            // Send write command via Socket.IO
+            if (typeof socket !== 'undefined' && socket.connected) {
+              // Prepare write command payload
+              const writeCommand = {
+                tag_id: parseInt(tagId),
+                tag_name: tagName,
+                value: parseFloat(value),
+                timestamp: new Date().toISOString(),
+                source: 'subdashboard'
+              };
+
+              // Emit write command
+              socket.emit('modbus_write_command', writeCommand);
+
+              // Listen for write response (one-time listener)
+              socket.once('modbus_write_response', (response) => {
                 Swal.close();
-                if (data.success) {
+                if (response.success && response.tag_id === parseInt(tagId)) {
                   Swal.fire({
                     icon: 'success',
                     title: 'Success!',
@@ -467,18 +471,31 @@
                   Swal.fire({
                     icon: 'error',
                     title: 'Write Failed',
-                    text: data.error || 'Failed to write value'
+                    text: response.error || 'Failed to write value'
                   });
                 }
-              })
-              .catch(error => {
-                Swal.close();
-                Swal.fire({
-                  icon: 'error',
-                  title: 'Error',
-                  text: 'Network error occurred'
-                });
               });
+
+              // Timeout fallback
+              setTimeout(() => {
+                if (Swal.isLoading()) {
+                  Swal.close();
+                  Swal.fire({
+                    icon: 'warning',
+                    title: 'Timeout',
+                    text: 'Write command timeout - please check if value was written'
+                  });
+                }
+              }, 10000); // 10 second timeout
+
+            } else {
+              Swal.close();
+              Swal.fire({
+                icon: 'error',
+                title: 'Connection Error',
+                text: 'Socket.IO connection not available'
+              });
+            }
           }
         });
       }

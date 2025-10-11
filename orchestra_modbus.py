@@ -140,6 +140,7 @@ class ModbusOrchestrator:
             devices=devices_ns,
             tags=tags_ns,
             webapp_url=self.webapp_url,
+            debug=False
         )
         ok = worker.start()
         if ok:
@@ -166,6 +167,7 @@ class ModbusOrchestrator:
             timeout=5,
             devices=devices_ns,
             tags=tags_ns,
+            debug=False
         )
         ok = worker.start()
         if ok:
