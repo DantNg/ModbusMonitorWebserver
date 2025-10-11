@@ -299,7 +299,27 @@ class RTUWorker:
             byte_order = getattr(device, "byte_order", "BigEndian")
             word_order = getattr(tag, "word_order", getattr(device, "word_order", "AB"))
 
-            raw_regs = convert_web_value_to_raw(value, dtype, byte_order, word_order) if VC_AVAILABLE else [int(value)]
+            # ===== REVERSE SCALE/OFFSET =====
+            # Khi đọc: displayed_value = (raw_value * scale) + offset
+            # Khi ghi: raw_value = (displayed_value - offset) / scale
+            scale_factor = getattr(tag, "scale_factor", 1.0) or 1.0
+            offset = getattr(tag, "offset", 0.0) or 0.0
+            
+            # Convert displayed value back to raw value
+            raw_value = float(value)
+            if offset != 0.0:
+                raw_value -= offset
+            if scale_factor != 1.0:
+                raw_value /= scale_factor
+                
+            if self.debug:
+                print(f"📝 Write conversion: {value} -> {raw_value} (offset={offset}, scale={scale_factor})")
+
+            # ⚠️ SỬA: Dùng raw_value thay vì value
+            if VC_AVAILABLE:
+                raw_regs = convert_web_value_to_raw(raw_value, dtype, byte_order, word_order)
+            else:
+                raw_regs = [int(raw_value)]
 
             if fc == 1:
                 res = self._call_modbus(self.client.write_coil, address=addr, value=bool(raw_regs[0]), unit_val=unit)
@@ -313,7 +333,8 @@ class RTUWorker:
 
             if hasattr(res, "isError") and res.isError():
                 return False, f"Modbus write error: {res}"
-            if self.debug: print(f"✅ wrote {value} -> {tag.name} (addr={addr}, fc={fc})")
+            if self.debug: 
+                print(f"✅ wrote {value} (raw={raw_value}) -> {tag.name} (addr={addr}, fc={fc})")
             return True, None
         except Exception as e:
             return False, str(e)
