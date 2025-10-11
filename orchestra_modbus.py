@@ -183,19 +183,34 @@ class ModbusOrchestrator:
         print(f"📋 Tìm thấy {len(worker_rows)} worker auto-start")
 
         for cfg in worker_rows:
-            if not cfg.get("enabled", True) or not cfg.get("auto_start", True):
-                continue
             wid = cfg["worker_id"]
-            if wid in self.workers:
-                # đã chạy
+            print(f"🔍 Processing worker: {wid}")
+            
+            if not cfg.get("enabled", True):
+                print(f"⏭️ Worker '{wid}' bị disable")
                 continue
+                
+            if not cfg.get("auto_start", True):
+                print(f"⏭️ Worker '{wid}' không auto-start")
+                continue
+                
+            if wid in self.workers:
+                print(f"⏭️ Worker '{wid}' đã chạy")
+                continue
+                
             wtype = (cfg.get("worker_type") or "").lower()
+            print(f"🚀 Starting worker '{wid}' type '{wtype}'")
+            
             if wtype == "tcp":
                 self._start_tcp_worker(cfg)
             elif wtype == "rtu":
                 self._start_rtu_worker(cfg)
             else:
                 print(f"⚠️ Worker '{wid}' có worker_type không hỗ trợ: {cfg.get('worker_type')}")
+        
+        print(f"📊 Total workers running: {len(self.workers)}")
+        for worker_id, worker in self.workers.items():
+            print(f"   - {worker_id}: {'running' if worker and hasattr(worker, 'is_running') and worker.is_running else 'stopped'}")
 
     def stop_all(self):
         print("🛑 Dừng tất cả workers ...")

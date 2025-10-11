@@ -36,7 +36,6 @@
           <th style="width:120px">STATUS</th>
           <th>DESCRIPTION</th>
           <th style="width:150px">LAST SEEN</th>
-          <th style="width:140px">WORKER</th>
           <th style="width:120px" class="text-end">ACTIONS</th>
         </tr>
       </thead>
@@ -77,15 +76,7 @@
               <small class="text-muted">Never</small>
               {% endif %}
             </td>
-            <td>
-              {% if connection.worker_status == 'running' %}
-                <span class="badge bg-success">Worker Running</span>
-              {% elif connection.worker_status == 'stopped' %}
-                <span class="badge bg-warning">Worker Stopped</span>
-              {% else %}
-                <span class="badge bg-danger">No Worker</span>
-              {% endif %}
-            </td>
+          
             <td class="text-end">
               <div class="dropdown">
                 <button class="btn btn-link link-secondary p-1" type="button" data-bs-toggle="dropdown">
@@ -94,16 +85,6 @@
                 <ul class="dropdown-menu dropdown-menu-end">
                   <li><a class="dropdown-item" href="{{ url_for('devices_bp.device_detail', did=device.id) }}">View Details</a></li>
                   <li><a class="dropdown-item" href="{{ url_for('devices_bp.edit_device', did=device.id) }}">Edit Device</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                  {% if connection.worker_status == 'running' %}
-                    <li><a class="dropdown-item" href="#" onclick="workerAction('stop', '{{ connection.worker_id }}')">Stop Worker</a></li>
-                    <li><a class="dropdown-item" href="#" onclick="workerAction('restart', '{{ connection.worker_id }}')">Restart Worker</a></li>
-                  {% elif connection.worker_status == 'stopped' %}
-                    <li><a class="dropdown-item" href="#" onclick="workerAction('start', '{{ connection.worker_id }}')">Start Worker</a></li>
-                  {% else %}
-                    <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); console.log('Clicked create worker for:', '{{ connection_id }}', '{{ connection.protocol }}'); createWorker('{{ connection_id }}', '{{ connection.protocol }}', '{{ connection.host }}', '{{ connection.port }}', '{{ connection.serial_port }}'); return false;">Create Worker</a></li>
-                  {% endif %}
-                  <li><hr class="dropdown-divider"></li>
                   <li><a class="dropdown-item text-danger" href="#" onclick="confirmDelete('{{ device.id }}', '{{ device.name }}')">Delete Device</a></li>
                 </ul>
               </div>
@@ -171,55 +152,6 @@
     e.preventDefault();
     const proto = document.querySelector('#chooseProto input[name="protocol"]:checked')?.value || 'ModbusTCP';
     window.location.href = "{{ url_for('devices_bp.add_device') }}?protocol=" + encodeURIComponent(proto);
-  }
-  
-  function workerAction(action, workerId) {
-    if (confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} worker?`)) {
-      fetch(`/workers/${workerId}/${action}`, { method: 'POST' })
-        .then(() => location.reload());
-    }
-  }
-  
-  function createWorker(connectionId, protocol, host, port, serialPort) {
-    console.log('DEBUG: createWorker called with:', {connectionId, protocol, host, port, serialPort});
-    
-    if (!connectionId || !protocol) {
-      console.error('Missing required parameters');
-      alert('Missing required parameters for worker creation');
-      return;
-    }
-    
-    const formData = new FormData();
-    formData.append('connection_id', connectionId);
-    formData.append('protocol', protocol);
-    if (host) formData.append('host', host);
-    if (port) formData.append('port', port);
-    if (serialPort) formData.append('serial_port', serialPort);
-    
-    console.log('DEBUG: FormData contents:');
-    for (let pair of formData.entries()) {
-      console.log(pair[0] + ': ' + pair[1]);
-    }
-    
-    console.log('DEBUG: Sending request to /workers/create');
-    
-    fetch('/workers/create', { 
-      method: 'POST', 
-      body: formData 
-    }).then(response => {
-      console.log('DEBUG: Response status:', response.status);
-      console.log('DEBUG: Response:', response);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response;
-    }).then(() => {
-      console.log('DEBUG: Request successful, reloading page');
-      setTimeout(() => location.reload(), 1000); // Add delay to see logs
-    }).catch(error => {
-      console.error('DEBUG: Error:', error);
-      alert('Error creating worker: ' + error.message);
-    });
   }
   
   function confirmDelete(deviceId, deviceName) {
