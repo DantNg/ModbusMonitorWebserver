@@ -61,7 +61,8 @@
     <div class="card-header bg-info text-white rounded-top fw-bold d-flex justify-content-between align-items-center">
       <span>{{ group.name }}</span>
       {% if session.get("role") == "admin" %}
-      <button class="btn btn-sm btn-outline-light delete-group-btn" data-group-id="{{ group.id }}" data-group-name="{{ group.name }}" title="Delete Group">
+      <button class="btn btn-sm btn-outline-light delete-group-btn" data-group-id="{{ group.id }}"
+        data-group-name="{{ group.name }}" title="Delete Group">
         <i class="bi bi-trash"></i>
       </button>
       {% endif %}
@@ -78,11 +79,13 @@
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
                 <div class="dropdown">
-                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"
+                    aria-expanded="false">
                     <i class="bi bi-gear"></i>
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end">
-                    {% if tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or tag.function_code == "3" %}
+                    {% if tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or
+                    tag.function_code == "3" %}
                     <li>
                       <button class="dropdown-item write-btn" data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}">
                         <i class="bi bi-pencil-square me-2"></i>Write Value
@@ -91,7 +94,8 @@
                     {% endif %}
                     {% if session.get("role") == "admin" %}
                     <li>
-                      <button class="dropdown-item text-danger remove-tag-btn" data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}">
+                      <button class="dropdown-item text-danger remove-tag-btn" data-tag-id="{{ tag.id }}"
+                        data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}">
                         <i class="bi bi-x-circle me-2"></i>Remove from Group
                       </button>
                     </li>
@@ -126,13 +130,17 @@
                     <span class="text-secondary">1</span>
                   {% endif %}
                   </div> -->
-                <div class="unit position-relative">{% if session.get("role") == "admin" %}<span id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit" style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{% else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
+                <div class="unit position-relative">{% if session.get("role") == "admin" %}<span
+                    id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}"
+                    data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit"
+                    style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{%
+                  else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
               </div>
               <div class="meter mt-2">
-                <div class="meter-bar 
+                <div
+                  class="meter-bar 
                      {% if tag.device_status == 'connected' %}device-connected{% elif tag.device_status == 'disconnected' %}device-disconnected{% else %}device-unknown{% endif %}"
-                     id="tag-bar-{{ tag.id }}" 
-                     data-device-status="{{ tag.device_status or 'unknown' }}">
+                  id="tag-bar-{{ tag.id }}" data-device-status="{{ tag.device_status or 'unknown' }}">
                 </div>
               </div>
               <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
@@ -151,7 +159,8 @@
     <div class="card-header bg-info text-white rounded-top fw-bold d-flex justify-content-between align-items-center">
       <span>{{ group.name }}</span>
       {% if session.get("role") == "admin" %}
-      <button class="btn btn-sm btn-outline-light delete-group-btn" data-group-id="{{ group.id }}" data-group-name="{{ group.name }}" title="Delete Group">
+      <button class="btn btn-sm btn-outline-light delete-group-btn" data-group-id="{{ group.id }}"
+        data-group-name="{{ group.name }}" title="Delete Group">
         <i class="bi bi-trash"></i>
       </button>
       {% endif %}
@@ -168,11 +177,14 @@
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
                 <div class="dropdown">
-                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"
+                    aria-expanded="false">
                     <i class="bi bi-gear"></i>
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end">
-                    <!-- Debug FC: {{ tag.function_code }} Type: {{ tag.function_code.__class__.__name__ }} -->{% if tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or tag.function_code == "3" %}
+                    <!-- Debug FC: {{ tag.function_code }} Type: {{ tag.function_code.__class__.__name__ }} -->{% if
+                    tag.function_code == 1 or tag.function_code == 3 or tag.function_code == "1" or tag.function_code ==
+                    "3" %}
                     <li>
                       <button class="dropdown-item write-btn" data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}">
                         <i class="bi bi-pencil-square me-2"></i>Write Value
@@ -181,7 +193,8 @@
                     {% endif %}
                     {% if session.get("role") == "admin" %}
                     <li>
-                      <button class="dropdown-item text-danger remove-tag-btn" data-tag-id="{{ tag.id }}" data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}">
+                      <button class="dropdown-item text-danger remove-tag-btn" data-tag-id="{{ tag.id }}"
+                        data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}">
                         <i class="bi bi-x-circle me-2"></i>Remove from Group
                       </button>
                     </li>
@@ -205,13 +218,17 @@
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
                   {{ tag.value }}
                 </div>
-                <div class="unit position-relative">{% if session.get("role") == "admin" %}<span id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}" data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit" style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{% else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
+                <div class="unit position-relative">{% if session.get("role") == "admin" %}<span
+                    id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}"
+                    data-current-unit="{{ tag.unit or '' }}" title="Double-click to edit unit"
+                    style="cursor: pointer; padding: 2px 4px; border-radius: 3px;">{{ tag.unit or 'No Unit' }}</span>{%
+                  else %}<span id="tag-unit-{{ tag.id }}">{{ tag.unit or 'No Unit' }}</span>{% endif %}</div>
               </div>
               <div class="meter mt-2">
-                <div class="meter-bar 
+                <div
+                  class="meter-bar 
                      {% if tag.device_status == 'connected' %}device-connected{% elif tag.device_status == 'disconnected' %}device-disconnected{% else %}device-unknown{% endif %}"
-                     id="tag-bar-{{ tag.id }}" 
-                     data-device-status="{{ tag.device_status or 'unknown' }}">
+                  id="tag-bar-{{ tag.id }}" data-device-status="{{ tag.device_status or 'unknown' }}">
                 </div>
               </div>
               <div class="text-end small text-muted mt-1" id="tag-ts-{{ tag.id }}"></div>
@@ -325,14 +342,14 @@
       <form id="editUnitForm">
         <div class="modal-body">
           <input type="hidden" id="editUnitTagId" name="tag_id">
-          
+
           <div class="mb-3">
             <label for="editUnitValue" class="form-label">Unit</label>
-            <input type="text" class="form-control" id="editUnitValue" name="unit" 
-                   placeholder="Enter unit (e.g., °C, V, A, kW, %, etc.)" maxlength="20">
+            <input type="text" class="form-control" id="editUnitValue" name="unit"
+              placeholder="Enter unit (e.g., °C, V, A, kW, %, etc.)" maxlength="20">
             <div class="form-text">Common units: °C, °F, V, A, W, kW, MW, %, Hz, Bar, PSI, m/s, rpm</div>
           </div>
-          
+
           <div class="alert alert-info">
             <i class="bi bi-info-circle"></i>
             This will update the unit display for this tag across all dashboards.
@@ -356,7 +373,7 @@
 <script>
   // Initialize Socket.IO client
   const socket = io();
-  
+
   // Wrap everything in DOMContentLoaded to ensure buttons exist
   document.addEventListener('DOMContentLoaded', function () {
 
@@ -364,7 +381,7 @@
     if (!window.App) {
       window.App = {};
     }
-    
+
     // Preserve all existing properties and only add new ones
     const subdashApp = {
       changeGroup: function (groupId) {
@@ -379,7 +396,7 @@
         window.location.href = url.toString();
       }
     };
-    
+
     // Only assign new functions without overriding existing ones
     Object.assign(window.App, subdashApp);
 
@@ -504,14 +521,14 @@
     // Handle Add Tag form submission
     const addTagForm = document.getElementById('addTagForm');
     if (addTagForm) {
-      addTagForm.addEventListener('submit', function(e) {
+      addTagForm.addEventListener('submit', function (e) {
         e.preventDefault();
-        
+
         const formData = new FormData(addTagForm);
         const tagId = formData.get('tag_id');
         const targetGroup = formData.get('target_group');
         const newGroupName = formData.get('new_group_name');
-        
+
         if (!tagId) {
           Swal.fire({
             icon: 'error',
@@ -520,7 +537,7 @@
           });
           return;
         }
-        
+
         // Show loading
         Swal.fire({
           title: 'Adding Tag...',
@@ -530,7 +547,7 @@
             Swal.showLoading();
           }
         });
-        
+
         // Send AJAX request
         fetch(`/subdash/${currentSubdashId}/add_tag`, {
           method: 'POST',
@@ -539,50 +556,50 @@
           },
           body: `tag_id=${tagId}&target_group=${targetGroup}&new_group_name=${newGroupName}`
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            Swal.fire({
-              icon: 'success',
-              title: 'Success!',
-              text: data.message || 'Tag added successfully',
-              timer: 2000,
-              showConfirmButton: false
-            }).then(() => {
-              // Close modal and reload page
-              const modal = bootstrap.Modal.getInstance(document.getElementById('addTagModal'));
-              modal.hide();
-              window.location.href = window.location.href + '?t=' + Date.now();
-            });
-          } else {
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: data.message || 'Tag added successfully',
+                timer: 2000,
+                showConfirmButton: false
+              }).then(() => {
+                // Close modal and reload page
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addTagModal'));
+                modal.hide();
+                window.location.href = window.location.href + '?t=' + Date.now();
+              });
+            } else {
+              Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.error || 'Failed to add tag'
+              });
+            }
+          })
+          .catch(error => {
+            console.error('Add tag error:', error);
             Swal.fire({
               icon: 'error',
               title: 'Error',
-              text: data.error || 'Failed to add tag'
+              text: 'Failed to add tag'
             });
-          }
-        })
-        .catch(error => {
-          console.error('Add tag error:', error);
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Failed to add tag'
           });
-        });
       });
     }
 
     // Handle Add Group form submission
     const addGroupForm = document.getElementById('addGroupForm');
     if (addGroupForm) {
-      addGroupForm.addEventListener('submit', function(e) {
+      addGroupForm.addEventListener('submit', function (e) {
         e.preventDefault();
-        
+
         const formData = new FormData(addGroupForm);
         const groupName = formData.get('group_name');
         const selectedTags = Array.from(document.getElementById('group_tags').selectedOptions).map(option => option.value);
-        
+
         if (!groupName || selectedTags.length === 0) {
           Swal.fire({
             icon: 'error',
@@ -591,7 +608,7 @@
           });
           return;
         }
-        
+
         // Show loading
         Swal.fire({
           title: 'Creating Group...',
@@ -601,10 +618,10 @@
             Swal.showLoading();
           }
         });
-        
+
         // Prepare form data
         const formBody = `group_name=${encodeURIComponent(groupName)}&${selectedTags.map(tag => `group_tags=${tag}`).join('&')}`;
-        
+
         // Send AJAX request
         fetch(`/subdash/${currentSubdashId}/add_group`, {
           method: 'POST',
@@ -613,37 +630,37 @@
           },
           body: formBody
         })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            Swal.fire({
-              icon: 'success',
-              title: 'Success!',
-              text: data.message || `Group "${groupName}" created successfully`,
-              timer: 2000,
-              showConfirmButton: false
-            }).then(() => {
-              // Close modal and reload page
-              const modal = bootstrap.Modal.getInstance(document.getElementById('addGroupModal'));
-              modal.hide();
-              window.location.href = window.location.href + '?t=' + Date.now();
-            });
-          } else {
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: data.message || `Group "${groupName}" created successfully`,
+                timer: 2000,
+                showConfirmButton: false
+              }).then(() => {
+                // Close modal and reload page
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addGroupModal'));
+                modal.hide();
+                window.location.href = window.location.href + '?t=' + Date.now();
+              });
+            } else {
+              Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.error || 'Failed to create group'
+              });
+            }
+          })
+          .catch(error => {
+            console.error('Add group error:', error);
             Swal.fire({
               icon: 'error',
               title: 'Error',
-              text: data.error || 'Failed to create group'
+              text: 'Failed to create group'
             });
-          }
-        })
-        .catch(error => {
-          console.error('Add group error:', error);
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Failed to create group'
           });
-        });
       });
     }
 
@@ -689,35 +706,35 @@
               },
               body: `tag_id=${tagId}&group_id=${groupId}`
             })
-            .then(response => response.json())
-            .then(data => {
-              if (data.success) {
-                Swal.fire({
-                  icon: 'success',
-                  title: 'Success!',
-                  text: data.message || `Tag "${tagName}" removed successfully`,
-                  timer: 2000,
-                  showConfirmButton: false
-                }).then(() => {
-                  // Hard reload page to bypass cache
-                  window.location.href = window.location.href + '?t=' + Date.now();
-                });
-              } else {
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: data.message || `Tag "${tagName}" removed successfully`,
+                    timer: 2000,
+                    showConfirmButton: false
+                  }).then(() => {
+                    // Hard reload page to bypass cache
+                    window.location.href = window.location.href + '?t=' + Date.now();
+                  });
+                } else {
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.error || 'Failed to remove tag'
+                  });
+                }
+              })
+              .catch(error => {
+                console.error('Remove tag error:', error);
                 Swal.fire({
                   icon: 'error',
                   title: 'Error',
-                  text: data.error || 'Failed to remove tag'
+                  text: 'Failed to remove tag'
                 });
-              }
-            })
-            .catch(error => {
-              console.error('Remove tag error:', error);
-              Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Failed to remove tag'
               });
-            });
           }
         });
       }
@@ -758,35 +775,35 @@
                 'Content-Type': 'application/x-www-form-urlencoded',
               }
             })
-            .then(response => response.json())
-            .then(data => {
-              if (data.success) {
-                Swal.fire({
-                  icon: 'success',
-                  title: 'Deleted!',
-                  text: data.message || `Group "${groupName}" deleted successfully`,
-                  timer: 2000,
-                  showConfirmButton: false
-                }).then(() => {
-                  // Hard reload page to bypass cache
-                  window.location.href = window.location.href + '?t=' + Date.now();
-                });
-              } else {
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted!',
+                    text: data.message || `Group "${groupName}" deleted successfully`,
+                    timer: 2000,
+                    showConfirmButton: false
+                  }).then(() => {
+                    // Hard reload page to bypass cache
+                    window.location.href = window.location.href + '?t=' + Date.now();
+                  });
+                } else {
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.error || 'Failed to delete group'
+                  });
+                }
+              })
+              .catch(error => {
+                console.error('Delete group error:', error);
                 Swal.fire({
                   icon: 'error',
                   title: 'Error',
-                  text: data.error || 'Failed to delete group'
+                  text: 'Failed to delete group'
                 });
-              }
-            })
-            .catch(error => {
-              console.error('Delete group error:', error);
-              Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Failed to delete group'
               });
-            });
           }
         });
       }
@@ -832,16 +849,16 @@
   }
 
   // Handle Edit Unit double-click
-  document.addEventListener('dblclick', function(e) {
+  document.addEventListener('dblclick', function (e) {
     if (e.target.closest('.unit-editable')) {
       const span = e.target.closest('.unit-editable');
       const tagId = span.getAttribute('data-tag-id');
       const currentUnit = span.getAttribute('data-current-unit');
-      
+
       // Populate modal
       document.getElementById('editUnitTagId').value = tagId;
       document.getElementById('editUnitValue').value = currentUnit || '';
-      
+
       // Show modal
       const modal = new bootstrap.Modal(document.getElementById('editUnitModal'));
       modal.show();
@@ -849,14 +866,14 @@
   });
 
   // Add hover effect for editable units
-  document.addEventListener('mouseover', function(e) {
+  document.addEventListener('mouseover', function (e) {
     if (e.target.closest('.unit-editable')) {
       const span = e.target.closest('.unit-editable');
       span.style.backgroundColor = '#e9ecef';
     }
   });
 
-  document.addEventListener('mouseout', function(e) {
+  document.addEventListener('mouseout', function (e) {
     if (e.target.closest('.unit-editable')) {
       const span = e.target.closest('.unit-editable');
       span.style.backgroundColor = '';
@@ -866,12 +883,12 @@
   // Handle Edit Unit form submission
   const editUnitForm = document.getElementById('editUnitForm');
   if (editUnitForm) {
-    editUnitForm.addEventListener('submit', function(e) {
+    editUnitForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      
+
       const tagId = document.getElementById('editUnitTagId').value;
       const newUnit = document.getElementById('editUnitValue').value.trim();
-      
+
       // Show loading
       Swal.fire({
         title: 'Updating...',
@@ -890,45 +907,45 @@
         },
         body: `unit=${encodeURIComponent(newUnit)}`
       })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          Swal.fire({
-            icon: 'success',
-            title: 'Success',
-            text: 'Unit updated successfully',
-            timer: 2000,
-            showConfirmButton: false
-          });
-          
-          // Update display
-          const unitDisplay = document.getElementById(`tag-unit-${tagId}`);
-          if (unitDisplay) {
-            unitDisplay.textContent = newUnit || 'No Unit';
-            // Update data attribute for future edits
-            unitDisplay.setAttribute('data-current-unit', newUnit);
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            Swal.fire({
+              icon: 'success',
+              title: 'Success',
+              text: 'Unit updated successfully',
+              timer: 2000,
+              showConfirmButton: false
+            });
+
+            // Update display
+            const unitDisplay = document.getElementById(`tag-unit-${tagId}`);
+            if (unitDisplay) {
+              unitDisplay.textContent = newUnit || 'No Unit';
+              // Update data attribute for future edits
+              unitDisplay.setAttribute('data-current-unit', newUnit);
+            }
+
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editUnitModal'));
+            modal.hide();
+
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: data.message || 'Failed to update unit'
+            });
           }
-          
-          // Close modal
-          const modal = bootstrap.Modal.getInstance(document.getElementById('editUnitModal'));
-          modal.hide();
-          
-        } else {
+        })
+        .catch(error => {
+          Swal.close();
           Swal.fire({
             icon: 'error',
             title: 'Error',
-            text: data.message || 'Failed to update unit'
+            text: 'Network error occurred'
           });
-        }
-      })
-      .catch(error => {
-        Swal.close();
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'Network error occurred'
         });
-      });
     });
   }
 
@@ -936,7 +953,7 @@
   let socketConnected = false;
   let pollingInterval = null;
   const currentSubdashId = "{{ subdash.id }}";
-  
+
   // Simple tag timer system for 30s timeout - DECLARE EARLY
   const tagTimers = new Map(); // Store timeout IDs for each tag
 
@@ -946,15 +963,15 @@
     if (tagTimers.has(tagId)) {
       clearTimeout(tagTimers.get(tagId));
     }
-    
+
     // Set new 30-second timer
     const timeoutId = setTimeout(() => {
       markTagInactive(tagId);
     }, 30000); // 30 seconds
-    
+
     // Store the timeout ID
     tagTimers.set(tagId, timeoutId);
-    
+
     // Only restore if tag was actually inactive before
     const valEl = document.getElementById('tag-val-' + tagId);
     if (valEl && valEl.style.opacity === '0.5') {
@@ -967,28 +984,28 @@
     const valEl = document.getElementById('tag-val-' + tagId);
     const tsEl = document.getElementById('tag-ts-' + tagId);
     const barEl = document.getElementById('tag-bar-' + tagId);
-    
+
     if (valEl) {
       // Reset value to 0 and dim it
       valEl.textContent = '0';
       valEl.style.opacity = '0.5';
       valEl.style.color = '#6c757d';
     }
-    
+
     if (tsEl) {
       // Show timeout message
       tsEl.textContent = 'No data (30s+)';
       tsEl.style.color = '#dc3545';
       tsEl.style.fontWeight = 'bold';
     }
-    
+
     if (barEl) {
       // Set progress bar to inactive
       barEl.style.width = '0%';
       barEl.className = barEl.className.replace(/(device-|tag-)(connected|disconnected|unknown|inactive)/g, '');
       barEl.classList.add('tag-inactive');
     }
-    
+
     // console.log(`Tag ${tagId} marked inactive (no ts update for 30s)`);
   }
 
@@ -997,24 +1014,24 @@
     const valEl = document.getElementById('tag-val-' + tagId);
     const tsEl = document.getElementById('tag-ts-' + tagId);
     const barEl = document.getElementById('tag-bar-' + tagId);
-    
+
     if (valEl && valEl.style.opacity === '0.5') {
       // Restore normal styling only if it was inactive
       valEl.style.opacity = '';
       valEl.style.color = '';
     }
-    
+
     if (tsEl && tsEl.textContent.includes('No data')) {
       // Clear timeout message styling
       tsEl.style.color = '';
       tsEl.style.fontWeight = '';
     }
-    
+
     if (barEl && barEl.classList.contains('tag-inactive')) {
       // Restore normal progress bar based on device status
       const deviceStatus = barEl.getAttribute('data-device-status') || 'unknown';
       barEl.classList.remove('tag-inactive');
-      
+
       if (deviceStatus === 'connected') {
         barEl.style.width = '100%';
         barEl.classList.add('device-connected');
@@ -1031,103 +1048,68 @@
   // Real-time socket listener for modbus updates (immediate connection)
   if (typeof socket !== 'undefined') {
     socket.on("modbus_update", function (data) {
-      console.log(`🔥 Received modbus_update:`, data); // DEBUG: Check if socket updates are coming
       if (!data) return;
 
-      // Mark that we're receiving socket updates
       socketConnected = true;
 
-      // Debug: Log first update to confirm socket is working
-      if (!window.socketUpdateLogged) {
-        // console.log('✅ First socket update received - real-time connection working!');
-        window.socketUpdateLogged = true;
-      }
+      // 1) Tính trạng thái thiết bị đúng logic
+      const deviceStatus =
+        (data.ok === true) || (data.status === 'connected') ? 'connected' : 'disconnected';
 
-      // Update device status first (affects all tags from this device)
-      const deviceStatus = data.status || data.ok ? 'connected' : 'disconnected';
-      const deviceId = data.device_id || `dev${data.device_id}`;
-
-      // Process individual tag updates if available
-      if (data.tags && Array.isArray(data.tags)) {
-        // Batch DOM updates for better performance
-        const updates = [];
+      // 2) Cập nhật từng tag
+      if (Array.isArray(data.tags)) {
+        // gom các cập nhật value (chỉ khi đổi giá trị)
+        const pending = [];
         data.tags.forEach(tag => {
           const valEl = document.getElementById('tag-val-' + tag.id);
           if (!valEl) return;
 
           const oldVal = valEl.textContent;
-          const newVal = tag.value; // Use value directly from worker
-          // Only update if value actually changed
-          if (oldVal != newVal) {
-            updates.push({ valEl, newVal, oldVal, tag });
+          const newVal = String(tag.value); // hoặc formatValue(tag.value, tag.datatype)
+
+          if (oldVal !== newVal) {
+            pending.push({ valEl, newVal, tag });
           }
 
-        });
-
-        // Apply all updates in a single batch
-        updates.forEach(({ valEl, newVal, oldVal, tag }) => {
-          valEl.textContent = newVal;
-          
-          
-          // Reset visual styling
-          valEl.style.color = '';
-          valEl.style.opacity = '';
-          
-          // Update timestamp
+          // Luôn cập nhật timestamp & timer nếu có ts
           const tsEl = document.getElementById('tag-ts-' + tag.id);
-          const barEl = document.getElementById('tag-bar-' + tag.id);
           if (tsEl && tag.ts) {
             tsEl.textContent = tag.ts;
             tsEl.style.color = '';
             tsEl.style.fontWeight = '';
-            barEl.classList.add('device-connected');
-            barEl.style.width = '100%';
-
-            // RESET 30s TIMER FOR THIS TAG
             resetTagTimer(tag.id);
           }
-          if (tsEl && tag.ts) {
-            tsEl.textContent = tag.ts;
-            tsEl.style.color = '';
-            tsEl.style.fontWeight = '';
-            
-            // RESET 30s TIMER FOR THIS TAG
-            resetTagTimer(tag.id);
+
+          // 3) Cập nhật meter bar theo deviceStatus cho MỖI TAG thuộc device này
+          const barEl = document.getElementById('tag-bar-' + tag.id);
+          if (barEl) {
+            // cập nhật data attribute để lần render sau còn đúng
+            barEl.setAttribute('data-device-status', deviceStatus);
+
+            // reset class cũ
+            barEl.classList.remove('device-connected', 'device-disconnected', 'device-unknown', 'tag-inactive');
+
+            if (deviceStatus === 'connected') {
+              barEl.classList.add('device-connected');
+              barEl.style.width = '100%';
+            } else if (deviceStatus === 'disconnected') {
+              barEl.classList.add('device-disconnected');
+              barEl.style.width = '0%';
+            } else {
+              barEl.classList.add('device-unknown');
+              barEl.style.width = '0%';
+            }
           }
         });
 
-        // For tags that received updates but values didn't change, 
-        // still update timestamps without triggering progress bar animation
-        data.tags.forEach(tag => {
-          const valEl = document.getElementById('tag-val-' + tag.id);
-          if (!valEl) return;
-
-          const oldVal = valEl.textContent;
-          const newVal = tag.value; // Use value directly from worker
-          
-          // If value didn't change but we got an update, just update timestamp
-          if (oldVal === newVal) {
-            
-            // Update timestamp only
-            const tsEl = document.getElementById('tag-ts-' + tag.id);
-            if (tsEl && tag.ts) {
-              tsEl.textContent = tag.ts;
-              tsEl.style.color = '';
-              tsEl.style.fontWeight = '';
-              
-              // RESET 30s TIMER FOR THIS TAG
-              resetTagTimer(tag.id);
-            }
-            
-            // Reset timeout indicators
-            valEl.style.color = '';
-            valEl.style.opacity = '';
-          }
+        // 4) Áp các thay đổi value (batch)
+        pending.forEach(({ valEl, newVal }) => {
+          valEl.textContent = newVal;
+          // bỏ dấu hiệu inactive nếu có
+          valEl.style.opacity = '';
+          valEl.style.color = '';
         });
       }
-
-      // Đã loại bỏ update progress bar toàn bộ để tránh nhấp nháy, chỉ update bar trong forEach tag khi ts thay đổi
-
     });
 
     // Listen for alarm events from subdashboard tags
@@ -1159,7 +1141,7 @@
 
     // Join subdashboard room for targeted updates
     socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
-    
+
     // Initialize tag tracking and start timeout checker
     document.querySelectorAll('[id^="tag-val-"]').forEach(el => {
       const tagId = el.id.replace('tag-val-', '');
@@ -1176,8 +1158,8 @@
     socket.on('disconnect', function () {
       socketConnected = false;
     });
-    
-    
+
+
   } else {
     console.warn('Socket not available, falling back to polling only');
   }
@@ -1200,11 +1182,11 @@
   });
 
   // Cleanup on page unload to prevent memory leaks
-  window.addEventListener('beforeunload', function() {
+  window.addEventListener('beforeunload', function () {
     if (pollingInterval) {
       clearInterval(pollingInterval);
     }
-    
+
     // Clear all tag timers
     tagTimers.forEach((timeoutId) => {
       clearTimeout(timeoutId);
