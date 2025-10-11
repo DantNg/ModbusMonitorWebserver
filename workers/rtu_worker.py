@@ -292,8 +292,8 @@ class RTUWorker:
         if all_rows:
             self._emit_modbus_update(device, all_rows)
 
-        if self.debug:
-            print(f"✅ {device.name}: {success}/{len(tags)} tags")
+        # if self.debug:
+        #     print(f"✅ {device.name}: {success}/{len(tags)} tags")
 
     # ---- block read + map offsets
     def _read_block(self, device, function_code, tags):

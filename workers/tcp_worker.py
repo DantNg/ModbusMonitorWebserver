@@ -283,8 +283,8 @@ class TCPWorker:
         if all_tag_rows:
             self._emit_modbus_update(device, all_tag_rows)
 
-        if self.debug:
-            print(f"✅ {device.name}: {successful}/{len(tags)} tags")
+        # if self.debug:
+        #     print(f"✅ {device.name}: {successful}/{len(tags)} tags")
 
     # ---- block read + mapping
     def _read_block(self, device, function_code, tags):

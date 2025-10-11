@@ -9,6 +9,10 @@ from pymodbus.exceptions import ModbusIOException, ConnectionException
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass
 from datetime import datetime
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from utils.value_converter import convert_raw_value_to_web, get_register_count
 
 class ModbusTCPWorker:
     """TCP Modbus Worker Process"""
@@ -173,68 +177,8 @@ class ModbusTCPWorker:
         self.log("INFO", f"Left room {room_id}")
         
     def parse_value(self, raw_value, datatype: str, byte_order: str, word_order: str):
-        """Parse raw Modbus value according to datatype and byte/word order"""
-        try:
-            if not raw_value:
-                return None
-                
-            if datatype.lower() in ['float', 'float32', 'real']:
-                if len(raw_value) >= 2:
-                    # IEEE 754 float from 2 registers
-                    w1, w2 = (raw_value[1], raw_value[0]) if word_order == "BA" else (raw_value[0], raw_value[1])
-                    b1 = w1.to_bytes(2, "big")
-                    b2 = w2.to_bytes(2, "big")
-                    b = b1 + b2
-                    if byte_order == "LittleEndian":
-                        b = b[1:2] + b[0:1] + b[3:4] + b[2:3]
-                    return struct.unpack(">f", b)[0]
-                    
-            elif datatype.lower() in ['double', 'float64']:
-                if len(raw_value) >= 4:
-                    # IEEE 754 double from 4 registers
-                    if word_order == "BA":
-                        regs = [raw_value[3], raw_value[2], raw_value[1], raw_value[0]]
-                    else:
-                        regs = raw_value[:4]
-                    
-                    bytes_data = b''
-                    for reg in regs:
-                        bytes_data += reg.to_bytes(2, "big")
-                    
-                    if byte_order == "LittleEndian":
-                        # Swap bytes within each word
-                        new_bytes = b''
-                        for i in range(0, len(bytes_data), 2):
-                            new_bytes += bytes_data[i+1:i+2] + bytes_data[i:i+1]
-                        bytes_data = new_bytes
-                    
-                    return struct.unpack(">d", bytes_data)[0]
-                    
-            elif datatype.lower() in ['int16', 'short']:
-                return raw_value[0] if raw_value else 0
-                
-            elif datatype.lower() in ['uint16', 'word']:
-                return raw_value[0] if raw_value else 0
-                
-            elif datatype.lower() in ['int32', 'long']:
-                if len(raw_value) >= 2:
-                    if word_order == "BA":
-                        return (raw_value[1] << 16) | raw_value[0]
-                    else:
-                        return (raw_value[0] << 16) | raw_value[1]
-                        
-            elif datatype.lower() in ['uint32', 'dword']:
-                if len(raw_value) >= 2:
-                    if word_order == "BA":
-                        return (raw_value[1] << 16) | raw_value[0]
-                    else:
-                        return (raw_value[0] << 16) | raw_value[1]
-                        
-            return raw_value[0] if raw_value else 0
-            
-        except Exception as e:
-            self.log("ERROR", f"Error parsing value {raw_value} as {datatype}: {e}")
-            return None
+        """Parse raw Modbus value using shared utility function"""
+        return convert_raw_value_to_web(raw_value, datatype, byte_order, word_order)
             
     def read_device_data(self):
         """Read data from all configured devices"""
@@ -415,14 +359,8 @@ class ModbusTCPWorker:
             self.last_error_time = time.time()
             
     def get_register_count(self, datatype: str) -> int:
-        """Get number of registers required for datatype"""
-        datatype = datatype.lower()
-        if datatype in ['float', 'float32', 'real', 'int32', 'uint32', 'long', 'dword']:
-            return 2
-        elif datatype in ['double', 'float64']:
-            return 4
-        else:
-            return 1
+        """Get number of registers required for datatype using shared utility function"""
+        return get_register_count(datatype)
             
     def run(self):
         """Main worker loop"""
