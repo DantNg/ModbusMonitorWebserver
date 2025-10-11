@@ -233,6 +233,18 @@ class TCPWorker:
     def _setup_socketio_handlers(self):
         if not self.sio: return
 
+        @self.sio.on("connect")
+        def on_connect():
+            self.sio_connected = True
+            if self.debug:
+                print("📡 Socket.IO connected")
+
+        @self.sio.on("disconnect")
+        def on_disconnect():
+            self.sio_connected = False
+            if self.debug:
+                print("📡 Socket.IO disconnected")
+
         @self.sio.on("modbus_write_command")
         def _on_write_command(data):
             if self.debug:
@@ -472,9 +484,33 @@ class TCPWorker:
     # ---- emit Socket.IO
     def _ensure_sio(self):
         if not SIO_AVAILABLE: return False
-        if self.sio and self.sio_connected: return True
+        
+        # Check if already connected
+        if self.sio and self.sio_connected:
+            try:
+                # Verify connection is still alive
+                if self.sio.connected:
+                    return True
+                else:
+                    # Connection is dead, mark as disconnected
+                    self.sio_connected = False
+            except:
+                self.sio_connected = False
+        
+        # Try to connect/reconnect
         try:
-            if not self.sio: self.sio = socketio.Client(reconnection=True)
+            # If socket exists but not connected, disconnect first
+            if self.sio and hasattr(self.sio, 'connected') and self.sio.connected:
+                try:
+                    self.sio.disconnect()
+                except:
+                    pass
+            
+            # Create new socket client if needed
+            if not self.sio:
+                self.sio = socketio.Client(reconnection=True)
+            
+            # Connect to server
             self.sio.connect(self.webapp_url, wait=True)
             self.sio_connected = True
             return True
