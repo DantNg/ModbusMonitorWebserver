@@ -2,8 +2,8 @@ from flask import jsonify, render_template, request, redirect, url_for, flash, s
 from sqlalchemy import select
 from . import subdash_bp
 from datetime import datetime,timedelta
-from modbus_monitor.database import db
-from modbus_monitor.services.socket_emission_manager import get_emission_manager
+from ..database import db
+from ..services.socket_emission_manager import get_emission_manager
 
 @subdash_bp.get("/")
 def list_subdash():
@@ -38,7 +38,7 @@ def add_subdash():
 @subdash_bp.get("/<int:sid>")
 def subdash_detail(sid):
     from flask import make_response
-    from modbus_monitor.services.config_cache import get_config_cache
+    from ..services.config_cache import get_config_cache
 
     # Fetch subdashboard, tags, and all tags
     subdash = db.get_subdashboard(sid) if hasattr(db, "get_subdashboard") else {"id": sid, "name": "Demo"}
@@ -291,7 +291,7 @@ def api_tags_for_subdash():
         # Get tag IDs for this subdashboard
         tag_ids = [t["id"] for t in db.get_subdashboard_tags(sid)]
         # Tối ưu: gom luôn info tag và value vào 1 query
-        from modbus_monitor.database.db import tag_latest_values, tags as tags_table, init_engine
+        from ..database.db import tag_latest_values, tags as tags_table, init_engine
         tags = []
         with init_engine().connect() as con:
             rows = con.execute(

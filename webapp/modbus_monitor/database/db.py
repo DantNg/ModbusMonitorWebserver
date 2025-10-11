@@ -1630,30 +1630,93 @@ def get_worker_devices(worker_id: str):
         return []
 
 def get_auto_start_workers():
-    """Get all workers that should auto-start"""
+    """
+    Get workers configuration based on devices table.
+    Group devices by connection type (TCP host:port or RTU serial_port:baudrate)
+    to create worker configurations automatically.
+    """
     try:
         with init_engine().connect() as con:
-            rows = con.execute(
-                select(workers)
-                .where(workers.c.enabled == True)
-                .where(workers.c.auto_start == True)
-                .order_by(workers.c.worker_id.asc())
+            # Get all devices (không lọc theo is_online vì đó là trạng thái động)
+            device_rows = con.execute(
+                select(devices)
+                .order_by(devices.c.protocol.asc(), devices.c.host.asc(), devices.c.serial_port.asc())
             ).mappings().all()
             
+            if not device_rows:
+                return []
+            
+            # Group devices by connection parameters to create workers
+            tcp_groups = {}  # {(host, port): [devices]}
+            rtu_groups = {}  # {(serial_port, baudrate): [devices]}
+            
+            for device_row in device_rows:
+                device = dict(device_row)
+                
+                if device['protocol'] == 'ModbusTCP' and device['host'] and device['port']:
+                    # TCP worker - group by host:port
+                    key = (device['host'], device['port'])
+                    if key not in tcp_groups:
+                        tcp_groups[key] = []
+                    tcp_groups[key].append(device)
+                    
+                elif device['protocol'] == 'ModbusRTU' and device['serial_port'] and device['baudrate']:
+                    # RTU worker - group by serial_port:baudrate
+                    key = (device['serial_port'], device['baudrate'])
+                    if key not in rtu_groups:
+                        rtu_groups[key] = []
+                    rtu_groups[key].append(device)
+            
             result = []
-            for row in rows:
-                worker = dict(row)
-                # Get assigned devices and their tags
-                devices = get_worker_devices(worker['worker_id'])
+            
+            # Create TCP workers
+            for (host, port), devices_list in tcp_groups.items():
+                # Get all tags for all devices in this group
                 all_tags = []
-                for device in devices:
+                for device in devices_list:
                     device_tags = list_tags(device['id'])
                     all_tags.extend(device_tags)
                 
-                worker['devices'] = devices
-                worker['tags'] = all_tags
-                result.append(worker)
+                # Tạo worker ngay cả khi chưa có tags (có thể thêm tags sau)
+                worker_config = {
+                    'worker_id': f'tcp_{host}_{port}'.replace('.', '_'),
+                    'worker_type': 'tcp',
+                    'enabled': True,
+                    'auto_start': True,
+                    'host': host,
+                    'port': port,
+                    'polling_interval': 1.0,
+                    'description': f'Auto-generated TCP worker for {host}:{port}',
+                    'devices': devices_list,
+                    'tags': all_tags
+                }
+                result.append(worker_config)
+            
+            # Create RTU workers  
+            for (serial_port, baudrate), devices_list in rtu_groups.items():
+                # Get all tags for all devices in this group
+                all_tags = []
+                for device in devices_list:
+                    device_tags = list_tags(device['id'])
+                    all_tags.extend(device_tags)
+                
+                # Tạo worker ngay cả khi chưa có tags (có thể thêm tags sau)
+                worker_config = {
+                    'worker_id': f'rtu_{serial_port}_{baudrate}'.replace('/', '_').replace('\\', '_').replace(':', '_'),
+                    'worker_type': 'rtu',
+                    'enabled': True,
+                    'auto_start': True,
+                    'serial_port': serial_port,
+                    'baudrate': baudrate,
+                    'polling_interval': 1.0,
+                    'description': f'Auto-generated RTU worker for {serial_port}@{baudrate}',
+                    'devices': devices_list,
+                    'tags': all_tags
+                }
+                result.append(worker_config)
+            
             return result
+            
     except Exception as e:
         print(f"Error getting auto-start workers: {e}")
         return []

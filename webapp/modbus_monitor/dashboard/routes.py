@@ -1,9 +1,9 @@
 from flask import render_template,request,jsonify,session,redirect,url_for,flash
 from . import dashboard_bp
-from modbus_monitor.database import db
-from modbus_monitor.database.db import get_latest_tag_value, get_latest_tag_values_batch, safe_datetime_now
+from ..database import db
+from ..database.db import get_latest_tag_value, get_latest_tag_values_batch, safe_datetime_now
 from datetime import datetime, timedelta
-from modbus_monitor.extensions import socketio
+from ..extensions import socketio
 
 @dashboard_bp.route("/dashboard")
 def dashboard():

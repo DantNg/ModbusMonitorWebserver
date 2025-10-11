@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify,redirect,url_for, render_template,session
-from modbus_monitor.database import db
+from ..database import db
 from . import auth_bp
 from werkzeug.security import check_password_hash, generate_password_hash
 @auth_bp.route("/")
