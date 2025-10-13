@@ -83,7 +83,25 @@ def init_engine():
     global _engine
     if _engine is not None:
         return _engine
-    with open("config/SMTP_config.json") as config_file:
+    
+    # Tìm file config từ thư mục gốc, không phụ thuộc vào working directory
+    config_path = None
+    possible_paths = [
+        "config/SMTP_config.json",  # Từ thư mục gốc
+        "../config/SMTP_config.json",  # Từ webapp/
+        "../../config/SMTP_config.json",  # Từ webapp/modbus_monitor/
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "SMTP_config.json")  # Absolute path
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            config_path = path
+            break
+    
+    if not config_path:
+        raise FileNotFoundError("SMTP_config.json not found in any expected location")
+    
+    with open(config_path) as config_file:
         config = json.load(config_file)
     uri = config.get("MYSQL_URI", "mysql+pymysql://root:123456@localhost:3306/modbus_monitor_db")
     pool_size = int(config.get("POOL_SIZE", "8"))
@@ -270,26 +288,18 @@ def create_schema():
 
 # ---------- CRUD NHANH (dùng trực tiếp trong route/service) ----------
 def list_devices():
+    """
+    List all devices from database.
+    NOTE: In webapp-only mode, this function only READS data.
+    Device status updates are handled by external workers.
+    """
     with init_engine().connect() as con:
         rows = con.execute(select(devices)).mappings().all()
-        # Check device online status based on updated_at and timeout_ms
-        now = safe_datetime_now()
         all_devices = []
         for r in rows:
-            updated_at = r.get("updated_at")
-            timeout_ms = r.get("timeout_ms", 2000)
             device = dict(r)
-            if updated_at:
-                # Use safe datetime comparison
-                time_diff = safe_datetime_compare(now, updated_at)
-                if time_diff:
-                    elapsed = time_diff.total_seconds() * 1000
-                else:
-                    elapsed = 0
-                    
-                if elapsed > timeout_ms:
-                    device["is_online"] = False
-                    update_device_row(device["id"], {"is_online": False, "updated_at": safe_datetime_now()})
+            # In webapp-only mode, we trust the is_online status from workers
+            # No automatic timeout checking or status updates here
             all_devices.append(device)
         return all_devices
 
