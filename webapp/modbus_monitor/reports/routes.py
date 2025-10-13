@@ -49,50 +49,11 @@ def reports():
     print(f"Reports: Time filter {time_filter}, from {from_dt} to {to_dt}")
 
     if current_logger_id == "all":
-        # mới: lấy dữ liệu cho tất cả logger
-        items, columns = db.get_all_logger_rows(dt_from=from_dt, dt_to=to_dt)
+        # Load dữ liệu cho tất cả logger từ bảng tag_logs
+        items, columns = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt)
     else:
-        # Lấy logger info và interval
-        logger = get_data_logger(current_logger_id)
-        tag_ids = get_data_logger_tag_ids(current_logger_id)
-        interval_sec = float(logger["interval_sec"]) if logger and "interval_sec" in logger else 60
-        # Lấy dữ liệu từng tag theo interval
-        tag_data = {}
-        for tag_id in tag_ids:
-            tag_data[tag_id] = get_tag_values_with_interval(tag_id, from_dt, to_dt, interval_sec)
-        # Build columns: timestamp + tag names
-        tag_names = []
-        from modbus_monitor.database.db import tags as tags_table, init_engine
-        with init_engine().connect() as con:
-            rows = con.execute(tags_table.select().where(tags_table.c.id.in_(tag_ids))).mappings().all()
-            tag_names = [r["name"] for r in rows]
-        columns = ["timestamp"] + tag_names
-
-        # Đồng bộ timestamp theo tag đầu tiên, các tag khác lấy giá trị gần nhất trước đó (forward fill, tối ưu index)
-        if tag_ids:
-            ref_tag_id = tag_ids[0]
-            ref_data = tag_data[ref_tag_id]
-            tag_series = {}
-            for idx, tag_id in enumerate(tag_ids):
-                tag_series[tag_id] = tag_data[tag_id]
-            # Chuẩn bị index cho từng tag
-            tag_idx = {tag_id: 0 for tag_id in tag_ids}
-            items = []
-            for ts, _ in ref_data:
-                ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
-                row = {"timestamp": ts_str}
-                for idx, tag_id in enumerate(tag_ids):
-                    series = tag_series[tag_id]
-                    i = tag_idx[tag_id]
-                    # Tiến index tới vị trí t <= ts gần nhất
-                    while i + 1 < len(series) and series[i + 1][0] <= ts:
-                        i += 1
-                    tag_idx[tag_id] = i
-                    val = series[i][1] if series and series[i][0] <= ts else None
-                    row[tag_names[idx]] = val
-                items.append(row)
-        else:
-            items = []
+        # Load dữ liệu cho logger cụ thể từ bảng tag_logs
+        items, columns = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt)
 
     if "timestamp" not in columns:
         columns = ["timestamp"] + [c for c in columns if c != "timestamp"]

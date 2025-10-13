@@ -6,6 +6,7 @@ from .reports import reports_bp
 from .logger_settings import logger_settings_bp
 from .auth import auth_bp
 from .subdashboards import subdash_bp
+from .datalogger import datalogger_bp
 from .database.db import init_engine, create_schema
 import os
 import asyncio
@@ -98,5 +99,6 @@ def create_app():
     app.register_blueprint(reports_bp)
     app.register_blueprint(logger_settings_bp)
     app.register_blueprint(subdash_bp)
+    app.register_blueprint(datalogger_bp)
     socketio.init_app(app)
     return app

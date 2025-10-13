@@ -35,7 +35,8 @@ import os
 import threading
 from sqlalchemy import (
     create_engine, MetaData, Table, Column, Integer, String, Float, Boolean,
-    DateTime, Enum, ForeignKey, select, insert, update, delete, func,cast,and_, asc, text
+    DateTime, Enum, ForeignKey, select, insert, update, delete, func,cast,and_, asc, text,
+    Index, UniqueConstraint
 )
 from sqlalchemy.engine import Engine
 import json
@@ -211,6 +212,20 @@ data_logger_tags = Table(
     "data_logger_tags", _md,
     Column("logger_id", Integer, ForeignKey("data_loggers.id", ondelete="CASCADE"), primary_key=True),
     Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+)
+
+# --- Bảng ghi log chung ---
+tag_logs = Table(
+    "tag_logs", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("logger_id", Integer, ForeignKey("data_loggers.id", ondelete="CASCADE"), nullable=False),
+    Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("ts", DateTime(timezone=True), nullable=False),
+    Column("value", Float, nullable=False),
+    Column("created_at", DateTime, server_default=func.now()),
+    UniqueConstraint('logger_id', 'tag_id', 'ts', name='uq_logger_tag_ts'),
+    Index('idx_logger_ts', 'logger_id', 'ts'),
+    Index('idx_tag_ts', 'tag_id', 'ts'),
 )
 
 # --- Bảng: Dashboard con ---
@@ -1717,3 +1732,274 @@ def get_auto_start_workers():
     except Exception as e:
         print(f"Error getting auto-start workers: {e}")
         return []
+
+# ----------- TAG LOGS (DATALOGGER) -----------
+
+def bulk_insert_tag_logs(log_entries: list[tuple]) -> int:
+    """
+    Bulk insert/upsert tag logs with ON DUPLICATE KEY UPDATE for idempotency
+    log_entries = [(logger_id, tag_id, ts, value), ...]
+    Returns: number of rows inserted/updated
+    """
+    if not log_entries:
+        return 0
+    
+    with init_engine().begin() as con:
+        try:
+            # Convert tuples to list of parameter dictionaries for raw SQL
+            params_list = []
+            for entry in log_entries:
+                if len(entry) == 4:
+                    logger_id, tag_id, ts, value = entry
+                    params_list.append({
+                        'logger_id': int(logger_id),
+                        'tag_id': int(tag_id), 
+                        'ts': ts,
+                        'value': float(value)
+                    })
+            
+            if not params_list:
+                return 0
+            
+            # Use executemany for bulk insert with ON DUPLICATE KEY UPDATE
+            sql = """
+            INSERT INTO tag_logs (logger_id, tag_id, ts, value) 
+            VALUES (:logger_id, :tag_id, :ts, :value)
+            ON DUPLICATE KEY UPDATE
+                value = VALUES(value),
+                created_at = CURRENT_TIMESTAMP
+            """
+            
+            # Execute each row separately to handle MySQL syntax properly
+            total_affected = 0
+            for params in params_list:
+                result = con.execute(text(sql), params)
+                total_affected += result.rowcount if result.rowcount else 1
+            
+            return total_affected
+            return total_affected  # Return number of rows processed
+            
+        except Exception as e:
+            print(f"Error in bulk_insert_tag_logs: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+
+def purge_tag_logs_by_logger(logger_id: int, dt_from: datetime = None, dt_to: datetime = None) -> int:
+    """
+    Delete tag logs for a specific logger within optional date range
+    Returns: number of deleted rows
+    """
+    with init_engine().begin() as con:
+        conditions = [tag_logs.c.logger_id == logger_id]
+        
+        if dt_from:
+            conditions.append(tag_logs.c.ts >= dt_from)
+        if dt_to:
+            conditions.append(tag_logs.c.ts <= dt_to)
+        
+        stmt = delete(tag_logs).where(and_(*conditions))
+        result = con.execute(stmt)
+        return result.rowcount
+
+def purge_tag_logs_by_timerange(dt_from: datetime, dt_to: datetime) -> int:
+    """
+    Delete all tag logs within date range
+    Returns: number of deleted rows
+    """
+    with init_engine().begin() as con:
+        stmt = delete(tag_logs).where(
+            and_(tag_logs.c.ts >= dt_from, tag_logs.c.ts <= dt_to)
+        )
+        result = con.execute(stmt)
+        return result.rowcount
+
+def get_tag_logs_count(logger_id: int = None, dt_from: datetime = None, dt_to: datetime = None) -> int:
+    """
+    Get count of tag logs with optional filters
+    """
+    with init_engine().connect() as con:
+        conditions = []
+        
+        if logger_id:
+            conditions.append(tag_logs.c.logger_id == logger_id)
+        if dt_from:
+            conditions.append(tag_logs.c.ts >= dt_from)
+        if dt_to:
+            conditions.append(tag_logs.c.ts <= dt_to)
+        
+        if conditions:
+            stmt = select(func.count(tag_logs.c.id)).where(and_(*conditions))
+        else:
+            stmt = select(func.count(tag_logs.c.id))
+        
+        result = con.execute(stmt)
+        return result.scalar() or 0
+
+def get_tag_logs_for_logger(logger_id: int, dt_from: datetime = None, dt_to: datetime = None, limit: int = 1000):
+    """
+    Get tag logs for a specific logger with optional filtering
+    """
+    with init_engine().connect() as con:
+        conditions = [tag_logs.c.logger_id == logger_id]
+        
+        if dt_from:
+            conditions.append(tag_logs.c.ts >= dt_from)
+        if dt_to:
+            conditions.append(tag_logs.c.ts <= dt_to)
+        
+        stmt = (select(tag_logs)
+                .where(and_(*conditions))
+                .order_by(tag_logs.c.ts.desc())
+                .limit(limit))
+        
+        rows = con.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
+def get_logger_statistics(logger_id: int) -> dict:
+    """
+    Get statistics for a specific logger
+    """
+    with init_engine().connect() as con:
+        # Total count
+        total_stmt = select(func.count(tag_logs.c.id)).where(tag_logs.c.logger_id == logger_id)
+        total_count = con.execute(total_stmt).scalar() or 0
+        
+        # Date range
+        range_stmt = select(
+            func.min(tag_logs.c.ts).label('oldest'),
+            func.max(tag_logs.c.ts).label('newest'),
+            func.count(func.distinct(tag_logs.c.tag_id)).label('unique_tags')
+        ).where(tag_logs.c.logger_id == logger_id)
+        
+        range_result = con.execute(range_stmt).mappings().first()
+        
+        return {
+            'logger_id': logger_id,
+            'total_records': total_count,
+            'oldest_record': range_result['oldest'] if range_result else None,
+            'newest_record': range_result['newest'] if range_result else None,
+            'unique_tags': range_result['unique_tags'] if range_result else 0
+        }
+
+def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime):
+    """
+    Load dữ liệu datalogger từ bảng tag_logs cho một logger cụ thể
+    Returns: (items, columns) - items là list dict, columns là list tên cột
+    """
+    with init_engine().connect() as con:
+        # Lấy thông tin logger và tags
+        logger_info = con.execute(
+            select(data_loggers.c.name).where(data_loggers.c.id == logger_id)
+        ).mappings().first()
+        
+        if not logger_info:
+            return [], ["timestamp"]
+        
+        # Lấy tags được assign cho logger này
+        tag_info = con.execute(
+            select(
+                tags.c.id,
+                tags.c.name,
+                tags.c.datatype
+            )
+            .select_from(
+                tags.join(data_logger_tags, tags.c.id == data_logger_tags.c.tag_id)
+            )
+            .where(data_logger_tags.c.logger_id == logger_id)
+            .order_by(tags.c.name)
+        ).mappings().all()
+        
+        if not tag_info:
+            return [], ["timestamp"]
+        
+        # Load data từ tag_logs
+        log_data = con.execute(
+            select(
+                tag_logs.c.tag_id,
+                tag_logs.c.ts,
+                tag_logs.c.value
+            )
+            .where(
+                and_(
+                    tag_logs.c.logger_id == logger_id,
+                    tag_logs.c.ts.between(dt_from, dt_to)
+                )
+            )
+            .order_by(tag_logs.c.ts, tag_logs.c.tag_id)
+        ).mappings().all()
+        
+        # Tạo columns: timestamp + tag names
+        tag_id_to_name = {tag['id']: tag['name'] for tag in tag_info}
+        columns = ["timestamp"] + [tag['name'] for tag in tag_info]
+        
+        # Group data theo timestamp
+        timestamp_data = {}
+        for row in log_data:
+            ts_str = row['ts'].strftime("%Y-%m-%d %H:%M:%S")
+            if ts_str not in timestamp_data:
+                timestamp_data[ts_str] = {}
+            timestamp_data[ts_str][tag_id_to_name[row['tag_id']]] = row['value']
+        
+        # Convert sang format cho template
+        items = []
+        for ts_str in sorted(timestamp_data.keys()):
+            row = {"timestamp": ts_str}
+            for tag in tag_info:
+                tag_name = tag['name']
+                row[tag_name] = timestamp_data[ts_str].get(tag_name, None)
+            items.append(row)
+        
+        return items, columns
+
+def get_all_datalogger_data(dt_from: datetime, dt_to: datetime):
+    """
+    Load dữ liệu cho tất cả dataloggers từ bảng tag_logs
+    Returns: (items, columns)
+    """
+    with init_engine().connect() as con:
+        # Load tất cả data trong khoảng thời gian từ dataloggers có data
+        log_data = con.execute(
+            select(
+                data_loggers.c.name.label('logger_name'),
+                tags.c.name.label('tag_name'),
+                tag_logs.c.ts,
+                tag_logs.c.value
+            )
+            .select_from(
+                tag_logs
+                .join(data_loggers, tag_logs.c.logger_id == data_loggers.c.id)
+                .join(tags, tag_logs.c.tag_id == tags.c.id)
+            )
+            .where(tag_logs.c.ts.between(dt_from, dt_to))
+            .order_by(tag_logs.c.ts, data_loggers.c.name, tags.c.name)
+        ).mappings().all()
+        
+        if not log_data:
+            return [], ["timestamp"]
+        
+        # Tạo columns: timestamp + logger_name.tag_name
+        tag_columns = set()
+        for row in log_data:
+            tag_columns.add(f"{row['logger_name']}.{row['tag_name']}")
+        
+        columns = ["timestamp"] + sorted(tag_columns)
+        
+        # Group data theo timestamp
+        timestamp_data = {}
+        for row in log_data:
+            ts_str = row['ts'].strftime("%Y-%m-%d %H:%M:%S")
+            if ts_str not in timestamp_data:
+                timestamp_data[ts_str] = {}
+            col_name = f"{row['logger_name']}.{row['tag_name']}"
+            timestamp_data[ts_str][col_name] = row['value']
+        
+        # Convert sang format cho template
+        items = []
+        for ts_str in sorted(timestamp_data.keys()):
+            row = {"timestamp": ts_str}
+            for col in columns[1:]:  # Skip timestamp column
+                row[col] = timestamp_data[ts_str].get(col, None)
+            items.append(row)
+        
+        return items, columns
