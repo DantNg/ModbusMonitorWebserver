@@ -245,33 +245,6 @@ subdash_group_tags = Table(
     Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
 )
 
-# --- Workers Configuration Table ---
-workers = Table(
-    "workers", _md,
-    Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("worker_id", String(120), nullable=False, unique=True),
-    Column("worker_type", Enum("tcp", "rtu"), nullable=False),
-    Column("enabled", Boolean, default=True),
-    Column("host", String(120)),  # For TCP workers
-    Column("port", Integer),      # For TCP workers
-    Column("serial_port", String(120)),  # For RTU workers
-    Column("baudrate", Integer),         # For RTU workers
-    Column("polling_interval", Float, default=1.0),
-    Column("byte_order", String(20), default="BigEndian"),
-    Column("word_order", String(5), default="AB"),
-    Column("auto_start", Boolean, default=True),  # Start automatically on app startup
-    Column("description", String(255)),
-    Column("created_at", DateTime, server_default=func.now()),
-    Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now()),
-)
-
-# --- Worker Device Assignments ---
-worker_devices = Table(
-    "worker_devices", _md,
-    Column("worker_id", String(120), ForeignKey("workers.worker_id", ondelete="CASCADE"), primary_key=True),
-    Column("device_id", Integer, ForeignKey("devices.id", ondelete="CASCADE"), primary_key=True),
-)
-
 
 def create_schema():
     """Tạo bảng nếu chưa có (idempotent)."""
@@ -1045,6 +1018,30 @@ def delete_user_row(user_id: int) -> int:
             raise ValueError("Cannot delete admin users.")
     
     with init_engine().begin() as con:
+        res = con.execute(delete(users).where(users.c.id == user_id))
+        return res.rowcount
+
+def get_notification_recipients():
+    """Get all users with notification enabled and valid email/phone"""
+    with init_engine().connect() as con:
+        # Get users with notification enabled and have email or phone
+        stmt = select(users).where(
+            and_(
+                users.c.notification_enabled == True,
+                func.coalesce(users.c.email, users.c.phone).is_not(None)
+            )
+        )
+        
+        rows = con.execute(stmt).mappings().all()
+        recipients = []
+        
+        for row in rows:
+            user = dict(row)
+            # Only include users that have either email or phone
+            if user.get('email') or user.get('phone'):
+                recipients.append(user)
+        
+        return recipients
         res = con.execute(delete(users).where(users.c.id == user_id))
         return res.rowcount
 
