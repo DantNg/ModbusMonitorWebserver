@@ -670,25 +670,16 @@ def clear_alarm_events():
         return res.rowcount
 
 def clear_report_data():
-    """Delete all tag values (report data)."""
+    """Delete all datalogger report data from tag_logs table."""
     with init_engine().begin() as con:
-        res = con.execute(delete(tag_values))
+        res = con.execute(delete(tag_logs))
         return res.rowcount
 
 def clear_report_data_by_logger(logger_id: int):
-    """Delete tag values for specific logger."""
+    """Delete datalogger report data for specific logger from tag_logs table."""
     with init_engine().begin() as con:
-        # Get tag IDs for this logger
-        tag_ids_result = con.execute(
-            select(data_logger_tags.c.tag_id)
-            .where(data_logger_tags.c.logger_id == logger_id)
-        ).mappings().all()
-        
-        if not tag_ids_result:
-            return 0
-            
-        tag_ids = [r["tag_id"] for r in tag_ids_result]
-        res = con.execute(delete(tag_values).where(tag_values.c.tag_id.in_(tag_ids)))
+        # Delete all tag_logs entries for this logger_id
+        res = con.execute(delete(tag_logs).where(tag_logs.c.logger_id == logger_id))
         return res.rowcount
 # Delete a single alarm event by id
 def delete_alarm_event_row(eid: int) -> int:
