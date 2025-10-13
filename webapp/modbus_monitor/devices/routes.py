@@ -121,8 +121,9 @@ def devices():
             
             print(f"DEBUG: Final connection status: {connection['worker_status']}")
         
-        # Get individual device statuses
-        device_statuses = config_cache.get_all_device_statuses()
+        # Get individual device statuses from database
+        from modbus_monitor.database.db import get_all_device_statuses_from_db
+        device_statuses = get_all_device_statuses_from_db()
         
         # Ensure device_statuses is dict
         if not isinstance(device_statuses, dict):
@@ -132,11 +133,11 @@ def devices():
         for connection in connections.values():
             for device in connection["devices"]:
                 status_info = device_statuses.get(device.id, {})
-                device.status = status_info.get("status", "unknown")
-                device.last_seen = status_info.get("last_seen")
-                device.is_online = (device.status == "connected" and 
-                                  device.last_seen and 
-                                  (time.time() - device.last_seen) < 30)
+                # Map database columns to status format
+                device.status = "connected" if status_info.get("is_online") else "disconnected"
+                device.last_seen = status_info.get("updated_at")  # Use updated_at as last_seen
+                device.is_online = bool(status_info.get("is_online", False))
+                device.latency_ms = status_info.get("latency_ms")  # If available in future
         
         return render_template("devices/devices.html", 
                              connections=connections,
@@ -176,32 +177,7 @@ def debug_device_status():
         return jsonify(debug_info)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-# Worker Management Endpoints (disabled in webapp-only mode)
-@devices_bp.route("/workers/create", methods=["POST"])
-def create_worker():
-    """Create a worker for a connection (disabled in webapp-only mode)"""
-    flash("Worker management is disabled in webapp-only mode. Please run workers as separate processes.", "warning")
-    return redirect(url_for("devices_bp.devices"))
-
-@devices_bp.route("/workers/<worker_id>/start", methods=["POST"])
-def start_worker(worker_id):
-    """Start a worker (disabled in webapp-only mode)"""
-    flash("Worker management is disabled in webapp-only mode. Please run workers as separate processes.", "warning")
-    return redirect(url_for("devices_bp.devices"))
-
-@devices_bp.route("/workers/<worker_id>/stop", methods=["POST"])
-def stop_worker(worker_id):
-    """Stop a worker (disabled in webapp-only mode)"""
-    flash("Worker management is disabled in webapp-only mode. Please run workers as separate processes.", "warning")
-    return redirect(url_for("devices_bp.devices"))
-
-@devices_bp.route("/workers/<worker_id>/restart", methods=["POST"])
-def restart_worker(worker_id):
-    """Restart a worker (disabled in webapp-only mode)"""
-    flash("Worker management is disabled in webapp-only mode. Please run workers as separate processes.", "warning")
-    return redirect(url_for("devices_bp.devices"))
-
+    
 # Device detail (using cache)
 @devices_bp.route("/devices/<int:did>")
 def device_detail(did):

@@ -381,10 +381,40 @@ def insert_tag_values_bulk(rows: list[tuple[int, "datetime", float]]):
 # ---------- DEVICE ----------
 def update_device_row(device_id: int, data: dict) -> int:
     # loại bỏ key None để không overwrite
+    print("🔄 Updating device:", device_id, data)
     data = {k: v for k, v in data.items() if k in devices.c and v is not None}
     with init_engine().begin() as con:
         res = con.execute(update(devices).where(devices.c.id == device_id).values(**data))
         return res.rowcount
+
+def get_all_device_statuses_from_db() -> dict:
+    """
+    Lấy trạng thái tất cả devices từ database
+    Returns: dict {device_id: {"is_online": bool, "updated_at": datetime, ...}}
+    """
+    try:
+        with init_engine().connect() as con:
+            result = con.execute(
+                select(devices.c.id, devices.c.name, devices.c.is_online, devices.c.updated_at, devices.c.created_at)
+                .order_by(devices.c.id)
+            ).fetchall()
+            
+            statuses = {}
+            for row in result:
+                statuses[row[0]] = {  # device_id as key
+                    "device_id": row[0],
+                    "name": row[1],
+                    "is_online": row[2],
+                    "updated_at": row[3],
+                    "created_at": row[4]
+                }
+            
+            print(f"📊 Loaded {len(statuses)} device statuses from database")
+            return statuses
+            
+    except Exception as e:
+        print(f"❌ Error loading device statuses from DB: {e}")
+        return {}
 
 def delete_device_row(device_id: int) -> int:
     with init_engine().begin() as con:

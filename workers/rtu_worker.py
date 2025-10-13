@@ -156,12 +156,16 @@ class RTUWorker:
             )
             if not self.client.connect():
                 print(f"❌ RTU connect fail {self.serial_port}")
+                for dev in self.devices:
+                    self._update_device_status(dev, ok=False, latency_ms=None, err="Serial connection failed")
                 return False
             self._unit_kw = self._detect_unit_keyword()
             if self.debug:
                 print(f"✅ Connected RTU {self.serial_port}@{self.baudrate} (kw='{self._unit_kw}')")
         else:
             print("⚠️  pymodbus missing - cannot talk to serial device")
+            for dev in self.devices:
+                self._update_device_status(dev, ok=False, latency_ms=None, err="pymodbus not available")
 
         if SIO_AVAILABLE:
             try:
@@ -189,7 +193,25 @@ class RTUWorker:
         try:
             if self.sio and self.sio_connected: self.sio.disconnect()
         except Exception: pass
+        for dev in self.devices:
+            self._update_device_status(dev, ok=False, latency_ms=None, err="worker stopped")
         print("🛑 RTUWorker stopped")
+
+    def _update_device_status(self, device, *, ok: bool, latency_ms=None, err=None):
+        """Ghi trạng thái device vào bảng devices qua db.update_device_row(...)"""
+        # Schema bảng devices chỉ có: is_online, updated_at (auto), created_at (auto)
+        data = {
+            "is_online": ok,  # Boolean trực tiếp
+            "updated_at": datetime.now(),  # DateTime object
+        }
+        
+        try:
+            print(f"🔄 Device {getattr(device,'name',device.id)} status: {'OK' if ok else 'FAIL'} (latency={latency_ms}ms, err={err})")
+            if self.db:
+                self.db.update_device_row(device.id, data)
+        except Exception as e:
+            if self.debug:
+                print(f"⚠️ DB update device {getattr(device,'name',device.id)} err: {e}")
 
     def _detect_unit_keyword(self):
         try:
@@ -374,8 +396,12 @@ class RTUWorker:
             time.sleep(0.01)
 
     def _read_device(self, device):
+        start_ts = time.perf_counter()
         tags = self.device_tags.get(device.id, [])
-        if not tags: return
+        if not tags:
+            latency_ms = int((time.perf_counter() - start_ts) * 1000)
+            self._update_device_status(device, ok=True, latency_ms=latency_ms, err=None)
+            return
         if self.debug:
             print(f"📖 {device.name} (Unit {getattr(device,'unit_id',1)}) tags={len(tags)}")
 
@@ -385,13 +411,22 @@ class RTUWorker:
             groups.setdefault(fc, []).append(t)
 
         all_rows = []
+        any_success = False
+        last_error = None
         for fc, tg_list in groups.items():
-            values = self._read_block(device, fc, tg_list)
-            if not values: continue
+            try:
+                values = self._read_block(device, fc, tg_list)
+                if not values: continue
+            except Exception as e:
+                last_error = str(e)
+                continue
 
             for t in tg_list:
                 raw = values.get(t.id)
                 if raw is None: continue
+
+                any_success = True  # Có ít nhất 1 giá trị thành công
+                
                 val = float(raw)
                 sf = getattr(t, "scale_factor", 1.0) or 1.0
                 off = getattr(t, "offset", 0.0) or 0.0
@@ -402,6 +437,7 @@ class RTUWorker:
                     try:
                         self.db.update_tag_latest_value(t.id, val, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                     except Exception as e:
+                        last_error = str(e)
                         if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
 
                 all_rows.append({
@@ -415,6 +451,12 @@ class RTUWorker:
 
         if all_rows:
             self._emit_modbus_update(device, all_rows)
+        
+        latency_ms = int((time.perf_counter() - start_ts) * 1000)
+        if any_success:
+            self._update_device_status(device, ok=True, latency_ms=latency_ms, err=None)
+        else:
+            self._update_device_status(device, ok=False, latency_ms=latency_ms, err=last_error or "Modbus read failed")
 
     def _read_block(self, device, fc, tg_list):
         if not self.client: return {}

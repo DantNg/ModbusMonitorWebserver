@@ -71,7 +71,7 @@
             <td>{{ device.description or '-' }}</td>
             <td>
               {% if device.last_seen %}
-              <small class="text-muted">{{ (device.last_seen|float)|timestamp_to_datetime }}</small>
+              <small class="text-muted">{{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') if device.last_seen else 'Never' }}</small>
               {% else %}
               <small class="text-muted">Never</small>
               {% endif %}
