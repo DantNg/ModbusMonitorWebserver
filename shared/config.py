@@ -29,14 +29,14 @@ class DeviceConfig:
 
 class TagConfig:
     def __init__(self, id, device_id, name, address, function_code=3, data_type='int16',
-                 scale_factor=1.0, offset=0.0, description='', is_readonly=True):
+                 scale=1.0, offset=0.0, description='', is_readonly=True):
         self.id = id
         self.device_id = device_id
         self.name = name
         self.address = address
         self.function_code = function_code
         self.data_type = data_type
-        self.scale_factor = scale_factor
+        self.scale = scale
         self.offset = offset
         self.description = description
         self.is_readonly = is_readonly

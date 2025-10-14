@@ -343,18 +343,18 @@ class RTUWorker:
             # ===== REVERSE SCALE/OFFSET =====
             # Khi đọc: displayed_value = (raw_value * scale) + offset
             # Khi ghi: raw_value = (displayed_value - offset) / scale
-            scale_factor = getattr(tag, "scale_factor", 1.0) or 1.0
+            scale = getattr(tag, "scale", 1.0) or 1.0
             offset = getattr(tag, "offset", 0.0) or 0.0
             
             # Convert displayed value back to raw value
             raw_value = float(value)
             if offset != 0.0:
                 raw_value -= offset
-            if scale_factor != 1.0:
-                raw_value /= scale_factor
+            if scale != 1.0:
+                raw_value /= scale
                 
             if self.debug:
-                print(f"📝 Write conversion: {value} -> {raw_value} (offset={offset}, scale={scale_factor})")
+                print(f"📝 Write conversion: {value} -> {raw_value} (offset={offset}, scale={scale})")
 
             # ⚠️ SỬA: Dùng raw_value thay vì value
             if VC_AVAILABLE:
@@ -428,7 +428,7 @@ class RTUWorker:
                 any_success = True  # Có ít nhất 1 giá trị thành công
                 
                 val = float(raw)
-                sf = getattr(t, "scale_factor", 1.0) or 1.0
+                sf = getattr(t, "scale", 1.0) or 1.0
                 off = getattr(t, "offset", 0.0) or 0.0
                 if sf != 1.0: val *= sf
                 if off != 0.0: val += off

@@ -123,7 +123,7 @@ class TCPWorker:
                  address_base="auto", debug=True):
         """
         devices: list obj có .id, .name, .unit_id, .read_interval_ms, .byte_order, .word_order
-        tags: list obj có .id, .device_id, .name, .address, .function_code, .data_type/.datatype, .scale_factor, .offset, .unit, .word_order
+        tags: list obj có .id, .device_id, .name, .address, .function_code, .data_type/.datatype, .scale, .offset, .unit, .word_order
         """
         self.worker_id = worker_id
         self.host = host
@@ -359,18 +359,18 @@ class TCPWorker:
             # ===== REVERSE SCALE/OFFSET =====
             # Khi đọc: displayed_value = (raw_value * scale) + offset
             # Khi ghi: raw_value = (displayed_value - offset) / scale
-            scale_factor = getattr(tag, "scale_factor", 1.0) or 1.0
+            scale = getattr(tag, "scale", 1.0) or 1.0
             offset = getattr(tag, "offset", 0.0) or 0.0
             
             # Convert displayed value back to raw value
             raw_value = float(value)
             if offset != 0.0:
                 raw_value -= offset
-            if scale_factor != 1.0:
-                raw_value /= scale_factor
-                
+            if scale != 1.0:
+                raw_value /= scale
+
             if self.debug:
-                print(f"📝 Write conversion: {value} -> {raw_value} (offset={offset}, scale={scale_factor})")
+                print(f"📝 Write conversion: {value} -> {raw_value} (offset={offset}, scale={scale})")
 
             # ⚠️ SỬA: Dùng raw_value thay vì value
             if VC_AVAILABLE:
@@ -451,7 +451,7 @@ class TCPWorker:
                 
                 # scale/offset
                 val = float(raw)
-                sf = getattr(t, "scale_factor", 1.0) or 1.0
+                sf = getattr(t, "scale", 1.0) or 1.0
                 off = getattr(t, "offset", 0.0) or 0.0
                 if sf != 1.0: val *= sf
                 if off != 0.0: val += off
