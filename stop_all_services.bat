@@ -7,8 +7,6 @@ echo.
 echo This will terminate all Python processes.
 echo Make sure you have saved any important work!
 echo.
-echo Press any key to continue or Ctrl+C to cancel...
-pause >nul
 
 echo.
 echo Stopping Python services...
@@ -38,5 +36,11 @@ echo.
 echo ========================================
 echo All services stopped!
 echo ========================================
-
+:: Kill all open Command Prompt windows
+taskkill /f /im cmd.exe 2>nul
+if %errorlevel% == 0 (
+    echo ✓ All Command Prompt windows terminated
+) else (
+    echo ℹ No Command Prompt windows found
+)
 timeout /t 3 /nobreak >nul
