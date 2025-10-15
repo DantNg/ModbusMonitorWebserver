@@ -364,8 +364,8 @@ class TCPWorker:
             
             # Convert displayed value back to raw value
             raw_value = float(value)
-            if offset != 0.0:
-                raw_value -= offset
+            # if offset != 0.0:
+            #     raw_value -= offset
             if scale != 1.0:
                 raw_value /= scale
 
@@ -464,10 +464,16 @@ class TCPWorker:
                         last_error = str(e)
                         if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
 
+                # Format value: nếu có scale khác 1, hiển thị với .0 để biết đã được scale
+                if sf != 1.0:
+                    formatted_value = round(val, 1) if val == int(val) else round(val, 2)
+                else:
+                    formatted_value = round(val, 2)
+                print(f"   - {t.name} (addr={t.address}, fc={fc}) = {formatted_value} {getattr(t,'unit','')}")
                 all_rows.append({
                     "id": t.id,
                     "name": t.name,
-                    "value": round(val, 2),  # Giới hạn 2 chữ số thập phân
+                    "value": str(formatted_value),
                     "datatype": getattr(t, "data_type", None) or getattr(t, "datatype", "Word"),
                     "unit": getattr(t, "unit", ""),
                     "ts": now_hms()
@@ -627,8 +633,6 @@ class TCPWorker:
         if self._ensure_sio():
             try:
                 self.sio.emit("modbus_update", payload)
-                if self.debug:
-                    print(f"   📡 Emitted {len(tag_rows)} tags for {device.name}")
             except Exception as e:
                 print(f"⚠️ emit failed: {e}")
                 self.sio_connected = False

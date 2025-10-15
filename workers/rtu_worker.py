@@ -348,8 +348,8 @@ class RTUWorker:
             
             # Convert displayed value back to raw value
             raw_value = float(value)
-            if offset != 0.0:
-                raw_value -= offset
+            # if offset != 0.0:
+            #     raw_value -= offset
             if scale != 1.0:
                 raw_value /= scale
                 
@@ -440,10 +440,14 @@ class RTUWorker:
                         last_error = str(e)
                         if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
 
+                if sf != 1.0:
+                    formatted_value = round(val, 1) if val == int(val) else round(val, 2)
+                else:
+                    formatted_value = round(val, 2)
                 all_rows.append({
                     "id": t.id,
                     "name": t.name,
-                    "value": round(val, 2),  # Giới hạn 2 chữ số thập phân
+                    "value": str(formatted_value),
                     "datatype": getattr(t, "data_type", None) or getattr(t, "datatype", "Word"),
                     "unit": getattr(t, "unit", ""),
                     "ts": now_hms()
