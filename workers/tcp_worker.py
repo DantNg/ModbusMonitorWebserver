@@ -469,6 +469,8 @@ class TCPWorker:
                     formatted_value = round(val, 1) if val == int(val) else round(val, 2)
                 else:
                     formatted_value = round(val, 2)
+                if sf == 1.0 and isinstance(val, float) and val.is_integer():
+                    formatted_value = int(val)
                 print(f"   - {t.name} (addr={t.address}, fc={fc}) = {formatted_value} {getattr(t,'unit','')}")
                 all_rows.append({
                     "id": t.id,
