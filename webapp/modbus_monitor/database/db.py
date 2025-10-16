@@ -1535,6 +1535,227 @@ def update_tag_latest_value(tag_id: int, value: float, timestamp: datetime):
         print(f"Error updating latest value for tag {tag_id}: {e}")
         raise
 
+# ----------- WORKER MANAGEMENT -----------
+
+def list_workers():
+    """Get all worker configurations"""
+    try:
+        with init_engine().connect() as con:
+            rows = con.execute(select(workers).order_by(workers.c.worker_id.asc())).mappings().all()
+            result = []
+            for row in rows:
+                worker = dict(row)
+                # Get assigned devices
+                device_rows = con.execute(
+                    select(worker_devices.c.device_id)
+                    .where(worker_devices.c.worker_id == worker['worker_id'])
+                ).mappings().all()
+                worker['device_ids'] = [r['device_id'] for r in device_rows]
+                result.append(worker)
+            return result
+    except Exception as e:
+        print(f"Error listing workers: {e}")
+        return []
+
+def get_worker(worker_id: str):
+    """Get worker configuration by ID"""
+    try:
+        with init_engine().connect() as con:
+            row = con.execute(
+                select(workers).where(workers.c.worker_id == worker_id)
+            ).mappings().first()
+            
+            if not row:
+                return None
+                
+            worker = dict(row)
+            # Get assigned devices
+            device_rows = con.execute(
+                select(worker_devices.c.device_id)
+                .where(worker_devices.c.worker_id == worker_id)
+            ).mappings().all()
+            worker['device_ids'] = [r['device_id'] for r in device_rows]
+            return worker
+    except Exception as e:
+        print(f"Error getting worker {worker_id}: {e}")
+        return None
+
+def add_worker(worker_data: dict, device_ids: list = None) -> str:
+    """Add a new worker configuration"""
+    try:
+        with init_engine().begin() as con:
+            # Insert worker
+            result = con.execute(insert(workers).values(**worker_data))
+            worker_id = worker_data['worker_id']
+            
+            # Assign devices
+            if device_ids:
+                device_assignments = [
+                    {"worker_id": worker_id, "device_id": device_id}
+                    for device_id in device_ids
+                ]
+                con.execute(insert(worker_devices), device_assignments)
+            
+            return worker_id
+    except Exception as e:
+        print(f"Error adding worker: {e}")
+        raise
+
+def update_worker(worker_id: str, worker_data: dict, device_ids: list = None) -> bool:
+    """Update worker configuration"""
+    try:
+        with init_engine().begin() as con:
+            # Update worker
+            result = con.execute(
+                update(workers)
+                .where(workers.c.worker_id == worker_id)
+                .values(**worker_data)
+            )
+            
+            # Update device assignments if provided
+            if device_ids is not None:
+                # Remove existing assignments
+                con.execute(
+                    delete(worker_devices).where(worker_devices.c.worker_id == worker_id)
+                )
+                
+                # Add new assignments
+                if device_ids:
+                    device_assignments = [
+                        {"worker_id": worker_id, "device_id": device_id}
+                        for device_id in device_ids
+                    ]
+                    con.execute(insert(worker_devices), device_assignments)
+            
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating worker {worker_id}: {e}")
+        return False
+
+def delete_worker(worker_id: str) -> bool:
+    """Delete worker configuration"""
+    try:
+        with init_engine().begin() as con:
+            # Delete worker (assignments will be cascade deleted)
+            result = con.execute(
+                delete(workers).where(workers.c.worker_id == worker_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting worker {worker_id}: {e}")
+        return False
+
+def get_worker_devices(worker_id: str):
+    """Get devices assigned to a worker with full device info"""
+    try:
+        with init_engine().connect() as con:
+            rows = con.execute(
+                select(devices)
+                .select_from(
+                    devices.join(
+                        worker_devices, 
+                        devices.c.id == worker_devices.c.device_id
+                    )
+                )
+                .where(worker_devices.c.worker_id == worker_id)
+            ).mappings().all()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"Error getting worker devices: {e}")
+        return []
+
+def get_auto_start_workers():
+    """
+    Get workers configuration based on devices table.
+    Group devices by connection type (TCP host:port or RTU serial_port:baudrate)
+    to create worker configurations automatically.
+    """
+    try:
+        with init_engine().connect() as con:
+            # Get all devices (không lọc theo is_online vì đó là trạng thái động)
+            device_rows = con.execute(
+                select(devices)
+                .order_by(devices.c.protocol.asc(), devices.c.host.asc(), devices.c.serial_port.asc())
+            ).mappings().all()
+            
+            if not device_rows:
+                return []
+            
+            # Group devices by connection parameters to create workers
+            tcp_groups = {}  # {(host, port): [devices]}
+            rtu_groups = {}  # {(serial_port, baudrate): [devices]}
+            
+            for device_row in device_rows:
+                device = dict(device_row)
+                
+                if device['protocol'] == 'ModbusTCP' and device['host'] and device['port']:
+                    # TCP worker - group by host:port
+                    key = (device['host'], device['port'])
+                    if key not in tcp_groups:
+                        tcp_groups[key] = []
+                    tcp_groups[key].append(device)
+                    
+                elif device['protocol'] == 'ModbusRTU' and device['serial_port'] and device['baudrate']:
+                    # RTU worker - group by serial_port:baudrate
+                    key = (device['serial_port'], device['baudrate'])
+                    if key not in rtu_groups:
+                        rtu_groups[key] = []
+                    rtu_groups[key].append(device)
+            
+            result = []
+            
+            # Create TCP workers
+            for (host, port), devices_list in tcp_groups.items():
+                # Get all tags for all devices in this group
+                all_tags = []
+                for device in devices_list:
+                    device_tags = list_tags(device['id'])
+                    all_tags.extend(device_tags)
+                
+                # Tạo worker ngay cả khi chưa có tags (có thể thêm tags sau)
+                worker_config = {
+                    'worker_id': f'tcp_{host}_{port}'.replace('.', '_'),
+                    'worker_type': 'tcp',
+                    'enabled': True,
+                    'auto_start': True,
+                    'host': host,
+                    'port': port,
+                    'polling_interval': 1.0,
+                    'description': f'Auto-generated TCP worker for {host}:{port}',
+                    'devices': devices_list,
+                    'tags': all_tags
+                }
+                result.append(worker_config)
+            
+            # Create RTU workers  
+            for (serial_port, baudrate), devices_list in rtu_groups.items():
+                # Get all tags for all devices in this group
+                all_tags = []
+                for device in devices_list:
+                    device_tags = list_tags(device['id'])
+                    all_tags.extend(device_tags)
+                
+                # Tạo worker ngay cả khi chưa có tags (có thể thêm tags sau)
+                worker_config = {
+                    'worker_id': f'rtu_{serial_port}_{baudrate}'.replace('/', '_').replace('\\', '_').replace(':', '_'),
+                    'worker_type': 'rtu',
+                    'enabled': True,
+                    'auto_start': True,
+                    'serial_port': serial_port,
+                    'baudrate': baudrate,
+                    'polling_interval': 1.0,
+                    'description': f'Auto-generated RTU worker for {serial_port}@{baudrate}',
+                    'devices': devices_list,
+                    'tags': all_tags
+                }
+                result.append(worker_config)
+            
+            return result
+            
+    except Exception as e:
+        print(f"Error getting auto-start workers: {e}")
+        return []
+
 # ----------- TAG LOGS (DATALOGGER) -----------
 
 def bulk_insert_tag_logs(log_entries: list[tuple]) -> int:

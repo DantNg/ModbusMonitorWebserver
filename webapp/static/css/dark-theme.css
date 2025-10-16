@@ -58,3 +58,22 @@
 /* Links */
 [data-bs-theme="dark"] a.link-light-emphasis { color:#f8fafc; }
 [data-bs-theme="dark"] a.link-light-emphasis:hover { color:#93c5fd; }
+/* Dark: không tô nền hàng cảnh báo, chỉ giữ badge */
+[data-bs-theme="dark"] .table tr.table-success,
+[data-bs-theme="dark"] .table tr.table-danger,
+[data-bs-theme="dark"] .table tr.table-warning,
+[data-bs-theme="dark"] .table tr.table-info,
+[data-bs-theme="dark"] .table tr.table-primary,
+[data-bs-theme="dark"] .table tr.table-secondary {
+  /* xóa nền accent & bg của table row */
+  --bs-table-accent-bg: transparent;
+  --bs-table-bg: var(--bs-body-bg);
+  --bs-table-color: var(--bs-body-color);
+  --bs-table-border-color: var(--bs-border-color);
+}
+
+/* Nếu dùng .table-striped: tránh tint nền sọc trong dark */
+[data-bs-theme="dark"] .table.table-striped > tbody > tr:nth-of-type(odd) {
+  --bs-table-accent-bg: transparent;
+}
+
