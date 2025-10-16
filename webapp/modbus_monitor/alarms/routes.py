@@ -171,7 +171,6 @@ def alarm_settings():
 @alarms_bp.route("/api/alarm-report")
 def alarm_report():
     items = list_alarm_report()
-    print(items)
     return jsonify({"items": items})
 
 # --------- helpers ----------
