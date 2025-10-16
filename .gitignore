@@ -48,3 +48,4 @@ release_*
 # Ignore database files
 test/*
 output/*
+config/*
