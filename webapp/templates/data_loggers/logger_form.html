@@ -15,11 +15,13 @@
         </div>
         <div class="col-md-3">
           <label class="form-label">Interval (sec) *</label>
-          <input name="interval_sec" type="number" step="0.1" min="0.1" class="form-control" value="{{ form.interval_sec if form else '60' }}">
+          <input name="interval_sec" type="number" step="0.1" min="0.1" class="form-control"
+            value="{{ form.interval_sec if form else '60' }}">
         </div>
         <div class="col-md-4 d-flex align-items-end">
           <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" name="enabled" id="en" {{ 'checked' if (form and form.enabled) or not form else '' }}>
+            <input class="form-check-input" type="checkbox" name="enabled" id="en" {{ 'checked' if (form and
+              form.enabled) or not form else '' }}>
             <label class="form-check-label" for="en">Enabled</label>
           </div>
         </div>
@@ -31,18 +33,36 @@
 
         <div class="col-12">
           <label class="form-label">Select Tags</label>
-          <div class="row">
-            {% for t in tags %}
-            <div class="col-md-4">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="tag_ids" value="{{ t.id }}" id="tag{{t.id}}" {% if
-                  t.checked %}checked{% endif %}>
-                <label class="form-check-label" for="tag{{t.id}}">
-                  {{ t.name }} <span class="text-muted">({{ t.device.name }})</span>
-                </label>
-              </div>
+
+          <!-- Thanh công cụ -->
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <div class="input-group input-group-sm" style="width:280px;">
+              <span class="input-group-text">🔍</span>
+              <input id="tagSearch" type="search" class="form-control" placeholder="Search tags or devices...">
             </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAll">Select All</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="deselectAll">Deselect All</button>
+            <span class="ms-auto small text-muted" id="selCount">0 selected</span>
+          </div>
+
+          <!-- Danh sách tag cuộn độc lập -->
+          <div id="tagList" class="list-group small border rounded shadow-sm"
+            style="max-height: 450px; overflow-y: auto; overflow-x: hidden;">
+            {% for t in tags %}
+            <label class="list-group-item d-flex justify-content-between align-items-center tag-item"
+              data-name="{{ t.name|lower }}" data-device="{{ t.device.id }}">
+              <div>
+                <input class="form-check-input me-2" type="checkbox" name="tag_ids" value="{{ t.id }}" id="tag{{t.id}}"
+                  {% if t.checked %}checked{% endif %}>
+                <strong>{{ t.name }}</strong>
+                <span class="text-muted">({{ t.device.name }})</span>
+              </div>
+            </label>
             {% endfor %}
+          </div>
+
+          <div class="form-text mt-1">
+            Use search or filter to quickly find tags. Scroll to browse if there are many tags.
           </div>
         </div>
 
@@ -55,5 +75,45 @@
       <button class="btn btn-primary">Submit</button>
     </div>
   </form>
+  <script>
+document.addEventListener('DOMContentLoaded', function(){
+  const list = document.getElementById('tagList');
+  const search = document.getElementById('tagSearch');
+  const selectAllBtn = document.getElementById('selectAll');
+  const deselectAllBtn = document.getElementById('deselectAll');
+  const selCount = document.getElementById('selCount');
+
+  function updateCount(){
+    const checked = list.querySelectorAll('input[type=checkbox]:checked').length;
+    selCount.textContent = `${checked} selected`;
+  }
+
+  function applyFilter(){
+    const q = search.value.toLowerCase();
+    list.querySelectorAll('.tag-item').forEach(item=>{
+      const matchName = item.dataset.name.includes(q);
+      item.classList.toggle('d-none', !matchName);
+    });
+  }
+
+  search.addEventListener('input', applyFilter);
+  list.addEventListener('change', updateCount);
+
+  selectAllBtn.addEventListener('click', ()=>{
+    list.querySelectorAll('.tag-item:not(.d-none) input[type=checkbox]')
+        .forEach(cb=>cb.checked = true);
+    updateCount();
+  });
+
+  deselectAllBtn.addEventListener('click', ()=>{
+    list.querySelectorAll('.tag-item input[type=checkbox]')
+        .forEach(cb=>cb.checked = false);
+    updateCount();
+  });
+
+  // Init
+  updateCount();
+});
+</script>
 </div>
 {% endblock %}
