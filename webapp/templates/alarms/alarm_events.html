@@ -183,20 +183,49 @@
         }
 
         data.items.forEach(e => {
-          const checked = selectedIds.has(String(e.id)) ? "checked" : "";
-          const row = document.createElement("tr");
-          row.innerHTML = `
-          <td><input type="checkbox" name="ids" value="${e.id}" ${checked} onchange="toggleSelect(this.value,this.checked)"></td>
-          <td>${e.ts}</td>
-          <td>${e.name}</td>
-          <td><span class="badge text-bg-secondary">${e.level}</span></td>
-          
-          <td>${e.value}</td>
-          <td>${e.note}</td>
-         
-        `;
-          tbody.appendChild(row);
-        });
+  const checked = selectedIds.has(String(e.id)) ? "checked" : "";
+
+  const note = (e.note || "").toLowerCase();
+
+  // Chọn màu nền cả row theo note
+  const rowClass =
+    note.includes("clear") ? "table-success" :
+    note.includes("activated") ? "table-danger" : "";
+
+  // Chọn màu badge riêng trong ô Note
+  const noteBadgeClass =
+    note.includes("clear") ? "text-bg-success" :
+    note.includes("activated") ? "text-bg-danger" : "text-bg-secondary";
+
+  const row = document.createElement("tr");
+  row.className = rowClass; // 👈 Áp dụng nền màu cả row
+
+  row.innerHTML = `
+    <td>
+      <input type="checkbox" name="ids" value="${e.id}" ${checked}
+             onchange="toggleSelect(this.value,this.checked)">
+    </td>
+    <td>${escapeHtml(e.ts || "")}</td>
+    <td>${escapeHtml(e.name || "")}</td>
+    <td><span class="badge text-bg-secondary">${escapeHtml(e.level || "")}</span></td>
+    <td>${escapeHtml(String(e.value ?? ""))}</td>
+    <td><span class="badge ${noteBadgeClass}">${escapeHtml(e.note || "")}</span></td>
+  `;
+
+  tbody.appendChild(row);
+});
+
+// Bảo vệ chống XSS
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
       });
   }
   fetchAlarmEvents();

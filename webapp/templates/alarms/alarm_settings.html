@@ -73,9 +73,8 @@ App.filterTable = function(tableSelector, keyword) {
   const search = keyword.trim().toLowerCase();
   rows.forEach(row => {
     // Only search in Code and Name columns (first and second columns)
-    const codeText = row.cells[0]?.textContent.toLowerCase() || '';
     const nameText = row.cells[1]?.textContent.toLowerCase() || '';
-    const match = (!search || codeText.includes(search) || nameText.includes(search));
+    const match = (!search || nameText.includes(search));
     row.style.display = match ? '' : 'none';
   });
 };
