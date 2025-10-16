@@ -195,6 +195,7 @@ alarm_rules = Table(
     Column("off_stable_sec", Integer, default=0),
     Column("email", String(120), nullable=True),  # New column for email notifications
     Column("sms", String(15), nullable=True),    # New column for SMS notifications
+    Column("description", String(255), nullable=True),  # New column for alarm description
     Column("created_at", DateTime, server_default=func.now())
 )
 # (tuỳ chọn) Báo động tối giản – chỉ để có bảng lịch sử
