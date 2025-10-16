@@ -44,23 +44,3 @@ window.App = {
 
   
 };
-// Theme toggle
-(function(){
-  const KEY='theme';
-  const btn = document.getElementById('themeToggle');
-  if (!btn) return;
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const saved = localStorage.getItem(KEY);
-  const initTheme = saved || (prefersDark ? 'dark' : 'light');
-  document.documentElement.setAttribute('data-bs-theme', initTheme);
-  const setIcon = () => btn.textContent =
-      (document.documentElement.getAttribute('data-bs-theme') === 'dark') ? '🌙' : '🌞';
-  setIcon();
-  btn.addEventListener('click', () => {
-    const cur = document.documentElement.getAttribute('data-bs-theme');
-    const next = (cur === 'dark') ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-bs-theme', next);
-    localStorage.setItem(KEY, next);
-    setIcon();
-  });
-})();
