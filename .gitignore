@@ -48,4 +48,4 @@ release_*
 # Ignore database files
 test/*
 output/*
-config/*
+config/SMTP_config.json
