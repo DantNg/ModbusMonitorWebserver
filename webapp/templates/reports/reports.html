@@ -95,14 +95,16 @@
             </button>
             <ul class="dropdown-menu">
               {% if current_logger_id != 'all' %}
-                <li>
-                <form id="clear-logger-form" method="post" action="{{ url_for('reports_bp.clear_logger_report_data', logger_id=current_logger_id) }}" style="display:inline;">
+              <li>
+                <form id="clear-logger-form" method="post"
+                  action="{{ url_for('reports_bp.clear_logger_report_data', logger_id=current_logger_id) }}"
+                  style="display:inline;">
                   <button type="submit" class="dropdown-item text-warning"
-                  onclick="return confirm('Clear all data for {{ current_logger_name }}? This cannot be undone!')">
-                  <i class="bi bi-trash"></i> Clear {{ current_logger_name }}
+                    onclick="return confirm('Clear all data for {{ current_logger_name }}? This cannot be undone!')">
+                    <i class="bi bi-trash"></i> Clear {{ current_logger_name }}
                   </button>
                 </form>
-                </li>
+              </li>
               <li>
                 <hr class="dropdown-divider">
               </li>
@@ -133,37 +135,44 @@
   <i class="bi bi-arrow-up fs-5"></i>
 </button>
 
+<style>
+  .table-responsive thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bs-body-bg, #fff);
+  }
+</style>
 <!-- Table -->
 <div class="card border-0 shadow-soft">
-  <div class="table-responsive">
-    <table id="tbl" class="table table-hover align-middle mb-0">
-      <thead class="table-dark-subtle">
-        <tr>
-          <th style="width:220px;">TIMESTAMP</th>
-          {% for c in columns %}
-          {% if c != 'timestamp' %}
+  <div class="table-responsive" style="max-height:70vh; overflow:auto;">
+  <table id="tbl" class="table table-hover align-middle mb-0">
+    <thead class="table-dark-subtle">
+      <tr>
+        <th style="width:220px;">TIMESTAMP</th>
+        {% for c in columns if c != 'timestamp' %}
           <th class="text-nowrap">{{ c|upper }}</th>
-          {% endif %}
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% if items and items|length %}
-        {% for row in items %}
-        <tr>
-          {% for c in columns %}
-          <td>{{ row[c] }}</td>
-          {% endfor %}
-        </tr>
         {% endfor %}
-        {% else %}
+      </tr>
+    </thead>
+    <tbody>
+      {% if items and items|length %}
+        {% for row in items %}
+          <tr>
+            <td>{{ row.get('timestamp','') }}</td>
+            {% for c in columns if c != 'timestamp' %}
+              <td>{{ row.get(c,'') }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      {% else %}
         <tr>
-          <td colspan="{{ columns|length }}">No data</td>
+          <td colspan="{{ 1 + (columns|length - ( 'timestamp' in columns and 1 or 0 )) }}">No data</td>
         </tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
   <div class="card-footer small text-muted d-flex justify-content-between">
     <div>Showing {{ items|length if items else 0 }} rows</div>
     <div>Tip: Use Export → open with Excel</div>
@@ -173,8 +182,14 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   // Back to top functionality
-  function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+ function scrollToTop() {
+    const tbl = document.getElementById('tbl');
+    const scroller = tbl?.closest('.table-responsive') || tbl?.parentElement;
+    if (scroller && scroller.scrollTo) {
+      scroller.scrollTo({ top: 0, left: 0, behavior: 'smooth' }); // cuộn dọc & ngang về đầu
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }
 
   // Show/hide back to top button

@@ -97,74 +97,64 @@
 </div>
 {% endif %}
 <button id="backToTop" class="btn btn-primary position-fixed shadow"
-  style="bottom: 20px; right: 20px; z-index: 1000; width: 50px; height: 50px;background-color: #3b83f691;"
+  style="bottom: 5px; right: 20px; z-index: 1000; width: 50px; height: 50px;background-color: #3b83f691;"
   onclick="scrollToTop()" title="Back to Top">
   <i class="bi bi-arrow-up fs-5"></i>
 </button>
-<table class="table align-middle mb-0" id="tbl">
-  <thead class="table-dark-subtle">
-    <tr>
-      {% if session.get("role") == "admin" %}
-      <th><input type="checkbox" id="check-all" onclick="toggleAll(this)"></th>
-      {% endif %}
-      <th>Time</th>
-      <th>Name</th>
-      <th>Level</th>
+<div class="table-responsive table-wrap" style="max-height:70vh; overflow:auto;">
+  <table class="table align-middle mb-0" id="tbl">
+    <thead class="table-dark-subtle">
+      <tr>
+        {% if session.get("role") == "admin" %}
+        <th><input type="checkbox" id="check-all" onclick="toggleAll(this)"></th>
+        {% endif %}
+        <th>Time</th>
+        <th>Name</th>
+        <th>Level</th>
+        <th>Value</th>
+        <th>Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in items %}
+      <tr>
+        {% if session.get("role") == "admin" %}
+        <td><input type="checkbox" name="ids" value="{{ e.id }}"></td>
+        {% endif %}
+        <td>{{ e.ts }}</td>
+        <td>{{ e.name }}</td>
+        <td><span class="badge text-bg-secondary">{{ e.level }}</span></td>
+        <td>{{ e.value }}</td>
+        <td>{{ e.note }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" class="text-center text-muted py-4">No alarm events.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
-      <th>Value</th>
-      <th>Note</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for e in items %}
-    <tr>
-      {% if session.get("role") == "admin" %}
-      <td><input type="checkbox" name="ids" value="{{ e.id }}"></td>
-      {% endif %}
-      <td>{{ e.ts }}</td>
-      <td>{{ e.name }}</td>
-      <td><span class="badge text-bg-secondary">{{ e.level }}</span></td>
-
-      <td>{{ e.value }}</td>
-      <td>{{ e.note }}</td>
-      {% if session.get("role") == "admin" %}
-      <td class="text-end">
-        <form method="post" action="{{ url_for('alarms_bp.delete_alarm_event', eid=e.id) }}" style="display:inline;"
-          onsubmit="return confirm('Delete this event?')">
-          <button class="btn btn-sm btn-outline-danger">Delete</button>
-        </form>
-      </td>
-      {% endif %}
-    </tr>
-    {% else %}
-    <tr>
-      <td colspan="7" class="text-center text-muted py-4">No alarm events.</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<style>
+  /* Header bảng cố định trong khung cuộn */
+  .table-wrap thead th {
+    position: sticky;
+    top: 0;
+    /* dính ở đỉnh khung */
+    z-index: 2;
+    background: var(--bs-body-bg, #fff);
+    /* nền để không trong suốt */
+  }
+</style>
 </form>
 </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>
-  // Show/hide back to top button
-  window.addEventListener('scroll', function () {
-    const backToTop = document.getElementById('backToTop');
-    if (window.scrollY > 200) {  // Hiện sớm hơn (200px thay vì 300px)
-      backToTop.style.display = 'block';
-    } else {
-      backToTop.style.display = 'none';
-    }
-  });
+<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 
-  // Initialize - show button if already scrolled
-  document.addEventListener('DOMContentLoaded', function () {
-    const backToTop = document.getElementById('backToTop');
-    if (window.scrollY > 200) {
-      backToTop.style.display = 'block';
-    }
-  });
+<script>
   window.App = window.App || {};
   App.filterTable = function (tableSelector, keyword) {
     const table = document.querySelector(tableSelector);
@@ -224,12 +214,12 @@
                 "text-bg-secondary";
 
           // ⚡ Màu badge riêng cho level
-            const levelBadgeClass =
+          const levelBadgeClass =
             level === "critical" ? "bg-critical" :
               level === "high" ? "text-bg-danger" :
-              level === "medium" ? "text-bg-info text-dark" :
-              level === "warning" ? "text-bg-warning text-dark" :
-                "text-bg-secondary";
+                level === "medium" ? "text-bg-info text-dark" :
+                  level === "warning" ? "text-bg-warning text-dark" :
+                    "text-bg-secondary";
 
           const row = document.createElement("tr");
           row.className = rowClass; // 👈 Nền của cả hàng
@@ -272,61 +262,56 @@
   });
 
   async function exportAlarms() {
-    const rows = [];
-
-    // ==== Lấy data từ API báo cáo (đã gộp incoming/outgoing) ====
     const res = await fetch("/alarms/api/alarm-report");
     const data = await res.json();
-    if (!data.items || data.items.length === 0) {
+    if (!data.items?.length) {
       alert("Không có dữ liệu alarm để xuất!");
       return;
     }
 
-    // ==== Tiêu đề & khoảng thời gian ====
-    const fromDate = document.querySelector('input[name="from"]')?.value || "";
-    const toDate = document.querySelector('input[name="to"]')?.value || "";
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Alarm Report");
 
-    rows.push(["BẢNG ALARM REPORT"]);
-    if (fromDate || toDate) {
-      rows.push(["FROM DATE:", fromDate]);
-      rows.push(["TO DATE:", toDate]);
-    }
-    rows.push([]);
-    rows.push([]);
+    sheet.addRow(["BẢNG ALARM REPORT"]);
+    sheet.addRow([]);
+    sheet.addRow([]);
 
-    // ==== Header chuẩn theo yêu cầu khách ====
-    rows.push([
-      "Acknowledge",
-      "Alarm code",
-      "Level Alarm",
-      "INCOMING DATE",
-      "INCOMING VALUE",
-      "OUTGOING DATE",
-      "OUTGOING VALUE",
-      "MODE COMPARE",
-      "VALUE COMPARE"
-    ]);
+    const header = [
+      "Alarm code", "Level Alarm", "INCOMING DATE", "INCOMING VALUE",
+      "OUTGOING DATE", "OUTGOING VALUE", "MODE COMPARE", "VALUE COMPARE"
+    ];
+    const headerRow = sheet.addRow(header);
 
-    // ==== Data ====
+    headerRow.eachCell(cell => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD966" } };
+      cell.font = { bold: true };
+      cell.alignment = { horizontal: "center" };
+      cell.border = {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+
     data.items.forEach(e => {
-      rows.push([
-        e.acknowledged ? "Yes" : "No",
-        e.code || "",
-        e.level || "",
-        e.incoming_date || "",
-        e.incoming_value ?? "",
-        e.outgoing_date || "",
-        e.outgoing_value ?? "",
-        e.operator || "",
-        e.threshold ?? ""
+      sheet.addRow([
+        e.code || "", e.level || "", e.incoming_date || "", e.incoming_value ?? "",
+        e.outgoing_date || "", e.outgoing_value ?? "", e.operator || "", e.threshold ?? ""
       ]);
     });
 
-    // ==== Xuất Excel ====
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Alarm Report");
-    XLSX.writeFile(wb, `alarm_report.xlsx`);
+    // Auto width
+    sheet.columns.forEach(col => {
+      let max = 0;
+      col.eachCell({ includeEmpty: true }, c => {
+        max = Math.max(max, (c.value ? c.value.toString().length : 0) + 5);
+      });
+      col.width = Math.max(20, max);
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), "alarm_report.xlsx");
   }
 
   // ==== Time Filter Functions ====
@@ -414,7 +399,12 @@
     document.body.style.cursor = 'default';
   });
   function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const scroller = document.querySelector('.table-wrap');
+    if (scroller) {
+      scroller.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' }); // fallback
+    }
   }
 
 </script>
