@@ -1128,6 +1128,12 @@ def delete_subdashboard_row(sid: int) -> int:
         # ON DELETE CASCADE will remove dashboard_tags
         res = con.execute(delete(dashboards).where(dashboards.c.id == sid))
         return res.rowcount
+
+def update_subdashboard_row(sid: int, data: dict) -> int:
+    """Update a subdashboard."""
+    with init_engine().begin() as con:
+        res = con.execute(update(dashboards).where(dashboards.c.id == sid).values(**data))
+        return res.rowcount
     
 def get_subdashboard_tags(sid: int):
     """

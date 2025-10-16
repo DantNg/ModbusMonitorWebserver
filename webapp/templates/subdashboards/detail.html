@@ -61,10 +61,26 @@
     <div class="card-header bg-info text-white rounded-top fw-bold d-flex justify-content-between align-items-center">
       <span>{{ group.name }}</span>
       {% if session.get("role") == "admin" %}
-      <button class="btn btn-sm btn-outline-light delete-group-btn" data-group-id="{{ group.id }}"
-        data-group-name="{{ group.name }}" title="Delete Group">
-        <i class="bi bi-trash"></i>
-      </button>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" 
+                id="groupSettingsDropdown{{ group.id }}" data-bs-toggle="dropdown" aria-expanded="false"
+                title="Group Settings">
+          <i class="bi bi-gear"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="groupSettingsDropdown{{ group.id }}">
+          <li>
+            <button class="dropdown-item rename-group-btn" data-group-id="{{ group.id }}" data-group-name="{{ group.name }}">
+              <i class="bi bi-pencil-square me-2"></i>Rename Group
+            </button>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <button class="dropdown-item text-danger delete-group-btn" data-group-id="{{ group.id }}" data-group-name="{{ group.name }}">
+              <i class="bi bi-trash me-2"></i>Delete Group
+            </button>
+          </li>
+        </ul>
+      </div>
       {% endif %}
     </div>
     <div class="card-body">
@@ -159,10 +175,26 @@
     <div class="card-header bg-info text-white rounded-top fw-bold d-flex justify-content-between align-items-center">
       <span>{{ group.name }}</span>
       {% if session.get("role") == "admin" %}
-      <button class="btn btn-sm btn-outline-light delete-group-btn" data-group-id="{{ group.id }}"
-        data-group-name="{{ group.name }}" title="Delete Group">
-        <i class="bi bi-trash"></i>
-      </button>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" 
+                id="groupSettingsDropdown{{ group.id }}" data-bs-toggle="dropdown" aria-expanded="false"
+                title="Group Settings">
+          <i class="bi bi-gear"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="groupSettingsDropdown{{ group.id }}">
+          <li>
+            <button class="dropdown-item rename-group-btn" data-group-id="{{ group.id }}" data-group-name="{{ group.name }}">
+              <i class="bi bi-pencil-square me-2"></i>Rename Group
+            </button>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <button class="dropdown-item text-danger delete-group-btn" data-group-id="{{ group.id }}" data-group-name="{{ group.name }}">
+              <i class="bi bi-trash me-2"></i>Delete Group
+            </button>
+          </li>
+        </ul>
+      </div>
       {% endif %}
     </div>
     <div class="card-body">
@@ -802,6 +834,87 @@
                   icon: 'error',
                   title: 'Error',
                   text: 'Failed to delete group'
+                });
+              });
+          }
+        });
+      }
+    });
+
+    // Handle rename group
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('.rename-group-btn')) {
+        e.preventDefault();
+        const btn = e.target.closest('.rename-group-btn');
+        const groupId = btn.dataset.groupId;
+        const currentGroupName = btn.dataset.groupName;
+
+        Swal.fire({
+          title: 'Rename Group',
+          input: 'text',
+          inputLabel: 'New group name:',
+          inputValue: currentGroupName,
+          inputPlaceholder: 'Enter new group name',
+          showCancelButton: true,
+          confirmButtonText: 'Rename',
+          cancelButtonText: 'Cancel',
+          inputValidator: (value) => {
+            if (!value || !value.trim()) {
+              return 'Please enter a group name';
+            }
+            if (value.trim() === currentGroupName) {
+              return 'Please enter a different name';
+            }
+          }
+        }).then((result) => {
+          if (result.isConfirmed) {
+            const newGroupName = result.value.trim();
+
+            // Show loading
+            Swal.fire({
+              title: 'Renaming...',
+              text: 'Renaming group',
+              allowOutsideClick: false,
+              didOpen: () => {
+                Swal.showLoading();
+              }
+            });
+
+            // Send AJAX request
+            fetch(`/subdash/${currentSubdashId}/group/${groupId}/rename`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: `new_name=${encodeURIComponent(newGroupName)}`
+            })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  Swal.fire({
+                    icon: 'success',
+                    title: 'Renamed!',
+                    text: data.message || `Group renamed to "${newGroupName}" successfully`,
+                    timer: 2000,
+                    showConfirmButton: false
+                  }).then(() => {
+                    // Hard reload page to bypass cache
+                    window.location.href = window.location.href + '?t=' + Date.now();
+                  });
+                } else {
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.error || 'Failed to rename group'
+                  });
+                }
+              })
+              .catch(error => {
+                console.error('Rename group error:', error);
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Error',
+                  text: 'Failed to rename group'
                 });
               });
           }

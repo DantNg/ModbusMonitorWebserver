@@ -134,6 +134,41 @@ def add_tag_to_subdash(sid):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@subdash_bp.route("/<int:sid>/rename", methods=["POST"])
+def rename_subdash(sid):
+    # Chỉ admin mới có thể rename subdashboard
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "error": "Access denied. Admin role required."}), 403
+    
+    try:
+        new_name = request.form.get("new_name", "").strip()
+        
+        if not new_name:
+            return jsonify({"success": False, "error": "Subdashboard name cannot be empty"}), 400
+        
+        # Check if subdashboard exists
+        subdash = db.get_subdashboard(sid) if hasattr(db, "get_subdashboard") else None
+        if not subdash:
+            return jsonify({"success": False, "error": "Subdashboard not found"}), 404
+        
+        old_name = subdash.get("name", "Unknown")
+        
+        # Update the subdashboard name
+        db.update_subdashboard_row(sid, {"name": new_name})
+        
+        # Clear cache để navigation update
+        from flask import current_app
+        if hasattr(current_app, 'clear_subdashboards_cache'):
+            current_app.clear_subdashboards_cache()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Subdashboard renamed from '{old_name}' to '{new_name}' successfully"
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @subdash_bp.post("/<int:sid>/delete")
 def delete_subdash(sid):
     # Chỉ admin mới có thể xóa subdashboard
@@ -229,6 +264,40 @@ def delete_group(sid, gid):
             # Add flash message and redirect for regular form submission
             flash(f"Error deleting group: {str(e)}", "danger")
             return redirect(url_for("subdash_bp.subdash_detail", sid=sid))
+
+@subdash_bp.route("/<int:sid>/group/<int:gid>/rename", methods=["POST"])
+def rename_group(sid, gid):
+    """Rename a specific group."""
+    try:
+        new_name = request.form.get("new_name", "").strip()
+        
+        if not new_name:
+            return jsonify({"success": False, "error": "Group name cannot be empty"}), 400
+        
+        # First check if the group exists and belongs to this subdashboard
+        group = db.get_subdash_group(gid)
+        if not group or group["dashboard_id"] != sid:
+            return jsonify({"success": False, "error": "Group not found or doesn't belong to this dashboard"}), 404
+        
+        old_name = group.get("name", "Unknown")
+        
+        # Update the group name
+        db.update_subdash_group(gid, {"name": new_name})
+        
+        # Force refresh subdashboard cache for real-time updates
+        try:
+            emission_manager = get_emission_manager()
+            emission_manager.force_refresh_subdash_cache()
+        except Exception as e:
+            print(f"Warning: Could not refresh subdashboard cache: {e}")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Group renamed from '{old_name}' to '{new_name}' successfully"
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @subdash_bp.route("/<int:sid>/remove_tag", methods=["POST"])
 def remove_tag_from_group(sid):

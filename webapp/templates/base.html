@@ -48,11 +48,26 @@
                 <span class="icon"></span> {{ subdash.name }}
               </a>
               {% if session.get("role") == "admin" %}
-              <button type="button" class="btn btn-sm btn-outline-danger ms-2 p-1 delete-subdash-btn"
-                data-subdash-id="{{ subdash.id }}" data-subdash-name="{{ subdash.name }}" title="Delete subdashboard"
-                style="font-size: 0.7rem; line-height: 1;">
-                <i class="fas bi-trash"></i>
-              </button>
+              <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-2 p-1 dropdown-toggle" 
+                        id="subdashDropdown{{ subdash.id }}" data-bs-toggle="dropdown" aria-expanded="false"
+                        title="Subdashboard Settings" style="font-size: 0.7rem; line-height: 1;">
+                  <i class="bi bi-gear"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="subdashDropdown{{ subdash.id }}">
+                  <li>
+                    <button class="dropdown-item rename-subdash-btn" data-subdash-id="{{ subdash.id }}" data-subdash-name="{{ subdash.name }}">
+                      <i class="bi bi-pencil-square me-2"></i>Rename
+                    </button>
+                  </li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <button class="dropdown-item text-danger delete-subdash-btn" data-subdash-id="{{ subdash.id }}" data-subdash-name="{{ subdash.name }}">
+                      <i class="bi bi-trash me-2"></i>Delete
+                    </button>
+                  </li>
+                </ul>
+              </div>
               {% endif %}
             </div>
             {% endfor %}
@@ -492,10 +507,12 @@
   </style>
 
   <script>
-    // Handle subdashboard deletion
+    // Handle subdashboard deletion and rename
     document.addEventListener('DOMContentLoaded', function () {
       const deleteButtons = document.querySelectorAll('.delete-subdash-btn');
+      const renameButtons = document.querySelectorAll('.rename-subdash-btn');
 
+      // Handle delete
       deleteButtons.forEach(button => {
         button.addEventListener('click', function (e) {
           e.preventDefault();
@@ -516,6 +533,53 @@
 
             document.body.appendChild(form);
             form.submit();
+          }
+        });
+      });
+
+      // Handle rename
+      renameButtons.forEach(button => {
+        button.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const subdashId = this.dataset.subdashId;
+          const currentName = this.dataset.subdashName;
+
+          const newName = prompt(`Rename subdashboard:`, currentName);
+          
+          if (newName !== null && newName.trim() !== '' && newName.trim() !== currentName) {
+            // Show loading state
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Renaming...';
+            this.disabled = true;
+
+            // Send AJAX request
+            fetch(`/subdash/${subdashId}/rename`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: `new_name=${encodeURIComponent(newName.trim())}`
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                // Reload page to reflect changes
+                window.location.reload();
+              } else {
+                alert('Error: ' + (data.error || 'Failed to rename subdashboard'));
+                // Restore button
+                this.innerHTML = '<i class="bi bi-pencil-square me-2"></i>Rename';
+                this.disabled = false;
+              }
+            })
+            .catch(error => {
+              console.error('Rename error:', error);
+              alert('Network error occurred while renaming subdashboard');
+              // Restore button
+              this.innerHTML = '<i class="bi bi-pencil-square me-2"></i>Rename';
+              this.disabled = false;
+            });
           }
         });
       });
