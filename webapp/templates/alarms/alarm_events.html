@@ -96,6 +96,11 @@
   </form>
 </div>
 {% endif %}
+<button id="backToTop" class="btn btn-primary position-fixed shadow"
+  style="bottom: 20px; right: 20px; z-index: 1000; width: 50px; height: 50px;background-color: #3b83f691;"
+  onclick="scrollToTop()" title="Back to Top">
+  <i class="bi bi-arrow-up fs-5"></i>
+</button>
 <table class="table align-middle mb-0" id="tbl">
   <thead class="table-dark-subtle">
     <tr>
@@ -382,6 +387,9 @@
   document.addEventListener('DOMContentLoaded', function () {
     document.body.style.cursor = 'default';
   });
+ function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
 </script>
 {% endblock %}
