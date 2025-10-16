@@ -148,6 +148,23 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+    // Show/hide back to top button
+  window.addEventListener('scroll', function () {
+    const backToTop = document.getElementById('backToTop');
+    if (window.scrollY > 200) {  // Hiện sớm hơn (200px thay vì 300px)
+      backToTop.style.display = 'block';
+    } else {
+      backToTop.style.display = 'none';
+    }
+  });
+
+  // Initialize - show button if already scrolled
+  document.addEventListener('DOMContentLoaded', function () {
+    const backToTop = document.getElementById('backToTop');
+    if (window.scrollY > 200) {
+      backToTop.style.display = 'block';
+    }
+  });
   window.App = window.App || {};
   App.filterTable = function (tableSelector, keyword) {
     const table = document.querySelector(tableSelector);
