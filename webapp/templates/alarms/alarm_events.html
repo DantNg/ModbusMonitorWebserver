@@ -9,12 +9,12 @@
         <div class="d-flex gap-3 align-items-center">
           <label class="fw-semibold text-muted mb-0" for="timeFilterSelect">Time Filter:</label>
           <select class="form-select form-select-sm" id="timeFilterSelect" style="width: auto; min-width: 150px;">
-            <option value="all" {{ 'selected' if time_filter == 'all' or not time_filter else '' }}>All Time</option>
-            <option value="today" {{ 'selected' if time_filter == 'today' else '' }}>Today</option>
-            <option value="yesterday" {{ 'selected' if time_filter == 'yesterday' else '' }}>Yesterday</option>
-            <option value="last7days" {{ 'selected' if time_filter == 'last7days' else '' }}>Last 7 Days</option>
-            <option value="last30days" {{ 'selected' if time_filter == 'last30days' else '' }}>Last 30 Days</option>
-            <option value="custom" {{ 'selected' if time_filter == 'custom' else '' }}>Custom Range</option>
+            <option value="all" {{ 'selected' if time_filter=='all' or not time_filter else '' }}>All Time</option>
+            <option value="today" {{ 'selected' if time_filter=='today' else '' }}>Today</option>
+            <option value="yesterday" {{ 'selected' if time_filter=='yesterday' else '' }}>Yesterday</option>
+            <option value="last7days" {{ 'selected' if time_filter=='last7days' else '' }}>Last 7 Days</option>
+            <option value="last30days" {{ 'selected' if time_filter=='last30days' else '' }}>Last 30 Days</option>
+            <option value="custom" {{ 'selected' if time_filter=='custom' else '' }}>Custom Range</option>
           </select>
         </div>
       </div>
@@ -23,25 +23,26 @@
         {% if time_filter and time_filter != 'all' %}
         <div class="d-flex align-items-center">
           <small class="text-muted">
-            Active: 
+            Active:
             {% if time_filter == 'today' %}
-              <span class="badge bg-info">Today</span>
+            <span class="badge bg-info">Today</span>
             {% elif time_filter == 'yesterday' %}
-              <span class="badge bg-info">Yesterday</span>
+            <span class="badge bg-info">Yesterday</span>
             {% elif time_filter == 'last7days' %}
-              <span class="badge bg-info">Last 7 Days</span>
+            <span class="badge bg-info">Last 7 Days</span>
             {% elif time_filter == 'last30days' %}
-              <span class="badge bg-info">Last 30 Days</span>
+            <span class="badge bg-info">Last 30 Days</span>
             {% elif time_filter == 'custom' %}
-              <span class="badge bg-info">Custom Range</span>
+            <span class="badge bg-info">Custom Range</span>
             {% endif %}
-            <a href="{{ url_for('alarms_bp.alarm_events') }}" class="text-decoration-none ms-1" title="Clear filter">✕</a>
+            <a href="{{ url_for('alarms_bp.alarm_events') }}" class="text-decoration-none ms-1"
+              title="Clear filter">✕</a>
           </small>
         </div>
         {% endif %}
       </div>
     </div>
-    
+
     <!-- Custom Date Range (hidden by default) -->
     <div class="row mb-3" id="customDateRange" style="display: none;">
       <div class="col-md-4">
@@ -56,7 +57,7 @@
         <button type="button" class="btn btn-success btn-sm" onclick="applyTimeFilter()">Apply Custom Range</button>
       </div>
     </div>
-    
+
     <!-- Search and Actions Row -->
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
       <div>
@@ -67,8 +68,9 @@
       </div>
       <div class="d-flex gap-2 mb-2">
         <!-- Apply Filter Button (hidden by default, only show for non-custom) -->
-        <button type="button" class="btn btn-success btn-sm" id="quickApplyBtn" onclick="applyTimeFilter()" style="display: none;">Apply Filter</button>
-        
+        <button type="button" class="btn btn-success btn-sm" id="quickApplyBtn" onclick="applyTimeFilter()"
+          style="display: none;">Apply Filter</button>
+
         <!-- Export button -->
         <button type="button" class="btn btn-primary btn-sm" onclick="exportAlarms()">Export XLSX</button>
 
@@ -91,52 +93,52 @@
     <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
     <div class="table-responsive">
     </div>
-</form>
+  </form>
 </div>
 {% endif %}
-    <table class="table align-middle mb-0" id="tbl">
-      <thead class="table-dark-subtle">
-        <tr>
-          {% if session.get("role") == "admin" %}
-          <th><input type="checkbox" id="check-all" onclick="toggleAll(this)"></th>
-          {% endif %}
-          <th>Time</th>
-          <th>Name</th>
-          <th>Level</th>
-          
-          <th>Value</th>
-          <th>Note</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for e in items %}
-        <tr>
-          {% if session.get("role") == "admin" %}
-          <td><input type="checkbox" name="ids" value="{{ e.id }}"></td>
-          {% endif %}
-          <td>{{ e.ts }}</td>
-          <td>{{ e.name }}</td>
-          <td><span class="badge text-bg-secondary">{{ e.level }}</span></td>
-          
-          <td>{{ e.value }}</td>
-          <td>{{ e.note }}</td>
-          {% if session.get("role") == "admin" %}
-          <td class="text-end">
-            <form method="post" action="{{ url_for('alarms_bp.delete_alarm_event', eid=e.id) }}" style="display:inline;"
-              onsubmit="return confirm('Delete this event?')">
-              <button class="btn btn-sm btn-outline-danger">Delete</button>
-            </form>
-          </td>
-          {% endif %}
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="7" class="text-center text-muted py-4">No alarm events.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </form>
+<table class="table align-middle mb-0" id="tbl">
+  <thead class="table-dark-subtle">
+    <tr>
+      {% if session.get("role") == "admin" %}
+      <th><input type="checkbox" id="check-all" onclick="toggleAll(this)"></th>
+      {% endif %}
+      <th>Time</th>
+      <th>Name</th>
+      <th>Level</th>
+
+      <th>Value</th>
+      <th>Note</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in items %}
+    <tr>
+      {% if session.get("role") == "admin" %}
+      <td><input type="checkbox" name="ids" value="{{ e.id }}"></td>
+      {% endif %}
+      <td>{{ e.ts }}</td>
+      <td>{{ e.name }}</td>
+      <td><span class="badge text-bg-secondary">{{ e.level }}</span></td>
+
+      <td>{{ e.value }}</td>
+      <td>{{ e.note }}</td>
+      {% if session.get("role") == "admin" %}
+      <td class="text-end">
+        <form method="post" action="{{ url_for('alarms_bp.delete_alarm_event', eid=e.id) }}" style="display:inline;"
+          onsubmit="return confirm('Delete this event?')">
+          <button class="btn btn-sm btn-outline-danger">Delete</button>
+        </form>
+      </td>
+      {% endif %}
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="7" class="text-center text-muted py-4">No alarm events.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</form>
 </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -183,24 +185,24 @@
         }
 
         data.items.forEach(e => {
-  const checked = selectedIds.has(String(e.id)) ? "checked" : "";
+          const checked = selectedIds.has(String(e.id)) ? "checked" : "";
 
-  const note = (e.note || "").toLowerCase();
+          const note = (e.note || "").toLowerCase();
 
-  // Chọn màu nền cả row theo note
-  const rowClass =
-    note.includes("clear") ? "table-success" :
-    note.includes("activated") ? "table-danger" : "";
+          // Chọn màu nền cả row theo note
+          const rowClass =
+            note.includes("clear") ? "table-success" :
+              note.includes("activated") ? "table-danger" : "";
 
-  // Chọn màu badge riêng trong ô Note
-  const noteBadgeClass =
-    note.includes("clear") ? "text-bg-success" :
-    note.includes("activated") ? "text-bg-danger" : "text-bg-secondary";
+          // Chọn màu badge riêng trong ô Note
+          const noteBadgeClass =
+            note.includes("clear") ? "text-bg-success" :
+              note.includes("activated") ? "text-bg-danger" : "text-bg-secondary";
 
-  const row = document.createElement("tr");
-  row.className = rowClass; // 👈 Áp dụng nền màu cả row
+          const row = document.createElement("tr");
+          row.className = rowClass; // 👈 Áp dụng nền màu cả row
 
-  row.innerHTML = `
+          row.innerHTML = `
     <td>
       <input type="checkbox" name="ids" value="${e.id}" ${checked}
              onchange="toggleSelect(this.value,this.checked)">
@@ -212,18 +214,18 @@
     <td><span class="badge ${noteBadgeClass}">${escapeHtml(e.note || "")}</span></td>
   `;
 
-  tbody.appendChild(row);
-});
+          tbody.appendChild(row);
+        });
 
-// Bảo vệ chống XSS
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+        // Bảo vệ chống XSS
+        function escapeHtml(s) {
+          return String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
 
 
       });
@@ -297,9 +299,9 @@ function escapeHtml(s) {
   }
 
   // ==== Time Filter Functions ====
-  
+
   // Show/hide custom date range based on selection
-  document.addEventListener('change', function(e) {
+  document.addEventListener('change', function (e) {
     if (e.target.id === 'timeFilterSelect') {
       const customDateRange = document.getElementById('customDateRange');
       if (e.target.value === 'custom') {
@@ -323,7 +325,7 @@ function escapeHtml(s) {
   });
 
   // On page load, show custom date range if filter is 'custom'
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     const timeFilter = "{{ time_filter|default('') }}";
     if (timeFilter === "custom") {
       document.getElementById('customDateRange').style.display = 'block';
@@ -335,49 +337,49 @@ function escapeHtml(s) {
   function applyTimeFilter() {
     const selectedFilter = document.getElementById('timeFilterSelect').value;
     console.log('Applying time filter:', selectedFilter); // Debug log
-    
+
     const url = new URL(window.location);
-    
+
     // Clear existing time parameters
     url.searchParams.delete('time_filter');
     url.searchParams.delete('from_date');
     url.searchParams.delete('to_date');
-    
+
     // Set new parameters
     url.searchParams.set('time_filter', selectedFilter);
-    
+
     if (selectedFilter === 'custom') {
       const fromDate = document.getElementById('fromDate').value;
       const toDate = document.getElementById('toDate').value;
-      
+
       console.log('Custom dates:', fromDate, toDate); // Debug log
-      
+
       if (!fromDate || !toDate) {
         alert('Please select both from and to dates for custom range');
         return;
       }
-      
+
       // Validate date range
       if (new Date(fromDate) > new Date(toDate)) {
         alert('From date must be before to date');
         return;
       }
-      
+
       url.searchParams.set('from_date', fromDate);
       url.searchParams.set('to_date', toDate);
     }
-    
+
     console.log('Redirecting to:', url.toString()); // Debug log
-    
+
     // Show loading indicator
     document.body.style.cursor = 'wait';
-    
+
     // Reload page with new parameters
     window.location.href = url.toString();
   }
 
   // Reset cursor when page loads
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     document.body.style.cursor = 'default';
   });
 
