@@ -148,7 +148,7 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-    // Show/hide back to top button
+  // Show/hide back to top button
   window.addEventListener('scroll', function () {
     const backToTop = document.getElementById('backToTop');
     if (window.scrollY > 200) {  // Hiện sớm hơn (200px thay vì 300px)
@@ -210,36 +210,46 @@
           const checked = selectedIds.has(String(e.id)) ? "checked" : "";
 
           const note = (e.note || "").toLowerCase();
+          const level = (e.level || "").toLowerCase();
 
-          // Chọn màu nền cả row theo note
+          // 🌈 Màu nền cho cả row dựa trên note
           const rowClass =
             note.includes("clear") ? "table-success" :
               note.includes("activated") ? "table-danger" : "";
 
-          // Chọn màu badge riêng trong ô Note
+          // 🎯 Màu badge riêng cho note
           const noteBadgeClass =
             note.includes("clear") ? "text-bg-success" :
-              note.includes("activated") ? "text-bg-danger" : "text-bg-secondary";
+              note.includes("activated") ? "text-bg-danger" :
+                "text-bg-secondary";
+
+          // ⚡ Màu badge riêng cho level
+            const levelBadgeClass =
+            level === "critical" ? "bg-critical" :
+              level === "high" ? "text-bg-danger" :
+              level === "medium" ? "text-bg-info text-dark" :
+              level === "warning" ? "text-bg-warning text-dark" :
+                "text-bg-secondary";
 
           const row = document.createElement("tr");
-          row.className = rowClass; // 👈 Áp dụng nền màu cả row
+          row.className = rowClass; // 👈 Nền của cả hàng
 
           row.innerHTML = `
-    <td>
-      <input type="checkbox" name="ids" value="${e.id}" ${checked}
-             onchange="toggleSelect(this.value,this.checked)">
-    </td>
-    <td>${escapeHtml(e.ts || "")}</td>
-    <td>${escapeHtml(e.name || "")}</td>
-    <td><span class="badge text-bg-secondary">${escapeHtml(e.level || "")}</span></td>
-    <td>${escapeHtml(String(e.value ?? ""))}</td>
-    <td><span class="badge ${noteBadgeClass}">${escapeHtml(e.note || "")}</span></td>
-  `;
+          <td>
+            <input type="checkbox" name="ids" value="${e.id}" ${checked}
+                   onchange="toggleSelect(this.value,this.checked)">
+          </td>
+          <td>${escapeHtml(e.ts || "")}</td>
+          <td>${escapeHtml(e.name || "")}</td>
+          <td><span class="badge ${levelBadgeClass}">${escapeHtml(e.level || "")}</span></td>
+          <td>${escapeHtml(String(e.value ?? ""))}</td>
+          <td><span class="badge ${noteBadgeClass}">${escapeHtml(e.note || "")}</span></td>
+        `;
 
           tbody.appendChild(row);
         });
 
-        // Bảo vệ chống XSS
+        // 🔒 Bảo vệ chống XSS
         function escapeHtml(s) {
           return String(s)
             .replace(/&/g, "&amp;")
@@ -248,10 +258,9 @@
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
         }
-
-
       });
   }
+
   fetchAlarmEvents();
   // setInterval(fetchAlarmEvents, 3000);
   function toggleAll(source) {
@@ -404,7 +413,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     document.body.style.cursor = 'default';
   });
- function scrollToTop() {
+  function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 

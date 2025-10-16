@@ -133,3 +133,6 @@ table {
 }
 .page-title { font-weight: 600; letter-spacing: .2px; }
 .app-container { padding: 1.25rem; }
+.bg-critical {
+  background-color: #3f0257; /* Nền đỏ */
+}
