@@ -5,6 +5,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title or "Modbus Monitor" }}</title>
+  
+  <!-- Theme initialization - Must be first to prevent flash -->
+  <script>
+    (function() {
+      const KEY = 'theme';
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const saved = localStorage.getItem(KEY);
+      const initTheme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-bs-theme', initTheme);
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -173,7 +184,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    // Theme toggle with debugging
+    // Theme toggle system
     (function () {
       const KEY = 'theme';
       const root = document.documentElement;
@@ -181,35 +192,28 @@
       // Use DOMContentLoaded to ensure button exists
       document.addEventListener('DOMContentLoaded', function () {
         const btn = document.getElementById('themeToggle');
-        console.log('Theme toggle button found:', btn); // Debug
         if (!btn) {
           console.warn('Theme toggle button not found!');
           return;
         }
 
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const saved = localStorage.getItem(KEY);
-        const initTheme = saved || (prefersDark ? 'dark' : 'light');
-        console.log('Initial theme:', initTheme, 'Saved:', saved, 'Prefers dark:', prefersDark); // Debug
-        root.setAttribute('data-bs-theme', initTheme);
-
+        // Set initial icon based on current theme (already set in head)
         const setIcon = () => {
           const currentTheme = root.getAttribute('data-bs-theme');
           const newIcon = (currentTheme === 'dark') ? '🌙' : '🌤️';
           btn.textContent = newIcon;
-          console.log('Icon updated:', newIcon, 'for theme:', currentTheme); // Debug
         };
+        
+        // Set initial icon
         setIcon();
 
+        // Handle theme toggle
         btn.addEventListener('click', () => {
-          console.log('Theme toggle clicked!'); // Debug
           const cur = root.getAttribute('data-bs-theme');
           const next = (cur === 'dark') ? 'light' : 'dark';
-          console.log('Switching from:', cur, 'to:', next); // Debug
           root.setAttribute('data-bs-theme', next);
           localStorage.setItem(KEY, next);
           setIcon();
-          console.log('Theme switched to:', next); // Debug
         });
       });
     })();
