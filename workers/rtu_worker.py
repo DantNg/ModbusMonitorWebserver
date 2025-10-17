@@ -14,7 +14,7 @@ import struct
 import inspect
 import threading
 from datetime import datetime
-
+from webapp.modbus_monitor.database.db import update_device_row,update_tag_latest_value
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils'))
 
@@ -206,9 +206,7 @@ class RTUWorker:
         }
         
         try:
-            print(f"🔄 Device {getattr(device,'name',device.id)} status: {'OK' if ok else 'FAIL'} (latency={latency_ms}ms, err={err})")
-            if self.db:
-                self.db.update_device_row(device.id, data)
+            update_device_row(device.id, data)
         except Exception as e:
             if self.debug:
                 print(f"⚠️ DB update device {getattr(device,'name',device.id)} err: {e}")
@@ -352,7 +350,7 @@ class RTUWorker:
             #     raw_value -= offset
             if scale != 1.0:
                 raw_value /= scale
-                
+            raw_value = round(raw_value, 2)
             if self.debug:
                 print(f"📝 Write conversion: {value} -> {raw_value} (offset={offset}, scale={scale})")
 
@@ -433,12 +431,11 @@ class RTUWorker:
                 if sf != 1.0: val *= sf
                 if off != 0.0: val += off
 
-                if self.db:
-                    try:
-                        self.db.update_tag_latest_value(t.id, val, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                    except Exception as e:
-                        last_error = str(e)
-                        if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
+                try:
+                    update_tag_latest_value(t.id, val, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                except Exception as e:
+                    last_error = str(e)
+                    if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
 
                 if sf != 1.0:
                     formatted_value = round(val, 1) if val == int(val) else round(val, 2)

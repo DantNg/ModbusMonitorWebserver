@@ -17,6 +17,7 @@ from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils'))
+from webapp.modbus_monitor.database.db import update_device_row,update_tag_latest_value
 
 # ---- Optional: DB
 try:
@@ -215,9 +216,8 @@ class TCPWorker:
         }
         
         try:
-            print(f"🔄 Device {getattr(device,'name',device.id)} status: {'OK' if ok else 'FAIL'} (latency={latency_ms}ms, err={err})")
-            if self.db:
-                self.db.update_device_row(device.id, data)
+            # print(f"🔄 Device {getattr(device,'name',device.id)} status: {'OK' if ok else 'FAIL'} (latency={latency_ms}ms, err={err})")
+            update_device_row(device.id, data)
         except Exception as e:
             if self.debug:
                 print(f"⚠️ DB update device {getattr(device,'name',device.id)} err: {e}")
@@ -368,7 +368,7 @@ class TCPWorker:
             #     raw_value -= offset
             if scale != 1.0:
                 raw_value /= scale
-
+            raw_value = round(raw_value, 2)
             if self.debug:
                 print(f"📝 Write conversion: {value} -> {raw_value} (offset={offset}, scale={scale})")
 
@@ -457,12 +457,11 @@ class TCPWorker:
                 if off != 0.0: val += off
 
                 # DB write latest
-                if self.db:
-                    try:
-                        self.db.update_tag_latest_value(t.id, val, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                    except Exception as e:
-                        last_error = str(e)
-                        if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
+                try:
+                    update_tag_latest_value(t.id, val, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                except Exception as e:
+                    last_error = str(e)
+                    if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
 
                 # Format value: nếu có scale khác 1, hiển thị với .0 để biết đã được scale
                 if sf != 1.0:

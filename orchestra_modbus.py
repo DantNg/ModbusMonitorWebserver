@@ -140,7 +140,7 @@ class ModbusOrchestrator:
             devices=devices_ns,
             tags=tags_ns,
             webapp_url=self.webapp_url,
-            debug=False
+            debug=True
         )
         ok = worker.start()
         if ok:

@@ -6,8 +6,9 @@ import json
 import threading
 import os
 from contextlib import contextmanager
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, update
 from sqlalchemy.engine import Engine
+from webapp.modbus_monitor.database.db import update_device_row
 
 class DatabaseManager:
     def __init__(self, config_path=None):
@@ -178,6 +179,11 @@ class DatabaseManager:
                 print(f"Error with fallback insert for tag {tag_id}: {e2}")
                 return False
     
+    def update_device_row(self, device_id, data: dict):
+        """Update a device."""
+        print("Called update_device_row in DatabaseManager")
+        return update_device_row(device_id, data)
+
     def close(self):
         """Close database connection"""
         if hasattr(self.local, 'engine'):
