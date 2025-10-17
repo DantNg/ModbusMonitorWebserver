@@ -17,7 +17,11 @@ def get_process_manager():
 def group_devices_by_connection():
     """Group devices by their connection (TCP host:port or COM port)"""
     try:
-        cached_devices = config_cache.get_all_devices()
+        cached_devices = list_devices()
+        print(cached_devices)
+        cached_devices = [SimpleNamespace(**d) for d in cached_devices]
+        if not cached_devices:
+            cached_devices = config_cache.get_all_devices()
         print(f"DEBUG: cached_devices type: {type(cached_devices)}")
         print(f"DEBUG: cached_devices content: {cached_devices}")
         
@@ -39,7 +43,7 @@ def group_devices_by_connection():
                 else:
                     print(f"DEBUG: device missing id: {device}")
             cached_devices = cached_devices_dict
-        
+        print(f"DEBUG: Processing {cached_devices}  ")
         for device in cached_devices.values():
             print(f"DEBUG: Processing device {device.id} ({device.name}): protocol={device.protocol}")
             # Determine connection identifier
@@ -119,7 +123,7 @@ def devices():
             connection["worker_info"] = {"status": "external_process", "message": "Run as independent process"}
             connection["worker_id"] = f"EXTERNAL_{connection_id}"
             
-            print(f"DEBUG: Final connection status: {connection['worker_status']}")
+            # print(f"DEBUG: Final connection status: {connection}")
         
         # Get individual device statuses from database
         from modbus_monitor.database.db import get_all_device_statuses_from_db
@@ -138,7 +142,7 @@ def devices():
                 device.last_seen = status_info.get("updated_at")  # Use updated_at as last_seen
                 device.is_online = bool(status_info.get("is_online", False))
                 device.latency_ms = status_info.get("latency_ms")  # If available in future
-        
+                device.description = getattr(device, 'description', '')
         return render_template("devices/devices.html", 
                              connections=connections,
                              # Keep legacy format for backward compatibility
@@ -354,7 +358,7 @@ def add_tag(did):
         offset = request.form.get("offset") or 0.0
         grp = (request.form.get("grp") or "Group1").strip()
         function_code = request.form.get("function_code")
-        description = (request.form.get("description") or "").strip() or None
+        description = (request.form.get("description") or "").strip()
 
         errors = {}
         if not name:
@@ -432,7 +436,12 @@ def add_tag(did):
 
 @devices_bp.route("/devices/<int:did>/edit", methods=["GET", "POST"])
 def edit_device(did):
-    dev = config_cache.get_device(did)
+    dev = None
+    for item in list_devices():
+        if item['id'] == did:
+            dev = item
+            break
+    dev = SimpleNamespace(**dev) if dev else config_cache.get_device(did)
     if not dev:
         flash("Device not found.", "warning")
         return redirect(url_for("devices_bp.devices"))
@@ -477,7 +486,7 @@ def edit_device(did):
             "timeout_ms": timeout_ms,
             "read_interval_ms": read_interval_ms,
             "default_function_code": default_function_code,
-            "description": description or None,
+            "description": description,
         }
 
         if protocol == "ModbusTCP":
@@ -587,7 +596,11 @@ def edit_tag(did, tid):
             tag = SimpleNamespace(**tag)
             break
     if tag == None:
-        tag = config_cache.get_tag(tid)
+        for item in list_tags(did):
+            if item['id'] == tid:
+                tag = item
+                break
+        tag = SimpleNamespace(**tag) if tag else config_cache.get_tag(tid)
     if not device or not tag or tag.device_id != did:
         flash("Tag not found.", "warning")
         return redirect(url_for("devices_bp.device_detail", did=did))
@@ -597,7 +610,7 @@ def edit_tag(did, tid):
         datatype = (request.form.get("datatype") or "Word").strip()
         unit = (request.form.get("unit") or "").strip() or None
         grp = (request.form.get("grp") or "Group1").strip()
-        description = (request.form.get("description") or "").strip() or None
+        description = (request.form.get("description") or "").strip()
         function_code = request.form.get("function_code")
 
         errors = {}
