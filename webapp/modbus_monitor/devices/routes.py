@@ -6,7 +6,7 @@ from modbus_monitor.database.db import (
 from modbus_monitor.services.config_cache import get_config_cache
 from datetime import datetime
 import time
-
+from types import SimpleNamespace
 # Get config cache instance
 config_cache = get_config_cache()
 
@@ -182,7 +182,13 @@ def debug_device_status():
 @devices_bp.route("/devices/<int:did>")
 def device_detail(did):
     # Use cache first
-    dev = config_cache.get_device(did)
+    dev = None
+    # print(list_devices())
+    for item in list_devices():
+        if item['id'] == did:
+            dev = item
+            break
+    dev = SimpleNamespace(**dev) if dev else config_cache.get_device(did)
     if dev:
         dev_dict = dev.__dict__.copy()
         dev_dict.update({
@@ -197,10 +203,8 @@ def device_detail(did):
             flash("Device not found", "warning")
             return redirect(url_for("devices_bp.devices"))
     
-    # Get tags from cache
-    cached_tags = config_cache.get_device_tags(did)
-    tags = [tag.__dict__ for tag in cached_tags] if cached_tags else list_tags(did)
-    
+    # Get tags from DB
+    tags = list_tags(did)
     return render_template("devices/device_detail.html", device=dev_dict, tags=tags)
 
 # ---------- ADD DEVICE ----------
@@ -576,7 +580,14 @@ def delete_device(did):
 @devices_bp.route("/devices/<int:did>/tags/<int:tid>/edit", methods=["GET","POST"])
 def edit_tag(did, tid):
     device = config_cache.get_device(did)
-    tag = config_cache.get_tag(tid)
+    tag = None
+    for item in list_tags(did):
+        if item['id'] == tid:
+            tag = item
+            tag = SimpleNamespace(**tag)
+            break
+    if tag == None:
+        tag = config_cache.get_tag(tid)
     if not device or not tag or tag.device_id != did:
         flash("Tag not found.", "warning")
         return redirect(url_for("devices_bp.device_detail", did=did))

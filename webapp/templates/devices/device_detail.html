@@ -67,7 +67,6 @@
               <th>Scale</th>
               <th>Offset</th>
               <th>Description</th>
-              <th>Write Value</th>
               <th class="text-end" style="width:160px;">Actions</th>
             </tr>
           </thead>
@@ -81,14 +80,6 @@
               <td>{{ t.scale }}</td>
               <td>{{ t.offset }}</td>
               <td class="text-muted">{{ t.description or "—" }}</td>
-              <td>
-                <div class="input-group input-group-sm" style="width: 150px;">
-                  <input type="number" step="any" class="form-control" id="writeValue{{t.id}}" placeholder="Value">
-                  <button class="btn btn-outline-success" type="button" onclick="writeTag({{ t.id }}, '{{ t.name }}')">
-                    <i class="bi bi-arrow-down-circle"></i> Write
-                  </button>
-                </div>
-              </td>
               <td class="text-end">
                 <div class="btn-group">
                   <a class="btn btn-sm btn-outline-secondary"
