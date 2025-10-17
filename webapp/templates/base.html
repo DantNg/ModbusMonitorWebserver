@@ -44,25 +44,30 @@
             {% for subdash in subdashboards %}
             <div class="d-flex align-items-center">
               <a class="side-link small flex-grow-1 {{ 'active' if request.path.startswith('/subdash/' ~ subdash.id|string) else '' }}"
-                href="{{ url_for('subdash_bp.subdash_detail', sid=subdash.id) }}">
+                href="{{ url_for('subdash_bp.subdash_detail', sid=subdash.id) }}"
+                style="white-space: normal; word-break: break-word; overflow-wrap: anywhere;">
                 <span class="icon"></span> {{ subdash.name }}
               </a>
               {% if session.get("role") == "admin" %}
               <div class="dropdown">
-                <button type="button" class="btn btn-sm btn-outline-secondary ms-2 p-1 dropdown-toggle" 
-                        id="subdashDropdown{{ subdash.id }}" data-bs-toggle="dropdown" aria-expanded="false"
-                        title="Subdashboard Settings" style="font-size: 0.7rem; line-height: 1;">
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-2 p-1 dropdown-toggle"
+                  id="subdashDropdown{{ subdash.id }}" data-bs-toggle="dropdown" aria-expanded="false"
+                  title="Subdashboard Settings" style="font-size: 0.7rem; line-height: 1;">
                   <i class="bi bi-gear"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="subdashDropdown{{ subdash.id }}">
                   <li>
-                    <button class="dropdown-item rename-subdash-btn" data-subdash-id="{{ subdash.id }}" data-subdash-name="{{ subdash.name }}">
+                    <button class="dropdown-item rename-subdash-btn" data-subdash-id="{{ subdash.id }}"
+                      data-subdash-name="{{ subdash.name }}">
                       <i class="bi bi-pencil-square me-2"></i>Rename
                     </button>
                   </li>
-                  <li><hr class="dropdown-divider"></li>
                   <li>
-                    <button class="dropdown-item text-danger delete-subdash-btn" data-subdash-id="{{ subdash.id }}" data-subdash-name="{{ subdash.name }}">
+                    <hr class="dropdown-divider">
+                  </li>
+                  <li>
+                    <button class="dropdown-item text-danger delete-subdash-btn" data-subdash-id="{{ subdash.id }}"
+                      data-subdash-name="{{ subdash.name }}">
                       <i class="bi bi-trash me-2"></i>Delete
                     </button>
                   </li>
@@ -172,9 +177,9 @@
     (function () {
       const KEY = 'theme';
       const root = document.documentElement;
-      
+
       // Use DOMContentLoaded to ensure button exists
-      document.addEventListener('DOMContentLoaded', function() {
+      document.addEventListener('DOMContentLoaded', function () {
         const btn = document.getElementById('themeToggle');
         console.log('Theme toggle button found:', btn); // Debug
         if (!btn) {
@@ -547,7 +552,7 @@
           const currentName = this.dataset.subdashName;
 
           const newName = prompt(`Rename subdashboard:`, currentName);
-          
+
           if (newName !== null && newName.trim() !== '' && newName.trim() !== currentName) {
             // Show loading state
             this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Renaming...';
@@ -561,25 +566,25 @@
               },
               body: `new_name=${encodeURIComponent(newName.trim())}`
             })
-            .then(response => response.json())
-            .then(data => {
-              if (data.success) {
-                // Reload page to reflect changes
-                window.location.reload();
-              } else {
-                alert('Error: ' + (data.error || 'Failed to rename subdashboard'));
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  // Reload page to reflect changes
+                  window.location.reload();
+                } else {
+                  alert('Error: ' + (data.error || 'Failed to rename subdashboard'));
+                  // Restore button
+                  this.innerHTML = '<i class="bi bi-pencil-square me-2"></i>Rename';
+                  this.disabled = false;
+                }
+              })
+              .catch(error => {
+                console.error('Rename error:', error);
+                alert('Network error occurred while renaming subdashboard');
                 // Restore button
                 this.innerHTML = '<i class="bi bi-pencil-square me-2"></i>Rename';
                 this.disabled = false;
-              }
-            })
-            .catch(error => {
-              console.error('Rename error:', error);
-              alert('Network error occurred while renaming subdashboard');
-              // Restore button
-              this.innerHTML = '<i class="bi bi-pencil-square me-2"></i>Rename';
-              this.disabled = false;
-            });
+              });
           }
         });
       });
