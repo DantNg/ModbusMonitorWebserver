@@ -5,6 +5,7 @@ RTU Worker - Modbus RTU over serial (pymodbus v2/v3 compatible: unit/slave auto-
 - Block-read theo function code, map offset từng tag
 - Hỗ trợ write (coil, holding register 1/2/4 regs) qua Socket.IO
 - Dùng converter riêng: convert_raw_value_to_web / convert_web_value_to_raw / get_register_count
+- Tránh block: nếu 1 device fail liên tiếp >= MAX_FAILS -> backoff BACKOFF_SEC giây, sau đó thử lại.
 """
 
 import os
@@ -14,18 +15,13 @@ import struct
 import inspect
 import threading
 from datetime import datetime
-from webapp.modbus_monitor.database.db import update_device_row,update_tag_latest_value
+
+# PATHS
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils'))
 
-# ---- Optional: DB
-try:
-    from shared.database_manager import DatabaseManager
-    DB_AVAILABLE = True
-except Exception:
-    DB_AVAILABLE = False
-    DatabaseManager = None
-    print("⚠️  DatabaseManager not available. Running without DB writes.")
+# DB helpers (trực tiếp)
+from webapp.modbus_monitor.database.db import update_device_row, update_tag_latest_value
 
 # ---- Optional: Socket.IO
 try:
@@ -45,9 +41,8 @@ except Exception:
     ModbusSerialClient = None
     print("⚠️  pymodbus not available. Worker will run in no-PLC mode.")
 
-# ---- value converter (bạn đã có sẵn)
+# ---- value converter
 try:
-    # Try multiple import paths
     try:
         from utils.value_converter import (
             convert_raw_value_to_web,
@@ -55,9 +50,6 @@ try:
             get_register_count,
         )
     except ImportError:
-        # Try relative import
-        import sys
-        import os
         utils_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils')
         sys.path.insert(0, utils_path)
         from value_converter import (
@@ -126,24 +118,38 @@ class RTUWorker:
         self.devices = devices or []
         self.tags = tags or []
 
+        # group tag theo device
         self.device_tags = {}
         for tg in self.tags:
             self.device_tags.setdefault(tg.device_id, []).append(tg)
 
-        self.db = DatabaseManager() if DB_AVAILABLE else None
-
+        # Socket.IO
         self.sio = socketio.Client(reconnection=True) if SIO_AVAILABLE else None
         self.sio_connected = False
 
+        # Modbus
         self.client = None
         self._unit_kw = "unit"
 
+        # runtime
         self.is_running = False
         self.thread = None
 
+        # Backoff cấu hình
+        self.MAX_FAILS = 3
+        self.BACKOFF_SEC = 15
+
+        # Trạng thái per-device
+        # { device.id: {"fails": int, "backoff_until": float} }
+        self.dev_state = {}
+        for d in self.devices:
+            self.dev_state[d.id] = {"fails": 0, "backoff_until": 0.0}
+
+    # ---- lifecycle
     def start(self):
         if self.is_running:
-            if self.debug: print("⚠️  RTUWorker already running"); return True
+            if self.debug: print("⚠️  RTUWorker already running")
+            return True
 
         if PYMODBUS_AVAILABLE:
             self.client = ModbusSerialClient(
@@ -186,31 +192,57 @@ class RTUWorker:
         self.is_running = False
         try:
             if self.thread: self.thread.join(timeout=5)
-        except Exception: pass
+        except Exception:
+            pass
         try:
             if self.client: self.client.close()
-        except Exception: pass
+        except Exception:
+            pass
         try:
             if self.sio and self.sio_connected: self.sio.disconnect()
-        except Exception: pass
+        except Exception:
+            pass
         for dev in self.devices:
             self._update_device_status(dev, ok=False, latency_ms=None, err="worker stopped")
         print("🛑 RTUWorker stopped")
 
+    # ---- status & backoff helpers
     def _update_device_status(self, device, *, ok: bool, latency_ms=None, err=None):
-        """Ghi trạng thái device vào bảng devices qua db.update_device_row(...)"""
-        # Schema bảng devices chỉ có: is_online, updated_at (auto), created_at (auto)
         data = {
-            "is_online": ok,  # Boolean trực tiếp
-            "updated_at": datetime.now(),  # DateTime object
+            "is_online": ok,
+            "updated_at": datetime.now(),
         }
-        
         try:
             update_device_row(device.id, data)
         except Exception as e:
             if self.debug:
                 print(f"⚠️ DB update device {getattr(device,'name',device.id)} err: {e}")
 
+    def _is_in_backoff(self, device_id: int) -> bool:
+        st = self.dev_state.get(device_id)
+        if not st:
+            return False
+        return time.time() < st.get("backoff_until", 0.0)
+
+    def _mark_fail(self, device, latency_ms=None, last_error=None):
+        st = self.dev_state.setdefault(device.id, {"fails": 0, "backoff_until": 0.0})
+        st["fails"] = st.get("fails", 0) + 1
+        if st["fails"] >= self.MAX_FAILS and time.time() >= st.get("backoff_until", 0.0):
+            st["backoff_until"] = time.time() + self.BACKOFF_SEC
+            if self.debug:
+                print(f"⏸️ Device {getattr(device,'name',device.id)} backoff {self.BACKOFF_SEC}s (fails={st['fails']})")
+            self._update_device_status(device, ok=False, latency_ms=latency_ms, err=last_error or "backoff")
+
+    def _mark_success(self, device, latency_ms=None):
+        st = self.dev_state.setdefault(device.id, {"fails": 0, "backoff_until": 0.0})
+        if st.get("fails", 0) or st.get("backoff_until", 0.0) > 0:
+            if self.debug:
+                print(f"✅ Device {getattr(device,'name',device.id)} recovered")
+        st["fails"] = 0
+        st["backoff_until"] = 0.0
+        self._update_device_status(device, ok=True, latency_ms=latency_ms, err=None)
+
+    # ---- unit/slave autodetect & safe call
     def _detect_unit_keyword(self):
         try:
             sig = inspect.signature(self.client.read_holding_registers)
@@ -235,6 +267,7 @@ class RTUWorker:
             except TypeError as e:
                 raise e
 
+    # ---- Socket.IO Handlers (write)
     def _setup_socketio_handlers(self):
         if not self.sio: return
 
@@ -252,42 +285,38 @@ class RTUWorker:
 
         @self.sio.on("modbus_write_command")
         def _on_write_command(data):
-            if self.debug: 
+            if self.debug:
                 print(f"📝 Write command: {data}")
-            
-            # Validate input data first
+
             if not data or not isinstance(data, dict):
                 print(f"❌ Invalid write command data: {data}")
                 return
-                
+
             try:
                 tag_id = data.get('tag_id')
-                value = data.get('value')
+                value  = data.get('value')
                 if tag_id is None or value is None:
                     self._send_write_response(tag_id, False, "Missing tag_id/value", data.get('frontend_client_id'))
                     return
-                    
+
                 tag = next((t for t in self.tags if t.id == tag_id), None)
                 if not tag:
-                    if self.debug: 
-                        print(f"⏭️ Tag {tag_id} không thuộc worker này")
+                    if self.debug: print(f"⏭️  Tag {tag_id} không thuộc worker này")
                     return
-                    
-                # Safely access tag.device_id
+
                 device_id = getattr(tag, 'device_id', None)
                 if device_id is None:
                     self._send_write_response(tag_id, False, "Tag missing device_id", data.get('frontend_client_id'))
                     return
-                    
+
                 device = next((d for d in self.devices if d.id == device_id), None)
                 if not device:
                     self._send_write_response(tag_id, False, "Device not found", data.get('frontend_client_id'))
                     return
-                    
+
                 ok, err = self._write_tag(device, tag, value)
                 self._send_write_response(tag_id, ok, err, data.get('frontend_client_id'))
             except Exception as e:
-                # Safe error handling
                 tag_id = data.get('tag_id') if data and isinstance(data, dict) else None
                 frontend_client_id = data.get('frontend_client_id') if data and isinstance(data, dict) else None
                 self._send_write_response(tag_id, False, f"Write error: {e}", frontend_client_id)
@@ -307,6 +336,7 @@ class RTUWorker:
         except Exception as e:
             print(f"❌ write_response emit failed: {e}")
 
+    # ---- Write tag
     def _write_tag(self, device, tag, value):
         if not PYMODBUS_AVAILABLE or not self.client:
             if self.debug: print(f"⚠️ simulate write {value} -> {tag.name}")
@@ -316,45 +346,29 @@ class RTUWorker:
             addr = normalize_address(int(tag.address), self.address_base)
             fc   = int(getattr(tag, "function_code", 3) or 3)
             dtype = getattr(tag, "data_type", None) or getattr(tag, "datatype", "Word")
-            
-            # Fix cứng byte_order và word_order theo datatype
-            byte_order = "BigEndian"  # Tất cả đều BigEndian
-            dtype_lower = (dtype or "Word").lower()
-            
-            if dtype_lower in ("signed", "unsigned", "hex", "binary", "word"):
-                word_order = "AB"  # 1 word không cần order
-            elif dtype_lower in ("float", "float32", "real"):
-                word_order = "BA"  # Float chuẩn
-            elif dtype_lower == "float_inverse":
-                word_order = "AB"  # Float inverse
-            elif dtype_lower in ("double", "float64"):
-                word_order = "BADC"  # Double chuẩn
-            elif dtype_lower == "double_inverse":
-                word_order = "ABDC"  # Double inverse
-            elif dtype_lower in ("long", "int32", "uint32", "dint", "dword"):
-                word_order = "BA"  # Long chuẩn
-            elif dtype_lower == "long_inverse":
-                word_order = "AB"  # Long inverse
-            else:
-                word_order = "AB"  # Default
 
-            # ===== REVERSE SCALE/OFFSET =====
-            # Khi đọc: displayed_value = (raw_value * scale) + offset
-            # Khi ghi: raw_value = (displayed_value - offset) / scale
-            scale = getattr(tag, "scale", 1.0) or 1.0
+            byte_order = "BigEndian"
+            dl = (dtype or "Word").lower()
+            if dl in ("signed","unsigned","hex","binary","word"):
+                word_order = "AB"
+            elif dl in ("float","float32","real"): word_order = "BA"
+            elif dl == "float_inverse":           word_order = "AB"
+            elif dl in ("double","float64"):      word_order = "BADC"
+            elif dl == "double_inverse":          word_order = "ABDC"
+            elif dl in ("long","int32","uint32","dint","dword"): word_order = "BA"
+            elif dl == "long_inverse":            word_order = "AB"
+            else:                                  word_order = "AB"
+
+            scale  = getattr(tag, "scale", 1.0) or 1.0
             offset = getattr(tag, "offset", 0.0) or 0.0
-            
-            # Convert displayed value back to raw value
+
             raw_value = float(value)
-            # if offset != 0.0:
-            #     raw_value -= offset
             if scale != 1.0:
                 raw_value /= scale
             raw_value = round(raw_value, 2)
             if self.debug:
                 print(f"📝 Write conversion: {value} -> {raw_value} (offset={offset}, scale={scale})")
 
-            # ⚠️ SỬA: Dùng raw_value thay vì value
             if VC_AVAILABLE:
                 raw_regs = convert_web_value_to_raw(raw_value, dtype, byte_order, word_order)
             else:
@@ -372,12 +386,13 @@ class RTUWorker:
 
             if hasattr(res, "isError") and res.isError():
                 return False, f"Modbus write error: {res}"
-            if self.debug: 
+            if self.debug:
                 print(f"✅ wrote {value} (raw={raw_value}) -> {tag.name} (addr={addr}, fc={fc})")
             return True, None
         except Exception as e:
             return False, str(e)
 
+    # ---- poll loop
     def _loop(self):
         if self.debug: print(f"🔄 RTU loop for {len(self.devices)} devices")
         schedule_next = {}
@@ -386,6 +401,13 @@ class RTUWorker:
             for dev in self.devices:
                 interval = max(0.1, getattr(dev, "read_interval_ms", 1000) / 1000.0)
                 if now >= schedule_next.get(dev.id, 0):
+                    # Skip nếu đang trong backoff
+                    if self._is_in_backoff(dev.id):
+                        if self.debug:
+                            left = int(self.dev_state[dev.id]["backoff_until"] - time.time())
+                            print(f"⏭️ Skip {getattr(dev,'name',dev.id)} (backoff {max(left,0)}s left)")
+                        schedule_next[dev.id] = now + interval
+                        continue
                     try:
                         self._read_device(dev)
                     except Exception as e:
@@ -393,16 +415,19 @@ class RTUWorker:
                     schedule_next[dev.id] = now + interval
             time.sleep(0.01)
 
+    # ---- read 1 device
     def _read_device(self, device):
         start_ts = time.perf_counter()
         tags = self.device_tags.get(device.id, [])
         if not tags:
             latency_ms = int((time.perf_counter() - start_ts) * 1000)
-            self._update_device_status(device, ok=True, latency_ms=latency_ms, err=None)
+            self._mark_success(device, latency_ms=latency_ms)
             return
+
         if self.debug:
             print(f"📖 {device.name} (Unit {getattr(device,'unit_id',1)}) tags={len(tags)}")
 
+        # group theo FC
         groups = {}
         for t in tags:
             fc = int(getattr(t, "function_code", 3) or 3)
@@ -411,20 +436,23 @@ class RTUWorker:
         all_rows = []
         any_success = False
         last_error = None
+
         for fc, tg_list in groups.items():
             try:
                 values = self._read_block(device, fc, tg_list)
-                if not values: continue
+                if not values:
+                    continue
             except Exception as e:
                 last_error = str(e)
                 continue
 
             for t in tg_list:
                 raw = values.get(t.id)
-                if raw is None: continue
+                if raw is None:
+                    continue
 
-                any_success = True  # Có ít nhất 1 giá trị thành công
-                
+                any_success = True
+
                 val = float(raw)
                 sf = getattr(t, "scale", 1.0) or 1.0
                 off = getattr(t, "offset", 0.0) or 0.0
@@ -443,6 +471,7 @@ class RTUWorker:
                     formatted_value = round(val, 2)
                 if sf == 1.0 and isinstance(val, float) and val.is_integer():
                     formatted_value = int(val)
+
                 all_rows.append({
                     "id": t.id,
                     "name": t.name,
@@ -454,15 +483,18 @@ class RTUWorker:
 
         if all_rows:
             self._emit_modbus_update(device, all_rows)
-        
+
         latency_ms = int((time.perf_counter() - start_ts) * 1000)
         if any_success:
-            self._update_device_status(device, ok=True, latency_ms=latency_ms, err=None)
+            self._mark_success(device, latency_ms=latency_ms)
         else:
-            self._update_device_status(device, ok=False, latency_ms=latency_ms, err=last_error or "Modbus read failed")
+            self._mark_fail(device, latency_ms=latency_ms, last_error=last_error or "Modbus read failed")
+            self._flush_serial()
 
+    # ---- block read + mapping
     def _read_block(self, device, fc, tg_list):
         if not self.client: return {}
+
         tg_sorted = sorted(tg_list, key=lambda x: int(x.address))
         min_addr = int(tg_sorted[0].address)
         max_addr = int(tg_sorted[-1].address)
@@ -502,7 +534,7 @@ class RTUWorker:
                 return {}
         except Exception as e:
             print(f"❌ Modbus read exception FC{fc}: {e}")
-            return {}
+            raise
 
         out = {}
         if fc in (1,2):
@@ -514,28 +546,19 @@ class RTUWorker:
             regs = getattr(res, "registers", []) or []
             for t in tg_sorted:
                 dtype = getattr(t, "data_type", None) or getattr(t, "datatype", "Word")
-                
-                # Fix cứng byte_order và word_order theo datatype
-                byte_order = "BigEndian"  # Tất cả đều BigEndian
-                dtype_lower = (dtype or "Word").lower()
-                
-                if dtype_lower in ("signed", "unsigned", "hex", "binary", "word"):
-                    word_order = "AB"  # 1 word không cần order
-                elif dtype_lower in ("float", "float32", "real"):
-                    word_order = "BA"  # Float chuẩn
-                elif dtype_lower == "float_inverse":
-                    word_order = "AB"  # Float inverse
-                elif dtype_lower in ("double", "float64"):
-                    word_order = "BADC"  # Double chuẩn
-                elif dtype_lower == "double_inverse":
-                    word_order = "ABDC"  # Double inverse
-                elif dtype_lower in ("long", "int32", "uint32", "dint", "dword"):
-                    word_order = "BA"  # Long chuẩn
-                elif dtype_lower == "long_inverse":
-                    word_order = "AB"  # Long inverse
-                else:
-                    word_order = "AB"  # Default
-                
+
+                byte_order = "BigEndian"
+                dl = (dtype or "Word").lower()
+                if dl in ("signed","unsigned","hex","binary","word"):
+                    word_order = "AB"
+                elif dl in ("float","float32","real"): word_order = "BA"
+                elif dl == "float_inverse":           word_order = "AB"
+                elif dl in ("double","float64"):      word_order = "BADC"
+                elif dl == "double_inverse":          word_order = "ABDC"
+                elif dl in ("long","int32","uint32","dint","dword"): word_order = "BA"
+                elif dl == "long_inverse":            word_order = "AB"
+                else:                                  word_order = "AB"
+
                 off = normalize_address(int(t.address), self.address_base) - start
                 try:
                     if VC_AVAILABLE:
@@ -549,35 +572,43 @@ class RTUWorker:
                     out[t.id] = None
         return out
 
+    # ---- serial hygiene (optional but helpful)
+    def _flush_serial(self):
+        """Cố gắng dọn buffer serial sau lỗi để tránh treo lượt sau."""
+        try:
+            if hasattr(self.client, 'socket') and self.client.socket:
+                # PyModbus over serial không luôn expose serial object; thử best-effort
+                ser = getattr(self.client, 'socket', None)
+                if ser and hasattr(ser, 'reset_input_buffer'):
+                    ser.reset_input_buffer()
+                if ser and hasattr(ser, 'reset_output_buffer'):
+                    ser.reset_output_buffer()
+        except Exception:
+            pass
+
+    # ---- emit Socket.IO
     def _ensure_sio(self):
         if not SIO_AVAILABLE: return False
-        
-        # Check if already connected
+
+        # Nếu đã kết nối và còn sống
         if self.sio and self.sio_connected:
             try:
-                # Verify connection is still alive
                 if self.sio.connected:
                     return True
                 else:
-                    # Connection is dead, mark as disconnected
                     self.sio_connected = False
             except:
                 self.sio_connected = False
-        
-        # Try to connect/reconnect
+
+        # Thử (re)connect
         try:
-            # If socket exists but not connected, disconnect first
             if self.sio and hasattr(self.sio, 'connected') and self.sio.connected:
                 try:
                     self.sio.disconnect()
                 except:
                     pass
-            
-            # Create new socket client if needed
             if not self.sio:
                 self.sio = socketio.Client(reconnection=True)
-            
-            # Connect to server
             self.sio.connect(self.webapp_url, wait=True)
             self.sio_connected = True
             return True
