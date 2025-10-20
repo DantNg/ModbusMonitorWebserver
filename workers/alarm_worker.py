@@ -282,7 +282,7 @@ class AlarmWorker:
                           value: float, threshold: float, operator: str, 
                           notification_type: str, device_name: str = "Unknown Device",
                           alarm_level: str = "Critical", rule: dict = None):
-        """Send alarm notification via email/SMS"""
+        """Send alarm notification via email/SMS using threads to avoid blocking"""
         try:
             # Get notification contacts from alarm rule
             contacts = self._get_notification_contacts(rule) if rule else []
@@ -303,29 +303,57 @@ class AlarmWorker:
                 notification_type=notification_type
             )
             
-            # Send notifications to configured contacts
+            # Send notifications to configured contacts using threads
             for contact in contacts:
                 if contact.get("enabled", True):
-                    # Send email if contact has email
+                    # Send email if contact has email (non-blocking)
                     email = contact.get("email")
                     if email and email.strip():
-                        success = self._send_email_notification(email.strip(), subject, body)
-                        if success:
-                            self.log("INFO", f"📧 Email notification sent to {email}")
+                        email_thread = threading.Thread(
+                            target=self._send_email_async,
+                            args=(email.strip(), subject, body, rule_id),
+                            daemon=True
+                        )
+                        email_thread.start()
                     
-                    # Send SMS if contact has phone
+                    # Send SMS if contact has phone (non-blocking)
                     phone = contact.get("phone")
                     if phone and phone.strip():
                         sms_message = f"{subject}: {tag_name} = {value}"
-                        success = self._send_sms_notification(phone.strip(), sms_message)
-                        if success:
-                            self.log("INFO", f"📱 SMS notification sent to {phone}")
+                        sms_thread = threading.Thread(
+                            target=self._send_sms_async,
+                            args=(phone.strip(), sms_message, rule_id),
+                            daemon=True
+                        )
+                        sms_thread.start()
             
             # Update last notification timestamp
             self._last_notification[rule_id][notification_type] = time.time()
             
         except Exception as e:
             self.log("ERROR", f"Failed to send notification for rule {rule_id}: {e}")
+    
+    def _send_email_async(self, email: str, subject: str, body: str, rule_id: int):
+        """Async wrapper for email sending"""
+        try:
+            success = self._send_email_notification(email, subject, body)
+            if success:
+                self.log("INFO", f"📧 Email notification sent to {email}")
+            else:
+                self.log("WARNING", f"📧 Email notification failed to {email}")
+        except Exception as e:
+            self.log("ERROR", f"📧 Email thread error for {email}: {e}")
+    
+    def _send_sms_async(self, phone: str, message: str, rule_id: int):
+        """Async wrapper for SMS sending"""
+        try:
+            success = self._send_sms_notification(phone, message)
+            if success:
+                self.log("INFO", f"📱 SMS notification sent to {phone}")
+            else:
+                self.log("WARNING", f"📱 SMS notification failed to {phone}")
+        except Exception as e:
+            self.log("ERROR", f"📱 SMS thread error for {phone}: {e}")
     
     def _get_notification_contacts(self, rule: dict) -> List[dict]:
         """Get notification contacts from alarm rule email/sms fields"""
