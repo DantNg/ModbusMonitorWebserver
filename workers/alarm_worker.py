@@ -13,6 +13,8 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
+import socketio
+
 # Email imports with fallback
 try:
     import smtplib
@@ -45,7 +47,8 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'webapp'))
 
 logger = logging.getLogger(__name__)
-
+sio = socketio.Client()
+sio.connect('http://localhost:5000')
 @dataclass
 class AlarmConfig:
     """Configuration for alarm worker"""
@@ -96,6 +99,7 @@ class AlarmWorker:
         self.running = False
         self.seq = 0
         self.command_thread = None
+        
         
     def _load_notification_config(self):
         """Load SMTP and SMS configuration from config file"""
@@ -507,6 +511,16 @@ class AlarmWorker:
                                 operator=rule.get("operator", ">"),
                                 threshold=threshold_num
                             )
+                            data = {
+                                "title": f"Alarm Triggered: {rule_name}",
+                                "message": f"Alarm activated: {rule.get('operator', '>')} {threshold_val}",
+                                "level": alarm_level,
+                                "tag_name": tag_name,
+                                "value": current_value,
+                                "status": "INCOMING",
+                                "created_at": time.strftime('%Y-%m-%dT%H:%M:%S')
+                            }
+                            sio.emit('alarm_event', data)
                         except Exception as e:
                             self.log("ERROR", f"Failed to save alarm event: {e}")
                     
@@ -552,6 +566,16 @@ class AlarmWorker:
                                 operator=rule.get("operator", ">"),
                                 threshold=threshold_num
                             )
+                            data = {
+                                "title": f"Alarm Triggered: {rule_name}",
+                                "message": f"Alarm cleared: {rule.get('operator', '>')} {threshold_val}",
+                                "level": alarm_level,
+                                "tag_name": tag_name,
+                                "value": current_value,
+                                "status": "OUTGOING",
+                                "created_at": time.strftime('%Y-%m-%dT%H:%M:%S')
+                            }
+                            sio.emit('alarm_event', data)
                         except Exception as e:
                             self.log("ERROR", f"Failed to save alarm clear event: {e}")
                     

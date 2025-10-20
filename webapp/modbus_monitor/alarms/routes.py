@@ -231,3 +231,11 @@ def api_alarm_events():
         if isinstance(e["ts"], datetime):
             e["ts"] = e["ts"].strftime("%Y-%m-%d %H:%M:%S")
     return jsonify({"items": items})
+
+@alarms_bp.route("/api/alarms/events/clear", methods=["POST"])
+def api_clear_alarm_events():
+    # Chỉ admin mới có thể clear alarm events
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "error": "Access denied. Admin role required."}), 403
+    cnt = clear_alarm_events()
+    return jsonify({"success": True, "cleared": cnt})

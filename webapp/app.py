@@ -437,6 +437,12 @@ def on_modbus_write_response(data):
     except Exception as e:
         print(f"on_modbus_write_response error: {e}")
 
+@socketio.on('alarm_event')
+def handle_alarm_event(data):
+    print('Received alarm_event from client:', data)
+    # Optionally: broadcast lại cho các client khác
+    socketio.emit('alarm_event', data)
+    
 def start_data_queue_processor():
     """Background thread to process data from workers (disabled in webapp-only mode)"""
     print("INFO: Data queue processor disabled in webapp-only mode")
