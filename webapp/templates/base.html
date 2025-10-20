@@ -147,7 +147,7 @@
           </button>
           <!-- Dropdown Menu -->
           <div class="dropdown-menu dropdown-menu-end shadow-lg"
-            style="width: 320px; max-height: 400px; overflow-y: auto;">
+            style="width: 450px; max-height: 500px; overflow-y: auto;">
             <div class="dropdown-header d-flex justify-content-between align-items-center">
               <h6 class="mb-0">Alarm Notifications</h6>
               <button class="btn btn-sm btn-outline-secondary" id="clearAllNotifications" title="Clear All">
@@ -502,6 +502,14 @@
     }
     .alarm-bg-cleared {
       background-color: #eaffea !important;
+    }
+    
+    /* Dark theme styles */
+    [data-bs-theme="dark"] .alarm-bg-activated {
+      background-color: #4a2525 !important;
+    }
+    [data-bs-theme="dark"] .alarm-bg-cleared {
+      background-color: #254a25 !important;
     }
     @keyframes bellShake {
 
