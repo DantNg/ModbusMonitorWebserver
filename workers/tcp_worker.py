@@ -266,10 +266,15 @@ class TCPWorker:
 
             start_ts = time.perf_counter()
             try:
-                self._read_device_with_client(device, cli)
-                consec_fail = 0
-                elapsed_ms = int((time.perf_counter() - start_ts) * 1000)
-                self._update_device_status(device, ok=True, latency_ms=elapsed_ms, err=None)
+                    # Modified: _read_device_with_client returns True if any tag read succeeded
+                    any_success = self._read_device_with_client(device, cli)
+                    elapsed_ms = int((time.perf_counter() - start_ts) * 1000)
+                    if any_success:
+                        consec_fail = 0
+                        self._update_device_status(device, ok=True, latency_ms=elapsed_ms, err=None)
+                    else:
+                        consec_fail += 1
+                        self._update_device_status(device, ok=False, latency_ms=elapsed_ms, err="No data read")
             except Exception as e:
                 consec_fail += 1
                 elapsed_ms = int((time.perf_counter() - start_ts) * 1000)
@@ -301,7 +306,7 @@ class TCPWorker:
     def _read_device_with_client(self, device, client):
         tags = self.device_tags.get(device.id, [])
         if not tags:
-            return
+            return False
 
         if self.debug:
             print(f"📖 {device.name} (Unit {getattr(device,'unit_id',1)}) tags={len(tags)}")
@@ -370,6 +375,7 @@ class TCPWorker:
 
         if all_rows:
             self._emit_modbus_update(device, all_rows)
+            return True
 
         if not any_success and last_error:
             raise RuntimeError(last_error)
