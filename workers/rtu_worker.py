@@ -409,7 +409,8 @@ class RTUWorker:
                         schedule_next[dev.id] = now + interval
                         continue
                     try:
-                        self._read_device(dev)
+                        any_success = self._read_device(dev)
+                        # Device status is set inside _read_device, so no need to update here
                     except Exception as e:
                         print(f"❌ read device {getattr(dev,'name',dev.id)}: {e}")
                     schedule_next[dev.id] = now + interval
@@ -422,7 +423,7 @@ class RTUWorker:
         if not tags:
             latency_ms = int((time.perf_counter() - start_ts) * 1000)
             self._mark_success(device, latency_ms=latency_ms)
-            return
+            return True
 
         if self.debug:
             print(f"📖 {device.name} (Unit {getattr(device,'unit_id',1)}) tags={len(tags)}")
@@ -487,9 +488,11 @@ class RTUWorker:
         latency_ms = int((time.perf_counter() - start_ts) * 1000)
         if any_success:
             self._mark_success(device, latency_ms=latency_ms)
+            return True
         else:
             self._mark_fail(device, latency_ms=latency_ms, last_error=last_error or "Modbus read failed")
             self._flush_serial()
+            return False
 
     # ---- block read + mapping
     def _read_block(self, device, fc, tg_list):
