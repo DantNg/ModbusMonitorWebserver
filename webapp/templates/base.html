@@ -5,10 +5,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title or "Modbus Monitor" }}</title>
-  
+
   <!-- Theme initialization - Must be first to prevent flash -->
   <script>
-    (function() {
+    (function () {
       const KEY = 'theme';
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       const saved = localStorage.getItem(KEY);
@@ -203,7 +203,7 @@
           const newIcon = (currentTheme === 'dark') ? '🌙' : '🌤️';
           btn.textContent = newIcon;
         };
-        
+
         // Set initial icon
         setIcon();
 
@@ -228,7 +228,7 @@
       btn.addEventListener('click', () => {
         sidebar.classList.toggle('collapsed');
         main.classList.toggle('full');
-        console.log( "Sidebar toggled" );
+        console.log("Sidebar toggled");
       });
     })();
 
@@ -251,34 +251,30 @@
           setTimeout(() => {
             const clearBtn = document.getElementById('clearAllNotifications');
             if (clearBtn) {
-              clearBtn.onclick = async () => {
-                // Gửi POST request tới API clear alarm events
-                try {
-                  const resp = await fetch('/alarms/api/alarms/events/clear', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/x-www-form-urlencoded',
-                      'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    credentials: 'same-origin'
-                  });
-                  if (resp.ok) {
-                    // Xóa alarm trên giao diện
-                    this.clearAll();
-                    alert('All alarm events cleared successfully!');
-                    // Có thể reload lại trang hoặc gọi lại API alarm nếu muốn đồng bộ
-                  } else {
-                    alert('Clear alarm events failed!');
-                  }
-                } catch (e) {
-                  alert('Network error!');
-                }
+              clearBtn.onclick = () => {
+                // Chỉ xóa thông báo alarm khỏi giao diện, không gọi API xóa DB
+                this.clearAlarmNotifications();
+                alert('Alarm notifications cleared from UI!');
               };
             }
           }, 100);
         });
       },
 
+      // Chỉ xóa thông báo alarm khỏi giao diện
+      clearAlarmNotifications() {
+        this.notifications = this.notifications.filter(n => {
+          // Nhận diện alarm theo nhiều tiêu chí
+          return !(
+            (n.level && n.level.toLowerCase().includes('Alarm')) ||
+            (n.type && n.type.toLowerCase().includes('Alarm')) ||
+            (n.title && n.title.toLowerCase().includes('Alarm')) ||
+            (n.status && ['incoming', 'outgoing'].includes(n.status.toLowerCase()))
+          );
+        });
+        this.saveNotifications();
+        this.updateUI();
+      },
       addNotification(notification) {
         // Add timestamp if not provided
         notification.timestamp = notification.timestamp || new Date();
@@ -470,7 +466,7 @@
               }
             });
           }
-        } catch (e) {}
+        } catch (e) { }
       }
     };
 
@@ -500,17 +496,20 @@
     .alarm-bg-activated {
       background-color: #ffeaea !important;
     }
+
     .alarm-bg-cleared {
       background-color: #eaffea !important;
     }
-    
+
     /* Dark theme styles */
     [data-bs-theme="dark"] .alarm-bg-activated {
       background-color: #4a2525 !important;
     }
+
     [data-bs-theme="dark"] .alarm-bg-cleared {
       background-color: #254a25 !important;
     }
+
     @keyframes bellShake {
 
       0%,
