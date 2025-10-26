@@ -145,6 +145,10 @@ class RTUWorker:
         for d in self.devices:
             self.dev_state[d.id] = {"fails": 0, "backoff_until": 0.0}
 
+        # Danh sách device bị vô hiệu hoá ngay khi lỗi để không ảnh hưởng thiết bị khác cùng cổng
+        # Thiết bị sẽ chỉ được thử lại sau khi người dùng bấm Reload Worker (restart tiến trình)
+        self.disabled_devices = set()
+
     # ---- lifecycle
     def start(self):
         if self.is_running:
@@ -241,6 +245,19 @@ class RTUWorker:
         st["fails"] = 0
         st["backoff_until"] = 0.0
         self._update_device_status(device, ok=True, latency_ms=latency_ms, err=None)
+
+    def _disable_device(self, device, reason="read failed"):
+        """Vô hiệu hóa thiết bị ngay lập tức để tránh ảnh hưởng RTU port dùng chung.
+        Thiết bị sẽ không được đọc lại cho tới khi worker được reload (process restart).
+        """
+        self.disabled_devices.add(device.id)
+        # Đặt trạng thái offline
+        try:
+            self._update_device_status(device, ok=False, latency_ms=None, err=reason)
+        except Exception:
+            pass
+        if self.debug:
+            print(f"🚫 Disabled device {getattr(device,'name',device.id)} immediately due to error: {reason}")
 
     # ---- unit/slave autodetect & safe call
     def _detect_unit_keyword(self):
@@ -401,6 +418,12 @@ class RTUWorker:
             for dev in self.devices:
                 interval = max(0.1, getattr(dev, "read_interval_ms", 1000) / 1000.0)
                 if now >= schedule_next.get(dev.id, 0):
+                    # Skip nếu device đã bị vô hiệu hóa (do lỗi)
+                    if dev.id in self.disabled_devices:
+                        if self.debug:
+                            print(f"⏭️ Skip {getattr(dev,'name',dev.id)} (disabled until worker reload)")
+                        schedule_next[dev.id] = now + interval
+                        continue
                     # Skip nếu đang trong backoff
                     if self._is_in_backoff(dev.id):
                         if self.debug:
@@ -490,7 +513,8 @@ class RTUWorker:
             self._mark_success(device, latency_ms=latency_ms)
             return True
         else:
-            self._mark_fail(device, latency_ms=latency_ms, last_error=last_error or "Modbus read failed")
+            # Yêu cầu khách hàng: nếu đọc thất bại -> cắt ngay device để không ảnh hưởng các device khác trên cùng cổng
+            self._disable_device(device, reason=last_error or "Modbus read failed")
             self._flush_serial()
             return False
 
