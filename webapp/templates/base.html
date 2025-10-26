@@ -235,12 +235,48 @@
     // Notification System with "unread" logic
     window.NotificationSystem = {
       notifications: [],
-      maxNotifications: 5,
+      maxNotifications: 10,
 
       init() {
         this.loadNotifications();
+        this.loadServerNotifications(); // Load notifications from server
         this.bindEvents();
-        // this.startPeriodicCheck();
+        this.startPeriodicCheck();
+      },
+
+      // Load notifications from server API
+      async loadServerNotifications() {
+        try {
+          const response = await fetch('/api/notifications');
+          if (response.ok) {
+            const serverNotifications = await response.json();
+            console.log('[Notifications] Loaded from server:', serverNotifications?.length ?? 0);
+            
+            // Convert server notifications to notification format
+            serverNotifications.forEach(notification => {
+              // Check if notification already exists
+              const exists = this.notifications.some(n => 
+                n.serverId === notification.id
+              );
+              
+              if (!exists) {
+                this.addNotification({
+                  serverId: notification.id,
+                  title: notification.title || 'System Notification',
+                  message: notification.message || '',
+                  level: notification.level || 'Medium',
+                  timestamp: new Date(notification.created_at || new Date()),
+                  read: notification.is_read || false,
+                  type: 'server'
+                }, false); // false = don't show animation for existing notifications
+              }
+            });
+            // After merging, update UI in case nothing else changed
+            this.updateUI();
+          }
+        } catch (e) {
+          console.error('Error loading server notifications:', e);
+        }
       },
 
       bindEvents() {
@@ -251,35 +287,58 @@
           setTimeout(() => {
             const clearBtn = document.getElementById('clearAllNotifications');
             if (clearBtn) {
-              clearBtn.onclick = () => {
-                // Chỉ xóa thông báo alarm khỏi giao diện, không gọi API xóa DB
-                this.clearAlarmNotifications();
-                alert('Alarm notifications cleared from UI!');
+              clearBtn.onclick = async () => {
+                await this.clearOnServer();
+                this.clearAll();
               };
             }
           }, 100);
         });
+
+        // Also bind clear button on init
+        const clearBtnInit = document.getElementById('clearAllNotifications');
+        if (clearBtnInit) {
+          clearBtnInit.onclick = async () => {
+            await this.clearOnServer();
+            this.clearAll();
+          };
+        }
+
+        // Refresh from server when window/tab gains focus
+        window.addEventListener('focus', () => {
+          this.loadServerNotifications();
+        });
       },
 
-      // Chỉ xóa thông báo alarm khỏi giao diện
-      clearAlarmNotifications() {
-        this.notifications = this.notifications.filter(n => {
-          // Nhận diện alarm theo nhiều tiêu chí
-          return !(
-            (n.level && n.level.toLowerCase().includes('Alarm')) ||
-            (n.type && n.type.toLowerCase().includes('Alarm')) ||
-            (n.title && n.title.toLowerCase().includes('Alarm')) ||
-            (n.status && ['incoming', 'outgoing'].includes(n.status.toLowerCase()))
-          );
-        });
+      // Clear everything on UI
+      clearAll() {
+        this.notifications = [];
         this.saveNotifications();
         this.updateUI();
       },
-      addNotification(notification) {
+
+      // Tell server to dismiss all notifications for this user
+      async clearOnServer() {
+        try {
+          await fetch('/api/notifications/clear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } catch (e) {
+          console.error('Error clearing notifications on server:', e);
+        }
+      },
+      addNotification(notification, showAnimation = true) {
         // Add timestamp if not provided
         notification.timestamp = notification.timestamp || new Date();
         notification.id = notification.id || Date.now() + Math.random();
-        notification.read = false; // Mark as unread
+        
+        // For server notifications, respect the is_read status
+        if (notification.type === 'server' && notification.read) {
+          notification.read = true;
+        } else {
+          notification.read = notification.read || false;
+        }
 
         // Add to beginning of array (newest first)
         this.notifications.unshift(notification);
@@ -291,11 +350,29 @@
 
         this.saveNotifications();
         this.updateUI();
-        this.showBellAnimation();
+        
+        // Only show animation for new notifications (not server loaded ones)
+        if (showAnimation && notification.type !== 'server') {
+          this.showBellAnimation();
+        }
       },
 
-      markAllAsRead() {
+      async markAllAsRead() {
+        // Mark local notifications as read
         this.notifications.forEach(n => n.read = true);
+        
+        // Send request to mark server notifications as read
+        try {
+          await fetch('/api/notifications/mark-read', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+        } catch (e) {
+          console.error('Error marking notifications as read:', e);
+        }
+        
         this.saveNotifications();
         this.updateUI();
       },
@@ -466,6 +543,14 @@
             });
           }
         } catch (e) { }
+      },
+
+      // Periodically refresh notifications from server to avoid stale UI on subpages/refresh
+      startPeriodicCheck() {
+        if (this._interval) return;
+        this._interval = setInterval(() => {
+          this.loadServerNotifications();
+        }, 15000); // every 15 seconds
       }
     };
 

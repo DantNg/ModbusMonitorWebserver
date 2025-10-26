@@ -1,4 +1,6 @@
 from sqlalchemy import func
+from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 def get_tag_values_with_interval(tag_id: int, dt_from, dt_to, interval_sec: float):
     """
     Lấy các giá trị của tag_id trong khoảng thời gian [dt_from, dt_to],
@@ -212,7 +214,34 @@ alarm_events = Table(
     Column("operator", String(10)),                                       # mới
     Column("threshold", Float)                                            # mới
 )
+# notifications bảng để lưu thông báo cho người dùng
+notifications = Table(
+    "notifications", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
 
+    # Liên kết đến alarm event gốc
+    Column("alarm_event_id", Integer, ForeignKey("alarm_events.id", ondelete="CASCADE"), nullable=False),
+
+    # Người dùng nhận thông báo
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+
+    # Trạng thái hiển thị
+    Column("status", Enum("unread", "seen", "dismissed"), default="unread", nullable=False),
+
+    # Dấu thời gian
+    Column("seen_at", DateTime, nullable=True),
+    Column("dismissed_at", DateTime, nullable=True),
+
+    # Ghi chú tuỳ chọn (nếu muốn sau này lưu message hoặc context)
+    Column("note", String(255), nullable=True),
+
+    Column("created_at", DateTime, server_default=func.now()),
+
+    UniqueConstraint("alarm_event_id", "user_id", name="uq_notification_user")
+)
+
+# Index để truy vấn nhanh danh sách và badge
+Index("idx_notifications_user_status", notifications.c.user_id, notifications.c.status, notifications.c.created_at.desc())
 
 # --- Bảng Data Logger ---
 data_loggers = Table(
@@ -672,7 +701,7 @@ def list_alarm_rules_for_device(device_id: int):
  
 def insert_alarm_event(ts, name, level, target, value, note="", event_type="INCOMING", operator=">", threshold=0.0):
     with init_engine().begin() as con:
-        con.execute(
+        res = con.execute(
             alarm_events.insert().values(
                 ts=ts,
                 name=name,
@@ -685,6 +714,17 @@ def insert_alarm_event(ts, name, level, target, value, note="", event_type="INCO
                 threshold=threshold
             )
         )
+        # Try to retrieve the inserted primary key from the executed result
+        inserted_id = None
+        try:
+            inserted_id = res.inserted_primary_key[0]
+        except Exception:
+            inserted_id = None
+
+    # If we got an inserted id, create notifications for it
+    if inserted_id is not None:
+        insert_notification(inserted_id)
+    return inserted_id
 
 # ----------- ALARM EVENTS (history) -----------
 def list_alarm_events():
@@ -2032,3 +2072,145 @@ def get_all_datalogger_data(dt_from: datetime, dt_to: datetime):
             items.append(row)
         
         return items, columns
+
+# ----------- NOTIFICATIONS -----------
+def insert_notification(alarm_event_id: int) -> int:
+    """
+    Fan-out 1 alarm_event thành notifications 'unread' cho TẤT CẢ users.
+    Trả về số bản ghi MỚI được chèn (bỏ qua trùng nếu UNIQUE).
+    """
+    with init_engine().begin() as con:
+        # 1) Lấy tất cả user_id
+        user_rows = con.execute(select(users.c.id)).fetchall()
+        user_ids = [r[0] for r in user_rows]
+        if not user_ids:
+            return 0
+
+        # 2) Chuẩn bị rows
+        rows = [{
+            "alarm_event_id": alarm_event_id,
+            "user_id": uid,
+            "status": "unread",   # 'unread' == unseen
+            "seen_at": None,
+            "dismissed_at": None,
+        } for uid in user_ids]
+
+        # 3) Bulk insert (idempotent)
+        inserted = 0
+        try:
+            con.execute(notifications.insert(), rows)  # executemany
+            inserted = len(rows)
+        except IntegrityError:
+            # Rơi vào đây khi đã có UNIQUE(alarm_event_id, user_id) trùng
+            for r in rows:
+                try:
+                    con.execute(notifications.insert().values(**r))
+                    inserted += 1
+                except IntegrityError:
+                    pass
+        return inserted
+
+
+def get_notifications(
+    user_id: int,
+    *,
+    status: str = "all",   # 'unread' | 'seen' | 'dismissed' | 'all'
+    limit: int = 50,
+    offset: int = 0
+) -> list[dict]:
+    """
+    Lấy danh sách notifications cho 1 user, kèm thông tin alarm_events.
+    Mặc định ẩn 'dismissed' khi status='all'.
+    """
+    with init_engine().begin() as con:
+        # Base select
+        stmt = (
+            select(
+                notifications.c.id.label("notification_id"),
+                notifications.c.status,
+                notifications.c.seen_at,
+                notifications.c.dismissed_at,
+                notifications.c.created_at,
+
+                alarm_events.c.id.label("alarm_event_id"),
+                alarm_events.c.ts,
+                alarm_events.c.name,
+                alarm_events.c.level,
+                alarm_events.c.target,
+                alarm_events.c.value,
+                alarm_events.c.note,
+                alarm_events.c.event_type,
+                alarm_events.c.operator,
+                alarm_events.c.threshold,
+            )
+            .select_from(
+                notifications.join(alarm_events, notifications.c.alarm_event_id == alarm_events.c.id)
+            )
+            .where(notifications.c.user_id == user_id)
+            .order_by(notifications.c.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+
+        # Lọc theo status
+        if status in ("unread", "seen", "dismissed"):
+            stmt = stmt.where(notifications.c.status == status)
+        elif status == "all":
+            # Ẩn dismissed mặc định
+            stmt = stmt.where(notifications.c.status != "dismissed")
+
+        rows = con.execute(stmt).mappings().all()
+        return [dict(r) for r in rows]
+
+
+def mark_user_notifications_read(user_id: int) -> bool:
+    """
+    Đánh dấu tất cả notifications của user đã đọc (status = 'seen')
+    """
+    try:
+        with init_engine().begin() as con:
+            stmt = (
+                update(notifications)
+                .where(
+                    and_(
+                        notifications.c.user_id == user_id,
+                        notifications.c.status == "unread"
+                    )
+                )
+                .values(
+                    status="seen",
+                    seen_at=safe_datetime_now()
+                )
+            )
+            result = con.execute(stmt)
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error marking notifications as read: {e}")
+        return False
+
+
+def mark_user_notifications_dismissed(user_id: int) -> bool:
+    """
+    Đánh dấu tất cả notifications của user là 'dismissed' để không trả về nữa.
+    """
+    try:
+        with init_engine().begin() as con:
+            stmt = (
+                update(notifications)
+                .where(
+                    and_(
+                        notifications.c.user_id == user_id,
+                        notifications.c.status != "dismissed"
+                    )
+                )
+                .values(
+                    status="dismissed",
+                    dismissed_at=safe_datetime_now()
+                )
+            )
+            result = con.execute(stmt)
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error dismissing notifications: {e}")
+        return False
+    
