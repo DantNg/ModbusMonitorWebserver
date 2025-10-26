@@ -5,10 +5,27 @@ from modbus_monitor.database.db import (
 )
 from modbus_monitor.services.config_cache import get_config_cache
 from datetime import datetime
+import os
+from utils.restart_modbus_worker import restart_worker_util
 import time
 from types import SimpleNamespace
 # Get config cache instance
 config_cache = get_config_cache()
+
+# API: Restart Orchestra Modbus worker (external process mode)
+@devices_bp.route("/workers/orchestra/restart", methods=["POST"])
+def restart_orchestra_worker():
+    try:
+        # Substring to identify running terminal
+        cmd_substring = "start_orchestra_modbus.bat"
+        # Build absolute path to the starter script relative to app root
+        project_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir, os.pardir))
+        starter_path = os.path.join(project_root, "start_orchestra_modbus.bat")
+        restart_worker_util(cmd_substring, starter_path)
+        return jsonify({"success": True, "message": "Orchestra Modbus worker restarted"})
+    except Exception as e:
+        current_app.logger.exception("Failed to restart orchestra worker")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 def get_process_manager():
     """Get ProcessManager instance from app context (disabled in webapp-only mode)"""
