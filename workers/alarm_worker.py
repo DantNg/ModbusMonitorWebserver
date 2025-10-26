@@ -543,8 +543,9 @@ class AlarmWorker:
                             else:
                                 threshold_num = float(threshold_val)
                                 
-                            self.db.insert_alarm_event(
-                                ts=datetime.now(),
+                            ts_now = datetime.now()
+                            event_id = self.db.insert_alarm_event(
+                                ts=ts_now,
                                 name=rule_name,
                                 level=alarm_level,
                                 target=tag_id,
@@ -558,10 +559,12 @@ class AlarmWorker:
                                 "title": f"Alarm Triggered: {rule_name}",
                                 "message": f"Alarm activated: {rule.get('operator', '>')} {threshold_val}",
                                 "level": alarm_level,
+                                "tag_id": tag_id,
                                 "tag_name": tag_name,
                                 "value": current_value,
                                 "status": "INCOMING",
-                                "created_at": time.strftime('%Y-%m-%dT%H:%M:%S')
+                                "created_at": ts_now.isoformat(),
+                                "alarm_event_id": event_id,
                             }
                             sio.emit('alarm_event', data)
                         except Exception as e:
@@ -598,8 +601,9 @@ class AlarmWorker:
                             else:
                                 threshold_num = float(threshold_val)
                                 
-                            self.db.insert_alarm_event(
-                                ts=datetime.now(),
+                            ts_now = datetime.now()
+                            event_id = self.db.insert_alarm_event(
+                                ts=ts_now,
                                 name=rule_name,
                                 level=alarm_level,
                                 target=tag_id,
@@ -613,10 +617,12 @@ class AlarmWorker:
                                 "title": f"Alarm Triggered: {rule_name}",
                                 "message": f"Alarm cleared: {rule.get('operator', '>')} {threshold_val}",
                                 "level": alarm_level,
+                                "tag_id": tag_id,
                                 "tag_name": tag_name,
                                 "value": current_value,
                                 "status": "OUTGOING",
-                                "created_at": time.strftime('%Y-%m-%dT%H:%M:%S')
+                                "created_at": ts_now.isoformat(),
+                                "alarm_event_id": event_id,
                             }
                             sio.emit('alarm_event', data)
                         except Exception as e:

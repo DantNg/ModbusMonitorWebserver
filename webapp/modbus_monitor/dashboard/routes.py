@@ -142,7 +142,10 @@ def api_notifications():
                 "created_at": created_at,
                 "is_read": notification.get("is_read", False) or (notification.get("status") != "unread"),
                 "type": notification.get("type", "system"),
-                "tag_name": notification.get("tag_name") or notification.get("target")
+                "tag_name": notification.get("tag_name") or notification.get("target"),
+                # provide alarm event id and tag id if present to help deduplicate client-side
+                "alarm_event_id": notification.get("alarm_event_id"),
+                "tag_id": notification.get("tag_id"),
             })
         
         return jsonify(formatted_notifications)

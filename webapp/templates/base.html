@@ -236,6 +236,8 @@
     window.NotificationSystem = {
       notifications: [],
       maxNotifications: 10,
+      // Track unique keys to aggressively deduplicate across sources
+      seenKeys: new Set(),
 
       init() {
         this.loadNotifications();
@@ -255,17 +257,24 @@
             // Convert server notifications to notification format
             serverNotifications.forEach(notification => {
               // Check if notification already exists
-              const exists = this.notifications.some(n => 
-                n.serverId === notification.id
+              const createdAt = notification.created_at ? new Date(notification.created_at) : new Date();
+              const alarmId = notification.alarm_event_id;
+              const tagId = notification.tag_id;
+              const exists = this.notifications.some(n =>
+                (n.serverId && n.serverId === notification.id) ||
+                (alarmId && n.alarmId === alarmId) ||
+                (tagId && n.tagId === tagId && n.timestamp && new Date(n.timestamp).getTime() === createdAt.getTime())
               );
               
               if (!exists) {
                 this.addNotification({
                   serverId: notification.id,
+                  alarmId,
+                  tagId,
                   title: notification.title || 'System Notification',
                   message: notification.message || '',
                   level: notification.level || 'Medium',
-                  timestamp: new Date(notification.created_at || new Date()),
+                  timestamp: createdAt,
                   read: notification.is_read || false,
                   type: 'server'
                 }, false); // false = don't show animation for existing notifications
@@ -340,8 +349,24 @@
           notification.read = notification.read || false;
         }
 
+        // Build a stable fingerprint for dedup (favor seconds precision) independent of serverId
+        const createdAt = notification.timestamp instanceof Date ? notification.timestamp : new Date(notification.timestamp);
+        const sec = Math.floor(createdAt.getTime() / 1000);
+        const keyParts = [
+          notification.alarmId || '',           // prefer alarm/event identity
+          notification.tagId || '',             // fallback to tag identity
+          sec,                                  // tolerate ms drift
+          (notification.message || '').toString().trim().toLowerCase() // stable content
+        ];
+        const key = keyParts.join('|');
+        notification._key = key;
+        if (this.seenKeys.has(key)) {
+          return; // already present
+        }
+
         // Add to beginning of array (newest first)
         this.notifications.unshift(notification);
+  this.seenKeys.add(key);
 
         // Limit number of notifications
         if (this.notifications.length > this.maxNotifications) {
@@ -385,6 +410,7 @@
 
       clearAll() {
         this.notifications = [];
+        this.seenKeys.clear();
         this.saveNotifications();
         this.updateUI();
       },
@@ -509,10 +535,22 @@
                 n.timestamp = new Date(n.timestamp);
               }
               if (typeof n.read === 'undefined') n.read = false;
+              // Rebuild keys using normalized scheme (ignore serverId)
+              const createdAt = n.timestamp instanceof Date ? n.timestamp : new Date(n.timestamp);
+              const sec = Math.floor(createdAt.getTime() / 1000);
+              const keyParts = [
+                n.alarmId || '',
+                n.tagId || '',
+                sec,
+                (n.message || '').toString().trim().toLowerCase()
+              ];
+              n._key = keyParts.join('|');
+              if (n._key) this.seenKeys.add(n._key);
             });
           }
         } catch (e) {
           this.notifications = [];
+          this.seenKeys.clear();
         }
         this.updateUI();
       },
@@ -561,12 +599,25 @@
       if (typeof socket !== 'undefined') {
         socket.on('alarm_event', function (data) {
           console.log('Received alarm_event via Socket.IO:', data);
+          const alarmId = data.id || data.alarm_event_id;
+          const tagId = data.tag_id;
+          const ts = data.created_at || data.ts || new Date().toISOString();
+          const dt = new Date(ts);
+          const ageSec = Math.floor((Date.now() - dt.getTime()) / 1000);
+          // Drop stale socket events (e.g., backlog replay) older than 120s
+          if (ageSec > 120) {
+            console.log('[Notifications] Skip stale socket alarm (>', ageSec, 's):', data);
+            return;
+          }
           NotificationSystem.addNotification({
             id: Date.now() + Math.random(),
+            serverId: undefined,
+            alarmId,
+            tagId,
             title: data.title || 'Alarm Alert',
             message: data.message || 'Alarm condition detected',
             level: data.level || 'Critical',
-            created_at: new Date().toISOString(),
+            timestamp: dt,
             status: data.status || 'Active',
             read: false
           });
