@@ -273,7 +273,6 @@ class AlarmWorker:
             ) as ser:
                 # Standard GSM AT commands for SMS
                 commands = [
-                    'AT\r\n',
                     'AT+CMGF=1\r\n',  # Text mode
                     f'AT+CMGS="{phone}"\r\n',
                     f'{message[:160]}\x1A'  # Limit to 160 chars + Ctrl+Z
@@ -281,7 +280,7 @@ class AlarmWorker:
                 
                 for cmd in commands:
                     ser.write(cmd.encode())
-                    time.sleep(0.5)
+                    time.sleep(2)
                     response = ser.read_all().decode()
                     if 'ERROR' in response:
                         raise Exception(f"AT command failed: {response}")
