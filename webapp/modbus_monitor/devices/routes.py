@@ -21,7 +21,11 @@ def restart_orchestra_worker():
         # Build absolute path to the starter script relative to app root
         project_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir, os.pardir))
         starter_path = os.path.join(project_root, "start_orchestra_modbus.bat")
-        restart_worker_util(cmd_substring, starter_path)
+        try:
+            restart_worker_util(cmd_substring, starter_path)
+        except Exception as e:
+            current_app.logger.exception("Failed to restart orchestra worker")
+            return jsonify({"success": False, "message": str(e)}), 500
         return jsonify({"success": True, "message": "Orchestra Modbus worker restarted"})
     except Exception as e:
         current_app.logger.exception("Failed to restart orchestra worker")

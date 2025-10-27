@@ -55,4 +55,3 @@ echo Service windows have been opened.
 echo Close this window or press any key to exit.
 echo.
 
-pause
