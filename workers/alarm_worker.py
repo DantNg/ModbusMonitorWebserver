@@ -333,11 +333,14 @@ class AlarmWorker:
                     at('AT+CSMP=17,167,0,8', timeout=2.0)
                     # Encode phone and message as UCS2 hex (UTF-16BE hex without 0x)
                     phone_enc = ''.join(f"{ord(c):04X}" for c in phone)
-                    msg_enc = ''.join(f"{ord(c):04X}" for c in msg)
+                    # Use CRLF line breaks in UCS2 too
+                    msg_crlf = msg.replace("\n", "\r\n")
+                    msg_enc = ''.join(f"{ord(c):04X}" for c in msg_crlf)
                     resp = at(f'AT+CMGS="{phone_enc}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
                     if ">" not in resp:
                         raise Exception(f"No prompt after CMGS: {resp}")
-                    ser.write(bytes.fromhex(msg_enc))
+                    # IMPORTANT: In text mode with CSCS=UCS2, many modems expect ASCII HEX pairs, not raw bytes
+                    ser.write(msg_enc.encode("ascii", errors="ignore"))
                     time.sleep(0.2)
                     ser.write(b"\x1A")
                     final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
@@ -370,12 +373,24 @@ class AlarmWorker:
                         resp = at(f'AT+CMGS="{phone_enc}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
                         if ">" not in resp:
                             raise Exception(f"No prompt after CMGS (retry UCS2): {resp}")
-                        ser.write(bytes.fromhex(msg_enc))
+                        # Retry with UCS2 but try alternate text params if needed
+                        ser.write(msg_enc.encode("ascii", errors="ignore"))
                         time.sleep(0.2)
                         ser.write(b"\x1A")
                         final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
                         if "+CMS ERROR" in final or "ERROR" in final and "OK" not in final:
-                            raise Exception(final.strip())
+                            # One more UCS2 attempt with alternative CSMP (49,167,0,8) used by some modems
+                            self.log("WARNING", "UCS2 retry still failing; trying alternate CSMP for UCS2")
+                            at('AT+CSMP=49,167,0,8', timeout=2.0)
+                            resp = at(f'AT+CMGS="{phone_enc}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
+                            if ">" not in resp:
+                                raise Exception(f"No prompt after CMGS (retry UCS2 alt CSMP): {resp}")
+                            ser.write(msg_enc.encode("ascii", errors="ignore"))
+                            time.sleep(0.2)
+                            ser.write(b"\x1A")
+                            final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
+                            if "+CMS ERROR" in final or "ERROR" in final and "OK" not in final:
+                                raise Exception(final.strip())
                     else:
                         raise Exception(final.strip())
             
