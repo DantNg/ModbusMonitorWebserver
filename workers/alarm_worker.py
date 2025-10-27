@@ -189,40 +189,38 @@ class AlarmWorker:
         last_sent = self._last_notification[rule_id].get(notification_type, 0)
         return (now - last_sent) >= debounce_time
     
-    def create_alarm_email_body(self, device_name: str, alarm_name: str, tag_value: float, 
-                               threshold: float, operator: str, alarm_level: str, 
-                               notification_type: str = "incoming") -> str:
-        """
-        Create alarm email body in the same format as the system
+    def create_alarm_email_body(self, device_name: str, alarm_name: str, tag_value: float,
+                                threshold: float, operator: str, alarm_level: str,
+                                notification_type: str = "incoming") -> str:
+        """Create a simplified, client-preferred email body.
+        Removed banner and Level; keep essential fields only.
         """
         now = datetime.now()
-        
-        # Determine alarm status based on operator
-        if operator in ('>', '>='):
-            status = 'High Alarm'
-        elif operator in ('<', '<='):
-            status = 'Low Alarm'
-        else:
-            status = 'Alarm'
-            
+
+        # Determine status label
         if notification_type == "outgoing":
             status = "CLEARED"
-        
+        else:
+            status = "Alarm"
+
         body = (
-            f"ALARM NOTIFICATION\n"
-            f"==================\n\n"
             f"DateTime: {now.strftime('%d/%m/%Y %H:%M:%S')}\n"
-            f"Device: {device_name}\n"
             f"Alarm Name: {alarm_name}\n"
             f"Tag Value: {tag_value}\n"
             f"Threshold: {threshold}\n"
             f"Condition: {operator}\n"
-            f"Level: {alarm_level}\n"
-            f"Status: {status}\n\n"
-            f"Please check the system immediately."
+            f"Status: {status}"
         )
-        
+
         return body
+
+    def create_alarm_sms_text(self, alarm_name: str, tag_value: float, threshold: float,
+                              operator: str, notification_type: str = "incoming") -> str:
+        """Compact SMS text aligned with simplified email content (<=160 chars)."""
+        now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        status = "CLEARED" if notification_type == "outgoing" else "Alarm"
+        text = f"{status}: {alarm_name} | Val:{tag_value} Thr:{threshold} Cond:{operator} @ {now}"
+        return text[:160]
     
     def _send_email_notification(self, to_email: str, subject: str, body: str) -> bool:
         """Send email notification using SMTP configuration"""
@@ -271,39 +269,76 @@ class AlarmWorker:
                 bytesize=self.sms_config['data_bits'],
                 timeout=self.sms_config['timeout']
             ) as ser:
-                # Standard GSM AT commands for SMS
-                # commands = [
-                #     'AT+CMGF=1\r\n',  # Text mode
-                #     f'AT+CMGS="{phone}"\r\n',
-                #     f'{message[:160]}\x1A'  # Limit to 160 chars + Ctrl+Z
-                # ]
-                try:
-                    ser.write(b'AT+CMGF=1\r')
-                    time.sleep(1)
-                    print(ser.read_all().decode())
+                # Helpers
+                def read_until(tokens=("OK","ERROR","+CMS ERROR"), timeout=10.0):
+                    end = time.time() + timeout
+                    buf = b""
+                    while time.time() < end:
+                        chunk = ser.read(ser.in_waiting or 1)
+                        if chunk:
+                            buf += chunk
+                            txt = buf.decode(errors="ignore")
+                            for t in tokens:
+                                if t in txt:
+                                    return txt
+                        else:
+                            time.sleep(0.05)
+                    return buf.decode(errors="ignore")
 
-                    # Gửi lệnh bắt đầu gửi SMS
-                    command = f'AT+CMGS="{phone}"\r'
-                    ser.write(command.encode())
-                    time.sleep(1)
-                    print(ser.read_all().decode())
+                def at(cmd: str, wait_tokens=("OK","ERROR","+CMS ERROR"), timeout=5.0):
+                    ser.write((cmd if cmd.endswith("\r") else cmd+"\r").encode("utf-8", errors="ignore"))
+                    time.sleep(0.1)
+                    return read_until(wait_tokens, timeout)
 
-                    # Gửi nội dung tin nhắn
-                    ser.write(message.encode())
-                    time.sleep(1)
+                def is_ascii_printable(s: str) -> bool:
+                    try:
+                        s.encode('ascii')
+                        # avoid control characters except common newline (not used here)
+                        return all(32 <= ord(c) <= 126 for c in s)
+                    except UnicodeEncodeError:
+                        return False
 
-                    # Gửi ký tự kết thúc Ctrl+Z (ASCII 26)
-                    ser.write(bytes([26]))
-                    time.sleep(3)
-                    print(ser.read_all().decode())
-                except Exception as e:
-                    raise Exception(f"Failed during SMS sending commands: {e}")
-                # for cmd in commands:
-                #     ser.write(cmd.encode())
-                #     time.sleep(2)
-                #     response = ser.read_all().decode()
-                #     if 'ERROR' in response:
-                #         raise Exception(f"AT command failed: {response}")
+                # Wake and set text mode
+                at("AT", timeout=2.0)
+                resp = at("AT+CMGF=1", timeout=3.0)
+                if "ERROR" in resp:
+                    raise Exception(f"CMGF set failed: {resp}")
+
+                # Decide charset based on content; strip non-printable
+                msg = (message or "").replace("\r", " ").replace("\n", " ")
+                msg = "".join(ch for ch in msg if 9 <= ord(ch) <= 126)
+
+                use_ucs2 = not is_ascii_printable(msg)
+                if use_ucs2:
+                    # UCS2 mode
+                    resp = at('AT+CSCS="UCS2"', timeout=3.0)
+                    if "ERROR" in resp:
+                        raise Exception(f"Failed to set UCS2 charset: {resp}")
+                    # Encode phone and message as UCS2 hex (UTF-16BE hex without 0x)
+                    phone_enc = ''.join(f"{ord(c):04X}" for c in phone)
+                    msg_enc = ''.join(f"{ord(c):04X}" for c in msg)
+                    resp = at(f'AT+CMGS="{phone_enc}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
+                    if ">" not in resp:
+                        raise Exception(f"No prompt after CMGS: {resp}")
+                    ser.write(bytes.fromhex(msg_enc))
+                    time.sleep(0.2)
+                    ser.write(b"\x1A")
+                    final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
+                else:
+                    # GSM 7-bit basic via ASCII content
+                    at('AT+CSCS="GSM"', timeout=2.0)
+                    # Optional: ensure default text params
+                    at('AT+CSMP=17,167,0,0', timeout=2.0)
+                    resp = at(f'AT+CMGS="{phone}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
+                    if ">" not in resp:
+                        raise Exception(f"No prompt after CMGS: {resp}")
+                    ser.write(msg.encode("ascii", errors="ignore"))
+                    time.sleep(0.2)
+                    ser.write(b"\x1A")
+                    final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
+
+                if "+CMS ERROR" in final or "ERROR" in final and "OK" not in final:
+                    raise Exception(final.strip())
             
             self.log("INFO", f"✅ SMS sent to {phone}")
             return True
@@ -353,7 +388,13 @@ class AlarmWorker:
                     # Send SMS if contact has phone (non-blocking)
                     phone = contact.get("phone")
                     if phone and phone.strip():
-                        sms_message = f"{subject}: {tag_name} = {value}"
+                        sms_message = self.create_alarm_sms_text(
+                            alarm_name=rule_name,
+                            tag_value=value,
+                            threshold=rule.get("threshold"),
+                            operator=rule.get("operator"),
+                            notification_type=notification_type,
+                        )
                         sms_thread = threading.Thread(
                             target=self._send_sms_async,
                             args=(phone.strip(), sms_message, rule_id),
