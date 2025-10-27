@@ -271,19 +271,48 @@ class AlarmWorker:
                 bytesize=self.sms_config['data_bits'],
                 timeout=self.sms_config['timeout']
             ) as ser:
-                # Standard GSM AT commands for SMS
-                commands = [
-                    'AT+CMGF=1\r\n',  # Text mode
-                    f'AT+CMGS="{phone}"\r\n',
-                    f'{message[:160]}\x1A'  # Limit to 160 chars + Ctrl+Z
-                ]
-                
-                for cmd in commands:
-                    ser.write(cmd.encode())
-                    time.sleep(2)
-                    response = ser.read_all().decode()
-                    if 'ERROR' in response:
-                        raise Exception(f"AT command failed: {response}")
+                # Simple, robust sequence: Text mode -> CMGS (wait for '>') -> body + Ctrl+Z -> wait OK/ERROR
+                # 1) Text mode
+                ser.write(b'AT+CMGF=1\r')
+                time.sleep(1)
+                _ = ser.read_all()  # clear any echo
+
+                # 2) Start SMS send and wait briefly for '>' prompt
+                ser.write(f'AT+CMGS="{phone}"\r'.encode())
+                prompt_deadline = time.time() + 5
+                buf = b''
+                while time.time() < prompt_deadline:
+                    chunk = ser.read(ser.in_waiting or 1)
+                    if chunk:
+                        buf += chunk
+                        if b'ERROR' in buf or b'>' in buf:
+                            break
+                    else:
+                        time.sleep(0.05)
+                prompt_resp = buf.decode(errors='ignore')
+                if 'ERROR' in prompt_resp:
+                    raise Exception(f"AT command failed (CMGS): {prompt_resp}")
+
+                # 3) Send body (<=160 chars) then Ctrl+Z
+                body = (message or '')[:160]
+                ser.write(body.encode(errors='ignore'))
+                time.sleep(0.2)
+                ser.write(b'\x1A')  # Ctrl+Z
+
+                # 4) Wait for final result OK/ERROR
+                result_deadline = time.time() + float(self.sms_config.get('timeout', 10))
+                rbuf = b''
+                while time.time() < result_deadline:
+                    chunk = ser.read(ser.in_waiting or 1)
+                    if chunk:
+                        rbuf += chunk
+                        txt = rbuf.decode(errors='ignore')
+                        if 'ERROR' in txt:
+                            raise Exception(f"AT command failed (final): {txt}")
+                        if 'OK' in txt:
+                            break
+                    else:
+                        time.sleep(0.05)
             
             self.log("INFO", f"✅ SMS sent to {phone}")
             return True
