@@ -300,15 +300,20 @@ class AlarmWorker:
                     return read_until(wait_tokens, timeout)
 
                 def is_gsm7_compatible(s: str) -> bool:
-                    # GSM 03.38 default safe set (approx) excluding chars that often misencode on some modems
-                    bad = set('|^{}\\[]~€_')  # treat these as non-GSM for safety on some devices
+                    # GSM 03.38 safe set approximation (allow newline/tab as well)
+                    bad = set('|^{}\\[]~€_')  # exclude characters that often misencode on some modems
                     try:
                         s.encode('ascii')
                     except UnicodeEncodeError:
                         return False
-                    if any(ch in bad for ch in s):
-                        return False
-                    return all(32 <= ord(ch) <= 126 for ch in s)
+                    for ch in s:
+                        if ch in ('\n', '\r', '\t'):
+                            continue
+                        if ch in bad:
+                            return False
+                        if not (32 <= ord(ch) <= 126):
+                            return False
+                    return True
 
                 # Wake and set text mode
                 at("AT", timeout=2.0)
@@ -316,14 +321,33 @@ class AlarmWorker:
                 if "ERROR" in resp:
                     raise Exception(f"CMGF set failed: {resp}")
 
-                # Decide charset based on content; strip non-printable
-                # Preserve line breaks; normalize CRLF -> LF
-                msg = (message or "").replace("\r\n", "\n").replace("\r", "\n")
-                # Keep printable ASCII and newline/tab only for GSM path; UCS2 path will re-encode fully
-                msg = "".join(ch for ch in msg if ch == "\n" or ch == "\t" or 32 <= ord(ch) <= 126)
+                # Normalize original message; keep full Unicode for UCS2 path
+                raw_msg = (message or "").replace("\r\n", "\n").replace("\r", "\n")
+                use_ucs2 = not is_gsm7_compatible(raw_msg)
+                self.log("DEBUG", f"SMS charset selected: {'UCS2' if use_ucs2 else 'GSM'}; length={len(raw_msg)}")
 
-                use_ucs2 = not is_gsm7_compatible(msg)
-                self.log("DEBUG", f"SMS charset selected: {'UCS2' if use_ucs2 else 'GSM'}; length={len(msg)}")
+                # Helper: chunk text with preference for newline boundaries
+                def chunk_text(text: str, max_len: int):
+                    if len(text) <= max_len:
+                        return [text]
+                    parts = []
+                    current = ""
+                    for i, line in enumerate(text.split("\n")):
+                        sep = "\n" if i < len(text.split("\n")) - 1 else ""
+                        piece = line + sep
+                        if len(current) + len(piece) <= max_len:
+                            current += piece
+                        else:
+                            if current:
+                                parts.append(current)
+                            # Hard split if a single line is too long
+                            while len(piece) > max_len:
+                                parts.append(piece[:max_len])
+                                piece = piece[max_len:]
+                            current = piece
+                    if current:
+                        parts.append(current)
+                    return parts
                 if use_ucs2:
                     # UCS2 mode
                     resp = at('AT+CSCS="UCS2"', timeout=3.0)
@@ -331,33 +355,61 @@ class AlarmWorker:
                         raise Exception(f"Failed to set UCS2 charset: {resp}")
                     # Some modems require DCS=8 for UCS2
                     at('AT+CSMP=17,167,0,8', timeout=2.0)
-                    # Encode phone and message as UCS2 hex (UTF-16BE hex without 0x)
-                    phone_enc = ''.join(f"{ord(c):04X}" for c in phone)
-                    # Use CRLF line breaks in UCS2 too
-                    msg_crlf = msg.replace("\n", "\r\n")
-                    msg_enc = ''.join(f"{ord(c):04X}" for c in msg_crlf)
-                    resp = at(f'AT+CMGS="{phone_enc}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
-                    if ">" not in resp:
-                        raise Exception(f"No prompt after CMGS: {resp}")
-                    # IMPORTANT: In text mode with CSCS=UCS2, many modems expect ASCII HEX pairs, not raw bytes
-                    ser.write(msg_enc.encode("ascii", errors="ignore"))
-                    time.sleep(0.2)
-                    ser.write(b"\x1A")
-                    final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
+                    # Use ASCII number first; many modems expect ASCII phone even in UCS2 text mode
+                    phone_ascii = phone
+                    # CRLF line breaks
+                    msg_crlf = raw_msg.replace("\n", "\r\n")
+                    # Segment for UCS2 limits: 70 chars single, ~67 when concatenated
+                    ucs2_parts = chunk_text(msg_crlf, 67 if len(msg_crlf) > 70 else 70)
+                    final = "OK"
+                    for idx, part in enumerate(ucs2_parts, 1):
+                        msg_enc = ''.join(f"{ord(c):04X}" for c in part)
+                        resp = at(f'AT+CMGS="{phone_ascii}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=7.0)
+                        if ">" not in resp:
+                            # Try with UCS2-encoded phone number
+                            phone_hex = ''.join(f"{ord(c):04X}" for c in phone)
+                            resp = at(f'AT+CMGS="{phone_hex}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=7.0)
+                            if ">" not in resp:
+                                raise Exception(f"No prompt after CMGS (UCS2): {resp}")
+                        # Send ASCII HEX pairs for UCS2 message
+                        ser.write(msg_enc.encode("ascii", errors="ignore"))
+                        time.sleep(0.2)
+                        ser.write(b"\x1A")
+                        final = read_until(("OK","ERROR","+CMS ERROR"), timeout=25.0)
+                        if "+CMS ERROR" in final or ("ERROR" in final and "OK" not in final):
+                            self.log("WARNING", f"UCS2 part {idx}/{len(ucs2_parts)} failed; trying alternate CSMP")
+                            at('AT+CSMP=49,167,0,8', timeout=2.0)
+                            resp = at(f'AT+CMGS="{phone_ascii}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=7.0)
+                            if ">" not in resp:
+                                phone_hex = ''.join(f"{ord(c):04X}" for c in phone)
+                                resp = at(f'AT+CMGS="{phone_hex}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=7.0)
+                                if ">" not in resp:
+                                    raise Exception(f"No prompt after CMGS (UCS2 alt CSMP): {resp}")
+                            ser.write(msg_enc.encode("ascii", errors="ignore"))
+                            time.sleep(0.2)
+                            ser.write(b"\x1A")
+                            final = read_until(("OK","ERROR","+CMS ERROR"), timeout=25.0)
+                            if "+CMS ERROR" in final or ("ERROR" in final and "OK" not in final):
+                                raise Exception(final.strip())
                 else:
                     # GSM 7-bit basic via ASCII content
                     at('AT+CSCS="GSM"', timeout=2.0)
                     # Optional: ensure default text params
                     at('AT+CSMP=17,167,0,0', timeout=2.0)
-                    resp = at(f'AT+CMGS="{phone}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
-                    if ">" not in resp:
-                        raise Exception(f"No prompt after CMGS: {resp}")
                     # Convert LF to CRLF for some modems to render line breaks
-                    payload = msg.replace("\n", "\r\n")
-                    ser.write(payload.encode("ascii", errors="ignore"))
-                    time.sleep(0.2)
-                    ser.write(b"\x1A")
-                    final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
+                    gsm_msg = ''.join(ch for ch in raw_msg if ch == "\n" or ch == "\t" or 32 <= ord(ch) <= 126)
+                    payload = gsm_msg.replace("\n", "\r\n")
+                    # Split long GSM texts to avoid errors
+                    gsm_parts = chunk_text(payload, 153 if len(payload) > 160 else 160)
+                    final = "OK"
+                    for part in gsm_parts:
+                        resp = at(f'AT+CMGS="{phone}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
+                        if ">" not in resp:
+                            raise Exception(f"No prompt after CMGS: {resp}")
+                        ser.write(part.encode("ascii", errors="ignore"))
+                        time.sleep(0.2)
+                        ser.write(b"\x1A")
+                        final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
                 
                 if "+CMS ERROR" in final or "ERROR" in final and "OK" not in final:
                     # If GSM path yielded +CMS ERROR: 305, retry once with UCS2
@@ -368,29 +420,37 @@ class AlarmWorker:
                         if "ERROR" in resp:
                             raise Exception(f"Failed to set UCS2 charset on retry: {resp}")
                         at('AT+CSMP=17,167,0,8', timeout=2.0)
-                        phone_enc = ''.join(f"{ord(c):04X}" for c in phone)
-                        msg_enc = ''.join(f"{ord(c):04X}" for c in msg)
-                        resp = at(f'AT+CMGS="{phone_enc}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
-                        if ">" not in resp:
-                            raise Exception(f"No prompt after CMGS (retry UCS2): {resp}")
-                        # Retry with UCS2 but try alternate text params if needed
-                        ser.write(msg_enc.encode("ascii", errors="ignore"))
-                        time.sleep(0.2)
-                        ser.write(b"\x1A")
-                        final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
-                        if "+CMS ERROR" in final or "ERROR" in final and "OK" not in final:
-                            # One more UCS2 attempt with alternative CSMP (49,167,0,8) used by some modems
-                            self.log("WARNING", "UCS2 retry still failing; trying alternate CSMP for UCS2")
-                            at('AT+CSMP=49,167,0,8', timeout=2.0)
-                            resp = at(f'AT+CMGS="{phone_enc}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=5.0)
+                        # Retry in UCS2 with segmentation
+                        msg_crlf = raw_msg.replace("\n", "\r\n")
+                        parts = chunk_text(msg_crlf, 67 if len(msg_crlf) > 70 else 70)
+                        phone_ascii = phone
+                        for idx, part in enumerate(parts, 1):
+                            msg_enc = ''.join(f"{ord(c):04X}" for c in part)
+                            resp = at(f'AT+CMGS="{phone_ascii}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=7.0)
                             if ">" not in resp:
-                                raise Exception(f"No prompt after CMGS (retry UCS2 alt CSMP): {resp}")
+                                phone_hex = ''.join(f"{ord(c):04X}" for c in phone)
+                                resp = at(f'AT+CMGS="{phone_hex}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=7.0)
+                                if ">" not in resp:
+                                    raise Exception(f"No prompt after CMGS (retry UCS2): {resp}")
                             ser.write(msg_enc.encode("ascii", errors="ignore"))
                             time.sleep(0.2)
                             ser.write(b"\x1A")
-                            final = read_until(("OK","ERROR","+CMS ERROR"), timeout=20.0)
-                            if "+CMS ERROR" in final or "ERROR" in final and "OK" not in final:
-                                raise Exception(final.strip())
+                            final = read_until(("OK","ERROR","+CMS ERROR"), timeout=25.0)
+                            if "+CMS ERROR" in final or ("ERROR" in final and "OK" not in final):
+                                self.log("WARNING", f"UCS2 retry part {idx}/{len(parts)} failed; trying alternate CSMP")
+                                at('AT+CSMP=49,167,0,8', timeout=2.0)
+                                resp = at(f'AT+CMGS="{phone_ascii}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=7.0)
+                                if ">" not in resp:
+                                    phone_hex = ''.join(f"{ord(c):04X}" for c in phone)
+                                    resp = at(f'AT+CMGS="{phone_hex}"', wait_tokens=(">","ERROR","+CMS ERROR"), timeout=7.0)
+                                    if ">" not in resp:
+                                        raise Exception(f"No prompt after CMGS (retry UCS2 alt CSMP): {resp}")
+                                ser.write(msg_enc.encode("ascii", errors="ignore"))
+                                time.sleep(0.2)
+                                ser.write(b"\x1A")
+                                final = read_until(("OK","ERROR","+CMS ERROR"), timeout=25.0)
+                                if "+CMS ERROR" in final or ("ERROR" in final and "OK" not in final):
+                                    raise Exception(final.strip())
                     else:
                         raise Exception(final.strip())
             
