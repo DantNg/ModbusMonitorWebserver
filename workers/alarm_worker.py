@@ -307,8 +307,8 @@ class AlarmWorker:
 
                 def is_gsm7_compatible(s: str) -> bool:
                     # GSM 03.38 safe set approximation (allow newline/tab as well)
-                    # Removed '_' from bad list since it's widely supported in GSM 7-bit
-                    bad = set('|^{}\\[]~€')
+                    # Note: '_' is problematic on some modems (renders as '§'), treat as non-GSM to preserve exact char
+                    bad = set('|^{}\\[]~€_')
                     try:
                         s.encode('ascii')
                     except UnicodeEncodeError:
@@ -335,7 +335,7 @@ class AlarmWorker:
                 if use_ucs2:
                     # Log first offending character for diagnostics
                     for ch in raw_msg:
-                        if ch not in ('\n','\r','\t') and (ord(ch) < 32 or ord(ch) > 126 or ch in set('|^{}\\[]~€')):
+                        if ch not in ('\n','\r','\t') and (ord(ch) < 32 or ord(ch) > 126 or ch in set('|^{}\\[]~€_')):
                             self.log("DEBUG", f"UCS2 reason: char='{ch}' code={ord(ch)}")
                             break
 
