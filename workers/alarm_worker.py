@@ -547,39 +547,59 @@ class AlarmWorker:
     def _get_notification_contacts(self, rule: dict) -> List[dict]:
         """Get notification contacts from alarm rule email/sms fields"""
         contacts = []
-        
+
         try:
-            # Get email from alarm rule
-            email = rule.get("email")
-            if email and email.strip():
+            def split_list(raw: str) -> List[str]:
+                if not raw:
+                    return []
+                # Accept comma, semicolon, whitespace, newline as separators
+                seps = [',', ';', '\n', '\r', '\t', ' ']
+                s = raw
+                for sp in seps:
+                    s = s.replace(sp, ',')
+                items = [x.strip() for x in s.split(',') if x and x.strip()]
+                # de-duplicate preserving order
+                seen = set()
+                result = []
+                for x in items:
+                    if x not in seen:
+                        seen.add(x)
+                        result.append(x)
+                return result
+
+            # Emails (list)
+            emails = split_list((rule.get("email") or ""))
+            for idx, em in enumerate(emails, 1):
                 contacts.append({
-                    "id": f"email_{rule.get('id')}",
-                    "name": f"Alarm {rule.get('name', 'Unknown')} Email",
-                    "email": email.strip(),
+                    "id": f"email_{rule.get('id')}_{idx}",
+                    "name": f"Alarm {rule.get('name', 'Unknown')} Email #{idx}",
+                    "email": em,
                     "phone": None,
-                    "enabled": True
+                    "enabled": True,
                 })
-                self.log("DEBUG", f"Added email contact from rule: {email.strip()}")
-            
-            # Get SMS from alarm rule
-            sms = rule.get("sms")
-            if sms and sms.strip():
+            if emails:
+                self.log("DEBUG", f"Added {len(emails)} email contact(s) from rule {rule.get('id')}")
+
+            # Phones (list)
+            phones = split_list((rule.get("sms") or ""))
+            for idx, ph in enumerate(phones, 1):
                 contacts.append({
-                    "id": f"sms_{rule.get('id')}",
-                    "name": f"Alarm {rule.get('name', 'Unknown')} SMS",
+                    "id": f"sms_{rule.get('id')}_{idx}",
+                    "name": f"Alarm {rule.get('name', 'Unknown')} SMS #{idx}",
                     "email": None,
-                    "phone": sms.strip(),
-                    "enabled": True
+                    "phone": ph,
+                    "enabled": True,
                 })
-                self.log("DEBUG", f"Added SMS contact from rule: {sms.strip()}")
-            
+            if phones:
+                self.log("DEBUG", f"Added {len(phones)} SMS contact(s) from rule {rule.get('id')}")
+
             if not contacts:
                 self.log("WARNING", f"No email or SMS configured for alarm rule {rule.get('id')}: {rule.get('name')}")
             else:
                 self.log("DEBUG", f"Found {len(contacts)} notification contacts for rule {rule.get('id')}")
-            
+
             return contacts
-            
+
         except Exception as e:
             self.log("ERROR", f"Failed to get notification contacts from rule {rule.get('id')}: {e}")
             return []

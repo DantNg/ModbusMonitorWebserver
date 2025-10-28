@@ -114,6 +114,14 @@ def init_engine():
         max_overflow=pool_size,  # đủ cho vài thread poll
         future=True,
     )
+    # Try to widen recipient columns to support multiple emails/phones
+    try:
+        with _engine.begin() as con:
+            con.execute(text("ALTER TABLE alarm_rules MODIFY email VARCHAR(512) NULL"))
+            con.execute(text("ALTER TABLE alarm_rules MODIFY sms VARCHAR(255) NULL"))
+    except Exception as _e:
+        # Ignore if table doesn't exist yet or already correct
+        pass
     return _engine
 
 # ---------- Schema tối giản ----------
