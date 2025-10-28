@@ -8,6 +8,7 @@ import math
 import json
 import logging
 import threading
+import queue as pyqueue
 from multiprocessing import Process, Queue
 from typing import Dict, List, Optional
 from dataclasses import dataclass
@@ -114,6 +115,11 @@ class AlarmWorker:
         self.running = False
         self.seq = 0
         self.command_thread = None
+
+        # SMS sending pipeline: single-threaded sender to serialize COM access
+        self.sms_queue = pyqueue.Queue(maxsize=500) if SMS_AVAILABLE else None
+        self.sms_sender_thread = None
+        self.sms_sender_stop = threading.Event()
         
         
     def _load_notification_config(self):
@@ -301,7 +307,8 @@ class AlarmWorker:
 
                 def is_gsm7_compatible(s: str) -> bool:
                     # GSM 03.38 safe set approximation (allow newline/tab as well)
-                    bad = set('|^{}\\[]~€_')  # exclude characters that often misencode on some modems
+                    # Removed '_' from bad list since it's widely supported in GSM 7-bit
+                    bad = set('|^{}\\[]~€')
                     try:
                         s.encode('ascii')
                     except UnicodeEncodeError:
@@ -325,6 +332,12 @@ class AlarmWorker:
                 raw_msg = (message or "").replace("\r\n", "\n").replace("\r", "\n")
                 use_ucs2 = not is_gsm7_compatible(raw_msg)
                 self.log("DEBUG", f"SMS charset selected: {'UCS2' if use_ucs2 else 'GSM'}; length={len(raw_msg)}")
+                if use_ucs2:
+                    # Log first offending character for diagnostics
+                    for ch in raw_msg:
+                        if ch not in ('\n','\r','\t') and (ord(ch) < 32 or ord(ch) > 126 or ch in set('|^{}\\[]~€')):
+                            self.log("DEBUG", f"UCS2 reason: char='{ch}' code={ord(ch)}")
+                            break
 
                 # Helper: chunk text with preference for newline boundaries
                 def chunk_text(text: str, max_len: int):
@@ -499,7 +512,7 @@ class AlarmWorker:
                         )
                         email_thread.start()
                     
-                    # Send SMS if contact has phone (non-blocking)
+                    # Send SMS if contact has phone (queued, serialized)
                     phone = contact.get("phone")
                     if phone and phone.strip():
                         sms_message = self.create_alarm_sms_text(
@@ -509,12 +522,16 @@ class AlarmWorker:
                             operator=rule.get("operator"),
                             notification_type=notification_type,
                         )
-                        sms_thread = threading.Thread(
-                            target=self._send_sms_async,
-                            args=(phone.strip(), sms_message, rule_id),
-                            daemon=True
-                        )
-                        sms_thread.start()
+                        # Enqueue instead of spawning threads to avoid COM contention
+                        try:
+                            if self.sms_queue is not None:
+                                self.sms_queue.put_nowait((phone.strip(), sms_message, rule_id))
+                                self.log("DEBUG", f"📥 Queued SMS to {phone.strip()}")
+                            else:
+                                # Fallback to direct send if queue unavailable
+                                self._send_sms_async(phone.strip(), sms_message, rule_id)
+                        except Exception as qe:
+                            self.log("ERROR", f"Failed to queue SMS to {phone.strip()}: {qe}")
             
             # Update last notification timestamp
             self._last_notification[rule_id][notification_type] = time.time()
@@ -534,15 +551,20 @@ class AlarmWorker:
             self.log("ERROR", f"📧 Email thread error for {email}: {e}")
     
     def _send_sms_async(self, phone: str, message: str, rule_id: int):
-        """Async wrapper for SMS sending"""
+        """Queue-based wrapper for SMS sending to serialize COM access"""
         try:
-            success = self._send_sms_notification(phone, message)
-            if success:
-                self.log("INFO", f"📱 SMS notification sent to {phone}")
+            if self.sms_queue is not None:
+                self.sms_queue.put_nowait((phone, message, rule_id))
+                self.log("DEBUG", f"📥 Queued SMS to {phone}")
             else:
-                self.log("WARNING", f"📱 SMS notification failed to {phone}")
+                # Fallback to direct send if queue unavailable
+                success = self._send_sms_notification(phone, message)
+                if success:
+                    self.log("INFO", f"📱 SMS notification sent to {phone}")
+                else:
+                    self.log("WARNING", f"📱 SMS notification failed to {phone}")
         except Exception as e:
-            self.log("ERROR", f"📱 SMS thread error for {phone}: {e}")
+            self.log("ERROR", f"📱 SMS queue error for {phone}: {e}")
     
     def _get_notification_contacts(self, rule: dict) -> List[dict]:
         """Get notification contacts from alarm rule email/sms fields"""
@@ -926,6 +948,35 @@ class AlarmWorker:
         self.command_thread.start()
         self.log("INFO", "Command handler thread started")
         
+        # Start SMS sender thread (serialized COM access)
+        if SMS_AVAILABLE and self.sms_queue is not None:
+            def sms_sender_loop():
+                self.log("INFO", "SMS sender thread started")
+                while self.running and not self.sms_sender_stop.is_set():
+                    try:
+                        phone, message, rule_id = self.sms_queue.get(timeout=0.5)
+                    except pyqueue.Empty:
+                        continue
+                    try:
+                        ok = self._send_sms_notification(phone, message)
+                        if ok:
+                            self.log("INFO", f"📱 SMS notification sent to {phone} (queued)")
+                        else:
+                            self.log("WARNING", f"📱 SMS notification failed to {phone} (queued)")
+                    except Exception as e:
+                        self.log("ERROR", f"📱 SMS sender error for {phone}: {e}")
+                    finally:
+                        try:
+                            self.sms_queue.task_done()
+                        except Exception:
+                            pass
+                        # Small gap between messages to let modem settle
+                        time.sleep(0.25)
+                self.log("INFO", "SMS sender thread stopping")
+
+            self.sms_sender_thread = threading.Thread(target=sms_sender_loop, daemon=True)
+            self.sms_sender_thread.start()
+        
         try:
             # Start alarm evaluation loop
             self._alarm_loop()
@@ -934,6 +985,13 @@ class AlarmWorker:
             self.log("ERROR", f"Fatal error in alarm worker: {e}")
         finally:
             self.running = False
+            # Stop SMS sender
+            try:
+                if self.sms_sender_thread is not None:
+                    self.sms_sender_stop.set()
+                    self.sms_sender_thread.join(timeout=3)
+            except Exception:
+                pass
             self.log("INFO", "Alarm worker stopped")
 
 def alarm_worker_main(config, data_queue, command_queue, log_queue, shared_state):
