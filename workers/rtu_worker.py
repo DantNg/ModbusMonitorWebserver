@@ -149,6 +149,11 @@ class RTUWorker:
         # Thiết bị sẽ chỉ được thử lại sau khi người dùng bấm Reload Worker (restart tiến trình)
         self.disabled_devices = set()
 
+        # Serialize access on the shared RTU bus and add small gap between devices
+        self.bus_lock = threading.RLock()
+        self.INTER_DEVICE_GAP_MS = 100  # Gap giữa 2 thiết bị trên cùng cổng
+        self.bus_free_at = 0.0
+
     # ---- lifecycle
     def start(self):
         if self.is_running:
@@ -271,18 +276,20 @@ class RTUWorker:
         return "unit"
 
     def _call_modbus(self, func, /, unit_val=1, **kwargs):
-        kwargs[self._unit_kw] = unit_val
-        try:
-            return func(**kwargs)
-        except TypeError:
-            alt_kw = "slave" if self._unit_kw == "unit" else "unit"
+        # Ensure only one Modbus transaction at a time across devices
+        with self.bus_lock:
+            kwargs[self._unit_kw] = unit_val
             try:
-                kwargs.pop(self._unit_kw, None)
-                kwargs[alt_kw] = unit_val
-                self._unit_kw = alt_kw
                 return func(**kwargs)
-            except TypeError as e:
-                raise e
+            except TypeError:
+                alt_kw = "slave" if self._unit_kw == "unit" else "unit"
+                try:
+                    kwargs.pop(self._unit_kw, None)
+                    kwargs[alt_kw] = unit_val
+                    self._unit_kw = alt_kw
+                    return func(**kwargs)
+                except TypeError as e:
+                    raise e
 
     # ---- Socket.IO Handlers (write)
     def _setup_socketio_handlers(self):
@@ -415,29 +422,44 @@ class RTUWorker:
         schedule_next = {}
         while self.is_running:
             now = time.time()
+
+            # Respect small inter-device gap on the shared bus
+            if now < self.bus_free_at:
+                time.sleep(min(0.005, self.bus_free_at - now))
+                continue
+
+            chosen = None
+            chosen_interval = 1.0
+            earliest_due = float('inf')
+
             for dev in self.devices:
                 interval = max(0.1, getattr(dev, "read_interval_ms", 1000) / 1000.0)
-                if now >= schedule_next.get(dev.id, 0):
-                    # Skip nếu device đã bị vô hiệu hóa (do lỗi)
-                    if dev.id in self.disabled_devices:
-                        if self.debug:
-                            print(f"⏭️ Skip {getattr(dev,'name',dev.id)} (disabled until worker reload)")
-                        schedule_next[dev.id] = now + interval
-                        continue
-                    # Skip nếu đang trong backoff
-                    if self._is_in_backoff(dev.id):
-                        if self.debug:
-                            left = int(self.dev_state[dev.id]["backoff_until"] - time.time())
-                            print(f"⏭️ Skip {getattr(dev,'name',dev.id)} (backoff {max(left,0)}s left)")
-                        schedule_next[dev.id] = now + interval
-                        continue
-                    try:
-                        any_success = self._read_device(dev)
-                        # Device status is set inside _read_device, so no need to update here
-                    except Exception as e:
-                        print(f"❌ read device {getattr(dev,'name',dev.id)}: {e}")
+                due = schedule_next.get(dev.id, 0)
+                if due == 0:
+                    due = 0  # read immediately first time
+                # Skip disabled/backoff devices; still advance schedule
+                if dev.id in self.disabled_devices or self._is_in_backoff(dev.id):
                     schedule_next[dev.id] = now + interval
-            time.sleep(0.01)
+                    continue
+                if due <= now and due < earliest_due:
+                    earliest_due = due
+                    chosen = dev
+                    chosen_interval = interval
+
+            if not chosen:
+                time.sleep(0.01)
+                continue
+
+            try:
+                self._read_device(chosen)
+            except Exception as e:
+                print(f"❌ read device {getattr(chosen,'name',chosen.id)}: {e}")
+            finally:
+                schedule_next[chosen.id] = time.time() + chosen_interval
+                # Set bus gap between devices
+                self.bus_free_at = time.time() + (self.INTER_DEVICE_GAP_MS / 1000.0)
+                # Yield quickly to honor the gap
+                time.sleep(0.001)
 
     # ---- read 1 device
     def _read_device(self, device):
