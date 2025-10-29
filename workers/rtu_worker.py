@@ -138,6 +138,8 @@ class RTUWorker:
         # Backoff cấu hình
         self.MAX_FAILS = 3
         self.BACKOFF_SEC = 15
+        # Sau nhiều lần thất bại liên tiếp mới vô hiệu hoá vĩnh viễn
+        self.MAX_FAILS_DISABLE = self.MAX_FAILS * 3
 
         # Trạng thái per-device
         # { device.id: {"fails": int, "backoff_until": float} }
@@ -151,7 +153,7 @@ class RTUWorker:
 
         # Serialize access on the shared RTU bus and add small gap between devices
         self.bus_lock = threading.RLock()
-        self.INTER_DEVICE_GAP_MS = 100  # Gap giữa 2 thiết bị trên cùng cổng
+        self.INTER_DEVICE_GAP_MS = 50  # Gap giữa 2 thiết bị trên cùng cổng
         self.bus_free_at = 0.0
 
     # ---- lifecycle
@@ -451,7 +453,8 @@ class RTUWorker:
                 continue
 
             try:
-                self._read_device(chosen)
+                # Theo yêu cầu KH: retry ngay lập tức tối đa 5 lần; nếu vẫn lỗi thì loại bỏ hẳn device tới khi reload worker
+                self._read_device_with_retries(chosen, retries=5)
             except Exception as e:
                 print(f"❌ read device {getattr(chosen,'name',chosen.id)}: {e}")
             finally:
@@ -461,14 +464,14 @@ class RTUWorker:
                 # Yield quickly to honor the gap
                 time.sleep(0.001)
 
-    # ---- read 1 device
-    def _read_device(self, device):
+    # ---- single-attempt read (không disable/backoff nếu lỗi)
+    def _read_device_attempt(self, device):
         start_ts = time.perf_counter()
         tags = self.device_tags.get(device.id, [])
         if not tags:
             latency_ms = int((time.perf_counter() - start_ts) * 1000)
             self._mark_success(device, latency_ms=latency_ms)
-            return True
+            return True, None
 
         if self.debug:
             print(f"📖 {device.name} (Unit {getattr(device,'unit_id',1)}) tags={len(tags)}")
@@ -533,12 +536,33 @@ class RTUWorker:
         latency_ms = int((time.perf_counter() - start_ts) * 1000)
         if any_success:
             self._mark_success(device, latency_ms=latency_ms)
-            return True
+            return True, None
         else:
-            # Yêu cầu khách hàng: nếu đọc thất bại -> cắt ngay device để không ảnh hưởng các device khác trên cùng cổng
-            self._disable_device(device, reason=last_error or "Modbus read failed")
-            self._flush_serial()
-            return False
+            # Không disable ở đây; để wrapper quyết định sau khi retry đủ số lần
+            return False, (last_error or "Modbus read failed")
+
+    # ---- read with immediate retries; disable nếu thất bại 5 lần liên tiếp
+    def _read_device_with_retries(self, device, retries=5):
+        last_err = None
+        for attempt in range(1, int(retries) + 1):
+            ok, err = self._read_device_attempt(device)
+            if ok:
+                return True
+            last_err = err
+            if attempt < retries:
+                if self.debug:
+                    print(f"⏳ Attempt {attempt}/{retries} failed for {getattr(device,'name',device.id)}: {err}; retrying...")
+                # Sau lỗi thử dọn serial và chờ rất ngắn trước khi thử lại
+                self._flush_serial()
+                time.sleep(0.05)
+        # Hết số lần retry -> loại bỏ hẳn device, đợi người dùng reload worker
+        self._disable_device(device, reason=last_err or "Modbus read failed")
+        # Đặt trạng thái fail để UI/monitor biết
+        try:
+            self._update_device_status(device, ok=False, latency_ms=None, err=last_err or "disabled after retries")
+        except Exception:
+            pass
+        return False
 
     # ---- block read + mapping
     def _read_block(self, device, fc, tg_list):
@@ -567,16 +591,33 @@ class RTUWorker:
             print(f"   🔍 FC{fc}: {min_addr}-{max_addr} -> start={start}, count={count}")
 
         try:
-            if fc == 1:
-                res = self._call_modbus(self.client.read_coils, address=start, count=count, unit_val=unit)
-            elif fc == 2:
-                res = self._call_modbus(self.client.read_discrete_inputs, address=start, count=count, unit_val=unit)
-            elif fc == 3:
-                res = self._call_modbus(self.client.read_holding_registers, address=start, count=count, unit_val=unit)
-            elif fc == 4:
-                res = self._call_modbus(self.client.read_input_registers, address=start, count=count, unit_val=unit)
-            else:
-                if self.debug: print(f"⚠️ unsupported FC {fc}")
+            def do_read():
+                if fc == 1:
+                    return self._call_modbus(self.client.read_coils, address=start, count=count, unit_val=unit)
+                elif fc == 2:
+                    return self._call_modbus(self.client.read_discrete_inputs, address=start, count=count, unit_val=unit)
+                elif fc == 3:
+                    return self._call_modbus(self.client.read_holding_registers, address=start, count=count, unit_val=unit)
+                elif fc == 4:
+                    return self._call_modbus(self.client.read_input_registers, address=start, count=count, unit_val=unit)
+                else:
+                    if self.debug: print(f"⚠️ unsupported FC {fc}")
+                    return None
+
+            res = None
+            try:
+                res = do_read()
+            except Exception as e:
+                msg = str(e).lower()
+                if "timeout" in msg or "timed out" in msg:
+                    if self.debug: print(f"⏳ Timeout FC{fc}; flushing serial and retrying once")
+                    self._flush_serial()
+                    time.sleep(0.05)
+                    res = do_read()
+                else:
+                    raise
+
+            if res is None:
                 return {}
             if hasattr(res, "isError") and res.isError():
                 if self.debug: print(f"❌ Modbus error FC{fc}: {res}")
