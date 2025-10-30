@@ -451,6 +451,43 @@
     // Initialize meter bars immediately
     initializeMeterBars();
 
+    // Helper: dim a tag immediately without overwriting its current value text
+    function dimTagInitial(tagId) {
+      const valEl = document.getElementById('tag-val-' + tagId);
+      const tsEl = document.getElementById('tag-ts-' + tagId);
+      const barEl = document.getElementById('tag-bar-' + tagId);
+      if (valEl) {
+        valEl.style.opacity = '0.5';
+        valEl.style.color = '#6c757d';
+      }
+      if (tsEl) {
+        tsEl.textContent = 'Device offline';
+        tsEl.style.color = '#dc3545';
+        tsEl.style.fontWeight = 'bold';
+      }
+      if (barEl) {
+        barEl.style.width = '0%';
+        barEl.classList.remove('device-connected', 'device-unknown');
+        barEl.classList.add('device-disconnected', 'tag-inactive');
+      }
+    }
+
+    // Immediately gray-out tags for devices that are offline on page load
+    (function initializeOfflineTags() {
+      const bars = document.querySelectorAll('[id^="tag-bar-"]');
+      bars.forEach(barEl => {
+        const deviceStatus = barEl.getAttribute('data-device-status');
+        if (deviceStatus === 'disconnected') {
+          const tagIdStr = (barEl.id || '').replace('tag-bar-', '');
+          const tagId = parseInt(tagIdStr);
+          if (!isNaN(tagId)) {
+            // Dim without overwriting existing displayed value
+            dimTagInitial(tagId);
+          }
+        }
+      });
+    })();
+
     const currentSubdashId = "{{ subdash.id }}";
     const currentGroup = "{{ current_group }}";
 
@@ -1259,9 +1296,14 @@
 
     // Initialize tag tracking and start timeout checker
     document.querySelectorAll('[id^="tag-val-"]').forEach(el => {
-      const tagId = el.id.replace('tag-val-', '');
-      // Start the 30-second timer for each tag on page load
-      resetTagTimer(parseInt(tagId));
+      const tagId = parseInt(el.id.replace('tag-val-', ''));
+      if (isNaN(tagId)) return;
+      const barEl = document.getElementById('tag-bar-' + tagId);
+      const deviceStatus = barEl ? barEl.getAttribute('data-device-status') : null;
+      // If device is offline, we already dimmed it and skip timer start here
+      if (deviceStatus === 'disconnected') return;
+      // For connected/unknown, keep current displayed value and start timer
+      resetTagTimer(tagId);
     });
 
     // Handle reconnection - rejoin room

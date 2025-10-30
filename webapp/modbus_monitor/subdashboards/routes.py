@@ -45,14 +45,35 @@ def subdash_detail(sid):
     tags = db.get_subdashboard_tags(sid) if hasattr(db, "get_subdashboard_tags") else []
     all_tags = db.list_all_tags() if hasattr(db, "list_all_tags") else []
 
+    # Prefer fresh statuses from DB to avoid stale cache on page refresh
+    device_statuses = {}
+    if hasattr(db, "get_all_device_statuses_from_db"):
+        try:
+            device_statuses = db.get_all_device_statuses_from_db() or {}
+        except Exception as e:
+            print(f"⚠️ Could not load device statuses from DB: {e}")
+
     config_cache = get_config_cache()
+
+    def _get_device_status(device_id: int):
+        """Return (status_str, last_seen) where status_str in connected/disconnected/unknown.
+        DB value preferred; fallback to config_cache if DB missing.
+        """
+        info = device_statuses.get(device_id) if isinstance(device_statuses, dict) else None
+        if isinstance(info, dict) and "is_online" in info:
+            status_str = 'connected' if info.get('is_online') else 'disconnected'
+            last_seen = info.get('updated_at')
+            return status_str, last_seen
+        # Fallback to cache
+        cache_info = config_cache.get_device_status(device_id) or {}
+        return cache_info.get('status', 'unknown'), cache_info.get('last_seen')
 
     def enrich_tag(tag):
         device_id = tag.get('device_id')
         if device_id:
-            device_status = config_cache.get_device_status(device_id) or {}
-            tag['device_status'] = device_status.get('status', 'unknown')
-            tag['device_last_seen'] = device_status.get('last_seen')
+            status_str, last_seen = _get_device_status(device_id)
+            tag['device_status'] = status_str
+            tag['device_last_seen'] = last_seen
         else:
             tag['device_status'] = 'unknown'
             tag['device_last_seen'] = None
