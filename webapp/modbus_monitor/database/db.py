@@ -268,6 +268,7 @@ data_logger_tags = Table(
     "data_logger_tags", _md,
     Column("logger_id", Integer, ForeignKey("data_loggers.id", ondelete="CASCADE"), primary_key=True),
     Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+    Column("created_at", DateTime, server_default=func.now()),
 )
 
 # --- Bảng ghi log chung ---
@@ -851,8 +852,13 @@ def get_data_logger(lid: int):
         return dict(r) if r else None
 
 def get_data_logger_tag_ids(lid: int) -> list[int]:
+    """Return tag IDs for a logger in the order they were attached (older first)."""
     with init_engine().connect() as con:
-        rows = con.execute(select(data_logger_tags.c.tag_id).where(data_logger_tags.c.logger_id == lid)).all()
+        rows = con.execute(
+            select(data_logger_tags.c.tag_id)
+            .where(data_logger_tags.c.logger_id == lid)
+            .order_by(data_logger_tags.c.created_at.asc(), data_logger_tags.c.tag_id.asc())
+        ).all()
         return [r[0] for r in rows]
 
 # Alias for backward compatibility
@@ -872,15 +878,58 @@ def add_data_logger_row(data: dict, tag_ids: list[int]) -> int:
         return new_id
 
 def update_data_logger_row(lid: int, data: dict, tag_ids: list[int]) -> int:
-    """Cập nhật logger và thay toàn bộ tập tag đính kèm."""
+    """Cập nhật logger và cập nhật mapping tag theo kiểu diff để KHÔNG reset created_at của tag đã tồn tại.
+
+    - Chỉ INSERT những tag mới được thêm vào (giữ created_at theo mặc định now())
+    - Chỉ DELETE những tag bị gỡ bỏ
+    - Giữ nguyên các hàng mapping hiện có để preserved created_at
+    """
+    # Dedupe input order while preserving order
+    tag_ids = tag_ids or []
+    seen = set()
+    dedup_tag_ids = []
+    for tid in tag_ids:
+        if tid not in seen:
+            seen.add(tid)
+            dedup_tag_ids.append(tid)
+
     with init_engine().begin() as con:
-        res = con.execute(update(data_loggers).where(data_loggers.c.id == lid).values(**data))
-        con.execute(delete(data_logger_tags).where(data_logger_tags.c.logger_id == lid))
-        if tag_ids:
+        # Update logger info first
+        res = con.execute(
+            update(data_loggers).where(data_loggers.c.id == lid).values(**data)
+        )
+
+        # Get existing mapping
+        existing_ids = [
+            r[0] for r in con.execute(
+                select(data_logger_tags.c.tag_id).where(data_logger_tags.c.logger_id == lid)
+            ).all()
+        ]
+
+        existing_set = set(existing_ids)
+        desired_set = set(dedup_tag_ids)
+
+        to_add = [tid for tid in dedup_tag_ids if tid not in existing_set]
+        to_remove = [tid for tid in existing_ids if tid not in desired_set]
+
+        # Apply removals (only those not desired anymore)
+        if to_remove:
+            con.execute(
+                delete(data_logger_tags).where(
+                    and_(
+                        data_logger_tags.c.logger_id == lid,
+                        data_logger_tags.c.tag_id.in_(to_remove),
+                    )
+                )
+            )
+
+        # Apply additions (let created_at default be now())
+        if to_add:
             con.execute(
                 data_logger_tags.insert(),
-                [{"logger_id": lid, "tag_id": tid} for tid in tag_ids]
+                [{"logger_id": lid, "tag_id": tid} for tid in to_add]
             )
+
         return res.rowcount
 
 def delete_data_logger_row(lid: int) -> int:
@@ -1978,13 +2027,15 @@ def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime):
             select(
                 tags.c.id,
                 tags.c.name,
-                tags.c.datatype
+                tags.c.datatype,
+                data_logger_tags.c.created_at.label("attached_at")
             )
             .select_from(
                 tags.join(data_logger_tags, tags.c.id == data_logger_tags.c.tag_id)
             )
             .where(data_logger_tags.c.logger_id == logger_id)
-            .order_by(tags.c.name)
+            # Thứ tự theo thời điểm tag được gắn vào logger (tag mới thêm sẽ xếp sau)
+            .order_by(data_logger_tags.c.created_at.asc(), tags.c.id.asc())
         ).mappings().all()
         
         if not tag_info:
@@ -2055,12 +2106,36 @@ def get_all_datalogger_data(dt_from: datetime, dt_to: datetime):
         if not log_data:
             return [], ["timestamp"]
         
-        # Tạo columns: timestamp + logger_name.tag_name
-        tag_columns = set()
+        # Tạo columns theo thứ tự gắn tag vào logger (created_at) để tag mới thêm xếp sau
+        # 1) Xác định các cột thực sự có dữ liệu trong khoảng thời gian lọc
+        have_cols = set()
         for row in log_data:
-            tag_columns.add(f"{row['logger_name']}.{row['tag_name']}")
-        
-        columns = ["timestamp"] + sorted(tag_columns)
+            have_cols.add(f"{row['logger_name']}.{row['tag_name']}")
+
+        # 2) Lấy thứ tự theo logger_name + data_logger_tags.created_at
+        tag_orders = con.execute(
+            select(
+                data_loggers.c.name.label('logger_name'),
+                tags.c.name.label('tag_name'),
+                data_logger_tags.c.created_at
+            )
+            .select_from(
+                data_logger_tags
+                .join(data_loggers, data_logger_tags.c.logger_id == data_loggers.c.id)
+                .join(tags, data_logger_tags.c.tag_id == tags.c.id)
+            )
+            .order_by(data_loggers.c.name.asc(), data_logger_tags.c.created_at.asc(), tags.c.id.asc())
+        ).mappings().all()
+
+        ordered_cols = []
+        seen = set()
+        for r in tag_orders:
+            col = f"{r['logger_name']}.{r['tag_name']}"
+            if col in have_cols and col not in seen:
+                seen.add(col)
+                ordered_cols.append(col)
+
+        columns = ["timestamp"] + ordered_cols
         
         # Group data theo timestamp
         timestamp_data = {}
