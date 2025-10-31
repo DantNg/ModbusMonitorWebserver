@@ -138,8 +138,8 @@ class RTUWorker:
         # Backoff cấu hình
         self.MAX_FAILS = 3
         self.BACKOFF_SEC = 15
-        # Sau nhiều lần thất bại liên tiếp mới vô hiệu hoá vĩnh viễn
-        self.MAX_FAILS_DISABLE = self.MAX_FAILS * 3
+        # Sau 5 lần poll không thành công (tính trên các vòng quét), vô hiệu hoá thiết bị
+        self.MAX_FAILS_DISABLE = 5
 
         # Trạng thái per-device
         # { device.id: {"fails": int, "backoff_until": float} }
@@ -453,8 +453,22 @@ class RTUWorker:
                 continue
 
             try:
-                # Theo yêu cầu KH: retry ngay lập tức tối đa 5 lần; nếu vẫn lỗi thì loại bỏ hẳn device tới khi reload worker
-                self._read_device_with_retries(chosen, retries=5)
+                # Theo yêu cầu mới: mỗi vòng chỉ đọc 1 lần cho mỗi device.
+                # Nếu lỗi (timeout/exception), không retry tại chỗ mà chuyển đọc device khác.
+                # Đếm số lần lỗi liên tiếp; đủ 5 lần thì cắt bỏ thiết bị.
+                ok, err = self._read_device_attempt(chosen)
+                if not ok:
+                    st = self.dev_state.setdefault(chosen.id, {"fails": 0, "backoff_until": 0.0})
+                    st["fails"] = st.get("fails", 0) + 1
+                    if self.debug:
+                        print(f"❌ Poll fail {st['fails']}/{self.MAX_FAILS_DISABLE} for {getattr(chosen,'name',chosen.id)}: {err}")
+                    # Cập nhật trạng thái offline ngay khi có lỗi cho UI biết
+                    try:
+                        self._update_device_status(chosen, ok=False, latency_ms=None, err=err)
+                    except Exception:
+                        pass
+                    if st["fails"] >= self.MAX_FAILS_DISABLE:
+                        self._disable_device(chosen, reason=err or "failed polls")
             except Exception as e:
                 print(f"❌ read device {getattr(chosen,'name',chosen.id)}: {e}")
             finally:
