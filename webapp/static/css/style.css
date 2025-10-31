@@ -52,15 +52,18 @@ a{text-decoration:none}
 /* Device status for meter bars */
 .meter-bar.device-connected {
   width: 100%;
-  background-color: #28a745 !important; /* Green for connected */
+  background: none !important;               /* Remove gradient */
+  background-color: #28a745 !important;      /* Green for connected */
 }
 .meter-bar.device-disconnected {
   width: 0%;
-  background-color: #dc3545 !important; /* Red for disconnected */
+  background: none !important;               /* Remove gradient */
+  background-color: #dc3545 !important;      /* Red for disconnected */
 }
 .meter-bar.device-unknown {
   width: 0%;
-  background-color: #6c757d !important; /* Gray for unknown */
+  background: none !important;               /* Remove gradient */
+  background-color: #dc3545 !important;      /* Red for unknown like disconnected */
 }
 .meter-bar{height:100%;background:linear-gradient(90deg,#34d399,#3b82f6,#a78bfa)}
 

@@ -121,10 +121,12 @@
               </div>
               <div class="d-flex justify-content-between mt-2">
                 <div>
-                  {% if tag.alarm_status == "Normal" %}
-                  <span class="badge bg-success">Normal</span>
+                  {% if tag.device_status == 'connected' %}
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-success">Normal</span>
+                  {% elif tag.device_status == 'disconnected' %}
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Bad</span>
                   {% else %}
-                  <span class="badge bg-danger">Alarm</span>
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Bad</span>
                   {% endif %}
                 </div>
                 <!-- <div class="small text-muted">
@@ -236,10 +238,12 @@
               </div>
               <div class="d-flex justify-content-between mt-2">
                 <div>
-                  {% if tag.alarm_status == "Normal" %}
-                  <span class="badge bg-success">Normal</span>
+                  {% if tag.device_status == 'connected' %}
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-success">Normal</span>
+                  {% elif tag.device_status == 'disconnected' %}
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Bad</span>
                   {% else %}
-                  <span class="badge bg-danger">Alarm</span>
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Bad</span>
                   {% endif %}
                 </div>
                 <!-- <div class="small text-muted">
@@ -1134,6 +1138,7 @@
     const valEl = document.getElementById('tag-val-' + tagId);
     const tsEl = document.getElementById('tag-ts-' + tagId);
     const barEl = document.getElementById('tag-bar-' + tagId);
+    const badgeEl = document.getElementById('tag-badge-' + tagId);
 
     if (valEl) {
       // Reset value to 0 and dim it
@@ -1156,6 +1161,13 @@
       barEl.classList.add('tag-inactive');
     }
 
+    // Update badge to reflect inactive state (treat as Bad/red)
+    if (badgeEl) {
+      badgeEl.classList.remove('bg-success', 'bg-secondary');
+      badgeEl.classList.add('bg-danger');
+      badgeEl.textContent = 'Bad';
+    }
+
     // console.log(`Tag ${tagId} marked inactive (no ts update for 30s)`);
   }
 
@@ -1164,6 +1176,7 @@
     const valEl = document.getElementById('tag-val-' + tagId);
     const tsEl = document.getElementById('tag-ts-' + tagId);
     const barEl = document.getElementById('tag-bar-' + tagId);
+    const badgeEl = document.getElementById('tag-badge-' + tagId);
 
     if (valEl && valEl.style.opacity === '0.5') {
       // Restore normal styling only if it was inactive
@@ -1185,12 +1198,28 @@
       if (deviceStatus === 'connected') {
         barEl.style.width = '100%';
         barEl.classList.add('device-connected');
+        if (badgeEl) {
+          badgeEl.classList.remove('bg-danger', 'bg-secondary');
+          badgeEl.classList.add('bg-success');
+          badgeEl.textContent = 'Normal';
+        }
       } else if (deviceStatus === 'disconnected') {
         barEl.style.width = '0%';
         barEl.classList.add('device-disconnected');
+        if (badgeEl) {
+          badgeEl.classList.remove('bg-success', 'bg-secondary');
+          badgeEl.classList.add('bg-danger');
+          badgeEl.textContent = 'Bad';
+        }
       } else {
+        // unknown -> treat same as disconnected for badge, keep bar unknown
         barEl.style.width = '0%';
         barEl.classList.add('device-unknown');
+        if (badgeEl) {
+          badgeEl.classList.remove('bg-success', 'bg-secondary');
+          badgeEl.classList.add('bg-danger');
+          badgeEl.textContent = 'Bad';
+        }
       }
     }
   }
@@ -1245,9 +1274,24 @@
             } else if (deviceStatus === 'disconnected') {
               barEl.classList.add('device-disconnected');
               barEl.style.width = '0%';
+            }
+          }
+
+          // 3b) Cập nhật badge Normal/Bad theo deviceStatus
+          const badgeEl = document.getElementById('tag-badge-' + tag.id);
+          if (badgeEl) {
+            // Reset classes
+            badgeEl.classList.remove('bg-success', 'bg-danger', 'bg-secondary');
+            if (deviceStatus === 'connected') {
+              badgeEl.classList.add('bg-success');
+              badgeEl.textContent = 'Normal';
+            } else if (deviceStatus === 'disconnected') {
+              badgeEl.classList.add('bg-danger');
+              badgeEl.textContent = 'Bad';
             } else {
-              barEl.classList.add('device-unknown');
-              barEl.style.width = '0%';
+              // Treat unknown like disconnected for badge
+              badgeEl.classList.add('bg-danger');
+              badgeEl.textContent = 'Bad';
             }
           }
         });
