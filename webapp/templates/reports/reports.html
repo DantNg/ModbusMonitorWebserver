@@ -151,7 +151,7 @@
       <tr>
         <th style="width:220px;">TIMESTAMP</th>
         {% for c in columns if c != 'timestamp' %}
-          <th class="text-nowrap">{{ c|upper }}</th>
+          <th class="text-nowrap text-center">{{ c|upper }}</th>
         {% endfor %}
       </tr>
     </thead>
@@ -161,7 +161,7 @@
           <tr>
             <td>{{ row.get('timestamp','') }}</td>
             {% for c in columns if c != 'timestamp' %}
-              <td>{{ row.get(c,'') }}</td>
+              <td class="text-center">{{ row.get(c,'') }}</td>
             {% endfor %}
           </tr>
         {% endfor %}

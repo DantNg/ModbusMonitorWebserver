@@ -164,7 +164,7 @@
           </div>
         </div>
         <!-- Nút chuyển theme -->
-        <button id="themeToggle" class="btn btn-sm btn-outline-secondary" aria-label="Toggle theme">🌙</button>
+        <button id="themeToggle" class="btn btn-sm btn-outline-secondary" aria-label="Toggle theme">🌤️</button>
       </div>
 
     </header>
@@ -200,7 +200,7 @@
         // Set initial icon based on current theme (already set in head)
         const setIcon = () => {
           const currentTheme = root.getAttribute('data-bs-theme');
-          const newIcon = (currentTheme === 'dark') ? '🌙' : '🌤️';
+          const newIcon = (currentTheme === 'dark') ?  '🌤️' : '🌙' ;
           btn.textContent = newIcon;
         };
 
