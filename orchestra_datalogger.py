@@ -401,7 +401,10 @@ def main():
     parser.add_argument('--verbose', '-v', action='store_true', 
                        help='Enable verbose logging')
     
-    args = parser.parse_args()
+    # When packaged with PyInstaller + multiprocessing on Windows, child processes
+    # are launched with internal flags like "--multiprocessing-fork ...".
+    # Use parse_known_args to ignore unknown flags in child processes.
+    args, _unknown = parser.parse_known_args()
     
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -417,4 +420,17 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
+    # Required for PyInstaller + multiprocessing on Windows
+    try:
+        import multiprocessing as mp
+        mp.freeze_support()
+        # Ensure spawn method (Windows default) is set explicitly
+        if hasattr(mp, 'set_start_method'):
+            try:
+                mp.set_start_method('spawn', force=True)
+            except RuntimeError:
+                # Start method may already be set
+                pass
+    except Exception:
+        pass
     main()
