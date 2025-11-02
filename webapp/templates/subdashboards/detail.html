@@ -124,11 +124,11 @@
               <div class="d-flex justify-content-between mt-2">
                 <div>
                   {% if tag.device_status == 'connected' %}
-                    <span id="tag-badge-{{ tag.id }}" class="badge bg-success">Normal</span>
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-success">Online</span>
                   {% elif tag.device_status == 'disconnected' %}
-                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Bad</span>
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Offline</span>
                   {% else %}
-                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Bad</span>
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Offline</span>
                   {% endif %}
                 </div>
                 <!-- <div class="small text-muted">
@@ -241,11 +241,11 @@
               <div class="d-flex justify-content-between mt-2">
                 <div>
                   {% if tag.device_status == 'connected' %}
-                    <span id="tag-badge-{{ tag.id }}" class="badge bg-success">Normal</span>
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-success">Online</span>
                   {% elif tag.device_status == 'disconnected' %}
-                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Bad</span>
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Offline</span>
                   {% else %}
-                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Bad</span>
+                    <span id="tag-badge-{{ tag.id }}" class="badge bg-danger">Offline</span>
                   {% endif %}
                 </div>
                 <!-- <div class="small text-muted">
@@ -1167,7 +1167,7 @@
     if (badgeEl) {
       badgeEl.classList.remove('bg-success', 'bg-secondary');
       badgeEl.classList.add('bg-danger');
-      badgeEl.textContent = 'Bad';
+      badgeEl.textContent = 'Offline';
     }
 
     // console.log(`Tag ${tagId} marked inactive (no ts update for 30s)`);
@@ -1203,7 +1203,7 @@
         if (badgeEl) {
           badgeEl.classList.remove('bg-danger', 'bg-secondary');
           badgeEl.classList.add('bg-success');
-          badgeEl.textContent = 'Normal';
+          badgeEl.textContent = 'Online';
         }
       } else if (deviceStatus === 'disconnected') {
         barEl.style.width = '0%';
@@ -1211,7 +1211,7 @@
         if (badgeEl) {
           badgeEl.classList.remove('bg-success', 'bg-secondary');
           badgeEl.classList.add('bg-danger');
-          badgeEl.textContent = 'Bad';
+          badgeEl.textContent = 'Offline';
         }
       } else {
         // unknown -> treat same as disconnected for badge, keep bar unknown
@@ -1220,7 +1220,7 @@
         if (badgeEl) {
           badgeEl.classList.remove('bg-success', 'bg-secondary');
           badgeEl.classList.add('bg-danger');
-          badgeEl.textContent = 'Bad';
+          badgeEl.textContent = 'Offline';
         }
       }
     }
@@ -1286,14 +1286,14 @@
             badgeEl.classList.remove('bg-success', 'bg-danger', 'bg-secondary');
             if (deviceStatus === 'connected') {
               badgeEl.classList.add('bg-success');
-              badgeEl.textContent = 'Normal';
+              badgeEl.textContent = 'Online';
             } else if (deviceStatus === 'disconnected') {
               badgeEl.classList.add('bg-danger');
-              badgeEl.textContent = 'Bad';
+              badgeEl.textContent = 'Offline';
             } else {
               // Treat unknown like disconnected for badge
               badgeEl.classList.add('bg-danger');
-              badgeEl.textContent = 'Bad';
+              badgeEl.textContent = 'Offline';
             }
           }
         });

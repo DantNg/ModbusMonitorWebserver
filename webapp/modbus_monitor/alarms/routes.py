@@ -144,7 +144,7 @@ def edit_alarm_rule(aid):
             return render_template("alarms/alarm_form.html", form=dict(request.form), editing=True, alarm=alarm)
         update_alarm_rule_row(aid, data)
         flash("Alarm updated.", "success")
-        return redirect(url_for("alarms_bp.alarm_events"))
+        return redirect(url_for("alarms_bp.alarm_settings"))
 
     # GET: prefill
     class F: pass
