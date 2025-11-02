@@ -178,7 +178,10 @@
     <div>Tip: Use Export → open with Excel</div>
   </div>
 </div>
-<!-- thêm thư viện XLSX -->
+<!-- Export libraries (ExcelJS for styling, FileSaver to save) -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<!-- Optional: keep SheetJS for CSV path only -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   // Back to top functionality
@@ -232,38 +235,118 @@
 
 
   function exportReport(kind) {
-    const rows = [];
-    const currentLoggerName = document.querySelector('select[name="logger"] option:checked').textContent;
-    const fromDate = document.querySelector('input[name="from"]').value;
-    const toDate = document.querySelector('input[name="to"]').value;
-    // ==== Thêm dòng tiêu đề bảng và thời gian ====
-    rows.push(["DATALOGGER TRUY VẤN", currentLoggerName]);
-    rows.push(["FROM DATE:", fromDate]);
-    rows.push(["TO DATE:", toDate]);
-    rows.push([]);
-    rows.push([]);
-    rows.push([]);
+    const currentLoggerName = (document.querySelector('select[name="logger"] option:checked')?.textContent || '').trim();
+    const filterSelect = document.getElementById('timeFilterSelect');
+    const selectedFilter = filterSelect ? filterSelect.value : 'all';
 
-    // ==== Header ====
-    const header = [];
-    document.querySelectorAll('#tbl thead th').forEach(th => header.push(th.textContent.trim()));
-    rows.push(header);
+    // Compute FROM/TO based on selected filter
+    const inputsFrom = document.querySelector('input[name="from"]');
+    const inputsTo = document.querySelector('input[name="to"]');
 
-    // ==== Data ====
+    const fmt = (d) => {
+      if (!d) return '';
+      // Format: YYYY-MM-DD HH:mm (local)
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+    const endOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+
+    let fromDateStr = inputsFrom?.value || '';
+    let toDateStr = inputsTo?.value || '';
+
+    if (selectedFilter !== 'custom') {
+      const now = new Date();
+      let fromD = null, toD = null;
+      switch (selectedFilter) {
+        case 'today':
+          fromD = startOfDay(now); toD = now; break;
+        case 'yesterday': {
+          const y = new Date(now); y.setDate(now.getDate() - 1);
+          fromD = startOfDay(y); toD = endOfDay(y); break;
+        }
+        case 'last7days': {
+          const f = new Date(now); f.setDate(now.getDate() - 7);
+          fromD = f; toD = now; break;
+        }
+        case 'last30days': {
+          const f = new Date(now); f.setDate(now.getDate() - 30);
+          fromD = f; toD = now; break;
+        }
+        default:
+          // 'all' or unknown -> leave empty
+          break;
+      }
+      fromDateStr = fromD ? fmt(fromD) : fromDateStr;
+      toDateStr = toD ? fmt(toD) : toDateStr;
+    }
+
+    // Build data from table honoring client-side filters
+    const header = Array.from(document.querySelectorAll('#tbl thead th')).map(th => th.textContent.trim());
+    const bodyRows = [];
     document.querySelectorAll('#tbl tbody tr').forEach(tr => {
-      if (tr.style.display === 'none') return; // tôn trọng filter
-      const tds = [...tr.querySelectorAll('td')];
-      if (tds.length === 0) return;
-      rows.push(tds.map(td => (td.textContent || '').trim()));
+      if (tr.style.display === 'none') return;
+      const tds = Array.from(tr.querySelectorAll('td'));
+      if (!tds.length) return;
+      bodyRows.push(tds.map(td => (td.textContent || '').trim()));
     });
 
     if (kind === 'xlsx') {
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Report");
-      XLSX.writeFile(wb, `report_{{ current_logger_name|replace(' ','_') }}.xlsx`);
+      // Use ExcelJS to allow styling header row (yellow fill)
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Report');
+
+      // Title and period rows
+      sheet.addRow(['DATALOGGER TRUY VẤN', currentLoggerName]);
+      sheet.addRow(['FROM DATE:', fromDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
+      sheet.addRow(['TO DATE:', toDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
+      sheet.addRow([]);
+      sheet.addRow([]);
+      sheet.addRow([]);
+
+      // Header
+      const headerRow = sheet.addRow(header);
+      headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD966' } }; // Yellow like alarm_events
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = {
+          top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' }
+        };
+      });
+
+      // Data rows
+      bodyRows.forEach(r => sheet.addRow(r));
+
+      // Auto width per column
+      sheet.columns = header.map(() => ({ width: 20 }));
+      sheet.columns.forEach((column) => {
+        let max = 10;
+        column.eachCell({ includeEmpty: true }, (cell) => {
+          const v = (cell.value ?? '').toString();
+          max = Math.max(max, Math.min(60, v.length + 5));
+        });
+        column.width = max;
+      });
+
+      workbook.xlsx.writeBuffer().then(buffer => {
+        saveAs(new Blob([buffer]), `report_{{ current_logger_name|replace(' ','_') }}.xlsx`);
+      });
     } else {
-      const csv = rows.map(r => r.join(",")).join("\n");
+      // CSV via SheetJS or manual build
+      const rows = [];
+      rows.push(['DATALOGGER TRUY VẤN', currentLoggerName]);
+      rows.push(['FROM DATE:', fromDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
+      rows.push(['TO DATE:', toDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
+      rows.push([]); rows.push([]); rows.push([]);
+      rows.push(header);
+      bodyRows.forEach(r => rows.push(r));
+
+      const csv = rows.map(r => r.map(v => {
+        const s = (v ?? '').toString();
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = Object.assign(document.createElement('a'), {
