@@ -6,7 +6,7 @@ from modbus_monitor.database.db import (
 from modbus_monitor.services.config_cache import get_config_cache
 from datetime import datetime
 import os
-from utils.restart_modbus_worker import restart_worker_util
+from utils.restart_modbus_worker import restart as restart_exe, start as start_exe, stop as stop_exe
 import time
 from types import SimpleNamespace
 # Get config cache instance
@@ -15,21 +15,58 @@ config_cache = get_config_cache()
 # API: Restart Orchestra Modbus worker (external process mode)
 @devices_bp.route("/workers/orchestra/restart", methods=["POST"])
 def restart_orchestra_worker():
+    """Backward-compatible endpoint to restart the orchestra worker using EXE manager."""
     try:
-        # Substring to identify running terminal
-        cmd_substring = "start_orchestra_modbus.bat"
-        # Build absolute path to the starter script relative to app root
-        project_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir, os.pardir))
-        starter_path = os.path.join(project_root, "start_orchestra_modbus.bat")
-        try:
-            restart_worker_util(cmd_substring, starter_path)
-        except Exception as e:
-            current_app.logger.exception("Failed to restart orchestra worker")
-            return jsonify({"success": False, "message": str(e)}), 500
+        restart_exe('orchestra')
         return jsonify({"success": True, "message": "Orchestra Modbus worker restarted"})
     except Exception as e:
         current_app.logger.exception("Failed to restart orchestra worker")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+def _as_bool(v, default=False):
+    if v is None:
+        return default
+    if isinstance(v, bool):
+        return v
+    s = str(v).strip().lower()
+    return s in ("1", "true", "yes", "on", "y")
+
+
+@devices_bp.route("/restart", methods=["POST"])
+def api_restart_worker():
+    """
+    Restart a worker executable without batch scripts.
+    Accepts JSON or form/query:
+      - worker: logical name (orchestra|datalogger|alarm) or exe name/substring
+      - path: optional explicit path to exe (overrides lookup by name)
+      - no_window: optional bool, if true do not open a new console window
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        worker = data.get('worker') or request.form.get('worker') or request.args.get('worker')
+        exe_path = data.get('path') or request.form.get('path') or request.args.get('path')
+        no_window = data.get('no_window')
+        if no_window is None:
+            no_window = request.form.get('no_window', request.args.get('no_window'))
+        no_window = _as_bool(no_window, default=False)
+
+        if not worker:
+            return jsonify({
+                "success": False,
+                "error": "Missing 'worker'. Expected orchestra|datalogger|alarm or an exe name/substring."
+            }), 400
+
+        restart_exe(worker, exe_path=exe_path, new_window=(not no_window))
+        return jsonify({
+            "success": True,
+            "message": f"Restarted {worker}",
+            "path": exe_path or None,
+            "no_window": no_window
+        })
+    except Exception as e:
+        current_app.logger.exception("Failed to restart worker")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 def get_process_manager():
     """Get ProcessManager instance from app context (disabled in webapp-only mode)"""
