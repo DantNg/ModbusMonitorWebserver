@@ -34,6 +34,33 @@ def create_app():
         config = json.load(config_file)
     app.secret_key = config.get("SECRET_KEY")
 
+    # App name configuration: read from config/config.txt if available
+    # Supports either plain text (single line app name) or JSON with {"app_name": "..."}
+    app_name = "Modbus Monitor"
+    try:
+        app_name_path = os.path.join(project_root, "config.txt")
+        if os.path.exists(app_name_path):
+            with open(app_name_path, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                if content:
+                    # Try parse as JSON first
+                    try:
+                        data = json.loads(content)
+                        if isinstance(data, dict) and data.get("app_name"):
+                            app_name = str(data.get("app_name")).strip() or app_name
+                        else:
+                            # If JSON but no app_name key, ignore
+                            pass
+                    except Exception:
+                        # Treat as plain text name (use first non-empty line)
+                        first_line = content.splitlines()[0].strip()
+                        if first_line:
+                            app_name = first_line
+        app.config['APP_NAME'] = app_name
+    except Exception as e:
+        # Fallback to default if anything goes wrong
+        app.config['APP_NAME'] = app_name
+
     # Custom Jinja filters
     @app.template_filter('format_value')
     def format_value_filter(value, datatype=None):
@@ -101,4 +128,10 @@ def create_app():
     app.register_blueprint(subdash_bp)
     app.register_blueprint(datalogger_bp)
     socketio.init_app(app)
+
+    # Inject globals to all templates
+    @app.context_processor
+    def inject_app_globals():
+        return dict(app_name=app.config.get('APP_NAME', 'Modbus Monitor'))
+
     return app

@@ -5,7 +5,7 @@
   <div class="card shadow border-0" style="width: 380px; border-radius: 16px;">
     <div class="card-header text-center text-white"
          style="background: linear-gradient(135deg, #4e73df, #1cc88a); border-radius: 16px 16px 0 0;">
-      <h4 class="fw-bold my-2">🔐 Login</h4>
+      <h4 class="fw-bold my-2">🔐 {{ app_name or 'Login' }}</h4>
     </div>
     <div class="card-body p-4">
       {% if error %}
@@ -33,7 +33,7 @@
       </div> -->
     </div>
     <div class="card-footer text-center small text-muted">
-      © 2025 Modbus Monitor. All rights reserved.
+      © 2025 {{ app_name or 'Modbus Monitor' }}. All rights reserved.
     </div>
   </div>
 </div>

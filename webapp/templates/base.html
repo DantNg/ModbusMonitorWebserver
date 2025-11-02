@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title or "Modbus Monitor" }}</title>
+  <title>{% if page_title %}{{ page_title }} - {{ app_name or 'Modbus Monitor' }}{% else %}{{ app_name or 'Modbus Monitor' }}{% endif %}</title>
 
   <!-- Theme initialization - Must be first to prevent flash -->
   <script>
@@ -32,8 +32,8 @@
   <!-- Sidebar (DESKTOP) -->
   <aside id="sidebar" class="app-sidebar d-flex flex-column"><!-- thêm id="sidebar", bỏ d-none d-md-flex -->
     <div class="px-3 py-4 d-flex align-items-center gap-2 brand">
-      <div class="brand-badge">M</div>
-      <div class="fw-semibold">Modbus Monitor</div>
+  <div class="brand-badge">{{ (app_name or 'M')[:1] }}</div>
+  <div class="fw-semibold">{{ app_name or 'Modbus Monitor' }}</div>
     </div>
     <nav class="px-2">
       <!-- Dashboard với dropdown subdashboards -->
@@ -123,7 +123,7 @@
         href="{{ url_for('auth_bp.user_management') }}"><span class="icon"></span> User</a>
       <a class="side-link" href="{{ url_for('auth_bp.logout') }}"><span class="icon"></span>Logout</a>
     </nav>
-    <div class="mt-auto small text-muted px-3 pb-3">©Modbus Monitor 2025</div>
+  <div class="mt-auto small text-muted px-3 pb-3">©{{ app_name or 'Modbus Monitor' }} 2025</div>
   </aside>
 
   <!-- Main -->

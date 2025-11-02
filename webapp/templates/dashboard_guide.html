@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set page_title = "Welcome to Modbus Monitor" %}
+{% set page_title = "Welcome to " ~ (app_name or 'Modbus Monitor') %}
 {% block content %}
 
 <div class="row justify-content-center">
@@ -8,7 +8,7 @@
       <div class="card-body text-center p-5">
         <div class="mb-4">
           <div class="display-1 text-primary mb-3">📊</div>
-          <h1 class="h2 fw-bold mb-3">Welcome to Modbus Monitor</h1>
+          <h1 class="h2 fw-bold mb-3">Welcome to {{ app_name or 'Modbus Monitor' }}</h1>
           <p class="lead text-muted">
             Your industrial monitoring dashboard is ready to go!
           </p>
