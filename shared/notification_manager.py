@@ -26,13 +26,31 @@ class NotificationManager:
     def _load_config(self) -> Dict:
         """Load notification configuration"""
         try:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'SMTP_config.json')
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    return json.load(f)
-            else:
-                print("⚠️ SMTP config file not found, using defaults")
-                return {}
+            env_path = os.environ.get('SMTP_CONFIG_PATH')
+            meipass = getattr(sys, '_MEIPASS', None)
+            try:
+                exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else None
+            except Exception:
+                exe_dir = None
+            candidates = []
+            if env_path:
+                candidates.append(env_path)
+            if exe_dir:
+                candidates.append(os.path.join(exe_dir, 'config', 'SMTP_config.json'))
+                candidates.append(os.path.join(exe_dir, 'SMTP_config.json'))
+            cwd = os.getcwd()
+            candidates.append(os.path.join(cwd, 'config', 'SMTP_config.json'))
+            candidates.append(os.path.join(cwd, 'SMTP_config.json'))
+            proj_root = os.path.dirname(os.path.dirname(__file__))
+            candidates.append(os.path.join(proj_root, 'config', 'SMTP_config.json'))
+            if meipass:
+                candidates.append(os.path.join(meipass, 'config', 'SMTP_config.json'))
+            for p in candidates:
+                if os.path.exists(p):
+                    with open(p, 'r') as f:
+                        return json.load(f)
+            print("⚠️ SMTP config file not found, using defaults")
+            return {}
         except Exception as e:
             print(f"❌ Error loading config: {e}")
             return {}

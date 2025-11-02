@@ -34,6 +34,7 @@ from typing import List as list
 from typing import Tuple as tuple
 from datetime import datetime, timedelta, timezone
 import os
+import sys
 import threading
 from sqlalchemy import (
     create_engine, MetaData, Table, Column, Integer, String, Float, Boolean,
@@ -86,22 +87,39 @@ def init_engine():
     if _engine is not None:
         return _engine
     
-    # Tìm file config từ thư mục gốc, không phụ thuộc vào working directory
+    # Tìm file config linh hoạt: ưu tiên cạnh executable (khi đóng gói), sau đó CWD, sau đó theo __file__, cuối cùng _MEIPASS
     config_path = None
-    possible_paths = [
-        "config/SMTP_config.json",  # Từ thư mục gốc
-        "../config/SMTP_config.json",  # Từ webapp/
-        "../../config/SMTP_config.json",  # Từ webapp/modbus_monitor/
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "SMTP_config.json")  # Absolute path
-    ]
-    
-    for path in possible_paths:
-        if os.path.exists(path):
-            config_path = path
+    meipass = getattr(sys, "_MEIPASS", None)
+    try:
+        exe_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else None
+    except Exception:
+        exe_dir = None
+
+    env_path = os.environ.get("SMTP_CONFIG_PATH")
+    candidates = []
+    if env_path:
+        candidates.append(env_path)
+    if exe_dir:
+        candidates.append(os.path.join(exe_dir, "config", "SMTP_config.json"))
+        candidates.append(os.path.join(exe_dir, "SMTP_config.json"))
+    # Current working dir
+    cwd = os.getcwd()
+    candidates.append(os.path.join(cwd, "config", "SMTP_config.json"))
+    candidates.append(os.path.join(cwd, "SMTP_config.json"))
+    # Project-root relative (when running from source)
+    proj_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    candidates.append(os.path.join(proj_root, "config", "SMTP_config.json"))
+    # PyInstaller temp folder
+    if meipass:
+        candidates.append(os.path.join(meipass, "config", "SMTP_config.json"))
+
+    for p in candidates:
+        if p and os.path.exists(p):
+            config_path = p
             break
-    
+
     if not config_path:
-        raise FileNotFoundError("SMTP_config.json not found in any expected location")
+        raise FileNotFoundError("SMTP_config.json not found in expected locations (exe dir, cwd, project root, or _MEIPASS). Set SMTP_CONFIG_PATH to override.")
     
     with open(config_path) as config_file:
         config = json.load(config_file)

@@ -5,6 +5,7 @@ Database Manager - Handles database connections and operations for independent p
 import json
 import threading
 import os
+import sys
 from contextlib import contextmanager
 from sqlalchemy import create_engine, text, update
 from sqlalchemy.engine import Engine
@@ -13,10 +14,39 @@ from webapp.modbus_monitor.database.db import update_device_row
 class DatabaseManager:
     def __init__(self, config_path=None):
         self.local = threading.local()
-        self.config_path = config_path or os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), 'config', 'SMTP_config.json'
-        )
+        # Resolve config path robustly
+        self.config_path = self._resolve_config_path(config_path)
         self._ensure_connection()
+
+    def _resolve_config_path(self, override_path=None):
+        if override_path and os.path.exists(override_path):
+            return override_path
+        env_path = os.environ.get('SMTP_CONFIG_PATH')
+        if env_path and os.path.exists(env_path):
+            return env_path
+        meipass = getattr(sys, '_MEIPASS', None)
+        try:
+            exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else None
+        except Exception:
+            exe_dir = None
+        candidates = []
+        if exe_dir:
+            candidates.append(os.path.join(exe_dir, 'config', 'SMTP_config.json'))
+            candidates.append(os.path.join(exe_dir, 'SMTP_config.json'))
+        # CWD
+        cwd = os.getcwd()
+        candidates.append(os.path.join(cwd, 'config', 'SMTP_config.json'))
+        candidates.append(os.path.join(cwd, 'SMTP_config.json'))
+        # Project root (when running from source)
+        proj_root = os.path.dirname(os.path.dirname(__file__))
+        candidates.append(os.path.join(proj_root, 'config', 'SMTP_config.json'))
+        if meipass:
+            candidates.append(os.path.join(meipass, 'config', 'SMTP_config.json'))
+        for p in candidates:
+            if os.path.exists(p):
+                return p
+        # As last resort, return the typical project path
+        return os.path.join(proj_root, 'config', 'SMTP_config.json')
     
     def _ensure_connection(self):
         """Ensure thread-local connection exists"""
@@ -43,9 +73,12 @@ class DatabaseManager:
                 print(f"❌ Database connection error: {e}")
                 # Fallback to SQLite if MySQL fails
                 import sqlite3
-                self.local.fallback_db = os.path.join(
-                    os.path.dirname(os.path.dirname(__file__)), 'modbus_monitor.db'
-                )
+                # Store fallback DB next to executable when frozen; else in project root
+                try:
+                    base_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.dirname(__file__))
+                except Exception:
+                    base_dir = os.path.dirname(os.path.dirname(__file__))
+                self.local.fallback_db = os.path.join(base_dir, 'modbus_monitor.db')
                 print(f"⚠️ Falling back to SQLite: {self.local.fallback_db}")
     
     @contextmanager

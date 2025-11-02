@@ -125,7 +125,33 @@ class AlarmWorker:
     def _load_notification_config(self):
         """Load SMTP and SMS configuration from config file"""
         try:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'SMTP_config.json')
+            # Resolve config near executable first (frozen), then CWD, then project root, then _MEIPASS
+            env_path = os.environ.get('SMTP_CONFIG_PATH')
+            meipass = getattr(sys, '_MEIPASS', None)
+            try:
+                exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else None
+            except Exception:
+                exe_dir = None
+            candidates = []
+            if env_path:
+                candidates.append(env_path)
+            if exe_dir:
+                candidates.append(os.path.join(exe_dir, 'config', 'SMTP_config.json'))
+                candidates.append(os.path.join(exe_dir, 'SMTP_config.json'))
+            cwd = os.getcwd()
+            candidates.append(os.path.join(cwd, 'config', 'SMTP_config.json'))
+            candidates.append(os.path.join(cwd, 'SMTP_config.json'))
+            proj_root = os.path.dirname(os.path.dirname(__file__))
+            candidates.append(os.path.join(proj_root, 'config', 'SMTP_config.json'))
+            if meipass:
+                candidates.append(os.path.join(meipass, 'config', 'SMTP_config.json'))
+            config_path = None
+            for p in candidates:
+                if os.path.exists(p):
+                    config_path = p
+                    break
+            if not config_path:
+                raise FileNotFoundError('SMTP_config.json not found near exe, cwd, project root, or _MEIPASS')
             with open(config_path, 'r') as f:
                 config_data = json.load(f)
             
