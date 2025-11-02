@@ -1,1 +1,1 @@
-My SCADA System
+{"brand_name": "Plant Monitor", "login_name": "ACME SCADA", "footer_name": "ACME Industrial"}
