@@ -1,6 +1,7 @@
 :root{
   --bg:#0c0f16; --panel:#121826; --panel-2:#151b2b; --border:#263046;
   --soft-shadow:0 8px 24px rgba(0,0,0,.35);
+  --topbar-height: 56px; /* approximate topbar height */
 }
 *{font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
 a{text-decoration:none}
@@ -30,7 +31,7 @@ a{text-decoration:none}
 /* Main / Topbar */
 .app-main{margin-left:260px;min-height:100vh}
 .app-topbar{
-  position:sticky;top:0;z-index:10;backdrop-filter:blur(8px);
+  position:sticky;top:0;z-index:1200;backdrop-filter:blur(8px);
   background:rgba(10,14,22,.6);border-bottom:1px solid var(--border);
   display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.25rem
 }
@@ -127,7 +128,7 @@ table {
 
 /* Giữ topbar luôn full-width đẹp khi thụt sidebar */
 .app-topbar {
-  position: sticky; top: 0; z-index: 10;
+  position: sticky; top: 0; z-index: 1200;
   backdrop-filter: blur(8px);
   background: rgba(10,14,22,.6);
   border-bottom: 1px solid var(--border);
@@ -138,4 +139,10 @@ table {
 .app-container { padding: 1.25rem; }
 .bg-critical {
   background-color: #3f0257; /* Nền đỏ */
+}
+
+/* Make subdashboard toolbar sit below topbar and not cover dropdowns */
+#subdash-toolbar.sticky-top {
+  top: var(--topbar-height) !important;
+  z-index: 900 !important; /* below topbar (1200) and bootstrap dropdowns (1000+) */
 }
