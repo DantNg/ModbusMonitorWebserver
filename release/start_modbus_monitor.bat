@@ -10,9 +10,6 @@ echo   Modbus Monitor - Start All Services
 echo   Folder: %SCRIPT_DIR%
 echo ==============================================
 
-REM Optional: wait 30 seconds after Windows fully loads before starting
-echo Waiting 30 seconds to ensure system services are ready...
-timeout /t 30 /nobreak >nul
 
 REM Point config explicitly (optional but robust)
 set "SMTP_CONFIG_PATH=%SCRIPT_DIR%config\SMTP_config.json"
