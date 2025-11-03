@@ -39,6 +39,9 @@ if exist "main.exe" (
 	echo main.exe not found in %SCRIPT_DIR%
 	echo [%date% %time%] Skip main.exe (not found)>>"%LOG%"
 )
+echo Waiting 5 seconds to ensure system services are ready...
+echo [%date% %time%] Waiting 5 seconds before launching services...>>"%LOG%"
+timeout /t 5 /nobreak >nul
 
 REM Start Orchestra Modbus worker
 if exist "orchestra_modbus.exe" (
@@ -60,6 +63,10 @@ if exist "orchestra_datalogger.exe" (
 	echo [%date% %time%] Skip orchestra_datalogger.exe (not found)>>"%LOG%"
 )
 
+echo Waiting 3 seconds to ensure system services are ready...
+echo [%date% %time%] Waiting 3 seconds before launching services...>>"%LOG%"
+timeout /t 3 /nobreak >nul
+	
 REM Start Alarm worker
 if exist "orchestra_alarm.exe" (
 	echo Starting worker: orchestra_alarm.exe
