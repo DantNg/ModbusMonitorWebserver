@@ -23,9 +23,42 @@ def create_app():
     # Get project root directory for config path
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(current_dir))
-    smtp_cfg_path = os.path.join(project_root, "config", "SMTP_config.json")
 
-    with open(smtp_cfg_path) as config_file:
+    # Robust resolution of SMTP_config.json for both source and PyInstaller EXE
+    smtp_cfg_path = None
+    env_override = os.environ.get("SMTP_CONFIG_PATH")
+    meipass = getattr(sys, "_MEIPASS", None)
+    try:
+        exe_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else None
+    except Exception:
+        exe_dir = None
+
+    candidates = []
+    if env_override:
+        candidates.append(env_override)
+    if exe_dir:
+        candidates.append(os.path.join(exe_dir, "config", "SMTP_config.json"))
+        candidates.append(os.path.join(exe_dir, "SMTP_config.json"))
+    # Current working directory
+    candidates.append(os.path.join(os.getcwd(), "config", "SMTP_config.json"))
+    candidates.append(os.path.join(os.getcwd(), "SMTP_config.json"))
+    # Project root (when running from source)
+    candidates.append(os.path.join(project_root, "config", "SMTP_config.json"))
+    # PyInstaller temp folder (last resort)
+    if meipass:
+        candidates.append(os.path.join(meipass, "config", "SMTP_config.json"))
+
+    for p in candidates:
+        if p and os.path.exists(p):
+            smtp_cfg_path = p
+            break
+
+    if not smtp_cfg_path:
+        raise FileNotFoundError(
+            "SMTP_config.json not found. Looked in: " + "; ".join(candidates)
+        )
+
+    with open(smtp_cfg_path, 'r', encoding='utf-8') as config_file:
         smtp_cfg = json.load(config_file)
     app.secret_key = smtp_cfg.get("SECRET_KEY")
 

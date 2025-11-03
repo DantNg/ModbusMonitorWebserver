@@ -146,3 +146,13 @@ table {
   top: var(--topbar-height) !important;
   z-index: 900 !important; /* below topbar (1200) and bootstrap dropdowns (1000+) */
 }
+
+/* Ensure toolbar blends with dark theme and no white corners leak */
+#subdash-toolbar {
+  background: var(--bg) !important; /* match app dark background */
+}
+
+#subdash-toolbar .card {
+  border-radius: 0 !important; /* remove rounded corners to avoid light bleed */
+  margin-bottom: 0; /* make it flush if needed */
+}

@@ -7,7 +7,7 @@
   },
   {
    "optionDest": "filenames",
-   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/app.py"
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/main.py"
   },
   {
    "optionDest": "onefile",
@@ -48,18 +48,6 @@
   {
    "optionDest": "bootloader_ignore_signals",
    "value": false
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/modbus_monitor;modbus_monitor/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/templates;templates/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/static;static/"
   },
   {
    "optionDest": "hiddenimports",
@@ -136,6 +124,38 @@
   {
    "optionDest": "hiddenimports",
    "value": "dns.tsigkeyring"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/workers;workers/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/utils;utils/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/shared;shared/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/webapp;webapp/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "C:/Users/victus16/Downloads/flask_modbus_monitor/config.txt;."
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "sqlalchemy"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "eventlet"
+  },
+  {
+   "optionDest": "hiddenimports",
+   "value": "engineio.async_drivers.eventlet"
   }
  ],
  "nonPyinstallerOptions": {
