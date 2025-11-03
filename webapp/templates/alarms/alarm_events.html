@@ -272,7 +272,56 @@
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Alarm Report");
 
+    // ==== Compute FROM / TO similar to Reports ====
+    const filterSelect = document.getElementById('timeFilterSelect');
+    const selectedFilter = filterSelect ? filterSelect.value : 'all';
+
+    const fromInput = document.getElementById('fromDate');
+    const toInput = document.getElementById('toDate');
+
+    const fmt = (d) => {
+      if (!d) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+    const endOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+
+    // Use input values if custom; otherwise compute window
+    const normalizeLocal = (s) => (s || '').replace('T', ' ');
+    let fromDateStr = normalizeLocal(fromInput?.value || '');
+    let toDateStr = normalizeLocal(toInput?.value || '');
+
+    if (selectedFilter !== 'custom') {
+      const now = new Date();
+      let fromD = null, toD = null;
+      switch (selectedFilter) {
+        case 'today':
+          fromD = startOfDay(now); toD = now; break;
+        case 'yesterday': {
+          const y = new Date(now); y.setDate(now.getDate() - 1);
+          fromD = startOfDay(y); toD = endOfDay(y); break;
+        }
+        case 'last7days': {
+          const f = new Date(now); f.setDate(now.getDate() - 7);
+          fromD = f; toD = now; break;
+        }
+        case 'last30days': {
+          const f = new Date(now); f.setDate(now.getDate() - 30);
+          fromD = f; toD = now; break;
+        }
+        default:
+          // 'all' -> leave empty
+          break;
+      }
+      fromDateStr = fromD ? fmt(fromD) : fromDateStr;
+      toDateStr = toD ? fmt(toD) : toDateStr;
+    }
+
+    // ==== Title and Period Rows ====
     sheet.addRow(["BẢNG ALARM REPORT"]);
+    sheet.addRow(["FROM DATE:", fromDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
+    sheet.addRow(["TO DATE:", toDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
     sheet.addRow([]);
     sheet.addRow([]);
 
