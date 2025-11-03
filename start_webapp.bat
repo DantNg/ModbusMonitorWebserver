@@ -21,6 +21,6 @@ cd /d "%~dp0"
 
 :: Start webapp
 echo Starting webapp service...
-python webapp/app.py
+python main.py
 
 pause

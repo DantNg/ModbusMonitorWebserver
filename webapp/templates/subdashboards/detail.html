@@ -62,7 +62,7 @@
   {% if current_group == '__all__' %}
   {% for group in groups %}
   <div class="card border-0 shadow-soft mb-4">
-    <div class="card-header bg-info text-white rounded-top fw-bold d-flex justify-content-between align-items-center">
+  <div class="card-header text-white rounded-top fw-bold d-flex justify-content-between align-items-center" style="background-color: rgb(15, 92, 221);">
       <span>{{ group.name }}</span>
       {% if session.get("role") == "admin" %}
       <div class="dropdown">
@@ -178,7 +178,7 @@
   {% for group in groups %}
   {% if current_group == group.id|string %}
   <div class="card border-0 shadow-soft mb-4">
-    <div class="card-header bg-info text-white rounded-top fw-bold d-flex justify-content-between align-items-center">
+  <div class="card-header text-white rounded-top fw-bold d-flex justify-content-between align-items-center" style="background-color: rgb(15, 92, 221);">
       <span>{{ group.name }}</span>
       {% if session.get("role") == "admin" %}
       <div class="dropdown">
