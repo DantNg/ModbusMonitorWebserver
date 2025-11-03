@@ -17,12 +17,12 @@ REM Use ONLOGON so windows is fully loaded for the user session; delay ensures d
 REM /RL HIGHEST requests highest privileges in the user session.
 REM /F forces update if the task already exists.
 
-REM Use embedded delay and ensure working directory; capture task output to task.log for diagnostics
+REM Simple action: call the start script directly (it already handles delay, logging, and working dir)
 schtasks /create ^
   /tn "%TASK_NAME%" ^
   /sc ONLOGON ^
   /rl HIGHEST ^
-  /tr "cmd /c cd /d \"%SCRIPT_DIR%\" ^&^& timeout /t 30 /nobreak >nul ^&^& \"\"%START_SCRIPT%\"\" >> \"%SCRIPT_DIR%task.log\" 2^>^&1" ^
+  /tr "\"%START_SCRIPT%\"" ^
   /F
 
 if %errorlevel% equ 0 (
