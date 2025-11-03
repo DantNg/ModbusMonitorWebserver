@@ -17,12 +17,12 @@ REM Use ONLOGON so windows is fully loaded for the user session; delay ensures d
 REM /RL HIGHEST requests highest privileges in the user session.
 REM /F forces update if the task already exists.
 
+REM Use embedded timeout in the task action for broad compatibility (avoids /DELAY parsing issues)
 schtasks /create ^
   /tn "%TASK_NAME%" ^
-  /tr "\"%START_SCRIPT%\"" ^
   /sc ONLOGON ^
   /rl HIGHEST ^
-  /delay 00:30 ^
+  /tr "cmd /c timeout /t 30 /nobreak >nul && \"\"%START_SCRIPT%\"\"" ^
   /F
 
 if %errorlevel% equ 0 (
