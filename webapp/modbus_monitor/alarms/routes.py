@@ -4,6 +4,7 @@ from modbus_monitor.database import db
 from . import alarms_bp
 from modbus_monitor.database.db import (
     list_alarm_report,
+    list_alarm_report_by_date_range,
     list_all_tags,
     list_alarm_rules, get_alarm_rule,
     add_alarm_rule_row, update_alarm_rule_row, delete_alarm_rule_row,
@@ -170,7 +171,40 @@ def alarm_settings():
 
 @alarms_bp.route("/api/alarm-report")
 def alarm_report():
-    items = list_alarm_report()
+    # Accept same time filter params as page
+    from datetime import timedelta
+    time_filter = request.args.get('time_filter', 'all')
+    from_date = request.args.get('from_date', '')
+    to_date = request.args.get('to_date', '')
+
+    now = safe_datetime_now()
+    start_date = None
+    end_date = None
+
+    if time_filter == 'today':
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif time_filter == 'yesterday':
+        y = now - timedelta(days=1)
+        start_date = y.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = y.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif time_filter == 'last7days':
+        start_date = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now
+    elif time_filter == 'last30days':
+        start_date = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now
+    elif time_filter == 'custom' and from_date and to_date:
+        try:
+            start_date = datetime.fromisoformat(from_date)
+            end_date = datetime.fromisoformat(to_date)
+        except ValueError:
+            start_date = end_date = None
+
+    if start_date and end_date:
+        items = list_alarm_report_by_date_range(start_date, end_date)
+    else:
+        items = list_alarm_report()
     return jsonify({"items": items})
 
 # --------- helpers ----------
@@ -225,10 +259,48 @@ def _to_int(s, default=None):
         return default
 @alarms_bp.route("/api/alarm-events")
 def api_alarm_events():
-    items = list_alarm_events()  # Should return a list of dicts
+    """
+    Return alarm events optionally filtered by the same time range
+    parameters used on the page (time_filter, from_date, to_date).
+    """
+    from datetime import timedelta
+
+    time_filter = request.args.get('time_filter', 'all')
+    from_date = request.args.get('from_date', '')
+    to_date = request.args.get('to_date', '')
+
+    now = safe_datetime_now()
+    start_date = None
+    end_date = None
+
+    if time_filter == 'today':
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif time_filter == 'yesterday':
+        y = now - timedelta(days=1)
+        start_date = y.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = y.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif time_filter == 'last7days':
+        start_date = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now
+    elif time_filter == 'last30days':
+        start_date = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now
+    elif time_filter == 'custom' and from_date and to_date:
+        try:
+            start_date = datetime.fromisoformat(from_date)
+            end_date = datetime.fromisoformat(to_date)
+        except ValueError:
+            start_date = end_date = None
+
+    if start_date and end_date:
+        items = list_alarm_events_by_date_range(start_date, end_date)
+    else:
+        items = list_alarm_events()
+
     # Optionally format datetime
     for e in items:
-        if isinstance(e["ts"], datetime):
+        if isinstance(e.get("ts"), datetime):
             e["ts"] = e["ts"].strftime("%Y-%m-%d %H:%M:%S")
     return jsonify({"items": items})
 

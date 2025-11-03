@@ -843,6 +843,58 @@ def list_alarm_report():
             })
     print(f"Generated {len(items)} alarm report items.")
     return items
+
+def list_alarm_report_by_date_range(start_date, end_date):
+    """Generate alarm report but only for INCOMING events within the given date range.
+    OUTGOING is matched as the first event after INCOMING (may be outside range)."""
+    print(f"Generating alarm report for range: {start_date} -> {end_date}")
+    items = []
+    with init_engine().connect() as con:
+        q_in = select(
+            alarm_events.c.id,
+            alarm_events.c.ts.label("incoming_date"),
+            alarm_events.c.value.label("incoming_value"),
+            alarm_events.c.target,
+            alarm_events.c.name,
+            alarm_events.c.level,
+            alarm_events.c.operator.label("op"),
+            alarm_events.c.threshold.label("th"),
+        ).where(
+            and_(
+                alarm_events.c.event_type == "INCOMING",
+                alarm_events.c.ts >= start_date,
+                alarm_events.c.ts <= end_date,
+            )
+        )
+
+        incoming_rows = con.execute(q_in).mappings().all()
+        for inc in incoming_rows:
+            q_out = select(
+                alarm_events.c.ts.label("outgoing_date"),
+                alarm_events.c.value.label("outgoing_value")
+            ).where(
+                and_(
+                    alarm_events.c.target == inc["target"],
+                    alarm_events.c.event_type == "OUTGOING",
+                    alarm_events.c.ts > inc["incoming_date"]
+                )
+            ).order_by(alarm_events.c.ts.asc()).limit(1)
+
+            out = con.execute(q_out).mappings().first()
+
+            items.append({
+                "acknowledged": False,
+                "code": inc["name"] or "",
+                "level": inc["level"],
+                "incoming_date": inc["incoming_date"].strftime("%Y-%m-%d %H:%M:%S"),
+                "incoming_value": inc["incoming_value"],
+                "outgoing_date": out["outgoing_date"].strftime("%Y-%m-%d %H:%M:%S") if out else "",
+                "outgoing_value": out["outgoing_value"] if out else "",
+                "operator": inc["op"] if inc["op"] is not None else "",
+                "threshold": inc["th"] if inc["th"] is not None else "",
+            })
+    print(f"Generated {len(items)} alarm report items (filtered).")
+    return items
 #---------- DATA LOGGER ----------------
 def list_data_loggers():
     """Danh sách logger + số tag đính kèm."""

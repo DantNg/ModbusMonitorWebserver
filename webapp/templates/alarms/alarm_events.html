@@ -185,7 +185,19 @@
   }
 
   function fetchAlarmEvents() {
-    fetch("/alarms/api/alarm-events")
+    // Forward the current page's time filter params to the API
+    const apiUrl = new URL(window.location.origin + "/alarms/api/alarm-events");
+    const pageParams = new URLSearchParams(window.location.search);
+    const tf = pageParams.get('time_filter');
+    const fd = pageParams.get('from_date');
+    const td = pageParams.get('to_date');
+    if (tf) apiUrl.searchParams.set('time_filter', tf);
+    if (tf === 'custom') {
+      if (fd) apiUrl.searchParams.set('from_date', fd);
+      if (td) apiUrl.searchParams.set('to_date', td);
+    }
+
+    fetch(apiUrl.toString())
       .then(res => res.json())
       .then(data => {
         const tbody = document.querySelector("#tbl tbody");
@@ -262,7 +274,24 @@
   });
 
   async function exportAlarms() {
-    const res = await fetch("/alarms/api/alarm-report");
+    // Determine current filter and custom range BEFORE building API URL
+    const filterSelect = document.getElementById('timeFilterSelect');
+    const selectedFilter = filterSelect ? filterSelect.value : 'all';
+    const fromInput = document.getElementById('fromDate');
+    const toInput = document.getElementById('toDate');
+
+    // Build API URL with time filter params so backend returns filtered data
+    const apiUrl = new URL(window.location.origin + "/alarms/api/alarm-report");
+    apiUrl.searchParams.set('time_filter', selectedFilter);
+    if (selectedFilter === 'custom') {
+      const rawFrom = (fromInput?.value || '').trim();
+      const rawTo = (toInput?.value || '').trim();
+      if (rawFrom && rawTo) {
+        apiUrl.searchParams.set('from_date', rawFrom);
+        apiUrl.searchParams.set('to_date', rawTo);
+      }
+    }
+    const res = await fetch(apiUrl.toString());
     const data = await res.json();
     if (!data.items?.length) {
       alert("Không có dữ liệu alarm để xuất!");
@@ -272,12 +301,7 @@
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Alarm Report");
 
-    // ==== Compute FROM / TO similar to Reports ====
-    const filterSelect = document.getElementById('timeFilterSelect');
-    const selectedFilter = filterSelect ? filterSelect.value : 'all';
-
-    const fromInput = document.getElementById('fromDate');
-    const toInput = document.getElementById('toDate');
+  // ==== Compute FROM / TO similar to Reports ====
 
     const fmt = (d) => {
       if (!d) return '';
