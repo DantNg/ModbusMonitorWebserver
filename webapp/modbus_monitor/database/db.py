@@ -140,6 +140,16 @@ def init_engine():
     except Exception as _e:
         # Ignore if table doesn't exist yet or already correct
         pass
+
+    # Try to add created_at to subdash_group_tags for ordering tags within a group
+    try:
+        with _engine.begin() as con:
+            con.execute(text("ALTER TABLE subdash_group_tags ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+            # Backfill existing rows so ordering is consistent
+            con.execute(text("UPDATE subdash_group_tags SET created_at = NOW() WHERE created_at IS NULL"))
+    except Exception as _e:
+        # Ignore if the column already exists or table not present yet
+        pass
     return _engine
 
 # ---------- Schema tối giản ----------
@@ -333,6 +343,7 @@ subdash_group_tags = Table(
     "subdash_group_tags", _md,
     Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), primary_key=True),
     Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+    Column("created_at", DateTime, server_default=func.now()),
 )
 
 
@@ -1420,6 +1431,7 @@ def get_tags_of_group(group_id: int):
                 subdash_group_tags.join(tags, subdash_group_tags.c.tag_id == tags.c.id)
             )
             .where(subdash_group_tags.c.group_id == group_id)
+            .order_by(subdash_group_tags.c.created_at.asc(), subdash_group_tags.c.tag_id.asc())
         ).mappings().all()
         
         result = []
