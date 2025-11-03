@@ -16,13 +16,13 @@ if not exist "%START_SCRIPT" (
 REM ONSTART ensures the task runs when the OS boots. It runs under LocalSystem so no desktop UI will show.
 REM /RL HIGHEST gives full privileges; /RU SYSTEM sets the account; /F overwrites existing.
 
-REM Use embedded timeout in the task action for broad compatibility (avoids /DELAY parsing issues)
+REM Use embedded delay and ensure working directory; capture task output to task.log for diagnostics
 schtasks /create ^
   /tn "%TASK_NAME%" ^
   /sc ONSTART ^
   /RU "SYSTEM" ^
   /RL HIGHEST ^
-  /tr "cmd /c timeout /t 30 /nobreak >nul && \"\"%START_SCRIPT%\"\"" ^
+  /tr "cmd /c cd /d \"%SCRIPT_DIR%\" ^&^& timeout /t 30 /nobreak >nul ^&^& \"\"%START_SCRIPT%\"\" >> \"%SCRIPT_DIR%task.log\" 2^>^&1" ^
   /F
 
 if %errorlevel% equ 0 (

@@ -17,12 +17,12 @@ REM Use ONLOGON so windows is fully loaded for the user session; delay ensures d
 REM /RL HIGHEST requests highest privileges in the user session.
 REM /F forces update if the task already exists.
 
-REM Use embedded timeout in the task action for broad compatibility (avoids /DELAY parsing issues)
+REM Use embedded delay and ensure working directory; capture task output to task.log for diagnostics
 schtasks /create ^
   /tn "%TASK_NAME%" ^
   /sc ONLOGON ^
   /rl HIGHEST ^
-  /tr "cmd /c timeout /t 30 /nobreak >nul && \"\"%START_SCRIPT%\"\"" ^
+  /tr "cmd /c cd /d \"%SCRIPT_DIR%\" ^&^& timeout /t 30 /nobreak >nul ^&^& \"\"%START_SCRIPT%\"\" >> \"%SCRIPT_DIR%task.log\" 2^>^&1" ^
   /F
 
 if %errorlevel% equ 0 (
