@@ -17,7 +17,9 @@
         </select>
       </div>
       <div class="ms-auto d-flex gap-2 align-items-center">
-        <a href="{{ url_for('subdash_bp.list_subdash') }}" class="btn btn-sm btn-outline-secondary">← Back</a>
+  {% if session.get('role') != 'user' %}
+  <a href="{{ url_for('subdash_bp.list_subdash') }}" class="btn btn-sm btn-outline-secondary">← Back</a>
+  {% endif %}
         <!-- <button id="testSocketBtn" class="btn btn-sm btn-info">🔌 Test Socket</button>
         <button id="forceRefreshBtn" class="btn btn-sm btn-warning">🔄 Force Refresh</button> -->
         {% if session.get("role") == "admin" %}
