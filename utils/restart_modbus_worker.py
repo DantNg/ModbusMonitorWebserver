@@ -202,7 +202,7 @@ PROCESS_MAP = {
     # logical name -> exe filename
     "orchestra": "orchestra_modbus.exe",
     "datalogger": "orchestra_datalogger.exe",
-    "alarm": "run_alarm_worker.exe",
+    "alarm": "orchestra_alarm.exe",
 }
 
 def _resolve_exe_path(exe_name_or_path: str) -> str:

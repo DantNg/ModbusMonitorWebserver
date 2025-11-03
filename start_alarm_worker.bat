@@ -20,6 +20,6 @@ cd /d "%~dp0"
 
 :: Start alarm worker
 echo Starting alarm worker service...
-python run_alarm_worker.py
+python orchestra_alarm.py
 
 pause
