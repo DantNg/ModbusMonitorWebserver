@@ -85,16 +85,37 @@ class AlarmWorker:
         # Load SMTP and SMS configuration
         self._load_notification_config()
         
-        # Database imports
+        # Database imports (robust across source and PyInstaller EXE)
         try:
-            from modbus_monitor.database import db
-            self.db = db
+            # Prefer explicit package path available at build-time
+            try:
+                from webapp.modbus_monitor.database import db as _db
+                self.db = _db
+            except Exception:
+                # Fallback when running from within webapp/ working dir
+                from modbus_monitor.database import db as _db
+                self.db = _db
             self.db_available = True
             self.log("INFO", "Database module loaded successfully")
         except Exception as e:
-            self.db = None
-            self.db_available = False
-            self.log("ERROR", f"Failed to load database module: {e}")
+            # Final attempt: if frozen, try adding exe_dir/webapp to sys.path then retry
+            try:
+                exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else None
+                if exe_dir:
+                    webapp_dir = os.path.join(exe_dir, 'webapp')
+                    if os.path.isdir(webapp_dir) and webapp_dir not in sys.path:
+                        sys.path.insert(0, webapp_dir)
+                        from modbus_monitor.database import db as _db
+                        self.db = _db
+                        self.db_available = True
+                        self.log("INFO", "Database module loaded successfully after sys.path adjustment")
+                        e = None  # clear error
+            except Exception:
+                pass
+            if e is not None:
+                self.db = None
+                self.db_available = False
+                self.log("ERROR", f"Failed to load database module: {e}")
         
         # Alarm state tracking
         self._alarm_states: Dict[int, bool] = {}  # rule_id -> active

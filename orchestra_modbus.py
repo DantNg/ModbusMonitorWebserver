@@ -43,18 +43,35 @@ except Exception as e:
         print(f"⚠️ Không tải được RTU worker: {e} / {e2}")
 
 # ---------------- Import DB module at webapp/modbus_monitor/database/db.py ----------------
-# Thêm thư mục webapp vào sys.path để import được modbus_monitor
+# Ưu tiên import theo đường dẫn đầy đủ để PyInstaller bắt được package khi build
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 WEBAPP_DIR = os.path.join(THIS_DIR, "webapp")
 if WEBAPP_DIR not in sys.path:
     sys.path.insert(0, WEBAPP_DIR)
 
 try:
-    from modbus_monitor.database import db as db
+    try:
+        from webapp.modbus_monitor.database import db as db
+    except Exception:
+        # Khi chạy trong thư mục webapp
+        from modbus_monitor.database import db as db
     print("✅ Successfully imported DB module")
 except Exception as e:
-    print(f"❌ Không import được DB module modbus_monitor.database.db: {e}")
-    raise
+    # Nếu đang chạy dưới dạng EXE, thử thêm exe_dir/webapp vào sys.path
+    try:
+        exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else None
+        if exe_dir:
+            wa_dir = os.path.join(exe_dir, 'webapp')
+            if os.path.isdir(wa_dir) and wa_dir not in sys.path:
+                sys.path.insert(0, wa_dir)
+                from modbus_monitor.database import db as db
+                print("✅ Imported DB module after sys.path adjustment")
+                e = None
+    except Exception:
+        pass
+    if e is not None:
+        print(f"❌ Không import được DB module webapp.modbus_monitor.database.db: {e}")
+        raise
 
 # ---------------- Import worker classes (nằm cạnh orchestra) ----------------
 try:
