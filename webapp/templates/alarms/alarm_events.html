@@ -63,7 +63,7 @@
       <div>
         <div class="position-relative d-inline-block" style="min-width:280px;max-width:360px;width:100%;">
           <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
-          <input class="form-control ps-5" placeholder="Search alarms…" oninput="App.filterTable('#tbl', this.value)">
+           <input id="alarmSearchInput" class="form-control ps-5" placeholder="Search alarms…" oninput="App.filterTable('#tbl', this.value)">
         </div>
       </div>
       <div class="d-flex gap-2 mb-2">
@@ -279,6 +279,8 @@
     const selectedFilter = filterSelect ? filterSelect.value : 'all';
     const fromInput = document.getElementById('fromDate');
     const toInput = document.getElementById('toDate');
+  const qInput = document.getElementById('alarmSearchInput');
+  const q = (qInput?.value || '').trim();
 
     // Build API URL with time filter params so backend returns filtered data
     const apiUrl = new URL(window.location.origin + "/alarms/api/alarm-report");
@@ -290,6 +292,9 @@
         apiUrl.searchParams.set('from_date', rawFrom);
         apiUrl.searchParams.set('to_date', rawTo);
       }
+    }
+    if (q) {
+      apiUrl.searchParams.set('q', q);
     }
     const res = await fetch(apiUrl.toString());
     const data = await res.json();

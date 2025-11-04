@@ -176,6 +176,7 @@ def alarm_report():
     time_filter = request.args.get('time_filter', 'all')
     from_date = request.args.get('from_date', '')
     to_date = request.args.get('to_date', '')
+    q = (request.args.get('q', '') or '').strip().lower()
 
     now = safe_datetime_now()
     start_date = None
@@ -205,6 +206,23 @@ def alarm_report():
         items = list_alarm_report_by_date_range(start_date, end_date)
     else:
         items = list_alarm_report()
+
+    # Optional search filter from UI (matches visible-table filtering semantics loosely)
+    if q:
+        def _match_any(itm: dict) -> bool:
+            keys = [
+                'code', 'level', 'incoming_date', 'incoming_value',
+                'outgoing_date', 'outgoing_value', 'operator', 'threshold', 'name'
+            ]
+            for k in keys:
+                v = itm.get(k)
+                if v is None:
+                    continue
+                if q in str(v).lower():
+                    return True
+            return False
+
+        items = [it for it in items if _match_any(it)]
     return jsonify({"items": items})
 
 # --------- helpers ----------
