@@ -142,24 +142,7 @@
     background: var(--bs-body-bg, #fff);
   }
 </style>
-<style>
-  /* Dark theme polish: remove white leaks from toolbar/card corners */
-  /* Gradient toolbar background (subtle, theme-aware) */
-  #toolbar {
-    background:
-      linear-gradient(135deg, rgba(59,131,246,0.18), rgba(59,131,246,0.05) 45%, rgba(59,131,246,0) 65%),
-      var(--bs-body-bg) !important;
-    backdrop-filter: saturate(120%) blur(2px);
-    -webkit-backdrop-filter: saturate(120%) blur(2px);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-  }
-  #toolbar .card { background: var(--bs-body-bg) !important; border-radius: 0 !important; }
-  /* Ensure the search box container doesn't show white behind rounded edges */
-  #toolbar .position-relative { background: transparent; }
-  /* Optional: keep sticky header consistent with theme */
-  .table-responsive thead th { background: var(--bs-body-bg, #fff); }
-  /* If your theme uses a different body bg var, adjust above accordingly */
-</style>
+
 <!-- Table -->
 <div class="card border-0 shadow-soft">
   <div class="table-responsive" style="max-height:70vh; overflow:auto;">
