@@ -150,6 +150,16 @@ def init_engine():
     except Exception as _e:
         # Ignore if the column already exists or table not present yet
         pass
+
+    # Try to add created_at to subdash_tag_groups for ordering groups by creation time
+    try:
+        with _engine.begin() as con:
+            con.execute(text("ALTER TABLE subdash_tag_groups ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
+            # Backfill existing rows to current timestamp if null
+            con.execute(text("UPDATE subdash_tag_groups SET created_at = NOW() WHERE created_at IS NULL"))
+    except Exception as _e:
+        # Ignore if the column already exists or table not present yet
+        pass
     return _engine
 
 # ---------- Schema tối giản ----------
@@ -337,6 +347,7 @@ subdash_tag_groups = Table(
     Column("dashboard_id", Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=False),
     Column("name", String(120), nullable=False),   # Tên nhóm (vd: "Temperature Zone A")
     Column("order", Integer, default=0),
+    Column("created_at", DateTime, server_default=func.now()),
 )
 
 subdash_group_tags = Table(
@@ -1357,11 +1368,20 @@ def list_subdash_groups():
 def list_subdash_groups_for_dashboard(dashboard_id: int):
     """Get all groups for a specific subdashboard."""
     with init_engine().connect() as con:
-        return con.execute(
-            select(subdash_tag_groups)
-            .where(subdash_tag_groups.c.dashboard_id == dashboard_id)
-            .order_by(subdash_tag_groups.c.order.asc(), subdash_tag_groups.c.name.asc())
-        ).mappings().all()
+        try:
+            # Preferred: order by creation time (oldest first)
+            return con.execute(
+                select(subdash_tag_groups)
+                .where(subdash_tag_groups.c.dashboard_id == dashboard_id)
+                .order_by(subdash_tag_groups.c.created_at.asc(), subdash_tag_groups.c.id.asc())
+            ).mappings().all()
+        except Exception:
+            # Fallback: legacy ordering (by 'order' then name) if column not available
+            return con.execute(
+                select(subdash_tag_groups)
+                .where(subdash_tag_groups.c.dashboard_id == dashboard_id)
+                .order_by(subdash_tag_groups.c.order.asc(), subdash_tag_groups.c.name.asc())
+            ).mappings().all()
 
 def add_subdash_group(data: dict):
     with init_engine().begin() as con:
