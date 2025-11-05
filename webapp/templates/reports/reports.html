@@ -87,7 +87,7 @@
         <div class="btn-group">
           <button type="button" class="btn btn-primary" onclick="exportReport('xlsx')">Export XLSX</button>
 
-          <!-- Clear Data buttons - chỉ admin -->
+          <!-- Clear Data buttons - admin only (avoid nested forms by using form attribute) -->
           {% if session.get("role") == "admin" %}
           <div class="btn-group ms-2">
             <button class="btn btn-outline-danger btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
@@ -96,28 +96,18 @@
             <ul class="dropdown-menu">
               {% if current_logger_id != 'all' %}
               <li>
-                <form id="clear-logger-form" method="post"
-                  action="{{ url_for('reports_bp.clear_logger_report_data', logger_id=current_logger_id) }}"
-                  style="display:inline;">
-                  <button type="submit" class="dropdown-item text-warning"
-                    onclick="return confirm('Clear all data for {{ current_logger_name }}? This cannot be undone!')">
-                    <i class="bi bi-trash"></i> Clear {{ current_logger_name }}
-                  </button>
-                </form>
+                <button type="submit" form="clear-logger-form" class="dropdown-item text-warning"
+                  onclick="return confirm('Clear all data for {{ current_logger_name }}? This cannot be undone!')">
+                  <i class="bi bi-trash"></i> Clear {{ current_logger_name }}
+                </button>
               </li>
-              <li>
-                <hr class="dropdown-divider">
-              </li>
+              <li><hr class="dropdown-divider"></li>
               {% endif %}
-
               <li>
-                <form method="post" action="{{ url_for('reports_bp.clear_all_report_data') }}"
-                  onsubmit="return confirm('Clear ALL report data from ALL loggers? This cannot be undone!')"
-                  style="display:inline;">
-                  <button type="submit" class="dropdown-item text-danger">
-                    <i class="bi bi-exclamation-triangle"></i> Clear All Data
-                  </button>
-                </form>
+                <button type="submit" form="clear-all-form" class="dropdown-item text-danger"
+                  onclick="return confirm('Clear ALL report data from ALL loggers? This cannot be undone!')">
+                  <i class="bi bi-exclamation-triangle"></i> Clear All Data
+                </button>
               </li>
             </ul>
           </div>
@@ -127,6 +117,18 @@
     </div>
   </form>
 </div>
+
+<!-- Hidden POST forms to avoid nesting inside the GET filter form -->
+{% if session.get("role") == "admin" %}
+  {% if current_logger_id != 'all' %}
+  <form id="clear-logger-form" method="post"
+        action="{{ url_for('reports_bp.clear_logger_report_data', logger_id=current_logger_id) }}"
+        style="display:none;"></form>
+  {% endif %}
+  <form id="clear-all-form" method="post"
+        action="{{ url_for('reports_bp.clear_all_report_data') }}"
+        style="display:none;"></form>
+{% endif %}
 
 <!-- Back to top button -->
 <button id="backToTop" class="btn btn-primary position-fixed shadow"
