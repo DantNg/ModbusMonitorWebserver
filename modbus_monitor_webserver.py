@@ -2,7 +2,7 @@
 Unified entrypoint to start the Flask webapp without calling webapp/app.py directly.
 
 Usage:
-  python main.py
+  python modbus_monitor_webserver.py
 
 This imports the Socket.IO app from webapp/app.py and runs it.
 """
@@ -27,7 +27,7 @@ except Exception as e:
 
 
 def main():
-	print("🌐 Starting Flask Modbus Monitor - via main.py")
+	print("🌐 Starting Flask Modbus Monitor - via modbus_monitor_webserver.py")
 	print("• This process runs the web interface (Socket.IO enabled)")
 	host = os.environ.get("FLASK_HOST", "0.0.0.0")
 	try:
