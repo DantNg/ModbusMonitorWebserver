@@ -32,8 +32,8 @@
   <!-- Sidebar (DESKTOP) -->
   <aside id="sidebar" class="app-sidebar d-flex flex-column"><!-- thêm id="sidebar", bỏ d-none d-md-flex -->
     <div class="px-3 py-4 d-flex align-items-center gap-2 brand">
-    <img src="{{ url_for('static', filename=(app_logo or 'images/logo.png')) }}" alt="{{ app_brand or app_name or 'Logo' }}" class="logo-img" style="height:32px; width:auto; object-fit:contain;">
-    <div class="fw-semibold">{{ app_brand or app_name or 'Modbus Monitor' }}</div>
+    <img src="{{ url_for('static', filename=(app_logo or 'images/logo.png')) }}" alt="{{ app_brand or app_name or 'Logo' }}" class="logo-img" style="height:50px; width:auto; object-fit:contain;">
+    <div class="fw-semibold fs-5">{{ app_brand or app_name or 'Modbus Monitor' }}</div>
     </div>
     <nav class="px-2">
       <!-- Dashboard với dropdown subdashboards -->
