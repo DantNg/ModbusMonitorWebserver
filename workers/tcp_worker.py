@@ -249,6 +249,12 @@ class TCPWorker:
                 try:
                     cli = ModbusTcpClient(host=self.host, port=self.port, timeout=self.timeout)
                     if not cli.connect():
+                        # ensure we don't keep a half-initialized client around
+                        try:
+                            cli.close()
+                        except Exception:
+                            pass
+                        cli = None
                         raise RuntimeError("TCP connect failed")
                     self.clients[device.id] = cli
                     # autodetect unit/slave keyword 1 lần
@@ -275,6 +281,18 @@ class TCPWorker:
                     else:
                         consec_fail += 1
                         self._update_device_status(device, ok=False, latency_ms=elapsed_ms, err="No data read")
+                        # If we repeatedly get no data (e.g., client not actually connected),
+                        # trigger a reconnect like the exception path.
+                        if consec_fail >= max_consec_fail:
+                            try:
+                                if cli:
+                                    cli.close()
+                            except Exception:
+                                pass
+                            cli = None
+                            # short cool down to avoid tight loop
+                            if stop_flag.wait(cool_down_sec):
+                                break
             except Exception as e:
                 consec_fail += 1
                 elapsed_ms = int((time.perf_counter() - start_ts) * 1000)
