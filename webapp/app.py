@@ -6,7 +6,10 @@ import sys
 import atexit
 import threading
 import time
+import logging
+import traceback
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
 # Add current directory and project root to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +23,29 @@ from modbus_monitor.extensions import socketio
 from modbus_monitor.database import db
 
 app = create_app()
+
+# --------------------------------------------------
+# Logging configuration (file logging for crashes/errors)
+# --------------------------------------------------
+LOG_DIR = os.path.join(project_root, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, 'webapp_errors.log')
+
+logger = logging.getLogger('webapp')
+if not logger.handlers:  # Avoid duplicate handlers on autoreload
+    logger.setLevel(logging.INFO)
+    file_handler = RotatingFileHandler(LOG_FILE, maxBytes=1_000_000, backupCount=5, encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    # Console handler to preserve existing stdout behavior
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+logger.info('Webapp logger initialized. Log file: %s', LOG_FILE)
 
 # ProcessManager disabled in webapp-only mode
 process_manager = None
@@ -35,7 +61,7 @@ def initialize_process_manager():
 
 @app.route("/")
 def root():
-    print("Start login")
+    logger.info("Root accessed, redirecting to login")
     return redirect(url_for("auth_bp.login"))
 
 @app.route("/tags/<int:tag_id>/update-unit", methods=["POST"])
@@ -57,7 +83,7 @@ def update_tag_unit(tag_id):
             return jsonify({"success": False, "message": "Failed to update unit"})
             
     except Exception as e:
-        print(f"Error updating tag unit: {e}")
+        logger.error("Error updating tag unit: %s\n%s", e, traceback.format_exc())
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/api/emit-tag-update", methods=["POST"])
@@ -121,7 +147,7 @@ def emit_tag_update():
         })
         
     except Exception as e:
-        print(f"Error in emit_tag_update: {e}")
+        logger.error("Error in emit_tag_update: %s\\n%s", e, traceback.format_exc())
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/api/modbus-update", methods=["POST"])
@@ -176,7 +202,7 @@ def modbus_update():
                 socketio.emit('modbus_update', modbus_data, room=subdash_room)
                 rooms_emitted.append(subdash_room)
         except Exception as subdash_error:
-            print(f"Warning: Could not get subdashboard rooms: {subdash_error}")
+            logger.warning("Could not get subdashboard rooms: %s", subdash_error)
         
         return jsonify({
             "success": True, 
@@ -184,10 +210,8 @@ def modbus_update():
             "rooms": rooms_emitted
         })
         
-        return jsonify({"success": True, "message": "Tag update emitted"})
-        
     except Exception as e:
-        print(f"Error in emit_tag_update: {e}")
+        logger.error("Error in modbus_update endpoint: %s\\n%s", e, traceback.format_exc())
         return jsonify({"success": False, "message": str(e)}), 500
 # Cache subdashboards để tránh query mỗi request
 _subdashboards_cache = None
@@ -203,10 +227,10 @@ def inject_subdashboards():
     if _subdashboards_cache is None or (current_time - _cache_timestamp) > 30:
         try:
             _subdashboards_cache = db.list_subdashboards() if hasattr(db, "list_subdashboards") else []
-            print(f"🔄 Loaded {len(_subdashboards_cache)} subdashboards from DB: {[s.get('name') for s in _subdashboards_cache]}")
+            logger.info("Loaded %d subdashboards: %s", len(_subdashboards_cache), [s.get('name') for s in _subdashboards_cache])
             _cache_timestamp = current_time
         except Exception as e:
-            print(f"❌ Error loading subdashboards: {e}")
+            logger.error("Error loading subdashboards: %s\n%s", e, traceback.format_exc())
             _subdashboards_cache = []
     
     return dict(subdashboards=_subdashboards_cache)
@@ -215,7 +239,7 @@ def clear_subdashboards_cache():
     """Clear subdashboards cache to force reload"""
     global _subdashboards_cache
     _subdashboards_cache = None
-    print("🔄 Subdashboards cache cleared")
+    logger.info("Subdashboards cache cleared")
 
 # Make function available globally
 app.clear_subdashboards_cache = clear_subdashboards_cache
@@ -223,16 +247,31 @@ app.clear_subdashboards_cache = clear_subdashboards_cache
 # Socket.IO event handlers
 from flask_socketio import join_room, leave_room
 
+# Socket.IO error handler for connection issues
+@socketio.on_error_default
+def default_error_handler(e):
+    """Handle Socket.IO errors globally"""
+    # Log the error but don't crash the server
+    if isinstance(e, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+        logger.warning(f"Client connection lost: {type(e).__name__}: {e}")
+    else:
+        logger.error(f"Socket.IO error: {type(e).__name__}: {e}")
+        logger.error("Traceback:\n" + traceback.format_exc())
+
 @socketio.on('connect')
 def handle_connect():
-    print(f"Client connected: {request.sid}")
+    try:
+        client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
+        logger.info(f"Client connected from {client_ip}: {request.sid}")
+    except Exception as e:
+        logger.warning(f"Error handling connect event: {e}")
 
 @socketio.on('leave')
 def on_leave(data):
     room = data.get('room')
     if room:
         leave_room(room)
-        print(f"Client {request.sid} left room: {room}")
+        logger.info(f"Client {request.sid} left room: {room}")
         
         # Notify workers about room leave
         socketio.emit('room_left', {
@@ -241,11 +280,15 @@ def on_leave(data):
             'timestamp': datetime.now().isoformat()
         })
         
-        print(f"📡 Room leave broadcasted: {room}")
+        logger.info(f"Room leave broadcasted: {room}")
             
 @socketio.on('disconnect')
 def handle_disconnect():
-    print(f"Client disconnected: {request.sid}")
+    try:
+        client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
+        logger.info(f"Client disconnected from {client_ip}: {request.sid}")
+    except Exception as e:
+        logger.warning(f"Error handling disconnect event: {e}")
     # ProcessManager disabled in webapp-only mode
 
 @socketio.on('join')
@@ -253,7 +296,7 @@ def on_join(data):
     room = data.get('room')
     if room:
         join_room(room)  # Join the socket.io room
-        print(f"Client {request.sid} joined room: {room}")
+        logger.info(f"Client {request.sid} joined room: {room}")
         
         # Notify workers about room join for targeted updates
         socketio.emit('room_joined', {
@@ -262,7 +305,7 @@ def on_join(data):
             'timestamp': datetime.now().isoformat()
         })
         
-        print(f"📡 Room join broadcasted: {room}")
+        logger.info(f"Room join broadcasted: {room}")
             
         socketio.emit('join_ack', {'room': room}, to=request.sid)
 
