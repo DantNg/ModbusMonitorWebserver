@@ -283,7 +283,7 @@ def on_leave(data):
         logger.info(f"Room leave broadcasted: {room}")
             
 @socketio.on('disconnect')
-def handle_disconnect():
+def handle_disconnect(auth=None):
     try:
         client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
         logger.info(f"Client disconnected from {client_ip}: {request.sid}")
