@@ -87,6 +87,8 @@ def subdash_detail(sid):
     groups = [dict(g) for g in db.list_subdash_groups_for_dashboard(sid)] if hasattr(db, "list_subdash_groups_for_dashboard") else []
     for g in groups:
         g["tags"] = [enrich_tag(tag) for tag in db.get_tags_of_group(g["id"])]
+        # Add quad cards to group
+        g["quad_cards"] = db.get_quad_cards_for_group(g["id"]) if hasattr(db, "get_quad_cards_for_group") else []
 
     current_group = request.args.get('group', '__all__')
 
@@ -485,4 +487,151 @@ def update_tag_unit(tag_id):
             
     except Exception as e:
         print(f"Error updating tag unit: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+# ========== QUAD TAG ROUTES ==========
+
+@subdash_bp.route("/<int:sid>/add_quad_tag", methods=["POST"])
+def add_quad_tag_card(sid):
+    """Add a new quad tag card to subdashboard"""
+    # Check if user is admin
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    
+    try:
+        tag1_id = request.form.get("tag1_id")
+        tag2_id = request.form.get("tag2_id") 
+        tag3_id = request.form.get("tag3_id")
+        tag4_id = request.form.get("tag4_id")
+        group_id = request.form.get("group_id")
+        new_group_name = request.form.get("new_group_name")
+        
+        # Validate required fields
+        if not all([tag1_id, tag2_id, tag3_id, tag4_id]):
+            return jsonify({"success": False, "message": "Please select all 4 tags"}), 400
+            
+        # Convert to integers
+        tag_ids = [int(tag1_id), int(tag2_id), int(tag3_id), int(tag4_id)]
+        
+        # Validate that all tags are different
+        if len(set(tag_ids)) != 4:
+            return jsonify({"success": False, "message": "All 4 tags must be different"}), 400
+            
+        # Handle group assignment
+        if new_group_name and new_group_name.strip():
+            # Create new group
+            group_data = {
+                "dashboard_id": sid,
+                "name": new_group_name.strip(),
+                "order": 0
+            }
+            group_id = db.add_subdash_group(group_data)
+            message_suffix = f" in new group '{new_group_name}'"
+        elif group_id:
+            # Use existing group
+            group_id = int(group_id)
+            group = db.get_subdash_group(group_id)
+            group_name = group.get("name", "Unknown") if group else "Unknown"
+            message_suffix = f" in group '{group_name}'"
+        else:
+            return jsonify({"success": False, "message": "Please select a group or enter a new group name"}), 400
+        
+        # Add quad tag card
+        quad_card_id = db.add_quad_tag_card(group_id, tag_ids[0], tag_ids[1], tag_ids[2], tag_ids[3])
+        
+        # Force refresh subdashboard cache for real-time updates
+        try:
+            emission_manager = get_emission_manager()
+            emission_manager.force_refresh_subdash_cache()
+        except Exception as e:
+            print(f"Warning: Could not refresh subdashboard cache: {e}")
+        
+        return jsonify({
+            "success": True, 
+            "message": f"Quad tag card added successfully{message_suffix}",
+            "quad_card_id": quad_card_id
+        })
+        
+    except Exception as e:
+        print(f"Error adding quad tag card: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@subdash_bp.route("/<int:sid>/delete_quad_card/<int:quad_id>", methods=["DELETE"])
+def delete_quad_tag_card(sid, quad_id):
+    """Delete a quad tag card"""
+    # Check if user is admin
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    
+    try:
+        # Verify quad card exists and belongs to this subdashboard
+        quad_card = db.get_quad_card_by_id(quad_id)
+        if not quad_card:
+            return jsonify({"success": False, "message": "Quad card not found"}), 404
+        
+        # Delete the quad card
+        result = db.delete_quad_card(quad_id)
+        
+        if result:
+            # Force refresh subdashboard cache for real-time updates
+            try:
+                emission_manager = get_emission_manager()
+                emission_manager.force_refresh_subdash_cache()
+            except Exception as e:
+                print(f"Warning: Could not refresh subdashboard cache: {e}")
+            
+            return jsonify({"success": True, "message": "Quad tag card deleted successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to delete quad card"}), 500
+            
+    except Exception as e:
+        print(f"Error deleting quad tag card: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@subdash_bp.route("/<int:sid>/update_quad_card/<int:quad_id>", methods=["POST"])
+def update_quad_tag_card(sid, quad_id):
+    """Update a quad tag card"""
+    # Check if user is admin
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    
+    try:
+        tag1_id = request.form.get("tag1_id")
+        tag2_id = request.form.get("tag2_id")
+        tag3_id = request.form.get("tag3_id")
+        tag4_id = request.form.get("tag4_id")
+        
+        # Validate required fields
+        if not all([tag1_id, tag2_id, tag3_id, tag4_id]):
+            return jsonify({"success": False, "message": "Please select all 4 tags"}), 400
+        
+        # Convert to integers
+        tag_ids = [int(tag1_id), int(tag2_id), int(tag3_id), int(tag4_id)]
+        
+        # Validate that all tags are different
+        if len(set(tag_ids)) != 4:
+            return jsonify({"success": False, "message": "All 4 tags must be different"}), 400
+        
+        # Verify quad card exists
+        quad_card = db.get_quad_card_by_id(quad_id)
+        if not quad_card:
+            return jsonify({"success": False, "message": "Quad card not found"}), 404
+        
+        # Update the quad card
+        result = db.update_quad_card(quad_id, tag_ids[0], tag_ids[1], tag_ids[2], tag_ids[3])
+        
+        if result:
+            # Force refresh subdashboard cache for real-time updates
+            try:
+                emission_manager = get_emission_manager()
+                emission_manager.force_refresh_subdash_cache()
+            except Exception as e:
+                print(f"Warning: Could not refresh subdashboard cache: {e}")
+            
+            return jsonify({"success": True, "message": "Quad tag card updated successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to update quad card"}), 500
+            
+    except Exception as e:
+        print(f"Error updating quad tag card: {e}")
         return jsonify({"success": False, "message": str(e)}), 500

@@ -1,0 +1,47 @@
+              <div class="quad-tag-grid">
+                <!-- First Sub-card: Tags 1 & 2 (PV/SV Pair 1) -->
+                <div class="quad-sub-card">
+                  <div class="quad-sub-card-title">Group 1</div>
+                  {% if group.tags|length > 0 %}
+                  <div class="quad-tag-item">
+                    <div class="quad-tag-name">PV</div>
+                    <div class="d-flex align-items-baseline">
+                      <div class="quad-tag-value" id="tag-val-{{ group.tags[0].id }}">{{ group.tags[0].value or '--' }}</div>
+                      <div class="quad-tag-unit">{{ group.tags[0].unit or '' }}</div>
+                    </div>
+                  </div>
+                  {% endif %}
+                  {% if group.tags|length > 1 %}
+                  <div class="quad-tag-item">
+                    <div class="quad-tag-name">SV</div>
+                    <div class="d-flex align-items-baseline">
+                      <div class="quad-tag-value" id="tag-val-{{ group.tags[1].id }}">{{ group.tags[1].value or '--' }}</div>
+                      <div class="quad-tag-unit">{{ group.tags[1].unit or '' }}</div>
+                    </div>
+                  </div>
+                  {% endif %}
+                </div>
+                
+                <!-- Second Sub-card: Tags 3 & 4 (PV/SV Pair 2) -->
+                <div class="quad-sub-card">
+                  <div class="quad-sub-card-title">Group 2</div>
+                  {% if group.tags|length > 2 %}
+                  <div class="quad-tag-item">
+                    <div class="quad-tag-name">PV</div>
+                    <div class="d-flex align-items-baseline">
+                      <div class="quad-tag-value" id="tag-val-{{ group.tags[2].id }}">{{ group.tags[2].value or '--' }}</div>
+                      <div class="quad-tag-unit">{{ group.tags[2].unit or '' }}</div>
+                    </div>
+                  </div>
+                  {% endif %}
+                  {% if group.tags|length > 3 %}
+                  <div class="quad-tag-item">
+                    <div class="quad-tag-name">SV</div>
+                    <div class="d-flex align-items-baseline">
+                      <div class="quad-tag-value" id="tag-val-{{ group.tags[3].id }}">{{ group.tags[3].value or '--' }}</div>
+                      <div class="quad-tag-unit">{{ group.tags[3].unit or '' }}</div>
+                    </div>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>

@@ -357,6 +357,18 @@ subdash_group_tags = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# Bảng cho Quad Tag Cards
+subdash_quad_cards = Table(
+    "subdash_quad_cards", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
+    Column("tag1_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("tag2_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("tag3_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("tag4_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
 
 def create_schema():
     """Tạo bảng nếu chưa có (idempotent)."""
@@ -2397,5 +2409,87 @@ def mark_user_notifications_dismissed(user_id: int) -> bool:
             return result.rowcount > 0
     except Exception as e:
         print(f"Error dismissing notifications: {e}")
+        return False
+
+# ========== QUAD TAG CARDS OPERATIONS ==========
+
+def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int, tag4_id: int) -> int:
+    """Add a new quad tag card to a group."""
+    with init_engine().begin() as con:
+        res = con.execute(
+            insert(subdash_quad_cards).values(
+                group_id=group_id,
+                tag1_id=tag1_id,
+                tag2_id=tag2_id,
+                tag3_id=tag3_id,
+                tag4_id=tag4_id
+            )
+        )
+        return res.inserted_primary_key[0]
+
+def get_quad_cards_for_group(group_id: int):
+    """Get all quad cards for a specific group with tag details."""
+    with init_engine().connect() as con:
+        # Get quad cards
+        quad_cards_query = select(subdash_quad_cards).where(subdash_quad_cards.c.group_id == group_id)
+        quad_cards = con.execute(quad_cards_query).mappings().all()
+        
+        result = []
+        for card in quad_cards:
+            card_dict = dict(card)
+            
+            # Get tag details for each position
+            for pos in [1, 2, 3, 4]:
+                tag_id = card_dict[f'tag{pos}_id']
+                tag_query = select(tags).where(tags.c.id == tag_id)
+                tag = con.execute(tag_query).mappings().first()
+                card_dict[f'tag{pos}'] = dict(tag) if tag else None
+                
+                # Get last value for tag
+                if tag:
+                    last_value, _ = get_latest_tag_value(tag_id)
+                    card_dict[f'tag{pos}']['last_value'] = last_value if last_value is not None else 0
+            
+            result.append(card_dict)
+        
+        return result
+
+def delete_quad_card(quad_card_id: int) -> bool:
+    """Delete a quad tag card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(subdash_quad_cards).where(subdash_quad_cards.c.id == quad_card_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting quad card {quad_card_id}: {e}")
+        return False
+
+def get_quad_card_by_id(quad_card_id: int):
+    """Get a specific quad card by ID."""
+    with init_engine().connect() as con:
+        result = con.execute(
+            select(subdash_quad_cards).where(subdash_quad_cards.c.id == quad_card_id)
+        ).mappings().first()
+        return dict(result) if result else None
+
+def update_quad_card(quad_card_id: int, tag1_id: int, tag2_id: int, tag3_id: int, tag4_id: int) -> bool:
+    """Update a quad tag card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(subdash_quad_cards)
+                .where(subdash_quad_cards.c.id == quad_card_id)
+                .values(
+                    tag1_id=tag1_id,
+                    tag2_id=tag2_id,
+                    tag3_id=tag3_id,
+                    tag4_id=tag4_id
+                )
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating quad card {quad_card_id}: {e}")
         return False
     

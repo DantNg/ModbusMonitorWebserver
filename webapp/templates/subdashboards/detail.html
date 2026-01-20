@@ -35,6 +35,9 @@
           <li>
             <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addGroupModal">+ Add Tag Group</button>
           </li>
+          <li>
+            <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addQuadTagModal">+ Add Quad Tag Card</button>
+          </li>
         </ul>
         {% endif %}
       </div>
@@ -170,6 +173,97 @@
           </div>
         </div>
         {% endfor %}
+        
+        <!-- Quad Tag Cards -->
+        {% if group.quad_cards %}
+          {% for quad_card in group.quad_cards %}
+          <div class="col-12 col-lg-8 col-xl-6">
+            <div class="card h-100 shadow-soft quad-tag-card">
+              <div class="card-body">
+                <div class="quad-tag-grid">
+                  <!-- Top Left -->
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag1_id }}">
+                    <div class="quad-tag-name">{{ quad_card.tag1.name }}</div>
+                    <div class="quad-tag-value d-flex align-items-center gap-2">
+                      <span id="quad-tag-val-{{ quad_card.tag1_id }}" class="fw-bold">{{ quad_card.tag1.last_value or '0' }}</span>
+                      <small class="text-muted">{{ quad_card.tag1.unit or '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag1.function_code|int in [1, 3] %}
+                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
+                                data-tag-id="{{ quad_card.tag1_id }}" 
+                                data-tag-name="{{ quad_card.tag1.name }}" 
+                                title="Write Value">
+                          <i class="bi bi-pencil-square"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                  
+                  <!-- Top Right -->
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag2_id }}">
+                    <div class="quad-tag-name">{{ quad_card.tag2.name }}</div>
+                    <div class="quad-tag-value d-flex align-items-center gap-2">
+                      <span id="quad-tag-val-{{ quad_card.tag2_id }}" class="fw-bold">{{ quad_card.tag2.last_value or '0' }}</span>
+                      <small class="text-muted">{{ quad_card.tag2.unit or '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag2.function_code|int in [1, 3] %}
+                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
+                                data-tag-id="{{ quad_card.tag2_id }}" 
+                                data-tag-name="{{ quad_card.tag2.name }}" 
+                                title="Write Value">
+                          <i class="bi bi-pencil-square"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                  
+                  <!-- Bottom Left -->
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag3_id }}">
+                    <div class="quad-tag-name">{{ quad_card.tag3.name }}</div>
+                    <div class="quad-tag-value d-flex align-items-center gap-2">
+                      <span id="quad-tag-val-{{ quad_card.tag3_id }}" class="fw-bold">{{ quad_card.tag3.last_value or '0' }}</span>
+                      <small class="text-muted">{{ quad_card.tag3.unit or '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag3.function_code|int in [1, 3] %}
+                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
+                                data-tag-id="{{ quad_card.tag3_id }}" 
+                                data-tag-name="{{ quad_card.tag3.name }}" 
+                                title="Write Value">
+                          <i class="bi bi-pencil-square"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                  
+                  <!-- Bottom Right -->
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag4_id }}">
+                    <div class="quad-tag-name">{{ quad_card.tag4.name }}</div>
+                    <div class="quad-tag-value d-flex align-items-center gap-2">
+                      <span id="quad-tag-val-{{ quad_card.tag4_id }}" class="fw-bold">{{ quad_card.tag4.last_value or '0' }}</span>
+                      <small class="text-muted">{{ quad_card.tag4.unit or '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag4.function_code|int in [1, 3] %}
+                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
+                                data-tag-id="{{ quad_card.tag4_id }}" 
+                                data-tag-name="{{ quad_card.tag4.name }}" 
+                                title="Write Value">
+                          <i class="bi bi-pencil-square"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                
+                {% if session.get('role') == 'admin' %}
+                <div class="quad-tag-actions mt-2 text-end">
+                  <button class="btn btn-sm btn-outline-danger delete-quad-btn" 
+                          data-quad-id="{{ quad_card.id }}" 
+                          title="Delete Quad Card">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% endif %}
       </div>
     </div>
   </div>
@@ -276,6 +370,97 @@
           </div>
         </div>
         {% endfor %}
+        
+        <!-- Quad Tag Cards -->
+        {% if group.quad_cards %}
+          {% for quad_card in group.quad_cards %}
+          <div class="col-12 col-lg-8 col-xl-6">
+            <div class="card h-100 shadow-soft quad-tag-card">
+              <div class="card-body">
+                <div class="quad-tag-grid">
+                  <!-- Top Left -->
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag1_id }}">
+                    <div class="quad-tag-name">{{ quad_card.tag1.name }}</div>
+                    <div class="quad-tag-value d-flex align-items-center gap-2">
+                      <span id="quad-tag-val-{{ quad_card.tag1_id }}" class="fw-bold">{{ quad_card.tag1.last_value or '0' }}</span>
+                      <small class="text-muted">{{ quad_card.tag1.unit or '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag1.function_code|int in [1, 3] %}
+                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
+                                data-tag-id="{{ quad_card.tag1_id }}" 
+                                data-tag-name="{{ quad_card.tag1.name }}" 
+                                title="Write Value">
+                          <i class="bi bi-pencil-square"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                  
+                  <!-- Top Right -->
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag2_id }}">
+                    <div class="quad-tag-name">{{ quad_card.tag2.name }}</div>
+                    <div class="quad-tag-value d-flex align-items-center gap-2">
+                      <span id="quad-tag-val-{{ quad_card.tag2_id }}" class="fw-bold">{{ quad_card.tag2.last_value or '0' }}</span>
+                      <small class="text-muted">{{ quad_card.tag2.unit or '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag2.function_code|int in [1, 3] %}
+                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
+                                data-tag-id="{{ quad_card.tag2_id }}" 
+                                data-tag-name="{{ quad_card.tag2.name }}" 
+                                title="Write Value">
+                          <i class="bi bi-pencil-square"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                  
+                  <!-- Bottom Left -->
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag3_id }}">
+                    <div class="quad-tag-name">{{ quad_card.tag3.name }}</div>
+                    <div class="quad-tag-value d-flex align-items-center gap-2">
+                      <span id="quad-tag-val-{{ quad_card.tag3_id }}" class="fw-bold">{{ quad_card.tag3.last_value or '0' }}</span>
+                      <small class="text-muted">{{ quad_card.tag3.unit or '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag3.function_code|int in [1, 3] %}
+                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
+                                data-tag-id="{{ quad_card.tag3_id }}" 
+                                data-tag-name="{{ quad_card.tag3.name }}" 
+                                title="Write Value">
+                          <i class="bi bi-pencil-square"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                  
+                  <!-- Bottom Right -->
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag4_id }}">
+                    <div class="quad-tag-name">{{ quad_card.tag4.name }}</div>
+                    <div class="quad-tag-value d-flex align-items-center gap-2">
+                      <span id="quad-tag-val-{{ quad_card.tag4_id }}" class="fw-bold">{{ quad_card.tag4.last_value or '0' }}</span>
+                      <small class="text-muted">{{ quad_card.tag4.unit or '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag4.function_code|int in [1, 3] %}
+                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
+                                data-tag-id="{{ quad_card.tag4_id }}" 
+                                data-tag-name="{{ quad_card.tag4.name }}" 
+                                title="Write Value">
+                          <i class="bi bi-pencil-square"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                
+                {% if session.get('role') == 'admin' %}
+                <div class="quad-tag-actions mt-2 text-end">
+                  <button class="btn btn-sm btn-outline-danger delete-quad-btn" 
+                          data-quad-id="{{ quad_card.id }}" 
+                          title="Delete Quad Card">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% endif %}
       </div>
     </div>
   </div>
@@ -371,6 +556,114 @@
   </div>
 </div>
 
+<!-- Modal: Add Quad Tag Card -->
+<div class="modal fade" id="addQuadTagModal" tabindex="-1" aria-labelledby="addQuadTagModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addQuadTagModalLabel">Add Quad Tag Card to {{ subdash.name }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="addQuadTagForm">
+        <div class="modal-body">
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+              <h6 class="mb-0"><i class="bi bi-grid-3x3-gap"></i> Select 4 Tags for Quad Card</h6>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="tag1_select" class="form-label">
+                    <span class="badge bg-info me-2">1</span>Top Left Tag
+                  </label>
+                  <select id="tag1_select" name="tag1_id" class="form-select" required>
+                    <option value="">Choose tag for position 1...</option>
+                    {% for tag in all_tags %}
+                    <option value="{{ tag.id }}" data-name="{{ tag.tag_name }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                
+                <div class="col-md-6">
+                  <label for="tag2_select" class="form-label">
+                    <span class="badge bg-success me-2">2</span>Top Right Tag
+                  </label>
+                  <select id="tag2_select" name="tag2_id" class="form-select" required>
+                    <option value="">Choose tag for position 2...</option>
+                    {% for tag in all_tags %}
+                    <option value="{{ tag.id }}" data-name="{{ tag.tag_name }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                
+                <div class="col-md-6">
+                  <label for="tag3_select" class="form-label">
+                    <span class="badge bg-warning me-2">3</span>Bottom Left Tag
+                  </label>
+                  <select id="tag3_select" name="tag3_id" class="form-select" required>
+                    <option value="">Choose tag for position 3...</option>
+                    {% for tag in all_tags %}
+                    <option value="{{ tag.id }}" data-name="{{ tag.tag_name }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                
+                <div class="col-md-6">
+                  <label for="tag4_select" class="form-label">
+                    <span class="badge bg-danger me-2">4</span>Bottom Right Tag
+                  </label>
+                  <select id="tag4_select" name="tag4_id" class="form-select" required>
+                    <option value="">Choose tag for position 4...</option>
+                    {% for tag in all_tags %}
+                    <option value="{{ tag.id }}" data-name="{{ tag.tag_name }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-secondary text-white">
+              <h6 class="mb-0"><i class="bi bi-folder"></i> Group Selection</h6>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <label for="quad_target_group" class="form-label">Add to Group</label>
+                <div class="input-group">
+                  <select id="quad_target_group" name="group_id" class="form-select">
+                    <option value="">Select existing group...</option>
+                    {% for group in groups %}
+                    <option value="{{ group.id }}">{{ group.name }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-outline-secondary" type="button" id="toggleNewQuadGroup"
+                          title="Create new group">
+                    <i class="bi bi-plus-circle"></i> New
+                  </button>
+                </div>
+                <small class="text-muted">Select an existing group or create a new one for this quad tag card</small>
+              </div>
+              
+              <div id="newQuadGroupSection" class="mb-3" style="display: none;">
+                <label for="new_quad_group_name" class="form-label">New Group Name</label>
+                <input type="text" id="new_quad_group_name" name="new_group_name" class="form-control"
+                       placeholder="Enter new group name...">
+              </div>
+            </div>
+          </div>
+          
+          <div id="quad-error-message" class="alert alert-danger" style="display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Quad Tag Card</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Edit Unit -->
 <div class="modal fade" id="editUnitModal" tabindex="-1" aria-labelledby="editUnitModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -404,6 +697,115 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Quad Tag Card Styles */
+.quad-tag-card {
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.quad-tag-card:hover {
+  border-color: #0f5cdd;
+  box-shadow: 0 4px 12px rgba(15, 92, 221, 0.15);
+}
+
+.quad-tag-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 16px;
+  min-height: 160px;
+}
+
+.quad-tag-item {
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+}
+
+.quad-tag-item:hover {
+  background: #e9ecef;
+  border-color: #0f5cdd;
+}
+
+.quad-tag-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 8px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.quad-tag-value {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #212529;
+}
+
+.quad-tag-value .text-muted {
+  font-size: 0.875rem;
+  font-weight: normal;
+}
+
+.quad-tag-actions {
+  border-top: 1px solid #dee2e6;
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .quad-tag-grid {
+    gap: 8px;
+    min-height: 120px;
+  }
+  
+  .quad-tag-item {
+    padding: 8px;
+  }
+  
+  .quad-tag-name {
+    font-size: 0.75rem;
+  }
+  
+  .quad-tag-value {
+    font-size: 1rem;
+  }
+}
+
+/* Dark theme support */
+[data-bs-theme="dark"] .quad-tag-item {
+  background: #343a40;
+  border-color: #495057;
+  color: #fff;
+}
+
+[data-bs-theme="dark"] .quad-tag-item:hover {
+  background: #495057;
+  border-color: #0f5cdd;
+}
+
+[data-bs-theme="dark"] .quad-tag-name {
+  color: #adb5bd;
+}
+
+[data-bs-theme="dark"] .quad-tag-value {
+  color: #fff;
+}
+</style>
 {% endblock %}
 
 {% block scripts %}
@@ -741,6 +1143,125 @@
       });
     }
 
+    // Handle Add Quad Tag form submission
+    const addQuadTagForm = document.getElementById('addQuadTagForm');
+    if (addQuadTagForm) {
+      addQuadTagForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        console.log('Quad tag form submitted');
+        
+        const tag1Id = document.getElementById('tag1_select').value;
+        const tag2Id = document.getElementById('tag2_select').value;
+        const tag3Id = document.getElementById('tag3_select').value;
+        const tag4Id = document.getElementById('tag4_select').value;
+        const groupId = document.getElementById('quad_target_group').value;
+        const newGroupName = document.getElementById('new_quad_group_name').value.trim();
+        
+        console.log('Selected tags:', { tag1Id, tag2Id, tag3Id, tag4Id });
+        console.log('Group info:', { groupId, newGroupName });
+        
+        // Validate that all 4 tags are selected
+        if (!tag1Id || !tag2Id || !tag3Id || !tag4Id) {
+          console.log('Validation failed: not all tags selected');
+          showQuadError('Please select all 4 tags');
+          return;
+        }
+        
+        // Validate that all tags are different
+        const tagIds = [tag1Id, tag2Id, tag3Id, tag4Id];
+        const uniqueTagIds = [...new Set(tagIds)];
+        if (uniqueTagIds.length !== 4) {
+          showQuadError('All 4 tags must be different');
+          return;
+        }
+        
+        // Validate group selection
+        if (!groupId && !newGroupName) {
+          showQuadError('Please select a group or enter a new group name');
+          return;
+        }
+        
+        // Show loading
+        Swal.fire({
+          title: 'Adding Quad Tag Card...',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+        
+        // Prepare form data
+        const formData = new FormData();
+        formData.append('tag1_id', tag1Id);
+        formData.append('tag2_id', tag2Id);
+        formData.append('tag3_id', tag3Id);
+        formData.append('tag4_id', tag4Id);
+        if (groupId) {
+          formData.append('group_id', groupId);
+        }
+        if (newGroupName) {
+          formData.append('new_group_name', newGroupName);
+        }
+        
+        // Send request
+        console.log('Sending request to:', `/subdash/${currentSubdashId}/add_quad_tag`);
+        fetch(`/subdash/${currentSubdashId}/add_quad_tag`, {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => {
+          console.log('Response status:', response.status);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('Response data:', data);
+          if (data.success) {
+            Swal.fire({
+              title: 'Success!',
+              text: 'Quad tag card added successfully',
+              icon: 'success',
+              timer: 2000
+            }).then(() => {
+              location.reload();
+            });
+          } else {
+            Swal.fire({
+              title: 'Error',
+              text: data.message || data.error || 'Failed to add quad tag card',
+              icon: 'error'
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Fetch error:', error);
+          
+          // Kiểm tra nếu là 404 (route chưa tồn tại)
+          if (error.message.includes('404')) {
+            Swal.fire({
+              title: 'Backend Route Missing',
+              html: `
+                <p>Tính năng Quad Tag Card cần backend support.</p>
+                <p>Vui lòng thêm route <code>/subdash/&lt;id&gt;/add_quad_tag</code> vào backend.</p>
+                <hr>
+                <small>Error: ${error.message}</small>
+              `,
+              icon: 'warning',
+              width: '500px'
+            });
+          } else {
+            Swal.fire({
+              title: 'Error',
+              text: `An error occurred: ${error.message}`,
+              icon: 'error'
+            });
+          }
+        });
+      });
+    }
+
     // Request notification permission on page load
     if (Notification.permission === 'default') {
       Notification.requestPermission();
@@ -967,7 +1488,161 @@
       }
     });
 
+
+
+    // Handle toggle new quad group button
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('#toggleNewQuadGroup')) {
+        e.preventDefault();
+        toggleNewQuadGroupInput();
+      }
+    });
+
+    // Handle delete quad card
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('.delete-quad-btn')) {
+        e.preventDefault();
+        
+        const btn = e.target.closest('.delete-quad-btn');
+        const quadId = btn.dataset.quadId;
+        
+        Swal.fire({
+          title: 'Delete Quad Card?',
+          text: 'This will remove the quad tag card. This action cannot be undone.',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#dc3545',
+          cancelButtonColor: '#6c757d',
+          confirmButtonText: 'Yes, delete it!',
+          cancelButtonText: 'Cancel'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+              title: 'Deleting...',
+              allowOutsideClick: false,
+              didOpen: () => {
+                Swal.showLoading();
+              }
+            });
+            
+            // Send delete request
+            fetch(`/subdash/${currentSubdashId}/delete_quad_card/${quadId}`, {
+              method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire({
+                  title: 'Deleted!',
+                  text: 'Quad card has been deleted.',
+                  icon: 'success',
+                  timer: 2000
+                }).then(() => {
+                  location.reload();
+                });
+              } else {
+                Swal.fire({
+                  title: 'Error',
+                  text: data.message || 'Failed to delete quad card',
+                  icon: 'error'
+                });
+              }
+            })
+            .catch(error => {
+              console.error('Error:', error);
+              Swal.fire({
+                title: 'Error',
+                text: 'An error occurred while deleting the quad card',
+                icon: 'error'
+              });
+            });
+          }
+        });
+      }
+    });
+
+    // Reset quad tag modal when closed
+    const addQuadTagModal = document.getElementById('addQuadTagModal');
+    if (addQuadTagModal) {
+      // Test khi modal được mở
+      addQuadTagModal.addEventListener('shown.bs.modal', function () {
+        console.log('Quad tag modal opened');
+        // Kiểm tra các elements
+        const elements = [
+          'tag1_select', 'tag2_select', 'tag3_select', 'tag4_select',
+          'quad_target_group', 'new_quad_group_name'
+        ];
+        elements.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            console.log(`✓ Element found: ${id}`);
+          } else {
+            console.error(`✗ Element missing: ${id}`);
+          }
+        });
+      });
+      
+      addQuadTagModal.addEventListener('hidden.bs.modal', function () {
+        // Reset form
+        document.getElementById('addQuadTagForm').reset();
+        
+        // Hide error message
+        document.getElementById('quad-error-message').style.display = 'none';
+        
+        // Reset new group section
+        const newQuadGroupSection = document.getElementById('newQuadGroupSection');
+        const quadTargetGroupSelect = document.getElementById('quad_target_group');
+        const toggleBtn = document.getElementById('toggleNewQuadGroup');
+        const newQuadGroupInput = document.getElementById('new_quad_group_name');
+        
+        newQuadGroupSection.style.display = 'none';
+        quadTargetGroupSelect.disabled = false;
+        newQuadGroupInput.required = false;
+        toggleBtn.innerHTML = '<i class=\"bi bi-plus-circle\"></i> New';
+        toggleBtn.className = 'btn btn-outline-secondary';
+        
+
+      });
+    }
+
   }); // End of DOMContentLoaded
+
+  // Show error message for quad tag form
+  function showQuadError(message) {
+    const errorDiv = document.getElementById('quad-error-message');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    setTimeout(() => {
+      errorDiv.style.display = 'none';
+    }, 5000);
+  }
+
+  // Toggle new group input for quad tags
+  function toggleNewQuadGroupInput() {
+    const newQuadGroupSection = document.getElementById('newQuadGroupSection');
+    const quadTargetGroupSelect = document.getElementById('quad_target_group');
+    const toggleBtn = document.getElementById('toggleNewQuadGroup');
+    const newQuadGroupInput = document.getElementById('new_quad_group_name');
+
+    if (newQuadGroupSection.style.display === 'none') {
+      // Show new group input
+      newQuadGroupSection.style.display = 'block';
+      quadTargetGroupSelect.disabled = true;
+      quadTargetGroupSelect.value = '';
+      newQuadGroupInput.required = true;
+      toggleBtn.innerHTML = '<i class=\"bi bi-x-circle\"></i> Cancel';
+      toggleBtn.className = 'btn btn-outline-danger';
+    } else {
+      // Hide new group input
+      newQuadGroupSection.style.display = 'none';
+      quadTargetGroupSelect.disabled = false;
+      newQuadGroupInput.required = false;
+      newQuadGroupInput.value = '';
+      toggleBtn.innerHTML = '<i class=\"bi bi-plus-circle\"></i> New';
+      toggleBtn.className = 'btn btn-outline-secondary';
+    }
+  }
 
   // Convert function code to integer for comparison
   function getFunctionCodeInt(fc) {
@@ -978,6 +1653,42 @@
   function canWriteTag(functionCode) {
     const fc = getFunctionCodeInt(functionCode);
     return fc === 1 || fc === 3;
+  }
+
+  // Show error message for quad tag form
+  function showQuadError(message) {
+    const errorDiv = document.getElementById('quad-error-message');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    setTimeout(() => {
+      errorDiv.style.display = 'none';
+    }, 5000);
+  }
+
+  // Toggle new group input for quad tags
+  function toggleNewQuadGroupInput() {
+    const newQuadGroupSection = document.getElementById('newQuadGroupSection');
+    const quadTargetGroupSelect = document.getElementById('quad_target_group');
+    const toggleBtn = document.getElementById('toggleNewQuadGroup');
+    const newQuadGroupInput = document.getElementById('new_quad_group_name');
+
+    if (newQuadGroupSection.style.display === 'none') {
+      // Show new group input
+      newQuadGroupSection.style.display = 'block';
+      quadTargetGroupSelect.disabled = true;
+      quadTargetGroupSelect.value = '';
+      newQuadGroupInput.required = true;
+      toggleBtn.innerHTML = '<i class="bi bi-x-circle"></i> Cancel';
+      toggleBtn.className = 'btn btn-outline-danger';
+    } else {
+      // Hide new group input
+      newQuadGroupSection.style.display = 'none';
+      quadTargetGroupSelect.disabled = false;
+      newQuadGroupInput.required = false;
+      newQuadGroupInput.value = '';
+      toggleBtn.innerHTML = '<i class="bi bi-plus-circle"></i> New';
+      toggleBtn.className = 'btn btn-outline-secondary';
+    }
   }
 
   // Toggle new group input visibility (global function)
@@ -1244,14 +1955,28 @@
         // gom các cập nhật value (chỉ khi đổi giá trị)
         const pending = [];
         data.tags.forEach(tag => {
+          // Update regular tags
           const valEl = document.getElementById('tag-val-' + tag.id);
-          if (!valEl) return;
+          
+          // Update quad tags
+          const quadValEl = document.getElementById('quad-tag-val-' + tag.id);
+          
+          if (valEl) {
+            const oldVal = valEl.textContent;
+            const newVal = String(tag.value); // hoặc formatValue(tag.value, tag.datatype)
 
-          const oldVal = valEl.textContent;
-          const newVal = String(tag.value); // hoặc formatValue(tag.value, tag.datatype)
-
-          if (oldVal !== newVal) {
-            pending.push({ valEl, newVal, tag });
+            if (oldVal !== newVal) {
+              pending.push({ valEl, newVal, tag });
+            }
+          }
+          
+          if (quadValEl) {
+            const oldQuadVal = quadValEl.textContent;
+            const newQuadVal = String(tag.value);
+            
+            if (oldQuadVal !== newQuadVal) {
+              pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
+            }
           }
 
           // Luôn cập nhật timestamp & timer nếu có ts
@@ -1260,6 +1985,10 @@
             tsEl.textContent = tag.ts;
             tsEl.style.color = '';
             tsEl.style.fontWeight = '';
+          }
+          
+          // Reset timer for both regular and quad tags
+          if (valEl || quadValEl) {
             resetTagTimer(tag.id);
           }
 
