@@ -701,70 +701,183 @@
 
 {% block extra_css %}
 <style>
-/* Quad Tag Card Styles */
-.quad-tag-card {
-  border: 2px solid #e9ecef;
-  border-radius: 12px;
-  transition: all 0.3s ease;
-}
-
-.quad-tag-card:hover {
-  border-color: #0f5cdd;
-  box-shadow: 0 4px 12px rgba(15, 92, 221, 0.15);
-}
+/* Quad Tag Card Styles - Dashboard Style */
 
 .quad-tag-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 16px;
-  min-height: 160px;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  grid-auto-rows: minmax(0, 1fr) !important;
+  gap: 12px !important;
+  min-height: 220px !important;
+  padding: 8px !important;
+  margin: 0 !important;
+}
+.quad-tag-card:hover {
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important;
+  transform: translateY(-2px) !important;
 }
 
-.quad-tag-item {
-  padding: 12px;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  background: #f8f9fa;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  transition: all 0.2s ease;
+.quad-tag-card .card-header {
+  background: #1a1d23 !important;
+  border: none !important;
+  color: white !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+.quad-sub-card {
+  padding: 16px !important;
+  transition: all 0.3s ease !important;
+  position: relative !important;
+  margin: 0 !important;
+  border: none !important;
 }
 
-.quad-tag-item:hover {
-  background: #e9ecef;
-  border-color: #0f5cdd;
+/* Group 1 - Purple/Blue gradient */
+.quad-group-1 {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
 }
 
-.quad-tag-name {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #495057;
-  margin-bottom: 8px;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
+/* Group 2 - Cyan/Teal gradient */
+.quad-group-2 {
+  background: linear-gradient(135deg, #06b6d4 0%, #14b8a6 100%) !important;
 }
 
-.quad-tag-value {
-  font-size: 1.25rem;
-  font-weight: bold;
-  color: #212529;
+.quad-sub-card:hover {
+  transform: scale(1.02) !important;
+  box-shadow: inset 0 0 20px rgba(255,255,255,0.1) !important;
 }
 
-.quad-tag-value .text-muted {
-  font-size: 0.875rem;
-  font-weight: normal;
+.quad-sub-card-title {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: white !important;
+  margin-bottom: 16px !important;
+  text-align: left !important;
+  opacity: 0.9 !important;
 }
 
-.quad-tag-actions {
-  border-top: 1px solid #dee2e6;
-  padding-top: 8px;
-  margin-top: 8px;
+.quad-tag-row {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
 }
 
+.quad-sub-card .quad-tag-item {
+  background: rgba(0,0,0,0.2) !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  transition: all 0.3s ease !important;
+  position: relative !important;
+  margin: 0 !important;
+  border: none !important;
+}
 
+.quad-sub-card .quad-tag-item:hover {
+  background: rgba(0,0,0,0.3) !important;
+  transform: translateX(4px) !important;
+}
+
+.quad-tag-label {
+  background: rgba(255,255,255,0.9) !important;
+  color: #1a1d23 !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  min-width: 32px !important;
+  text-align: center !important;
+}
+
+.quad-tag-value-row {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 4px !important;
+}
+
+.quad-sub-card .quad-tag-value {
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  color: white !important;
+  line-height: 1 !important;
+}
+
+.quad-sub-card .quad-tag-unit {
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  color: rgba(255,255,255,0.8) !important;
+  text-transform: uppercase !important;
+}
+
+.quad-update-time {
+  position: absolute !important;
+  bottom: 8px !important;
+  left: 16px !important;
+  font-size: 0.75rem !important;
+  color: rgba(255,255,255,0.6) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.quad-update-time::before {
+  content: '🕒' !important;
+  font-size: 0.7rem !important;
+}
+
+.quad-write-btn {
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 0.7rem !important;
+  background: rgba(255,255,255,0.2) !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  color: white !important;
+  border-radius: 4px !important;
+  opacity: 0 !important;
+  transition: all 0.2s ease !important;
+}
+
+.quad-sub-card .quad-tag-item:hover .quad-write-btn {
+  opacity: 1 !important;
+  background: rgba(255,255,255,0.9) !important;
+  color: #1a1d23 !important;
+}
+
+/* Force override all old quad styles */
+.quad-tag-card .d-flex {
+  display: none !important;
+}
+
+.quad-tag-card .card-body {
+  padding: 0 !important;
+}
+
+/* Hide original quad items after transformation */
+.quad-tag-card .d-flex.align-items-center {
+  display: none !important;
+}
+
+.quad-tag-card .fw-bold {
+  display: none !important;
+}
+
+.quad-tag-card .text-muted {
+  display: none !important;
+}
+
+.btn-xs {
+  --bs-btn-padding-y: 0.25rem;
+  --bs-btn-padding-x: 0.5rem;
+  --bs-btn-font-size: 0.75rem;
+  --bs-btn-border-radius: 0.25rem;
+}
+
+/* Override old quad tag styles for better appearance */
+/* Remove legacy value overrides to keep new styling */
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
@@ -807,39 +920,34 @@
 }
 </style>
 {% endblock %}
-
 {% block scripts %}
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script>
-  // Initialize Socket.IO client
-  // const socket = io();
-
   // Wrap everything in DOMContentLoaded to ensure buttons exist
   document.addEventListener('DOMContentLoaded', function () {
 
-    // App globals for subdashboard - ensure we don't override existing App
+    // App globals cho subdashboard
     if (!window.App) {
       window.App = {};
     }
 
-    // Preserve all existing properties and only add new ones
     const subdashApp = {
       changeGroup: function (groupId) {
-        // Leave current room before navigating
+        // Rời room socket cũ trước khi chuyển nhóm
         if (typeof socket !== 'undefined') {
           socket.emit('leave', { room: `subdashboard_{{ subdash.id }}` });
         }
 
-        // Navigate to new group (this will reload the page)
+        // Điều hướng sang group mới
         const url = new URL(window.location);
         url.searchParams.set('group', groupId);
         window.location.href = url.toString();
       }
     };
 
-    // Only assign new functions without overriding existing ones
+    // Không overwrite App, chỉ bổ sung
     Object.assign(window.App, subdashApp);
 
     // Set meter bar widths immediately based on device_status
@@ -847,18 +955,15 @@
       const allMeterBars = document.querySelectorAll('[id^="tag-bar-"]');
       allMeterBars.forEach(barEl => {
         const deviceStatus = barEl.getAttribute('data-device-status');
-        // Set width based on device status
         if (deviceStatus === 'connected') {
           barEl.style.width = '100%';
         } else if (deviceStatus === 'disconnected') {
           barEl.style.width = '0%';
-        } else { // unknown or null
+        } else {
           barEl.style.width = '0%';
         }
       });
     }
-
-    // Initialize meter bars immediately
     initializeMeterBars();
 
     // Helper: dim a tag immediately without overwriting its current value text
@@ -1644,10 +1749,193 @@
     }
   }
 
-  // Convert function code to integer for comparison
-  function getFunctionCodeInt(fc) {
-    return parseInt(fc) || 0;
+  // Format quad tag values for better display
+  function formatQuadTagValue(value) {
+    if (value === null || value === undefined || value === '') {
+      return '0.0';
+    }
+    
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+      return '0.0';
+    }
+    
+    // Format large numbers with appropriate suffixes
+    if (Math.abs(num) >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    } else if (Math.abs(num) >= 1000) {
+      return (num / 1000).toFixed(1) + 'K';
+    } else {
+      return num.toFixed(1);
+    }
   }
+
+  // Fix quad tag layout by restructuring HTML using template structure
+  function fixQuadTagLayout() {
+    console.log('🔧 Starting fixQuadTagLayout...');
+    
+    document.querySelectorAll('.quad-tag-card').forEach((card, cardIndex) => {
+      console.log(`Processing quad card ${cardIndex + 1}`);
+      
+      // Find all elements that might be quad items (more flexible selector)
+      const items = card.querySelectorAll('.quad-tag-item, .d-flex');
+      console.log(`Found ${items.length} potential quad items`);
+      
+      if (items.length >= 4) {
+        // Get the grid container
+        let grid = card.querySelector('.quad-tag-grid');
+        if (!grid) {
+          // Create grid if it doesn't exist
+          grid = document.createElement('div');
+          grid.className = 'quad-tag-grid';
+          const cardBody = card.querySelector('.card-body');
+          if (cardBody) {
+            cardBody.innerHTML = '';
+            cardBody.appendChild(grid);
+          }
+        }
+        
+        // Clear existing content
+        grid.innerHTML = '';
+        
+        // Extract data from existing items
+        const itemsData = [];
+        for (let i = 0; i < Math.min(4, items.length); i++) {
+          const item = items[i];
+          
+          // Try to find value element
+          const valElement = item.querySelector('[id*="quad-tag-val-"], .fw-bold, .tag-value, span') || 
+                            item.querySelector('*'); // fallback to any child
+          const unitElement = item.querySelector('small, .text-muted, .value-unit');
+          const writeBtn = item.querySelector('.write-btn, .btn');
+          
+          const value = valElement ? valElement.textContent.trim() : '0';
+          const unit = unitElement ? unitElement.textContent.trim() : 'Kwh';
+          const id = valElement ? valElement.id || `quad-tag-val-${Date.now()}-${i}` : `quad-tag-val-${Date.now()}-${i}`;
+          
+          itemsData.push({
+            value: formatQuadTagValue(value),
+            unit: unit,
+            id: id,
+            writeBtn: writeBtn ? writeBtn.outerHTML : ''
+          });
+        }
+        
+        // Hide all original items
+        items.forEach(item => {
+          item.style.display = 'none';
+        });
+        
+        // Create first sub-card (Items 1 & 2) - Temperature
+        const subCard1 = document.createElement('div');
+        subCard1.className = 'quad-sub-card quad-group-1';
+        subCard1.innerHTML = `
+          <div class="quad-sub-card-title">Temperature</div>
+          <div class="quad-tag-row">
+            <div class="quad-tag-item pv-item">
+              <div class="quad-tag-label">PV</div>
+              <div class="quad-tag-value-row">
+                <div class="quad-tag-value" id="${itemsData[0].id}">${itemsData[0].value}</div>
+                <div class="quad-tag-unit">${itemsData[0].unit}</div>
+              </div>
+              ${itemsData[0].writeBtn}
+            </div>
+            <div class="quad-tag-item sv-item">
+              <div class="quad-tag-label">SV</div>
+              <div class="quad-tag-value-row">
+                <div class="quad-tag-value" id="${itemsData[1].id}">${itemsData[1].value}</div>
+                <div class="quad-tag-unit">${itemsData[1].unit}</div>
+              </div>
+              ${itemsData[1].writeBtn}
+            </div>
+          </div>
+          <div class="quad-update-time">Last updated: ${new Date().toLocaleTimeString()}</div>
+        `;
+        
+        // Create second sub-card (Items 3 & 4) - Humidity  
+        const subCard2 = document.createElement('div');
+        subCard2.className = 'quad-sub-card quad-group-2';
+        subCard2.innerHTML = `
+          <div class="quad-sub-card-title">Humidity</div>
+          <div class="quad-tag-row">
+            <div class="quad-tag-item pv-item">
+              <div class="quad-tag-label">PV</div>
+              <div class="quad-tag-value-row">
+                <div class="quad-tag-value" id="${itemsData[2].id}">${itemsData[2].value}</div>
+                <div class="quad-tag-unit">${itemsData[2].unit}</div>
+              </div>
+              ${itemsData[2].writeBtn}
+            </div>
+            <div class="quad-tag-item sv-item">
+              <div class="quad-tag-label">SV</div>
+              <div class="quad-tag-value-row">
+                <div class="quad-tag-value" id="${itemsData[3].id}">${itemsData[3].value}</div>
+                <div class="quad-tag-unit">${itemsData[3].unit}</div>
+              </div>
+              ${itemsData[3].writeBtn}
+            </div>
+          </div>
+          <div class="quad-update-time">Last updated: ${new Date().toLocaleTimeString()}</div>
+        `;
+        
+        // Add sub-cards to grid
+        grid.appendChild(subCard1);
+        grid.appendChild(subCard2);
+        
+        // Update card header
+        let cardHeader = card.querySelector('.card-header');
+        if (!cardHeader) {
+          cardHeader = document.createElement('div');
+          cardHeader.className = 'card-header bg-dark text-white d-flex justify-content-between align-items-center py-2';
+          const cardBody = card.querySelector('.card-body');
+          if (cardBody) {
+            cardBody.className = 'card-body p-0';
+            card.insertBefore(cardHeader, cardBody);
+          }
+        }
+        cardHeader.innerHTML = '<h6 class="mb-0"><i class="bi bi-speedometer2"></i> Dashboard 1</h6>';
+        
+        console.log(`✅ Successfully restructured quad card ${cardIndex + 1}`);
+      }
+    });
+    
+    console.log('🎯 fixQuadTagLayout completed');
+  }
+  
+  // Extract meaningful group name from tag names
+  function extractGroupName(tag1Name, tag2Name) {
+    // Try to find common parts or meaningful names
+    const name1 = tag1Name.toLowerCase();
+    const name2 = tag2Name.toLowerCase();
+    
+    // Common patterns
+    if (name1.includes('temp') || name2.includes('temp')) return 'Temperature';
+    if (name1.includes('humid') || name2.includes('humid')) return 'Humidity';
+    if (name1.includes('press') || name2.includes('press')) return 'Pressure';
+    if (name1.includes('flow') || name2.includes('flow')) return 'Flow';
+    if (name1.includes('level') || name2.includes('level')) return 'Level';
+    
+    // If no pattern found, use first tag name without numbers
+    return tag1Name.replace(/\d+/g, '').trim() || 'Group';
+  }
+
+  // Initialize quad tag values formatting on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 DOM loaded, starting quad layout fix...');
+    
+    // Add a small delay to ensure all elements are rendered
+    setTimeout(function() {
+      fixQuadTagLayout();
+      
+      // Format values
+      document.querySelectorAll('[id^="quad-tag-val-"]').forEach(element => {
+        const currentValue = element.textContent;
+        element.textContent = formatQuadTagValue(currentValue);
+      });
+      
+      console.log('✨ Quad layout initialization completed');
+    }, 500);
+  });
 
   // Check if tag supports write operations
   function canWriteTag(functionCode) {

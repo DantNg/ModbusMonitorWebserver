@@ -25,6 +25,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-theme.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/light-theme.css') }}">
 
+  {% block extra_css %}{% endblock %}
+
 </head>
 
 <body class="app-bg">
