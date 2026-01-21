@@ -211,6 +211,13 @@
                         <i class="bi bi-columns me-2"></i>Rename Right Column
                       </button>
                     </li>
+                    <li>
+                      <button class="dropdown-item set-quad-condition-btn"
+                              data-quad-id="{{ quad_card.id }}"
+                              title="Set Compare Conditions">
+                        <i class="bi bi-sliders me-2"></i>Set Compare Conditions
+                      </button>
+                    </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
                       <button class="dropdown-item text-danger delete-quad-btn" 
@@ -444,6 +451,13 @@
                               data-target="right" 
                               title="Rename Right Column">
                         <i class="bi bi-columns me-2"></i>Rename Right Column
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item set-quad-condition-btn"
+                              data-quad-id="{{ quad_card.id }}"
+                              title="Set Compare Conditions">
+                        <i class="bi bi-sliders me-2"></i>Set Compare Conditions
                       </button>
                     </li>
                     <li><hr class="dropdown-divider"></li>
@@ -1880,6 +1894,147 @@
       }
     });
 
+    // Đổi tên tiêu đề quad card và hai cột (lưu localStorage)
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('.rename-quad-btn');
+      if (!btn) return;
+
+      e.preventDefault();
+      const quadId = btn.dataset.quadId || '';
+      const target = btn.dataset.target || 'card';
+      const card = btn.closest('.quad-tag-card') || document.querySelector(`.quad-tag-card[data-quad-id="${quadId}"]`);
+
+      if (!card) {
+        console.warn('Quad card not found for rename');
+        return;
+      }
+
+      const subTitles = card.querySelectorAll('.quad-sub-card-title');
+      let titleEl = null;
+      let storageKey = '';
+      let defaultTitle = '';
+
+      if (target === 'left') {
+        titleEl = subTitles[0] || null;
+        storageKey = `quad-card-${quadId}-title-left`;
+        defaultTitle = (titleEl && titleEl.textContent.trim()) || 'Group A';
+      } else if (target === 'right') {
+        titleEl = subTitles[1] || null;
+        storageKey = `quad-card-${quadId}-title-right`;
+        defaultTitle = (titleEl && titleEl.textContent.trim()) || 'Group B';
+      } else {
+        titleEl = card.querySelector('.quad-card-title') || card.querySelector('.quad-card-header-title');
+        storageKey = `quad-card-${quadId}-title-main`;
+        defaultTitle = (titleEl && titleEl.textContent.trim()) || 'Quad Tag Card';
+      }
+
+      const currentTitle = (titleEl && titleEl.textContent.trim()) || defaultTitle;
+
+      Swal.fire({
+        title: 'Rename',
+        input: 'text',
+        inputLabel: 'New title:',
+        inputValue: currentTitle,
+        inputPlaceholder: 'Enter new title',
+        showCancelButton: true,
+        confirmButtonText: 'Update',
+        cancelButtonText: 'Cancel',
+        inputValidator: (value) => {
+          if (!value || !value.trim()) {
+            return 'Please enter a title';
+          }
+          if (value.trim() === currentTitle) {
+            return 'Please enter a different title';
+          }
+        }
+      }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        const newTitle = result.value.trim();
+
+        if (titleEl) {
+          titleEl.textContent = newTitle;
+        }
+
+        if (storageKey) {
+          setStoredTitle(storageKey, newTitle);
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Updated',
+          text: 'Title updated successfully',
+          timer: 1500,
+          showConfirmButton: false
+        });
+      });
+    });
+
+    // Mở hộp thoại chọn điều kiện so sánh PV/SV cho từng cột (lưu localStorage)
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('.set-quad-condition-btn');
+      if (!btn) return;
+
+      e.preventDefault();
+      const quadId = btn.dataset.quadId || '';
+      const leftKey = `quad-card-${quadId}-cond-left`;
+      const rightKey = `quad-card-${quadId}-cond-right`;
+      const leftCurrent = localStorage.getItem(leftKey) || 'gt';
+      const rightCurrent = localStorage.getItem(rightKey) || 'gt';
+
+      const options = [
+        { value: 'gt', label: 'PV > SV' },
+        { value: 'lt', label: 'PV < SV' },
+        { value: 'eq', label: 'PV = SV' },
+        { value: 'gte', label: 'PV >= SV' },
+        { value: 'lte', label: 'PV <= SV' },
+        { value: 'ne', label: 'PV != SV' }
+      ];
+
+      const buildOptions = (selected) => options
+        .map(opt => `<option value="${opt.value}" ${selected === opt.value ? 'selected' : ''}>${opt.label}</option>`)
+        .join('');
+
+      Swal.fire({
+        title: 'Chọn điều kiện so sánh',
+        html: `
+          <div class="mb-3 text-start">
+            <label class="form-label">Cột trái (PV vs SV)</label>
+            <select id="quad-cond-left" class="form-select">${buildOptions(leftCurrent)}</select>
+          </div>
+          <div class="mb-0 text-start">
+            <label class="form-label">Cột phải (PV vs SV)</label>
+            <select id="quad-cond-right" class="form-select">${buildOptions(rightCurrent)}</select>
+          </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Lưu',
+        cancelButtonText: 'Hủy',
+        preConfirm: () => {
+          const leftVal = (document.getElementById('quad-cond-left') || {}).value;
+          const rightVal = (document.getElementById('quad-cond-right') || {}).value;
+          if (!leftVal || !rightVal) {
+            return Swal.showValidationMessage('Vui lòng chọn đầy đủ điều kiện');
+          }
+          return { leftVal, rightVal };
+        }
+      }).then((result) => {
+        if (!result.isConfirmed || !result.value) return;
+
+        const { leftVal, rightVal } = result.value;
+        localStorage.setItem(leftKey, leftVal);
+        localStorage.setItem(rightKey, rightVal);
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Đã lưu điều kiện',
+          timer: 1500,
+          showConfirmButton: false
+        });
+      });
+    });
+
     // Reset quad tag modal when closed
     const addQuadTagModal = document.getElementById('addQuadTagModal');
     if (addQuadTagModal) {
@@ -2602,81 +2757,6 @@
           }
         });
 
-        // Handle rename quad card and column titles (local, giống rename group UI)
-        document.addEventListener('click', function (e) {
-          const btn = e.target.closest('.rename-quad-btn');
-          if (!btn) return;
-
-          e.preventDefault();
-          const quadId = btn.dataset.quadId || '';
-          const target = btn.dataset.target || 'card';
-          const card = btn.closest('.quad-tag-card') || document.querySelector(`.quad-tag-card[data-quad-id="${quadId}"]`);
-
-          if (!card) {
-            console.warn('Quad card not found for rename');
-            return;
-          }
-
-          const subTitles = card.querySelectorAll('.quad-sub-card-title');
-          let titleEl = null;
-          let storageKey = '';
-          let defaultTitle = '';
-
-          if (target === 'left') {
-            titleEl = subTitles[0] || null;
-            storageKey = `quad-card-${quadId}-title-left`;
-            defaultTitle = (titleEl && titleEl.textContent.trim()) || 'Group A';
-          } else if (target === 'right') {
-            titleEl = subTitles[1] || null;
-            storageKey = `quad-card-${quadId}-title-right`;
-            defaultTitle = (titleEl && titleEl.textContent.trim()) || 'Group B';
-          } else {
-            titleEl = card.querySelector('.quad-card-title') || card.querySelector('.quad-card-header-title');
-            storageKey = `quad-card-${quadId}-title-main`;
-            defaultTitle = (titleEl && titleEl.textContent.trim()) || 'Quad Tag Card';
-          }
-
-          const currentTitle = (titleEl && titleEl.textContent.trim()) || defaultTitle;
-
-          Swal.fire({
-            title: 'Rename',
-            input: 'text',
-            inputLabel: 'New title:',
-            inputValue: currentTitle,
-            inputPlaceholder: 'Enter new title',
-            showCancelButton: true,
-            confirmButtonText: 'Update',
-            cancelButtonText: 'Cancel',
-            inputValidator: (value) => {
-              if (!value || !value.trim()) {
-                return 'Please enter a title';
-              }
-              if (value.trim() === currentTitle) {
-                return 'Please enter a different title';
-              }
-            }
-          }).then((result) => {
-            if (!result.isConfirmed) return;
-
-            const newTitle = result.value.trim();
-
-            if (titleEl) {
-              titleEl.textContent = newTitle;
-            }
-
-            if (storageKey) {
-              setStoredTitle(storageKey, newTitle);
-            }
-
-            Swal.fire({
-              icon: 'success',
-              title: 'Updated',
-              text: 'Title updated successfully',
-              timer: 1500,
-              showConfirmButton: false
-            });
-          });
-        });
         // 4) Áp các thay đổi value (batch)
         pending.forEach(({ valEl, newVal }) => {
           valEl.textContent = newVal;
