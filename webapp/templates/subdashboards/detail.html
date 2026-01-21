@@ -302,7 +302,7 @@
                 </div>
                 
                 {% if session.get('role') == 'admin' %}
-                {# Actions moved to header gear; body dropdown removed to tránh duplicate #}
+                {# Actions moved to header gear; body dropdown removed to avoid duplicates #}
                 {% endif %}
               </div>
             </div>
@@ -793,7 +793,7 @@
                   <label for="quad_card_title" class="form-label">Card Title (optional)</label>
                   <input type="text" id="quad_card_title" name="quad_card_title" class="form-control"
                          placeholder="e.g., AHU 01 Environment">
-                  <small class="text-muted">Tên hiển thị cho toàn bộ quad card.</small>
+                  <small class="text-muted">Display name for the entire quad card.</small>
                 </div>
                 <div class="col-md-6">
                   <label for="quad_left_title" class="form-label">Left Panel Title</label>
@@ -911,7 +911,7 @@
   font-size: 0.95rem !important;
 }
 
-/* Gradient chỉ áp dụng cho header */
+/* Gradient applies to header only */
 .quad-sub-card-head.quad-group-1 {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
 }
@@ -1028,7 +1028,7 @@
   color: #111827 !important;
 }
 
-/* Đảm bảo nút Write luôn hiển thị rõ trong grid mới */
+/* Ensure the Write button stays visible in the new grid */
 .quad-tag-item .write-btn {
   display: inline-flex !important;
   align-items: center !important;
@@ -1036,7 +1036,7 @@
   opacity: 1 !important;
 }
 
-/* Nút setting của quad card luôn hiển thị */
+/* Quad card settings button remains visible */
 .quad-tag-actions {
   position: absolute !important;
   top: 12px !important;
@@ -1142,26 +1142,26 @@
   // Wrap everything in DOMContentLoaded to ensure buttons exist
   document.addEventListener('DOMContentLoaded', function () {
 
-    // App globals cho subdashboard
+    // App globals for subdashboard
     if (!window.App) {
       window.App = {};
     }
 
     const subdashApp = {
       changeGroup: function (groupId) {
-        // Rời room socket cũ trước khi chuyển nhóm
+        // Leave the previous socket room before switching group
         if (typeof socket !== 'undefined') {
           socket.emit('leave', { room: `subdashboard_{{ subdash.id }}` });
         }
 
-        // Điều hướng sang group mới
+        // Navigate to the new group
         const url = new URL(window.location);
         url.searchParams.set('group', groupId);
         window.location.href = url.toString();
       }
     };
 
-    // Không overwrite App, chỉ bổ sung
+    // Do not overwrite App; just extend it
     Object.assign(window.App, subdashApp);
 
     // Set meter bar widths immediately based on device_status
@@ -1570,13 +1570,13 @@
         .catch(error => {
           console.error('Fetch error:', error);
           
-          // Kiểm tra nếu là 404 (route chưa tồn tại)
+          // Check if the endpoint is missing (404)
           if (error.message.includes('404')) {
             Swal.fire({
               title: 'Backend Route Missing',
               html: `
-                <p>Tính năng Quad Tag Card cần backend support.</p>
-                <p>Vui lòng thêm route <code>/subdash/&lt;id&gt;/add_quad_tag</code> vào backend.</p>
+                <p>Quad Tag Card requires backend support.</p>
+                <p>Please add the route <code>/subdash/&lt;id&gt;/add_quad_tag</code> to the backend.</p>
                 <hr>
                 <small>Error: ${error.message}</small>
               `,
@@ -1894,7 +1894,7 @@
       }
     });
 
-    // Đổi tên tiêu đề quad card và hai cột (lưu localStorage)
+    // Rename quad card title and both columns (stored in localStorage)
     document.addEventListener('click', function (e) {
       const btn = e.target.closest('.rename-quad-btn');
       if (!btn) return;
@@ -1970,7 +1970,7 @@
       });
     });
 
-    // Mở hộp thoại chọn điều kiện so sánh PV/SV cho từng cột (lưu localStorage)
+    // Open dialog to choose PV/SV compare conditions per column (stored in localStorage)
     document.addEventListener('click', function (e) {
       const btn = e.target.closest('.set-quad-condition-btn');
       if (!btn) return;
@@ -1996,26 +1996,26 @@
         .join('');
 
       Swal.fire({
-        title: 'Chọn điều kiện so sánh',
+        title: 'Choose compare conditions',
         html: `
           <div class="mb-3 text-start">
-            <label class="form-label">Cột trái (PV vs SV)</label>
+            <label class="form-label">Left column (PV vs SV)</label>
             <select id="quad-cond-left" class="form-select">${buildOptions(leftCurrent)}</select>
           </div>
           <div class="mb-0 text-start">
-            <label class="form-label">Cột phải (PV vs SV)</label>
+            <label class="form-label">Right column (PV vs SV)</label>
             <select id="quad-cond-right" class="form-select">${buildOptions(rightCurrent)}</select>
           </div>
         `,
         focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: 'Lưu',
-        cancelButtonText: 'Hủy',
+        confirmButtonText: 'Save',
+        cancelButtonText: 'Cancel',
         preConfirm: () => {
           const leftVal = (document.getElementById('quad-cond-left') || {}).value;
           const rightVal = (document.getElementById('quad-cond-right') || {}).value;
           if (!leftVal || !rightVal) {
-            return Swal.showValidationMessage('Vui lòng chọn đầy đủ điều kiện');
+            return Swal.showValidationMessage('Please select both conditions');
           }
           return { leftVal, rightVal };
         }
@@ -2028,7 +2028,7 @@
 
         Swal.fire({
           icon: 'success',
-          title: 'Đã lưu điều kiện',
+          title: 'Conditions saved',
           timer: 1500,
           showConfirmButton: false
         });
@@ -2038,10 +2038,10 @@
     // Reset quad tag modal when closed
     const addQuadTagModal = document.getElementById('addQuadTagModal');
     if (addQuadTagModal) {
-      // Test khi modal được mở
+      // Debug when the modal is opened
       addQuadTagModal.addEventListener('shown.bs.modal', function () {
         console.log('Quad tag modal opened');
-        // Kiểm tra các elements
+        // Verify required elements exist
         const elements = [
           'tag1_select', 'tag2_select', 'tag3_select', 'tag4_select',
           'quad_target_group', 'new_quad_group_name'
@@ -2138,7 +2138,7 @@
     }
   }
 
-  // Local title helpers để cho phép đổi tên header và lưu lại trong trình duyệt
+  // Local title helpers to allow renaming headers and persisting in the browser
   function getStoredTitle(key) {
     return localStorage.getItem(key) || '';
   }
@@ -2178,7 +2178,7 @@
     document.querySelectorAll('.quad-tag-card').forEach((card, cardIndex) => {
       console.log(`Processing quad card ${cardIndex + 1}`);
       
-      // Chỉ quét trong card-body để tránh dính header (gear) gây sai nút write
+      // Only scan inside card-body to avoid picking up header gear and misplacing write buttons
       const body = card.querySelector('.card-body') || card;
       const items = body.querySelectorAll('.quad-tag-item, .d-flex');
       console.log(`Found ${items.length} potential quad items`);
@@ -2231,7 +2231,7 @@
           item.style.display = 'none';
         });
         
-        // Chọn tiêu đề cho từng nửa card (ưu tiên lưu trong localStorage, fallback theo tên tag)
+        // Choose titles for each half of the card (prefer values from localStorage, otherwise use tag names)
         const defaultTitle1 = extractGroupName(itemsData[0].name, itemsData[1].name) || 'Group A';
         const defaultTitle2 = extractGroupName(itemsData[2].name, itemsData[3].name) || 'Group B';
         const titleKey1 = `quad-card-${cardId}-title-left`;
@@ -2299,11 +2299,11 @@
         grid.appendChild(subCard1);
         grid.appendChild(subCard2);
 
-        // Cho phép đổi tên header và lưu tại localStorage
+        // Allow renaming headers and store them in localStorage
         attachTitleEditor(subCard1.querySelector('.quad-sub-card-title'), titleKey1, defaultTitle1);
         attachTitleEditor(subCard2.querySelector('.quad-sub-card-title'), titleKey2, defaultTitle2);
         
-        // Update card header title only (giữ lại gear dropdown sẵn có)
+        // Update card header title only (keep existing gear dropdown)
         const cardTitleKey = `quad-card-${cardId}-title-main`;
         const defaultCardTitle = 'Quad Tag Card';
         const cardTitle = getStoredTitle(cardTitleKey) || defaultCardTitle;
@@ -2324,7 +2324,7 @@
           headerTitleEl = document.createElement('span');
           headerTitleEl.className = 'quad-card-title fw-semibold';
           headerTitleEl.textContent = cardTitle;
-          // Prepend to keep gear bên phải
+          // Prepend to keep the gear icon on the right
           const flexWrapper = document.createElement('div');
           flexWrapper.className = 'd-flex align-items-center gap-2';
           flexWrapper.appendChild(headerTitleEl);
@@ -2674,13 +2674,13 @@
 
       socketConnected = true;
 
-      // 1) Tính trạng thái thiết bị đúng logic
+      // 1) Derive device status correctly
       const deviceStatus =
         (data.ok === true) || (data.status === 'connected') ? 'connected' : 'disconnected';
 
-      // 2) Cập nhật từng tag
+      // 2) Update each tag
       if (Array.isArray(data.tags)) {
-        // gom các cập nhật value (chỉ khi đổi giá trị)
+        // Collect value updates (only when value changes)
         const pending = [];
         data.tags.forEach(tag => {
           // Update regular tags
@@ -2691,7 +2691,7 @@
           
           if (valEl) {
             const oldVal = valEl.textContent;
-            const newVal = String(tag.value); // hoặc formatValue(tag.value, tag.datatype)
+            const newVal = String(tag.value); // or formatValue(tag.value, tag.datatype)
 
             if (oldVal !== newVal) {
               pending.push({ valEl, newVal, tag });
@@ -2707,7 +2707,7 @@
             }
           }
 
-          // Luôn cập nhật timestamp & timer nếu có ts
+          // Always update timestamp and timer if ts exists
           const tsEl = document.getElementById('tag-ts-' + tag.id);
           if (tsEl && tag.ts) {
             tsEl.textContent = tag.ts;
@@ -2720,13 +2720,13 @@
             resetTagTimer(tag.id);
           }
 
-          // 3) Cập nhật meter bar theo deviceStatus cho MỖI TAG thuộc device này
+          // 3) Update the meter bar per tag based on device status
           const barEl = document.getElementById('tag-bar-' + tag.id);
           if (barEl) {
-            // cập nhật data attribute để lần render sau còn đúng
+            // update data attribute to stay correct on the next render
             barEl.setAttribute('data-device-status', deviceStatus);
 
-            // reset class cũ
+            // reset previous classes
             barEl.classList.remove('device-connected', 'device-disconnected', 'device-unknown', 'tag-inactive');
 
             if (deviceStatus === 'connected') {
@@ -2738,7 +2738,7 @@
             }
           }
 
-          // 3b) Cập nhật badge Normal/Bad theo deviceStatus
+          // 3b) Update badge Normal/Bad based on device status
           const badgeEl = document.getElementById('tag-badge-' + tag.id);
           if (badgeEl) {
             // Reset classes
@@ -2757,10 +2757,10 @@
           }
         });
 
-        // 4) Áp các thay đổi value (batch)
+        // 4) Apply value changes (batch)
         pending.forEach(({ valEl, newVal }) => {
           valEl.textContent = newVal;
-          // bỏ dấu hiệu inactive nếu có
+          // clear inactive styling if present
           valEl.style.opacity = '';
           valEl.style.color = '';
         });
