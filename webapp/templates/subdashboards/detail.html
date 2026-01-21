@@ -178,7 +178,7 @@
         {% if group.quad_cards %}
           {% for quad_card in group.quad_cards %}
           <div class="col-12 col-lg-8 col-xl-6">
-            <div class="card h-100 shadow-soft quad-tag-card">
+            <div class="card h-100 shadow-soft quad-tag-card" data-quad-id="{{ quad_card.id }}">
               <div class="card-body">
                 <div class="quad-tag-grid">
                   <!-- Top Left -->
@@ -653,6 +653,32 @@
             </div>
           </div>
           
+          <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-info text-white">
+              <h6 class="mb-0"><i class="bi bi-type"></i> Quad Card Titles</h6>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="quad_card_title" class="form-label">Card Title (optional)</label>
+                  <input type="text" id="quad_card_title" name="quad_card_title" class="form-control"
+                         placeholder="e.g., AHU 01 Environment">
+                  <small class="text-muted">Tên hiển thị cho toàn bộ quad card.</small>
+                </div>
+                <div class="col-md-6">
+                  <label for="quad_left_title" class="form-label">Left Panel Title</label>
+                  <input type="text" id="quad_left_title" name="quad_left_title" class="form-control"
+                         placeholder="e.g., Temperature">
+                </div>
+                <div class="col-md-6">
+                  <label for="quad_right_title" class="form-label">Right Panel Title</label>
+                  <input type="text" id="quad_right_title" name="quad_right_title" class="form-control"
+                         placeholder="e.g., Humidity">
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div id="quad-error-message" class="alert alert-danger" style="display: none;"></div>
         </div>
         <div class="modal-footer">
@@ -703,6 +729,15 @@
 <style>
 /* Quad Tag Card Styles - Dashboard Style */
 
+.quad-tag-card {
+  border-radius: 14px !important;
+  overflow: hidden !important;
+}
+
+.quad-tag-card .card-body {
+  padding: 10px !important;
+}
+
 .quad-tag-grid {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
@@ -717,28 +752,35 @@
   transform: translateY(-2px) !important;
 }
 
-.quad-tag-card .card-header {
-  background: #1a1d23 !important;
-  border: none !important;
-  color: white !important;
-  font-size: 1rem !important;
-  font-weight: 600 !important;
-}
 .quad-sub-card {
-  padding: 16px !important;
+  padding: 14px 14px 32px 14px !important;
   transition: all 0.3s ease !important;
   position: relative !important;
   margin: 0 !important;
-  border: none !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04) !important;
 }
 
-/* Group 1 - Purple/Blue gradient */
-.quad-group-1 {
+.quad-sub-card-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin: -14px -14px 12px -14px !important;
+  padding: 10px 14px !important;
+  border-radius: 12px 12px 8px 8px !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem !important;
+}
+
+/* Gradient chỉ áp dụng cho header */
+.quad-sub-card-head.quad-group-1 {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
 }
 
-/* Group 2 - Cyan/Teal gradient */
-.quad-group-2 {
+.quad-sub-card-head.quad-group-2 {
   background: linear-gradient(135deg, #06b6d4 0%, #14b8a6 100%) !important;
 }
 
@@ -749,65 +791,70 @@
 
 .quad-sub-card-title {
   font-size: 1rem !important;
-  font-weight: 600 !important;
-  color: white !important;
-  margin-bottom: 16px !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+  margin: 0 !important;
   text-align: left !important;
-  opacity: 0.9 !important;
+  opacity: 0.95 !important;
 }
 
 .quad-tag-row {
   display: flex !important;
   flex-direction: column !important;
-  gap: 12px !important;
+  gap: 14px !important;
 }
 
 .quad-sub-card .quad-tag-item {
-  background: rgba(0,0,0,0.2) !important;
+  background: #f8fafc !important;
   border-radius: 8px !important;
-  padding: 12px !important;
-  display: flex !important;
-  justify-content: space-between !important;
+  padding: 12px 14px !important;
+  display: grid !important;
+  grid-template-columns: auto 1fr auto !important;
   align-items: center !important;
   transition: all 0.3s ease !important;
   position: relative !important;
   margin: 0 !important;
-  border: none !important;
+  border: 1px solid #e5e7eb !important;
+  gap: 12px !important;
 }
 
 .quad-sub-card .quad-tag-item:hover {
-  background: rgba(0,0,0,0.3) !important;
+  background: #eef2ff !important;
   transform: translateX(4px) !important;
 }
 
 .quad-tag-label {
   background: rgba(255,255,255,0.9) !important;
+  background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%) !important;
   color: #1a1d23 !important;
   padding: 4px 8px !important;
   border-radius: 4px !important;
   font-size: 0.875rem !important;
   font-weight: 600 !important;
-  min-width: 32px !important;
+  min-width: 50px !important;
   text-align: center !important;
 }
 
 .quad-tag-value-row {
   display: flex !important;
   align-items: baseline !important;
-  gap: 4px !important;
+  gap: 8px !important;
+  justify-content: center !important;
+  flex: 1 1 auto !important;
+  text-align: center !important;
 }
 
 .quad-sub-card .quad-tag-value {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
-  color: white !important;
+  color: #111827 !important;
   line-height: 1 !important;
 }
 
 .quad-sub-card .quad-tag-unit {
   font-size: 0.875rem !important;
   font-weight: 500 !important;
-  color: rgba(255,255,255,0.8) !important;
+  color: #4b5563 !important;
   text-transform: uppercase !important;
 }
 
@@ -816,44 +863,38 @@
   bottom: 8px !important;
   left: 16px !important;
   font-size: 0.75rem !important;
-  color: rgba(255,255,255,0.6) !important;
+  color: #6b7280 !important;
   display: flex !important;
   align-items: center !important;
   gap: 4px !important;
 }
 
 .quad-update-time::before {
-  content: '🕒' !important;
   font-size: 0.7rem !important;
 }
 
 .quad-write-btn {
-  position: absolute !important;
-  top: 8px !important;
-  right: 8px !important;
+  position: static !important;
   padding: 4px 8px !important;
   font-size: 0.7rem !important;
-  background: rgba(255,255,255,0.2) !important;
-  border: 1px solid rgba(255,255,255,0.3) !important;
-  color: white !important;
+  background: #fff !important;
+  border: 1px solid #d1d5db !important;
+  color: #111827 !important;
   border-radius: 4px !important;
   opacity: 0 !important;
   transition: all 0.2s ease !important;
+  justify-self: end !important;
 }
 
 .quad-sub-card .quad-tag-item:hover .quad-write-btn {
   opacity: 1 !important;
-  background: rgba(255,255,255,0.9) !important;
-  color: #1a1d23 !important;
+  background: #f3f4f6 !important;
+  color: #111827 !important;
 }
 
 /* Force override all old quad styles */
 .quad-tag-card .d-flex {
   display: none !important;
-}
-
-.quad-tag-card .card-body {
-  padding: 0 !important;
 }
 
 /* Hide original quad items after transformation */
@@ -917,6 +958,25 @@
 
 [data-bs-theme="dark"] .quad-tag-value {
   color: #fff;
+}
+
+[data-bs-theme="dark"] .quad-sub-card {
+  background: #1f2937 !important;
+  border-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .quad-sub-card .quad-tag-item {
+  background: #111827 !important;
+  border-color: #1f2937 !important;
+}
+
+[data-bs-theme="dark"] .quad-sub-card .quad-tag-value {
+  color: #e5e7eb !important;
+}
+
+[data-bs-theme="dark"] .quad-sub-card .quad-tag-unit,
+[data-bs-theme="dark"] .quad-update-time {
+  color: #9ca3af !important;
 }
 </style>
 {% endblock %}
@@ -1261,6 +1321,9 @@
         const tag4Id = document.getElementById('tag4_select').value;
         const groupId = document.getElementById('quad_target_group').value;
         const newGroupName = document.getElementById('new_quad_group_name').value.trim();
+        const cardTitle = document.getElementById('quad_card_title').value.trim();
+        const leftTitle = document.getElementById('quad_left_title').value.trim();
+        const rightTitle = document.getElementById('quad_right_title').value.trim();
         
         console.log('Selected tags:', { tag1Id, tag2Id, tag3Id, tag4Id });
         console.log('Group info:', { groupId, newGroupName });
@@ -1324,6 +1387,16 @@
         .then(data => {
           console.log('Response data:', data);
           if (data.success) {
+            if (cardTitle) {
+              localStorage.setItem(`quad-card-${data.quad_card_id}-title-main`, cardTitle);
+            }
+            if (leftTitle) {
+              localStorage.setItem(`quad-card-${data.quad_card_id}-title-left`, leftTitle);
+            }
+            if (rightTitle) {
+              localStorage.setItem(`quad-card-${data.quad_card_id}-title-right`, rightTitle);
+            }
+
             Swal.fire({
               title: 'Success!',
               text: 'Quad tag card added successfully',
@@ -1770,6 +1843,39 @@
     }
   }
 
+  // Local title helpers để cho phép đổi tên header và lưu lại trong trình duyệt
+  function getStoredTitle(key) {
+    return localStorage.getItem(key) || '';
+  }
+
+  function setStoredTitle(key, value) {
+    if (value) {
+      localStorage.setItem(key, value);
+    } else {
+      localStorage.removeItem(key);
+    }
+  }
+
+  function attachTitleEditor(titleEl, storageKey, defaultValue) {
+    if (!titleEl) return;
+    titleEl.style.cursor = 'text';
+    titleEl.title = 'Double-click to rename';
+
+    titleEl.addEventListener('dblclick', function () {
+      const current = titleEl.textContent.trim();
+      const next = prompt('Enter new title', current) || '';
+      const trimmed = next.trim();
+
+      if (trimmed) {
+        titleEl.textContent = trimmed;
+        setStoredTitle(storageKey, trimmed);
+      } else {
+        titleEl.textContent = defaultValue;
+        setStoredTitle(storageKey, '');
+      }
+    });
+  }
+
   // Fix quad tag layout by restructuring HTML using template structure
   function fixQuadTagLayout() {
     console.log('🔧 Starting fixQuadTagLayout...');
@@ -1782,6 +1888,7 @@
       console.log(`Found ${items.length} potential quad items`);
       
       if (items.length >= 4) {
+        const cardId = card.dataset.quadId || `quad-${cardIndex + 1}`;
         // Get the grid container
         let grid = card.querySelector('.quad-tag-grid');
         if (!grid) {
@@ -1804,19 +1911,21 @@
           const item = items[i];
           
           // Try to find value element
-          const valElement = item.querySelector('[id*="quad-tag-val-"], .fw-bold, .tag-value, span') || 
-                            item.querySelector('*'); // fallback to any child
+          const valElement = item.querySelector('[id*="quad-tag-val-"], .fw-bold, .tag-value, span') || item.querySelector('*');
           const unitElement = item.querySelector('small, .text-muted, .value-unit');
+          const nameElement = item.querySelector('.quad-tag-name');
           const writeBtn = item.querySelector('.write-btn, .btn');
           
           const value = valElement ? valElement.textContent.trim() : '0';
           const unit = unitElement ? unitElement.textContent.trim() : 'Kwh';
           const id = valElement ? valElement.id || `quad-tag-val-${Date.now()}-${i}` : `quad-tag-val-${Date.now()}-${i}`;
+          const name = nameElement ? nameElement.textContent.trim() : `Tag ${i + 1}`;
           
           itemsData.push({
             value: formatQuadTagValue(value),
             unit: unit,
             id: id,
+            name: name,
             writeBtn: writeBtn ? writeBtn.outerHTML : ''
           });
         }
@@ -1826,11 +1935,22 @@
           item.style.display = 'none';
         });
         
-        // Create first sub-card (Items 1 & 2) - Temperature
+        // Chọn tiêu đề cho từng nửa card (ưu tiên lưu trong localStorage, fallback theo tên tag)
+        const defaultTitle1 = extractGroupName(itemsData[0].name, itemsData[1].name) || 'Group A';
+        const defaultTitle2 = extractGroupName(itemsData[2].name, itemsData[3].name) || 'Group B';
+        const titleKey1 = `quad-card-${cardId}-title-left`;
+        const titleKey2 = `quad-card-${cardId}-title-right`;
+        const title1 = getStoredTitle(titleKey1) || defaultTitle1;
+        const title2 = getStoredTitle(titleKey2) || defaultTitle2;
+
+        // Create first sub-card (Items 1 & 2)
         const subCard1 = document.createElement('div');
-        subCard1.className = 'quad-sub-card quad-group-1';
+        subCard1.className = 'quad-sub-card';
         subCard1.innerHTML = `
-          <div class="quad-sub-card-title">Temperature</div>
+          <div class="quad-sub-card-head quad-group-1">
+            <div class="quad-sub-card-title" data-title-slot="left">${title1}</div>
+            <span class="quad-title-hint" style="font-size:0.85rem; opacity:0.85;">✎</span>
+          </div>
           <div class="quad-tag-row">
             <div class="quad-tag-item pv-item">
               <div class="quad-tag-label">PV</div>
@@ -1852,11 +1972,14 @@
           <div class="quad-update-time">Last updated: ${new Date().toLocaleTimeString()}</div>
         `;
         
-        // Create second sub-card (Items 3 & 4) - Humidity  
+        // Create second sub-card (Items 3 & 4)
         const subCard2 = document.createElement('div');
-        subCard2.className = 'quad-sub-card quad-group-2';
+        subCard2.className = 'quad-sub-card';
         subCard2.innerHTML = `
-          <div class="quad-sub-card-title">Humidity</div>
+          <div class="quad-sub-card-head quad-group-2">
+            <div class="quad-sub-card-title" data-title-slot="right">${title2}</div>
+            <span class="quad-title-hint" style="font-size:0.85rem; opacity:0.85;">✎</span>
+          </div>
           <div class="quad-tag-row">
             <div class="quad-tag-item pv-item">
               <div class="quad-tag-label">PV</div>
@@ -1881,8 +2004,16 @@
         // Add sub-cards to grid
         grid.appendChild(subCard1);
         grid.appendChild(subCard2);
+
+        // Cho phép đổi tên header và lưu tại localStorage
+        attachTitleEditor(subCard1.querySelector('.quad-sub-card-title'), titleKey1, defaultTitle1);
+        attachTitleEditor(subCard2.querySelector('.quad-sub-card-title'), titleKey2, defaultTitle2);
         
-        // Update card header
+        // Update card header with editable title
+        const cardTitleKey = `quad-card-${cardId}-title-main`;
+        const defaultCardTitle = 'Quad Tag Card';
+        const cardTitle = getStoredTitle(cardTitleKey) || defaultCardTitle;
+
         let cardHeader = card.querySelector('.card-header');
         if (!cardHeader) {
           cardHeader = document.createElement('div');
@@ -1893,7 +2024,9 @@
             card.insertBefore(cardHeader, cardBody);
           }
         }
-        cardHeader.innerHTML = '<h6 class="mb-0"><i class="bi bi-speedometer2"></i> Dashboard 1</h6>';
+
+        cardHeader.innerHTML = `<h6 class="mb-0"><i class="bi bi-speedometer2"></i> <span class="quad-card-title" data-title-slot="card">${cardTitle}</span></h6>`;
+        attachTitleEditor(cardHeader.querySelector('.quad-card-title'), cardTitleKey, defaultCardTitle);
         
         console.log(`✅ Successfully restructured quad card ${cardIndex + 1}`);
       }
