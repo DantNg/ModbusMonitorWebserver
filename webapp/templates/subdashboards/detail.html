@@ -219,6 +219,47 @@
                       </button>
                     </li>
                     <li><hr class="dropdown-divider"></li>
+                    {% if quad_card.tag1.function_code|int in [1, 3] %}
+                    <li>
+                      <button class="dropdown-item write-quad-tag-btn"
+                              data-tag-id="{{ quad_card.tag1_id }}"
+                              data-tag-name="{{ quad_card.tag1.name }}"
+                              title="Write value to {{ quad_card.tag1.name }}">
+                        <i class="bi bi-pencil me-2"></i>Write {{ quad_card.tag1.name }}
+                      </button>
+                    </li>
+                    {% endif %}
+                    {% if quad_card.tag2.function_code|int in [1, 3] %}
+                    <li>
+                      <button class="dropdown-item write-quad-tag-btn"
+                              data-tag-id="{{ quad_card.tag2_id }}"
+                              data-tag-name="{{ quad_card.tag2.name }}"
+                              title="Write value to {{ quad_card.tag2.name }}">
+                        <i class="bi bi-pencil me-2"></i>Write {{ quad_card.tag2.name }}
+                      </button>
+                    </li>
+                    {% endif %}
+                    {% if quad_card.tag3.function_code|int in [1, 3] %}
+                    <li>
+                      <button class="dropdown-item write-quad-tag-btn"
+                              data-tag-id="{{ quad_card.tag3_id }}"
+                              data-tag-name="{{ quad_card.tag3.name }}"
+                              title="Write value to {{ quad_card.tag3.name }}">
+                        <i class="bi bi-pencil me-2"></i>Write {{ quad_card.tag3.name }}
+                      </button>
+                    </li>
+                    {% endif %}
+                    {% if quad_card.tag4.function_code|int in [1, 3] %}
+                    <li>
+                      <button class="dropdown-item write-quad-tag-btn"
+                              data-tag-id="{{ quad_card.tag4_id }}"
+                              data-tag-name="{{ quad_card.tag4.name }}"
+                              title="Write value to {{ quad_card.tag4.name }}">
+                        <i class="bi bi-pencil me-2"></i>Write {{ quad_card.tag4.name }}
+                      </button>
+                    </li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
                     <li>
                       <button class="dropdown-item text-danger delete-quad-btn" 
                               data-quad-id="{{ quad_card.id }}" 
@@ -237,15 +278,7 @@
                     <div class="quad-tag-name">{{ quad_card.tag1.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-{{ quad_card.tag1_id }}" class="fw-bold">{{ quad_card.tag1.last_value or '0' }}</span>
-                      <small class="text-muted">{{ quad_card.tag1.unit or '' }}</small>
-                      {% if session.get('role') == 'admin' and quad_card.tag1.function_code|int in [1, 3] %}
-                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
-                                data-tag-id="{{ quad_card.tag1_id }}" 
-                                data-tag-name="{{ quad_card.tag1.name }}" 
-                                title="Write Value">
-                          <i class="bi bi-pencil-square"></i>
-                        </button>
-                      {% endif %}
+                      <small class="text-muted ms-auto">{{ quad_card.tag1.unit or '' }}</small>
                     </div>
                   </div>
                   
@@ -254,15 +287,7 @@
                     <div class="quad-tag-name">{{ quad_card.tag2.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-{{ quad_card.tag2_id }}" class="fw-bold">{{ quad_card.tag2.last_value or '0' }}</span>
-                      <small class="text-muted">{{ quad_card.tag2.unit or '' }}</small>
-                      {% if session.get('role') == 'admin' and quad_card.tag2.function_code|int in [1, 3] %}
-                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
-                                data-tag-id="{{ quad_card.tag2_id }}" 
-                                data-tag-name="{{ quad_card.tag2.name }}" 
-                                title="Write Value">
-                          <i class="bi bi-pencil-square"></i>
-                        </button>
-                      {% endif %}
+                      <small class="text-muted ms-auto">{{ quad_card.tag2.unit or '' }}</small>
                     </div>
                   </div>
                   
@@ -271,15 +296,7 @@
                     <div class="quad-tag-name">{{ quad_card.tag3.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-{{ quad_card.tag3_id }}" class="fw-bold">{{ quad_card.tag3.last_value or '0' }}</span>
-                      <small class="text-muted">{{ quad_card.tag3.unit or '' }}</small>
-                      {% if session.get('role') == 'admin' and quad_card.tag3.function_code|int in [1, 3] %}
-                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
-                                data-tag-id="{{ quad_card.tag3_id }}" 
-                                data-tag-name="{{ quad_card.tag3.name }}" 
-                                title="Write Value">
-                          <i class="bi bi-pencil-square"></i>
-                        </button>
-                      {% endif %}
+                      <small class="text-muted ms-auto">{{ quad_card.tag3.unit or '' }}</small>
                     </div>
                   </div>
                   
@@ -288,15 +305,7 @@
                     <div class="quad-tag-name">{{ quad_card.tag4.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-{{ quad_card.tag4_id }}" class="fw-bold">{{ quad_card.tag4.last_value or '0' }}</span>
-                      <small class="text-muted">{{ quad_card.tag4.unit or '' }}</small>
-                      {% if session.get('role') == 'admin' and quad_card.tag4.function_code|int in [1, 3] %}
-                        <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
-                                data-tag-id="{{ quad_card.tag4_id }}" 
-                                data-tag-name="{{ quad_card.tag4.name }}" 
-                                title="Write Value">
-                          <i class="bi bi-pencil-square"></i>
-                        </button>
-                      {% endif %}
+                      <small class="text-muted ms-auto">{{ quad_card.tag4.unit or '' }}</small>
                     </div>
                   </div>
                 </div>
@@ -861,7 +870,8 @@
 
 .quad-tag-card {
   border-radius: 14px !important;
-  overflow: hidden !important;
+  /* Allow dropdown menus to overflow card bounds */
+  overflow: visible !important;
   position: relative !important;
 }
 
@@ -885,7 +895,13 @@
 }
 .quad-tag-card:hover {
   box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important;
-  transform: translateY(-2px) !important;
+  /* Avoid shifting card to prevent dropdown jitter */
+  transform: none !important;
+}
+
+/* Keep dropdowns clickable and above surrounding content */
+.quad-tag-card .dropdown-menu {
+  z-index: 2050 !important;
 }
 
 .quad-sub-card {
@@ -1224,96 +1240,108 @@
     // App.startDashboard('/api/tags?subdash={{ subdash.id }}');
 
     // Write functionality for subdashboard tags
+    function handleWriteValue(tagId, tagName) {
+      Swal.fire({
+        title: `Write Value to ${tagName}`,
+        input: 'number',
+        inputLabel: 'Enter value:',
+        inputPlaceholder: 'Enter new value',
+        showCancelButton: true,
+        confirmButtonText: 'Write',
+        cancelButtonText: 'Cancel',
+        inputValidator: (value) => {
+          if (!value && value !== '0') {
+            return 'Please enter a value';
+          }
+        }
+      }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        const value = result.value;
+
+        // Show loading
+        Swal.fire({
+          title: 'Writing...',
+          text: `Setting ${tagName} to ${value}`,
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        // Send write command via Socket.IO
+        if (typeof socket !== 'undefined' && socket.connected) {
+          // Prepare write command payload
+          const writeCommand = {
+            tag_id: parseInt(tagId),
+            tag_name: tagName,
+            value: parseFloat(value),
+            timestamp: new Date().toISOString(),
+            source: 'subdashboard'
+          };
+
+          // Emit write command
+          socket.emit('modbus_write_command', writeCommand);
+
+          // Listen for write response (one-time listener)
+          socket.once('modbus_write_response', (response) => {
+            Swal.close();
+            if (response.success && response.tag_id === parseInt(tagId)) {
+              Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: `Successfully wrote ${value} to ${tagName}`,
+                timer: 2000,
+                showConfirmButton: false
+              });
+            } else {
+              Swal.fire({
+                icon: 'error',
+                title: 'Write Failed',
+                text: response.error || 'Failed to write value'
+              });
+            }
+          });
+
+          // Timeout fallback
+          setTimeout(() => {
+            if (Swal.isLoading()) {
+              Swal.close();
+              Swal.fire({
+                icon: 'warning',
+                title: 'Timeout',
+                text: 'Write command timeout - please check if value was written'
+              });
+            }
+          }, 10000); // 10 second timeout
+
+        } else {
+          Swal.close();
+          Swal.fire({
+            icon: 'error',
+            title: 'Connection Error',
+            text: 'Socket.IO connection not available'
+          });
+        }
+      });
+    }
+
     document.addEventListener('click', function (e) {
       if (e.target.closest('.write-btn')) {
         const btn = e.target.closest('.write-btn');
         const tagId = btn.dataset.tagId;
         const tagName = btn.dataset.tagName;
-
-        Swal.fire({
-          title: `Write Value to ${tagName}`,
-          input: 'number',
-          inputLabel: 'Enter value:',
-          inputPlaceholder: 'Enter new value',
-          showCancelButton: true,
-          confirmButtonText: 'Write',
-          cancelButtonText: 'Cancel',
-          inputValidator: (value) => {
-            if (!value && value !== '0') {
-              return 'Please enter a value';
-            }
-          }
-        }).then((result) => {
-          if (result.isConfirmed) {
-            const value = result.value;
-
-            // Show loading
-            Swal.fire({
-              title: 'Writing...',
-              text: `Setting ${tagName} to ${value}`,
-              allowOutsideClick: false,
-              didOpen: () => {
-                Swal.showLoading();
-              }
-            });
-
-            // Send write command via Socket.IO
-            if (typeof socket !== 'undefined' && socket.connected) {
-              // Prepare write command payload
-              const writeCommand = {
-                tag_id: parseInt(tagId),
-                tag_name: tagName,
-                value: parseFloat(value),
-                timestamp: new Date().toISOString(),
-                source: 'subdashboard'
-              };
-
-              // Emit write command
-              socket.emit('modbus_write_command', writeCommand);
-
-              // Listen for write response (one-time listener)
-              socket.once('modbus_write_response', (response) => {
-                Swal.close();
-                if (response.success && response.tag_id === parseInt(tagId)) {
-                  Swal.fire({
-                    icon: 'success',
-                    title: 'Success!',
-                    text: `Successfully wrote ${value} to ${tagName}`,
-                    timer: 2000,
-                    showConfirmButton: false
-                  });
-                } else {
-                  Swal.fire({
-                    icon: 'error',
-                    title: 'Write Failed',
-                    text: response.error || 'Failed to write value'
-                  });
-                }
-              });
-
-              // Timeout fallback
-              setTimeout(() => {
-                if (Swal.isLoading()) {
-                  Swal.close();
-                  Swal.fire({
-                    icon: 'warning',
-                    title: 'Timeout',
-                    text: 'Write command timeout - please check if value was written'
-                  });
-                }
-              }, 10000); // 10 second timeout
-
-            } else {
-              Swal.close();
-              Swal.fire({
-                icon: 'error',
-                title: 'Connection Error',
-                text: 'Socket.IO connection not available'
-              });
-            }
-          }
-        });
+        handleWriteValue(tagId, tagName);
       }
+    });
+
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('.write-quad-tag-btn');
+      if (!btn) return;
+      e.preventDefault();
+      const tagId = btn.dataset.tagId;
+      const tagName = btn.dataset.tagName;
+      handleWriteValue(tagId, tagName);
     });
 
     // Handle Add Tag form submission
