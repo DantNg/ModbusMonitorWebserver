@@ -1,0 +1,266 @@
+<!-- Compare Conditions Configuration Modal -->
+<div class="modal fade" id="compareConditionsModal" tabindex="-1" aria-labelledby="compareConditionsModalLabel" aria-hidden="true" >
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="compareConditionsModalLabel">
+          <i class="bi bi-sliders me-2"></i>Set Compare Conditions & Alerts
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="conditionQuadId" value="">
+        
+        <!-- Enabled Switch -->
+        <div class="mb-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="conditionsEnabled" checked>
+            <label class="form-check-label fw-bold" for="conditionsEnabled">
+              <i class="bi bi-power me-1"></i>Enable Condition Monitoring
+            </label>
+          </div>
+        </div>
+        
+        <!-- Left Column Configuration -->
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-header bg-primary text-white">
+            <i class="bi bi-columns me-2"></i>Left Column (Tag 1 & Tag 2) Conditions
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <!-- High Threshold -->
+              <div class="col-12">
+                <label class="form-label fw-bold text-danger">
+                  <i class="bi bi-thermometer-high me-1"></i>High Threshold Alert
+                </label>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Operator *</label>
+                <select id="leftHighOperator" class="form-select">
+                  <option value=">">Greater Than (&gt;)</option>
+                  <option value=">=">Greater Or Equal (&gt;=)</option>
+                  <option value="==">Equal (==)</option>
+                  <option value="!=">Not Equal (!=)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Threshold Value *</label>
+                <input type="number" id="leftHighValue" class="form-control" placeholder="Enter value" step="any">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Display Color</label>
+                <select id="leftHighColor" class="form-select">
+                  <option value="#dc3545">🔴 Red (Critical)</option>
+                  <option value="#fd7e14">🟠 Orange (Warning)</option>
+                  <option value="#ffc107">🟡 Yellow (Caution)</option>
+                  <option value="#198754">🟢 Green (Good)</option>
+                  <option value="#0dcaf0">🔵 Cyan (Info)</option>
+                  <option value="#6c757d">⚫ Gray (Normal)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Stable Time (sec)</label>
+                <input type="number" id="leftHighStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              </div>
+              
+              <div class="col-12">
+                <hr>
+              </div>
+              
+              <!-- Low Threshold -->
+              <div class="col-12">
+                <label class="form-label fw-bold text-info">
+                  <i class="bi bi-thermometer-low me-1"></i>Low Threshold Alert
+                </label>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Operator *</label>
+                <select id="leftLowOperator" class="form-select">
+                  <option value="<">Less Than (&lt;)</option>
+                  <option value="<=">Less Or Equal (&lt;=)</option>
+                  <option value="==">Equal (==)</option>
+                  <option value="!=">Not Equal (!=)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Threshold Value *</label>
+                <input type="number" id="leftLowValue" class="form-control" placeholder="Enter value" step="any">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Display Color</label>
+                <select id="leftLowColor" class="form-select">
+                  <option value="#0dcaf0">🔵 Cyan (Info)</option>
+                  <option value="#198754">🟢 Green (Good)</option>
+                  <option value="#ffc107">🟡 Yellow (Caution)</option>
+                  <option value="#fd7e14">🟠 Orange (Warning)</option>
+                  <option value="#dc3545">🔴 Red (Critical)</option>
+                  <option value="#6c757d">⚫ Gray (Normal)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Stable Time (sec)</label>
+                <input type="number" id="leftLowStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              </div>
+              
+              <div class="col-12">
+                <hr>
+              </div>
+              
+              <!-- Notification Settings -->
+              <div class="col-12">
+                <label class="form-label fw-bold">
+                  <i class="bi bi-bell me-1"></i>Alert Notifications (Left Column)
+                </label>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Send To Email</label>
+                <textarea id="leftEmail" class="form-control" rows="2" 
+                  placeholder="example1@gmail.com, example2@gmail.com, ..."></textarea>
+                <small class="form-text text-muted">Separate multiple emails with commas</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Send To SMS</label>
+                <textarea id="leftSMS" class="form-control" rows="2" 
+                  placeholder="+84xxxxxxxxx, +84xxxxxxxxx, ..."></textarea>
+                <small class="form-text text-muted">Separate multiple numbers with commas</small>
+              </div>
+              
+              <div class="col-12">
+                <label class="form-label">Description / Notes</label>
+                <textarea id="leftDescription" class="form-control" rows="2" 
+                  placeholder="Additional information about these conditions..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Right Column Configuration -->
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-header bg-success text-white">
+            <i class="bi bi-columns me-2"></i>Right Column (Tag 3 & Tag 4) Conditions
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <!-- High Threshold -->
+              <div class="col-12">
+                <label class="form-label fw-bold text-danger">
+                  <i class="bi bi-thermometer-high me-1"></i>High Threshold Alert
+                </label>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Operator *</label>
+                <select id="rightHighOperator" class="form-select">
+                  <option value=">">Greater Than (&gt;)</option>
+                  <option value=">=">Greater Or Equal (&gt;=)</option>
+                  <option value="==">Equal (==)</option>
+                  <option value="!=">Not Equal (!=)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Threshold Value *</label>
+                <input type="number" id="rightHighValue" class="form-control" placeholder="Enter value" step="any">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Display Color</label>
+                <select id="rightHighColor" class="form-select">
+                  <option value="#dc3545">🔴 Red (Critical)</option>
+                  <option value="#fd7e14">🟠 Orange (Warning)</option>
+                  <option value="#ffc107">🟡 Yellow (Caution)</option>
+                  <option value="#198754">🟢 Green (Good)</option>
+                  <option value="#0dcaf0">🔵 Cyan (Info)</option>
+                  <option value="#6c757d">⚫ Gray (Normal)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Stable Time (sec)</label>
+                <input type="number" id="rightHighStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              </div>
+              
+              <div class="col-12">
+                <hr>
+              </div>
+              
+              <!-- Low Threshold -->
+              <div class="col-12">
+                <label class="form-label fw-bold text-info">
+                  <i class="bi bi-thermometer-low me-1"></i>Low Threshold Alert
+                </label>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Operator *</label>
+                <select id="rightLowOperator" class="form-select">
+                  <option value="<">Less Than (&lt;)</option>
+                  <option value="<=">Less Or Equal (&lt;=)</option>
+                  <option value="==">Equal (==)</option>
+                  <option value="!=">Not Equal (!=)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Threshold Value *</label>
+                <input type="number" id="rightLowValue" class="form-control" placeholder="Enter value" step="any">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Display Color</label>
+                <select id="rightLowColor" class="form-select">
+                  <option value="#0dcaf0">🔵 Cyan (Info)</option>
+                  <option value="#198754">🟢 Green (Good)</option>
+                  <option value="#ffc107">🟡 Yellow (Caution)</option>
+                  <option value="#fd7e14">🟠 Orange (Warning)</option>
+                  <option value="#dc3545">🔴 Red (Critical)</option>
+                  <option value="#6c757d">⚫ Gray (Normal)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Stable Time (sec)</label>
+                <input type="number" id="rightLowStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              </div>
+              
+              <div class="col-12">
+                <hr>
+              </div>
+              
+              <!-- Notification Settings -->
+              <div class="col-12">
+                <label class="form-label fw-bold">
+                  <i class="bi bi-bell me-1"></i>Alert Notifications (Right Column)
+                </label>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Send To Email</label>
+                <textarea id="rightEmail" class="form-control" rows="2" 
+                  placeholder="example1@gmail.com, example2@gmail.com, ..."></textarea>
+                <small class="form-text text-muted">Separate multiple emails with commas</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Send To SMS</label>
+                <textarea id="rightSMS" class="form-control" rows="2" 
+                  placeholder="+84xxxxxxxxx, +84xxxxxxxxx, ..."></textarea>
+                <small class="form-text text-muted">Separate multiple numbers with commas</small>
+              </div>
+              
+              <div class="col-12">
+                <label class="form-label">Description / Notes</label>
+                <textarea id="rightDescription" class="form-control" rows="2" 
+                  placeholder="Additional information about these conditions..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>How it works:</strong> Tag values (PV) will be compared against the threshold values you set. 
+          When a condition is met and stable for the specified time, the tag value color will change and notifications will be sent.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x-circle me-1"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-primary" id="saveConditionsBtn">
+          <i class="bi bi-check-circle me-1"></i>Save All Conditions
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

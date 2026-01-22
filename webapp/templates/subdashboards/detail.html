@@ -829,6 +829,11 @@
   </div>
 </div>
 
+<!-- Include Compare Conditions Modal -->
+<div style="z-index: 9999; position: relative;">
+  {% include 'subdashboards/compare_conditions_modal.html' %}
+</div>
+
 <!-- Modal: Edit Unit -->
 <div class="modal fade" id="editUnitModal" tabindex="-1" aria-labelledby="editUnitModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -1998,68 +2003,166 @@
       });
     });
 
-    // Open dialog to choose PV/SV compare conditions per column (stored in localStorage)
+    // Open compare conditions modal
     document.addEventListener('click', function (e) {
       const btn = e.target.closest('.set-quad-condition-btn');
       if (!btn) return;
 
       e.preventDefault();
       const quadId = btn.dataset.quadId || '';
-      const leftKey = `quad-card-${quadId}-cond-left`;
-      const rightKey = `quad-card-${quadId}-cond-right`;
-      const leftCurrent = localStorage.getItem(leftKey) || 'gt';
-      const rightCurrent = localStorage.getItem(rightKey) || 'gt';
-
-      const options = [
-        { value: 'gt', label: 'PV > SV' },
-        { value: 'lt', label: 'PV < SV' },
-        { value: 'eq', label: 'PV = SV' },
-        { value: 'gte', label: 'PV >= SV' },
-        { value: 'lte', label: 'PV <= SV' },
-        { value: 'ne', label: 'PV != SV' }
-      ];
-
-      const buildOptions = (selected) => options
-        .map(opt => `<option value="${opt.value}" ${selected === opt.value ? 'selected' : ''}>${opt.label}</option>`)
-        .join('');
-
-      Swal.fire({
-        title: 'Choose compare conditions',
-        html: `
-          <div class="mb-3 text-start">
-            <label class="form-label">Left column (PV vs SV)</label>
-            <select id="quad-cond-left" class="form-select">${buildOptions(leftCurrent)}</select>
-          </div>
-          <div class="mb-0 text-start">
-            <label class="form-label">Right column (PV vs SV)</label>
-            <select id="quad-cond-right" class="form-select">${buildOptions(rightCurrent)}</select>
-          </div>
-        `,
-        focusConfirm: false,
-        showCancelButton: true,
-        confirmButtonText: 'Save',
-        cancelButtonText: 'Cancel',
-        preConfirm: () => {
-          const leftVal = (document.getElementById('quad-cond-left') || {}).value;
-          const rightVal = (document.getElementById('quad-cond-right') || {}).value;
-          if (!leftVal || !rightVal) {
-            return Swal.showValidationMessage('Please select both conditions');
-          }
-          return { leftVal, rightVal };
-        }
-      }).then((result) => {
-        if (!result.isConfirmed || !result.value) return;
-
-        const { leftVal, rightVal } = result.value;
-        localStorage.setItem(leftKey, leftVal);
-        localStorage.setItem(rightKey, rightVal);
-
+      
+      // Store quad ID for save handler
+      document.getElementById('conditionQuadId').value = quadId;
+      
+      // Load existing conditions from localStorage
+      loadConditionsFromStorage(quadId);
+      
+      // Show modal
+      const modal = new bootstrap.Modal(document.getElementById('compareConditionsModal'));
+      modal.show();
+    });
+    
+    // Load conditions from localStorage into modal
+    function loadConditionsFromStorage(quadId) {
+      // Global enabled state
+      const enabled = localStorage.getItem(`quad-card-${quadId}-enabled`) !== 'false';
+      document.getElementById('conditionsEnabled').checked = enabled;
+      
+      // Left column - High threshold
+      const leftHighOp = localStorage.getItem(`quad-card-${quadId}-left-high-op`) || '>';
+      const leftHighValue = localStorage.getItem(`quad-card-${quadId}-left-high-value`) || '';
+      const leftHighColor = localStorage.getItem(`quad-card-${quadId}-left-high-color`) || '#dc3545';
+      const leftHighStable = localStorage.getItem(`quad-card-${quadId}-left-high-stable`) || '10';
+      document.getElementById('leftHighOperator').value = leftHighOp;
+      document.getElementById('leftHighValue').value = leftHighValue;
+      document.getElementById('leftHighColor').value = leftHighColor;
+      document.getElementById('leftHighStable').value = leftHighStable;
+      
+      // Left column - Low threshold
+      const leftLowOp = localStorage.getItem(`quad-card-${quadId}-left-low-op`) || '<';
+      const leftLowValue = localStorage.getItem(`quad-card-${quadId}-left-low-value`) || '';
+      const leftLowColor = localStorage.getItem(`quad-card-${quadId}-left-low-color`) || '#0dcaf0';
+      const leftLowStable = localStorage.getItem(`quad-card-${quadId}-left-low-stable`) || '10';
+      document.getElementById('leftLowOperator').value = leftLowOp;
+      document.getElementById('leftLowValue').value = leftLowValue;
+      document.getElementById('leftLowColor').value = leftLowColor;
+      document.getElementById('leftLowStable').value = leftLowStable;
+      
+      // Left column - Notifications
+      const leftEmail = localStorage.getItem(`quad-card-${quadId}-left-email`) || '';
+      const leftSMS = localStorage.getItem(`quad-card-${quadId}-left-sms`) || '';
+      const leftDesc = localStorage.getItem(`quad-card-${quadId}-left-description`) || '';
+      document.getElementById('leftEmail').value = leftEmail;
+      document.getElementById('leftSMS').value = leftSMS;
+      document.getElementById('leftDescription').value = leftDesc;
+      
+      // Right column - High threshold
+      const rightHighOp = localStorage.getItem(`quad-card-${quadId}-right-high-op`) || '>';
+      const rightHighValue = localStorage.getItem(`quad-card-${quadId}-right-high-value`) || '';
+      const rightHighColor = localStorage.getItem(`quad-card-${quadId}-right-high-color`) || '#dc3545';
+      const rightHighStable = localStorage.getItem(`quad-card-${quadId}-right-high-stable`) || '10';
+      document.getElementById('rightHighOperator').value = rightHighOp;
+      document.getElementById('rightHighValue').value = rightHighValue;
+      document.getElementById('rightHighColor').value = rightHighColor;
+      document.getElementById('rightHighStable').value = rightHighStable;
+      
+      // Right column - Low threshold
+      const rightLowOp = localStorage.getItem(`quad-card-${quadId}-right-low-op`) || '<';
+      const rightLowValue = localStorage.getItem(`quad-card-${quadId}-right-low-value`) || '';
+      const rightLowColor = localStorage.getItem(`quad-card-${quadId}-right-low-color`) || '#0dcaf0';
+      const rightLowStable = localStorage.getItem(`quad-card-${quadId}-right-low-stable`) || '10';
+      document.getElementById('rightLowOperator').value = rightLowOp;
+      document.getElementById('rightLowValue').value = rightLowValue;
+      document.getElementById('rightLowColor').value = rightLowColor;
+      document.getElementById('rightLowStable').value = rightLowStable;
+      
+      // Right column - Notifications
+      const rightEmail = localStorage.getItem(`quad-card-${quadId}-right-email`) || '';
+      const rightSMS = localStorage.getItem(`quad-card-${quadId}-right-sms`) || '';
+      const rightDesc = localStorage.getItem(`quad-card-${quadId}-right-description`) || '';
+      document.getElementById('rightEmail').value = rightEmail;
+      document.getElementById('rightSMS').value = rightSMS;
+      document.getElementById('rightDescription').value = rightDesc;
+    }
+    
+    // Save conditions button handler
+    document.getElementById('saveConditionsBtn').addEventListener('click', function() {
+      const quadId = document.getElementById('conditionQuadId').value;
+      
+      if (!quadId) {
         Swal.fire({
-          icon: 'success',
-          title: 'Conditions saved',
-          timer: 1500,
-          showConfirmButton: false
+          icon: 'error',
+          title: 'Error',
+          text: 'Quad card ID not found'
         });
+        return;
+      }
+      
+      // Save global enabled state
+      const enabled = document.getElementById('conditionsEnabled').checked;
+      localStorage.setItem(`quad-card-${quadId}-enabled`, enabled);
+      
+      // Save left column conditions
+      localStorage.setItem(`quad-card-${quadId}-left-high-op`, document.getElementById('leftHighOperator').value);
+      localStorage.setItem(`quad-card-${quadId}-left-high-value`, document.getElementById('leftHighValue').value);
+      localStorage.setItem(`quad-card-${quadId}-left-high-color`, document.getElementById('leftHighColor').value);
+      localStorage.setItem(`quad-card-${quadId}-left-high-stable`, document.getElementById('leftHighStable').value);
+      
+      localStorage.setItem(`quad-card-${quadId}-left-low-op`, document.getElementById('leftLowOperator').value);
+      localStorage.setItem(`quad-card-${quadId}-left-low-value`, document.getElementById('leftLowValue').value);
+      localStorage.setItem(`quad-card-${quadId}-left-low-color`, document.getElementById('leftLowColor').value);
+      localStorage.setItem(`quad-card-${quadId}-left-low-stable`, document.getElementById('leftLowStable').value);
+      
+      localStorage.setItem(`quad-card-${quadId}-left-email`, document.getElementById('leftEmail').value);
+      localStorage.setItem(`quad-card-${quadId}-left-sms`, document.getElementById('leftSMS').value);
+      localStorage.setItem(`quad-card-${quadId}-left-description`, document.getElementById('leftDescription').value);
+      
+      // Save right column conditions
+      localStorage.setItem(`quad-card-${quadId}-right-high-op`, document.getElementById('rightHighOperator').value);
+      localStorage.setItem(`quad-card-${quadId}-right-high-value`, document.getElementById('rightHighValue').value);
+      localStorage.setItem(`quad-card-${quadId}-right-high-color`, document.getElementById('rightHighColor').value);
+      localStorage.setItem(`quad-card-${quadId}-right-high-stable`, document.getElementById('rightHighStable').value);
+      
+      localStorage.setItem(`quad-card-${quadId}-right-low-op`, document.getElementById('rightLowOperator').value);
+      localStorage.setItem(`quad-card-${quadId}-right-low-value`, document.getElementById('rightLowValue').value);
+      localStorage.setItem(`quad-card-${quadId}-right-low-color`, document.getElementById('rightLowColor').value);
+      localStorage.setItem(`quad-card-${quadId}-right-low-stable`, document.getElementById('rightLowStable').value);
+      
+      localStorage.setItem(`quad-card-${quadId}-right-email`, document.getElementById('rightEmail').value);
+      localStorage.setItem(`quad-card-${quadId}-right-sms`, document.getElementById('rightSMS').value);
+      localStorage.setItem(`quad-card-${quadId}-right-description`, document.getElementById('rightDescription').value);
+      
+      // Close modal
+      bootstrap.Modal.getInstance(document.getElementById('compareConditionsModal')).hide();
+      
+      // Show success message
+      Swal.fire({
+        icon: 'success',
+        title: 'Saved!',
+        html: `
+          <p>Compare conditions and alert settings have been saved successfully.</p>
+          <small class="text-muted">Monitoring is ${enabled ? 'ENABLED' : 'DISABLED'}</small>
+        `,
+        timer: 2500,
+        showConfirmButton: false
+      });
+      
+      // Log saved configuration for debugging
+      console.log('Quad Compare Conditions Saved:', {
+        quadId,
+        enabled,
+        leftHigh: {
+          op: document.getElementById('leftHighOperator').value,
+          value: document.getElementById('leftHighValue').value,
+          color: document.getElementById('leftHighColor').value,
+          stable: document.getElementById('leftHighStable').value
+        },
+        leftLow: {
+          op: document.getElementById('leftLowOperator').value,
+          value: document.getElementById('leftLowValue').value,
+          color: document.getElementById('leftLowColor').value,
+          stable: document.getElementById('leftLowStable').value
+        }
       });
     });
 
