@@ -43,24 +43,20 @@
                   <option value="!=">Not Equal (!=)</option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <label class="form-label">Threshold Value *</label>
                 <input type="number" id="leftHighValue" class="form-control" placeholder="Enter value" step="any">
               </div>
-              <div class="col-md-3">
-                <label class="form-label">Display Color</label>
-                <select id="leftHighColor" class="form-select">
-                  <option value="#dc3545">🔴 Red (Critical)</option>
-                  <option value="#fd7e14">🟠 Orange (Warning)</option>
-                  <option value="#ffc107">🟡 Yellow (Caution)</option>
-                  <option value="#198754">🟢 Green (Good)</option>
-                  <option value="#0dcaf0">🔵 Cyan (Info)</option>
-                  <option value="#6c757d">⚫ Gray (Normal)</option>
-                </select>
+              <div class="col-md-4">
+                <label class="form-label">On Stable Time (seconds) *</label>
+                <input type="number" id="leftHighOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
               </div>
-              <div class="col-md-3">
-                <label class="form-label">Stable Time (sec)</label>
-                <input type="number" id="leftHighStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              <div class="col-md-4">
+                <label class="form-label">Off Stable Time (seconds) *</label>
+                <input type="number" id="leftHighOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
+              </div>
+              <div class="col-12">
+                <small class="text-muted">🔴 Display color: <strong class="text-danger">Red</strong> when condition is met</small>
               </div>
               
               <div class="col-12">
@@ -82,24 +78,20 @@
                   <option value="!=">Not Equal (!=)</option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <label class="form-label">Threshold Value *</label>
                 <input type="number" id="leftLowValue" class="form-control" placeholder="Enter value" step="any">
               </div>
-              <div class="col-md-3">
-                <label class="form-label">Display Color</label>
-                <select id="leftLowColor" class="form-select">
-                  <option value="#0dcaf0">🔵 Cyan (Info)</option>
-                  <option value="#198754">🟢 Green (Good)</option>
-                  <option value="#ffc107">🟡 Yellow (Caution)</option>
-                  <option value="#fd7e14">🟠 Orange (Warning)</option>
-                  <option value="#dc3545">🔴 Red (Critical)</option>
-                  <option value="#6c757d">⚫ Gray (Normal)</option>
-                </select>
+              <div class="col-md-4">
+                <label class="form-label">On Stable Time (seconds) *</label>
+                <input type="number" id="leftLowOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
               </div>
-              <div class="col-md-3">
-                <label class="form-label">Stable Time (sec)</label>
-                <input type="number" id="leftLowStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              <div class="col-md-4">
+                <label class="form-label">Off Stable Time (seconds) *</label>
+                <input type="number" id="leftLowOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
+              </div>
+              <div class="col-12">
+                <small class="text-muted">🟡 Display color: <strong class="text-warning">Yellow</strong> when condition is met</small>
               </div>
               
               <div class="col-12">
@@ -156,24 +148,20 @@
                   <option value="!=">Not Equal (!=)</option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <label class="form-label">Threshold Value *</label>
                 <input type="number" id="rightHighValue" class="form-control" placeholder="Enter value" step="any">
               </div>
-              <div class="col-md-3">
-                <label class="form-label">Display Color</label>
-                <select id="rightHighColor" class="form-select">
-                  <option value="#dc3545">🔴 Red (Critical)</option>
-                  <option value="#fd7e14">🟠 Orange (Warning)</option>
-                  <option value="#ffc107">🟡 Yellow (Caution)</option>
-                  <option value="#198754">🟢 Green (Good)</option>
-                  <option value="#0dcaf0">🔵 Cyan (Info)</option>
-                  <option value="#6c757d">⚫ Gray (Normal)</option>
-                </select>
+              <div class="col-md-4">
+                <label class="form-label">On Stable Time (seconds) *</label>
+                <input type="number" id="rightHighOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
               </div>
-              <div class="col-md-3">
-                <label class="form-label">Stable Time (sec)</label>
-                <input type="number" id="rightHighStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              <div class="col-md-4">
+                <label class="form-label">Off Stable Time (seconds) *</label>
+                <input type="number" id="rightHighOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
+              </div>
+              <div class="col-12">
+                <small class="text-muted">🔴 Display color: <strong class="text-danger">Red</strong> when condition is met</small>
               </div>
               
               <div class="col-12">
@@ -195,24 +183,20 @@
                   <option value="!=">Not Equal (!=)</option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <label class="form-label">Threshold Value *</label>
                 <input type="number" id="rightLowValue" class="form-control" placeholder="Enter value" step="any">
               </div>
-              <div class="col-md-3">
-                <label class="form-label">Display Color</label>
-                <select id="rightLowColor" class="form-select">
-                  <option value="#0dcaf0">🔵 Cyan (Info)</option>
-                  <option value="#198754">🟢 Green (Good)</option>
-                  <option value="#ffc107">🟡 Yellow (Caution)</option>
-                  <option value="#fd7e14">🟠 Orange (Warning)</option>
-                  <option value="#dc3545">🔴 Red (Critical)</option>
-                  <option value="#6c757d">⚫ Gray (Normal)</option>
-                </select>
+              <div class="col-md-4">
+                <label class="form-label">On Stable Time (seconds) *</label>
+                <input type="number" id="rightLowOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
               </div>
-              <div class="col-md-3">
-                <label class="form-label">Stable Time (sec)</label>
-                <input type="number" id="rightLowStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              <div class="col-md-4">
+                <label class="form-label">Off Stable Time (seconds) *</label>
+                <input type="number" id="rightLowOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
+              </div>
+              <div class="col-12">
+                <small class="text-muted">🟡 Display color: <strong class="text-warning">Yellow</strong> when condition is met</small>
               </div>
               
               <div class="col-12">

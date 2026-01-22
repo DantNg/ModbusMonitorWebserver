@@ -2031,22 +2031,22 @@
       // Left column - High threshold
       const leftHighOp = localStorage.getItem(`quad-card-${quadId}-left-high-op`) || '>';
       const leftHighValue = localStorage.getItem(`quad-card-${quadId}-left-high-value`) || '';
-      const leftHighColor = localStorage.getItem(`quad-card-${quadId}-left-high-color`) || '#dc3545';
-      const leftHighStable = localStorage.getItem(`quad-card-${quadId}-left-high-stable`) || '10';
+      const leftHighOnStable = localStorage.getItem(`quad-card-${quadId}-left-high-on-stable`) || '10';
+      const leftHighOffStable = localStorage.getItem(`quad-card-${quadId}-left-high-off-stable`) || '30';
       document.getElementById('leftHighOperator').value = leftHighOp;
       document.getElementById('leftHighValue').value = leftHighValue;
-      document.getElementById('leftHighColor').value = leftHighColor;
-      document.getElementById('leftHighStable').value = leftHighStable;
+      document.getElementById('leftHighOnStable').value = leftHighOnStable;
+      document.getElementById('leftHighOffStable').value = leftHighOffStable;
       
       // Left column - Low threshold
       const leftLowOp = localStorage.getItem(`quad-card-${quadId}-left-low-op`) || '<';
       const leftLowValue = localStorage.getItem(`quad-card-${quadId}-left-low-value`) || '';
-      const leftLowColor = localStorage.getItem(`quad-card-${quadId}-left-low-color`) || '#0dcaf0';
-      const leftLowStable = localStorage.getItem(`quad-card-${quadId}-left-low-stable`) || '10';
+      const leftLowOnStable = localStorage.getItem(`quad-card-${quadId}-left-low-on-stable`) || '10';
+      const leftLowOffStable = localStorage.getItem(`quad-card-${quadId}-left-low-off-stable`) || '30';
       document.getElementById('leftLowOperator').value = leftLowOp;
       document.getElementById('leftLowValue').value = leftLowValue;
-      document.getElementById('leftLowColor').value = leftLowColor;
-      document.getElementById('leftLowStable').value = leftLowStable;
+      document.getElementById('leftLowOnStable').value = leftLowOnStable;
+      document.getElementById('leftLowOffStable').value = leftLowOffStable;
       
       // Left column - Notifications
       const leftEmail = localStorage.getItem(`quad-card-${quadId}-left-email`) || '';
@@ -2059,22 +2059,22 @@
       // Right column - High threshold
       const rightHighOp = localStorage.getItem(`quad-card-${quadId}-right-high-op`) || '>';
       const rightHighValue = localStorage.getItem(`quad-card-${quadId}-right-high-value`) || '';
-      const rightHighColor = localStorage.getItem(`quad-card-${quadId}-right-high-color`) || '#dc3545';
-      const rightHighStable = localStorage.getItem(`quad-card-${quadId}-right-high-stable`) || '10';
+      const rightHighOnStable = localStorage.getItem(`quad-card-${quadId}-right-high-on-stable`) || '10';
+      const rightHighOffStable = localStorage.getItem(`quad-card-${quadId}-right-high-off-stable`) || '30';
       document.getElementById('rightHighOperator').value = rightHighOp;
       document.getElementById('rightHighValue').value = rightHighValue;
-      document.getElementById('rightHighColor').value = rightHighColor;
-      document.getElementById('rightHighStable').value = rightHighStable;
+      document.getElementById('rightHighOnStable').value = rightHighOnStable;
+      document.getElementById('rightHighOffStable').value = rightHighOffStable;
       
       // Right column - Low threshold
       const rightLowOp = localStorage.getItem(`quad-card-${quadId}-right-low-op`) || '<';
       const rightLowValue = localStorage.getItem(`quad-card-${quadId}-right-low-value`) || '';
-      const rightLowColor = localStorage.getItem(`quad-card-${quadId}-right-low-color`) || '#0dcaf0';
-      const rightLowStable = localStorage.getItem(`quad-card-${quadId}-right-low-stable`) || '10';
+      const rightLowOnStable = localStorage.getItem(`quad-card-${quadId}-right-low-on-stable`) || '10';
+      const rightLowOffStable = localStorage.getItem(`quad-card-${quadId}-right-low-off-stable`) || '30';
       document.getElementById('rightLowOperator').value = rightLowOp;
       document.getElementById('rightLowValue').value = rightLowValue;
-      document.getElementById('rightLowColor').value = rightLowColor;
-      document.getElementById('rightLowStable').value = rightLowStable;
+      document.getElementById('rightLowOnStable').value = rightLowOnStable;
+      document.getElementById('rightLowOffStable').value = rightLowOffStable;
       
       // Right column - Notifications
       const rightEmail = localStorage.getItem(`quad-card-${quadId}-right-email`) || '';
@@ -2102,31 +2102,35 @@
       const enabled = document.getElementById('conditionsEnabled').checked;
       localStorage.setItem(`quad-card-${quadId}-enabled`, enabled);
       
-      // Save left column conditions
+      // Save left column conditions (High = Red, Low = Yellow)
       localStorage.setItem(`quad-card-${quadId}-left-high-op`, document.getElementById('leftHighOperator').value);
       localStorage.setItem(`quad-card-${quadId}-left-high-value`, document.getElementById('leftHighValue').value);
-      localStorage.setItem(`quad-card-${quadId}-left-high-color`, document.getElementById('leftHighColor').value);
-      localStorage.setItem(`quad-card-${quadId}-left-high-stable`, document.getElementById('leftHighStable').value);
+      localStorage.setItem(`quad-card-${quadId}-left-high-color`, '#dc3545'); // Fixed red
+      localStorage.setItem(`quad-card-${quadId}-left-high-on-stable`, document.getElementById('leftHighOnStable').value);
+      localStorage.setItem(`quad-card-${quadId}-left-high-off-stable`, document.getElementById('leftHighOffStable').value);
       
       localStorage.setItem(`quad-card-${quadId}-left-low-op`, document.getElementById('leftLowOperator').value);
       localStorage.setItem(`quad-card-${quadId}-left-low-value`, document.getElementById('leftLowValue').value);
-      localStorage.setItem(`quad-card-${quadId}-left-low-color`, document.getElementById('leftLowColor').value);
-      localStorage.setItem(`quad-card-${quadId}-left-low-stable`, document.getElementById('leftLowStable').value);
+      localStorage.setItem(`quad-card-${quadId}-left-low-color`, '#ffc107'); // Fixed yellow
+      localStorage.setItem(`quad-card-${quadId}-left-low-on-stable`, document.getElementById('leftLowOnStable').value);
+      localStorage.setItem(`quad-card-${quadId}-left-low-off-stable`, document.getElementById('leftLowOffStable').value);
       
       localStorage.setItem(`quad-card-${quadId}-left-email`, document.getElementById('leftEmail').value);
       localStorage.setItem(`quad-card-${quadId}-left-sms`, document.getElementById('leftSMS').value);
       localStorage.setItem(`quad-card-${quadId}-left-description`, document.getElementById('leftDescription').value);
       
-      // Save right column conditions
+      // Save right column conditions (High = Red, Low = Yellow)
       localStorage.setItem(`quad-card-${quadId}-right-high-op`, document.getElementById('rightHighOperator').value);
       localStorage.setItem(`quad-card-${quadId}-right-high-value`, document.getElementById('rightHighValue').value);
-      localStorage.setItem(`quad-card-${quadId}-right-high-color`, document.getElementById('rightHighColor').value);
-      localStorage.setItem(`quad-card-${quadId}-right-high-stable`, document.getElementById('rightHighStable').value);
+      localStorage.setItem(`quad-card-${quadId}-right-high-color`, '#dc3545'); // Fixed red
+      localStorage.setItem(`quad-card-${quadId}-right-high-on-stable`, document.getElementById('rightHighOnStable').value);
+      localStorage.setItem(`quad-card-${quadId}-right-high-off-stable`, document.getElementById('rightHighOffStable').value);
       
       localStorage.setItem(`quad-card-${quadId}-right-low-op`, document.getElementById('rightLowOperator').value);
       localStorage.setItem(`quad-card-${quadId}-right-low-value`, document.getElementById('rightLowValue').value);
-      localStorage.setItem(`quad-card-${quadId}-right-low-color`, document.getElementById('rightLowColor').value);
-      localStorage.setItem(`quad-card-${quadId}-right-low-stable`, document.getElementById('rightLowStable').value);
+      localStorage.setItem(`quad-card-${quadId}-right-low-color`, '#ffc107'); // Fixed yellow
+      localStorage.setItem(`quad-card-${quadId}-right-low-on-stable`, document.getElementById('rightLowOnStable').value);
+      localStorage.setItem(`quad-card-${quadId}-right-low-off-stable`, document.getElementById('rightLowOffStable').value);
       
       localStorage.setItem(`quad-card-${quadId}-right-email`, document.getElementById('rightEmail').value);
       localStorage.setItem(`quad-card-${quadId}-right-sms`, document.getElementById('rightSMS').value);
@@ -2154,14 +2158,30 @@
         leftHigh: {
           op: document.getElementById('leftHighOperator').value,
           value: document.getElementById('leftHighValue').value,
-          color: document.getElementById('leftHighColor').value,
-          stable: document.getElementById('leftHighStable').value
+          color: '#dc3545',
+          onStable: document.getElementById('leftHighOnStable').value,
+          offStable: document.getElementById('leftHighOffStable').value
         },
         leftLow: {
           op: document.getElementById('leftLowOperator').value,
           value: document.getElementById('leftLowValue').value,
-          color: document.getElementById('leftLowColor').value,
-          stable: document.getElementById('leftLowStable').value
+          color: '#ffc107',
+          onStable: document.getElementById('leftLowOnStable').value,
+          offStable: document.getElementById('leftLowOffStable').value
+        },
+        rightHigh: {
+          op: document.getElementById('rightHighOperator').value,
+          value: document.getElementById('rightHighValue').value,
+          color: '#dc3545',
+          onStable: document.getElementById('rightHighOnStable').value,
+          offStable: document.getElementById('rightHighOffStable').value
+        },
+        rightLow: {
+          op: document.getElementById('rightLowOperator').value,
+          value: document.getElementById('rightLowValue').value,
+          color: '#ffc107',
+          onStable: document.getElementById('rightLowOnStable').value,
+          offStable: document.getElementById('rightLowOffStable').value
         }
       });
     });
