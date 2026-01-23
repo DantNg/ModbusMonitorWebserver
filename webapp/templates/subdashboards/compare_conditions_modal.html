@@ -34,7 +34,7 @@
                   <i class="bi bi-thermometer-high me-1"></i>High Threshold Alert
                 </label>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-6">
                 <label class="form-label">Operator *</label>
                 <select id="leftHighOperator" class="form-select">
                   <option value=">">Greater Than (&gt;)</option>
@@ -43,15 +43,30 @@
                   <option value="!=">Not Equal (!=)</option>
                 </select>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
+                <label class="form-label">Compare Type *</label>
+                <select id="leftHighCompareType" class="form-select compare-type-selector" data-target="leftHigh">
+                  <option value="static">Static Value</option>
+                  <option value="tag">Compare with Tag</option>
+                </select>
+              </div>
+              
+              <div class="col-md-12 compare-value-container" id="leftHighValueContainer">
                 <label class="form-label">Threshold Value *</label>
                 <input type="number" id="leftHighValue" class="form-control" placeholder="Enter value" step="any">
               </div>
-              <div class="col-md-4">
+              <div class="col-md-12 compare-tag-container" id="leftHighTagContainer" style="display: none;">
+                <label class="form-label">Compare with Tag *</label>
+                <select id="leftHighCompareTag" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                </select>
+              </div>
+              
+              <div class="col-md-6">
                 <label class="form-label">On Stable Time (seconds) *</label>
                 <input type="number" id="leftHighOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
               </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
                 <label class="form-label">Off Stable Time (seconds) *</label>
                 <input type="number" id="leftHighOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
               </div>
@@ -69,7 +84,7 @@
                   <i class="bi bi-thermometer-low me-1"></i>Low Threshold Alert
                 </label>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-6">
                 <label class="form-label">Operator *</label>
                 <select id="leftLowOperator" class="form-select">
                   <option value="<">Less Than (&lt;)</option>
@@ -78,15 +93,30 @@
                   <option value="!=">Not Equal (!=)</option>
                 </select>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
+                <label class="form-label">Compare Type *</label>
+                <select id="leftLowCompareType" class="form-select compare-type-selector" data-target="leftLow">
+                  <option value="static">Static Value</option>
+                  <option value="tag">Compare with Tag</option>
+                </select>
+              </div>
+              
+              <div class="col-md-12 compare-value-container" id="leftLowValueContainer">
                 <label class="form-label">Threshold Value *</label>
                 <input type="number" id="leftLowValue" class="form-control" placeholder="Enter value" step="any">
               </div>
-              <div class="col-md-4">
+              <div class="col-md-12 compare-tag-container" id="leftLowTagContainer" style="display: none;">
+                <label class="form-label">Compare with Tag *</label>
+                <select id="leftLowCompareTag" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                </select>
+              </div>
+              
+              <div class="col-md-6">
                 <label class="form-label">On Stable Time (seconds) *</label>
                 <input type="number" id="leftLowOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
               </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
                 <label class="form-label">Off Stable Time (seconds) *</label>
                 <input type="number" id="leftLowOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
               </div>
@@ -139,7 +169,7 @@
                   <i class="bi bi-thermometer-high me-1"></i>High Threshold Alert
                 </label>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-6">
                 <label class="form-label">Operator *</label>
                 <select id="rightHighOperator" class="form-select">
                   <option value=">">Greater Than (&gt;)</option>
@@ -148,15 +178,30 @@
                   <option value="!=">Not Equal (!=)</option>
                 </select>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
+                <label class="form-label">Compare Type *</label>
+                <select id="rightHighCompareType" class="form-select compare-type-selector" data-target="rightHigh">
+                  <option value="static">Static Value</option>
+                  <option value="tag">Compare with Tag</option>
+                </select>
+              </div>
+              
+              <div class="col-md-12 compare-value-container" id="rightHighValueContainer">
                 <label class="form-label">Threshold Value *</label>
                 <input type="number" id="rightHighValue" class="form-control" placeholder="Enter value" step="any">
               </div>
-              <div class="col-md-4">
+              <div class="col-md-12 compare-tag-container" id="rightHighTagContainer" style="display: none;">
+                <label class="form-label">Compare with Tag *</label>
+                <select id="rightHighCompareTag" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                </select>
+              </div>
+              
+              <div class="col-md-6">
                 <label class="form-label">On Stable Time (seconds) *</label>
                 <input type="number" id="rightHighOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
               </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
                 <label class="form-label">Off Stable Time (seconds) *</label>
                 <input type="number" id="rightHighOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
               </div>
@@ -174,7 +219,7 @@
                   <i class="bi bi-thermometer-low me-1"></i>Low Threshold Alert
                 </label>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-6">
                 <label class="form-label">Operator *</label>
                 <select id="rightLowOperator" class="form-select">
                   <option value="<">Less Than (&lt;)</option>
@@ -183,15 +228,30 @@
                   <option value="!=">Not Equal (!=)</option>
                 </select>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
+                <label class="form-label">Compare Type *</label>
+                <select id="rightLowCompareType" class="form-select compare-type-selector" data-target="rightLow">
+                  <option value="static">Static Value</option>
+                  <option value="tag">Compare with Tag</option>
+                </select>
+              </div>
+              
+              <div class="col-md-12 compare-value-container" id="rightLowValueContainer">
                 <label class="form-label">Threshold Value *</label>
                 <input type="number" id="rightLowValue" class="form-control" placeholder="Enter value" step="any">
               </div>
-              <div class="col-md-4">
+              <div class="col-md-12 compare-tag-container" id="rightLowTagContainer" style="display: none;">
+                <label class="form-label">Compare with Tag *</label>
+                <select id="rightLowCompareTag" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                </select>
+              </div>
+              
+              <div class="col-md-6">
                 <label class="form-label">On Stable Time (seconds) *</label>
                 <input type="number" id="rightLowOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
               </div>
-              <div class="col-md-4">
+              <div class="col-md-6">
                 <label class="form-label">Off Stable Time (seconds) *</label>
                 <input type="number" id="rightLowOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
               </div>
