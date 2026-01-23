@@ -102,28 +102,92 @@
           </div>
         </div>
       </div>
-      <a class="side-link {{ 'active' if request.path.startswith('/alarms') and not request.path.startswith('/settings') else '' }}"
-        href="{{ url_for('alarms_bp.alarm_events') }}"><span class="icon"></span> Alarms Logger</a>
+      <!-- Alarms Logger -->
+      <div class="nav-item">
+        <a class="side-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse"
+          href="#alarmsSubmenu" role="button"
+          aria-expanded="{{ 'true' if request.path.startswith('/alarms') else 'false' }}"
+          aria-controls="alarmsSubmenu">
+          <span><span class="icon"></span> Alarms Logger</span>
+          <i class="fas fa-chevron-down ms-auto collapse-icon"></i>
+        </a>
+        <div class="collapse {{ 'show' if request.path.startswith('/alarms') else '' }}" id="alarmsSubmenu">
+          <div class="nav flex-column ms-3 mt-1">
+            <a class="side-link small {{ 'active' if request.path.startswith('/alarms') and not request.path.startswith('/alarm-settings') else '' }}"
+              href="{{ url_for('alarms_bp.alarm_events') }}">
+              <span class="icon"></span> Alarm Events
+            </a>
+          </div>
+        </div>
+      </div>
 
-      <a class="side-link {{ 'active' if request.path.startswith('/reports') else '' }}"
-        href="{{ url_for('reports_bp.reports') }}"><span class="icon"></span> Reports</a>
+      <!-- Reports -->
+      <div class="nav-item">
+        <a class="side-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse"
+          href="#reportsSubmenu" role="button"
+          aria-expanded="{{ 'true' if request.path.startswith('/reports') else 'false' }}"
+          aria-controls="reportsSubmenu">
+          <span><span class="icon"></span> Reports</span>
+          <i class="fas fa-chevron-down ms-auto collapse-icon"></i>
+        </a>
+        <div class="collapse {{ 'show' if request.path.startswith('/reports') else '' }}" id="reportsSubmenu">
+          <div class="nav flex-column ms-3 mt-1">
+            <a class="side-link small {{ 'active' if request.path.startswith('/reports') else '' }}"
+              href="{{ url_for('reports_bp.reports') }}">
+              <span class="icon"></span> View Reports
+            </a>
+          </div>
+        </div>
+      </div>
       {% if session.get("role") == "admin" %}
-      <div class="side-section">Settings</div>
-
-      <a class="side-link {{ 'active' if request.path.startswith('/devices') else '' }}"
-        href="{{ url_for('devices_bp.devices') }}"><span class="icon"></span> Devices</a>
-
-      <a class="side-link {{ 'active' if request.path.startswith('/alarm-settings') else '' }}"
-        href="{{ url_for('alarms_bp.alarm_settings') }}"><span class="icon"></span> Alarm Setting</a>
-
-      <a class="side-link {{ 'active' if request.path.startswith('/data-logger-settings') else '' }}"
-        href="{{ url_for('logger_settings_bp.datalogger_settings') }}"><span class="icon"></span> Data Logger
-        Setting</a>
+      <!-- Settings Section -->
+      <div class="nav-item">
+        <a class="side-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse"
+          href="#settingsSubmenu" role="button"
+          aria-expanded="{{ 'true' if request.path.startswith('/devices') or request.path.startswith('/alarm-settings') or request.path.startswith('/data-logger-settings') else 'false' }}"
+          aria-controls="settingsSubmenu">
+          <span><span class="icon"></span> Settings</span>
+          <i class="fas fa-chevron-down ms-auto collapse-icon"></i>
+        </a>
+        <div class="collapse {{ 'show' if request.path.startswith('/devices') or request.path.startswith('/alarm-settings') or request.path.startswith('/data-logger-settings') else '' }}" id="settingsSubmenu">
+          <div class="nav flex-column ms-3 mt-1">
+            <a class="side-link small {{ 'active' if request.path.startswith('/devices') else '' }}"
+              href="{{ url_for('devices_bp.devices') }}">
+              <span class="icon"></span> Devices
+            </a>
+            <a class="side-link small {{ 'active' if request.path.startswith('/alarm-settings') else '' }}"
+              href="{{ url_for('alarms_bp.alarm_settings') }}">
+              <span class="icon"></span> Alarm Setting
+            </a>
+            <a class="side-link small {{ 'active' if request.path.startswith('/data-logger-settings') else '' }}"
+              href="{{ url_for('logger_settings_bp.datalogger_settings') }}">
+              <span class="icon"></span> Data Logger Setting
+            </a>
+          </div>
+        </div>
+      </div>
       {% endif %}
-      <div class="side-section">User Management</div>
-      <a class="side-link {{ 'active' if request.path.startswith('/user-management') else '' }}"
-        href="{{ url_for('auth_bp.user_management') }}"><span class="icon"></span> User</a>
-      <a class="side-link" href="{{ url_for('auth_bp.logout') }}"><span class="icon"></span>Logout</a>
+      <!-- User Management Section -->
+      <div class="nav-item">
+        <a class="side-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse"
+          href="#userSubmenu" role="button"
+          aria-expanded="{{ 'true' if request.path.startswith('/user-management') else 'false' }}"
+          aria-controls="userSubmenu">
+          <span><span class="icon"></span> User Management</span>
+          <i class="fas fa-chevron-down ms-auto collapse-icon"></i>
+        </a>
+        <div class="collapse {{ 'show' if request.path.startswith('/user-management') else '' }}" id="userSubmenu">
+          <div class="nav flex-column ms-3 mt-1">
+            <a class="side-link small {{ 'active' if request.path.startswith('/user-management') else '' }}"
+              href="{{ url_for('auth_bp.user_management') }}">
+              <span class="icon"></span> Users
+            </a>
+            <a class="side-link small" href="{{ url_for('auth_bp.logout') }}">
+              <span class="icon"></span> Logout
+            </a>
+          </div>
+        </div>
+      </div>
     </nav>
   <div class="mt-auto small text-muted px-3 pb-3">{{ app_footer or app_brand or app_name or 'Modbus Monitor' }}</div>
   </aside>
