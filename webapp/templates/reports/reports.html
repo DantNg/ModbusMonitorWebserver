@@ -75,6 +75,66 @@
         </div>
       </div>
 
+      <!-- Comparison Settings (collapsible) -->
+      <div class="border rounded p-3 mb-3 bg-light">
+        <div class="d-flex align-items-center mb-2">
+          <h6 class="mb-0">
+            <button class="btn btn-link text-decoration-none p-0" type="button" data-bs-toggle="collapse" 
+                    data-bs-target="#comparisonSettings" aria-expanded="false">
+              <i class="bi bi-funnel"></i> Tag Comparison Settings
+            </button>
+          </h6>
+        </div>
+        
+        <div class="collapse" id="comparisonSettings">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Reference Tag</label>
+              <select id="referenceTag" class="form-select form-select-sm">
+                <option value="">-- None --</option>
+                {% for c in columns if c != 'timestamp' %}
+                <option value="{{ c }}">{{ c|upper }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Condition</label>
+              <select id="comparisonCondition" class="form-select form-select-sm">
+                <option value="eq">=</option>
+                <option value="ne">≠</option>
+                <option value="gt">&gt;</option>
+                <option value="lt">&lt;</option>
+                <option value="gte">≥</option>
+                <option value="lte">≤</option>
+              </select>
+            </div>
+            
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Highlight Color</label>
+              <input type="color" id="highlightColor" class="form-control form-control-sm form-control-color" value="#ffeb3b">
+            </div>
+            
+            <div class="col-md-3">
+              <button type="button" class="btn btn-sm btn-success me-1" onclick="applyComparison()">
+                <i class="bi bi-check-circle"></i> Apply
+              </button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="clearComparison()">
+                <i class="bi bi-x-circle"></i> Clear
+              </button>
+            </div>
+            
+            <div class="col-md-2">
+              <small class="text-muted d-block" id="comparisonStatus">Not active</small>
+            </div>
+          </div>
+          
+          <div class="alert alert-info alert-sm mt-2 mb-0 small">
+            <i class="bi bi-info-circle"></i> Compare all tags against the reference tag value. Cells matching the condition will be highlighted.
+          </div>
+        </div>
+      </div>
+
       <!-- Search & Export -->
       <div class="d-flex gap-3 align-items-center justify-content-between">
         <div class="position-relative" style="min-width:260px;">
@@ -233,6 +293,106 @@
     });
   }
 
+  // ===== Comparison Logic =====
+  let currentComparison = null;
+
+  function applyComparison() {
+    const referenceTag = document.getElementById('referenceTag').value;
+    const condition = document.getElementById('comparisonCondition').value;
+    const color = document.getElementById('highlightColor').value;
+
+    if (!referenceTag) {
+      alert('Please select a reference tag!');
+      return;
+    }
+
+    // Store comparison config
+    currentComparison = { referenceTag, condition, color };
+
+    // Get column index of reference tag
+    const headers = Array.from(document.querySelectorAll('#tbl thead th'));
+    const refIndex = headers.findIndex(th => th.textContent.trim().toLowerCase() === referenceTag.toLowerCase());
+    
+    if (refIndex === -1) {
+      alert('Reference tag not found in table!');
+      return;
+    }
+
+    // Clear previous highlights
+    document.querySelectorAll('#tbl tbody td').forEach(td => {
+      td.style.backgroundColor = '';
+    });
+
+    // Apply comparison to all rows
+    let matchCount = 0;
+    document.querySelectorAll('#tbl tbody tr').forEach(tr => {
+      if (tr.style.display === 'none') return; // Skip filtered rows
+      if (tr.querySelector('td[colspan]')) return; // Skip "No data" row
+
+      const cells = tr.querySelectorAll('td');
+      if (cells.length <= refIndex) return;
+
+      const refValue = parseFloat(cells[refIndex].textContent.trim());
+      if (isNaN(refValue)) return; // Skip non-numeric reference values
+
+      // Compare each cell (except timestamp) with reference
+      cells.forEach((cell, idx) => {
+        if (idx === 0) return; // Skip timestamp column
+        if (idx === refIndex) return; // Skip reference column itself
+
+        const cellValue = parseFloat(cell.textContent.trim());
+        if (isNaN(cellValue)) return;
+
+        let matches = false;
+        switch (condition) {
+          case 'eq': matches = cellValue === refValue; break;
+          case 'ne': matches = cellValue !== refValue; break;
+          case 'gt': matches = cellValue > refValue; break;
+          case 'lt': matches = cellValue < refValue; break;
+          case 'gte': matches = cellValue >= refValue; break;
+          case 'lte': matches = cellValue <= refValue; break;
+        }
+
+        if (matches) {
+          cell.style.backgroundColor = color;
+          cell.style.transition = 'background-color 0.3s ease';
+          matchCount++;
+        }
+      });
+    });
+
+    // Update status
+    const conditionSymbols = { eq: '=', ne: '≠', gt: '>', lt: '<', gte: '≥', lte: '≤' };
+    document.getElementById('comparisonStatus').innerHTML = 
+      `<span class="badge bg-success">${matchCount} matches</span> comparing to <strong>${referenceTag.toUpperCase()}</strong> ${conditionSymbols[condition]}`;
+  }
+
+  function clearComparison() {
+    currentComparison = null;
+    
+    // Clear all highlights
+    document.querySelectorAll('#tbl tbody td').forEach(td => {
+      td.style.backgroundColor = '';
+    });
+
+    // Reset form
+    document.getElementById('referenceTag').value = '';
+    document.getElementById('comparisonCondition').value = 'eq';
+    document.getElementById('highlightColor').value = '#ffeb3b';
+    document.getElementById('comparisonStatus').textContent = 'Not active';
+  }
+
+  // Reapply comparison after filtering
+  const originalFilterRows = filterRows;
+  filterRows = function(q) {
+    originalFilterRows(q);
+    if (currentComparison) {
+      // Reapply comparison after a short delay to ensure filter is complete
+      setTimeout(() => applyComparison(), 50);
+    }
+  };
+
+
 
   function exportReport(kind) {
     const currentLoggerName = (document.querySelector('select[name="logger"] option:checked')?.textContent || '').trim();
@@ -302,6 +462,13 @@
       sheet.addRow(['FROM DATE:', fromDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
       sheet.addRow(['TO DATE:', toDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
       sheet.addRow([]);
+      
+      // Add comparison info if active
+      if (currentComparison) {
+        const conditionSymbols = { eq: '=', ne: '≠', gt: '>', lt: '<', gte: '≥', lte: '≤' };
+        sheet.addRow(['COMPARISON:', `${currentComparison.referenceTag.toUpperCase()} ${conditionSymbols[currentComparison.condition]} (highlighted in color)`]);
+      }
+      
       sheet.addRow([]);
       sheet.addRow([]);
 
@@ -316,8 +483,53 @@
         };
       });
 
-      // Data rows
-      bodyRows.forEach(r => sheet.addRow(r));
+      // Get reference column index for comparison
+      let refColIndex = -1;
+      if (currentComparison) {
+        refColIndex = header.findIndex(h => h.toLowerCase() === currentComparison.referenceTag.toLowerCase());
+      }
+
+      // Data rows with comparison highlighting
+      bodyRows.forEach((rowData, rowIdx) => {
+        const excelRow = sheet.addRow(rowData);
+        
+        // Apply comparison highlighting if active
+        if (currentComparison && refColIndex !== -1) {
+          const refValue = parseFloat(rowData[refColIndex]);
+          
+          if (!isNaN(refValue)) {
+            excelRow.eachCell((cell, colIdx) => {
+              // Skip timestamp column (index 1) and reference column itself
+              if (colIdx === 1 || colIdx === refColIndex + 1) return;
+              
+              const cellValue = parseFloat(cell.value);
+              if (isNaN(cellValue)) return;
+              
+              // Apply same comparison logic as in browser
+              let matches = false;
+              switch (currentComparison.condition) {
+                case 'eq': matches = cellValue === refValue; break;
+                case 'ne': matches = cellValue !== refValue; break;
+                case 'gt': matches = cellValue > refValue; break;
+                case 'lt': matches = cellValue < refValue; break;
+                case 'gte': matches = cellValue >= refValue; break;
+                case 'lte': matches = cellValue <= refValue; break;
+              }
+              
+              if (matches) {
+                // Convert hex color to ARGB (add FF for full opacity)
+                const hexColor = currentComparison.color.replace('#', '');
+                const argbColor = 'FF' + hexColor.toUpperCase();
+                cell.fill = { 
+                  type: 'pattern', 
+                  pattern: 'solid', 
+                  fgColor: { argb: argbColor } 
+                };
+              }
+            });
+          }
+        }
+      });
 
       // Auto width per column
       sheet.columns = header.map(() => ({ width: 20 }));
