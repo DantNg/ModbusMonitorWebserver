@@ -235,7 +235,7 @@
                               data-tag-id="{{ quad_card.tag2_id }}"
                               data-tag-name="{{ quad_card.tag2.name }}"
                               title="Write value to {{ quad_card.tag2.name }}">
-                        <i class="bi bi-pencil me-2"></i>Write SV Left
+                        <i class="bi bi-pencil me-2"></i>Write PV Right
                       </button>
                     </li>
                     {% endif %}
@@ -245,7 +245,7 @@
                               data-tag-id="{{ quad_card.tag3_id }}"
                               data-tag-name="{{ quad_card.tag3.name }}"
                               title="Write value to {{ quad_card.tag3.name }}">
-                        <i class="bi bi-pencil me-2"></i>Write PV Right
+                        <i class="bi bi-pencil me-2"></i>Write SV Left
                       </button>
                     </li>
                     {% endif %}
@@ -2518,7 +2518,7 @@
           console.log(`Quad tag ${i}: ID=${id}, TagID=${tagId}, Value=${value}, Unit=${unit}`);
           
           itemsData.push({
-            value: formatQuadTagValue(value),
+            value: value, // Keep original value without K/M formatting
             unit: unit,
             id: id,
             tagId: tagId,
@@ -2663,10 +2663,11 @@
     setTimeout(function() {
       fixQuadTagLayout();
       
-      // Format values
+      // Keep original values without K/M formatting
       document.querySelectorAll('[id^="quad-tag-val-"]').forEach(element => {
-        const currentValue = element.textContent;
-        element.textContent = formatQuadTagValue(currentValue);
+        // Values already loaded from server, no need to reformat
+        // Just log for debugging
+        console.log(`Quad tag ${element.id}: ${element.textContent}`);
       });
       
       console.log('✨ Quad layout initialization completed');
@@ -2996,8 +2997,8 @@
           
           if (quadValEl) {
             const oldQuadVal = quadValEl.textContent;
-            // Format quad value the same way as initial display
-            const newQuadVal = formatQuadTagValue(tag.value);
+            // Display original value without K/M formatting
+            const newQuadVal = String(tag.value);
             
             if (oldQuadVal !== newQuadVal) {
               pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
