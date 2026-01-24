@@ -102,40 +102,25 @@
           </div>
         </div>
       </div>
-      <!-- Alarms Logger -->
+      <!-- Logger Section -->
       <div class="nav-item">
         <a class="side-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse"
-          href="#alarmsSubmenu" role="button"
-          aria-expanded="{{ 'true' if request.path.startswith('/alarms') else 'false' }}"
-          aria-controls="alarmsSubmenu">
-          <span><span class="icon"></span> Alarms Logger</span>
+          href="#loggerSubmenu" role="button"
+          aria-expanded="{{ 'true' if request.path.startswith('/alarms') or request.path.startswith('/reports') else 'false' }}"
+          aria-controls="loggerSubmenu">
+          <span><span class="icon"></span> Logger</span>
           <i class="fas fa-chevron-down ms-auto collapse-icon"></i>
         </a>
-        <div class="collapse {{ 'show' if request.path.startswith('/alarms') else '' }}" id="alarmsSubmenu">
+        <div class="collapse {{ 'show' if request.path.startswith('/alarms') or request.path.startswith('/reports') else '' }}" id="loggerSubmenu">
           <div class="nav flex-column ms-3 mt-1">
-            <a class="side-link small {{ 'active' if request.path.startswith('/alarms') and not request.path.startswith('/alarm-settings') else '' }}"
-              href="{{ url_for('alarms_bp.alarm_events') }}">
-              <span class="icon"></span> Alarm Events
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Reports -->
-      <div class="nav-item">
-        <a class="side-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse"
-          href="#reportsSubmenu" role="button"
-          aria-expanded="{{ 'true' if request.path.startswith('/reports') else 'false' }}"
-          aria-controls="reportsSubmenu">
-          <span><span class="icon"></span> Reports</span>
-          <i class="fas fa-chevron-down ms-auto collapse-icon"></i>
+        <a class="side-link small {{ 'active' if request.path.startswith('/alarms') and not request.path.startswith('/alarm-settings') else '' }}"
+          href="{{ url_for('alarms_bp.alarm_events') }}">
+          <span class="icon"></span> Alarm Events
         </a>
-        <div class="collapse {{ 'show' if request.path.startswith('/reports') else '' }}" id="reportsSubmenu">
-          <div class="nav flex-column ms-3 mt-1">
-            <a class="side-link small {{ 'active' if request.path.startswith('/reports') else '' }}"
-              href="{{ url_for('reports_bp.reports') }}">
-              <span class="icon"></span> View Reports
-            </a>
+        <a class="side-link small {{ 'active' if request.path.startswith('/reports') else '' }}"
+          href="{{ url_for('reports_bp.reports') }}">
+          <span class="icon"></span> View Reports
+        </a>
           </div>
         </div>
       </div>
