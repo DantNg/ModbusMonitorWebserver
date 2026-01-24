@@ -225,7 +225,7 @@
                               data-tag-id="{{ quad_card.tag1_id }}"
                               data-tag-name="{{ quad_card.tag1.name }}"
                               title="Write value to {{ quad_card.tag1.name }}">
-                        <i class="bi bi-pencil me-2"></i>Write {{ quad_card.tag1.name }}
+                        <i class="bi bi-pencil me-2"></i>Write PV Left
                       </button>
                     </li>
                     {% endif %}
@@ -235,7 +235,7 @@
                               data-tag-id="{{ quad_card.tag2_id }}"
                               data-tag-name="{{ quad_card.tag2.name }}"
                               title="Write value to {{ quad_card.tag2.name }}">
-                        <i class="bi bi-pencil me-2"></i>Write {{ quad_card.tag2.name }}
+                        <i class="bi bi-pencil me-2"></i>Write SV Left
                       </button>
                     </li>
                     {% endif %}
@@ -245,7 +245,7 @@
                               data-tag-id="{{ quad_card.tag3_id }}"
                               data-tag-name="{{ quad_card.tag3.name }}"
                               title="Write value to {{ quad_card.tag3.name }}">
-                        <i class="bi bi-pencil me-2"></i>Write {{ quad_card.tag3.name }}
+                        <i class="bi bi-pencil me-2"></i>Write PV Right
                       </button>
                     </li>
                     {% endif %}
@@ -255,7 +255,7 @@
                               data-tag-id="{{ quad_card.tag4_id }}"
                               data-tag-name="{{ quad_card.tag4.name }}"
                               title="Write value to {{ quad_card.tag4.name }}">
-                        <i class="bi bi-pencil me-2"></i>Write {{ quad_card.tag4.name }}
+                        <i class="bi bi-pencil me-2"></i>Write SV Right
                       </button>
                     </li>
                     {% endif %}
@@ -2465,8 +2465,8 @@
       
       // Only scan inside card-body to avoid picking up header gear and misplacing write buttons
       const body = card.querySelector('.card-body') || card;
-      const items = body.querySelectorAll('.quad-tag-item, .d-flex');
-      console.log(`Found ${items.length} potential quad items`);
+      const items = body.querySelectorAll('.quad-tag-item');
+      console.log(`Found ${items.length} quad-tag-items`);
       
       if (items.length >= 4) {
         const cardId = card.dataset.quadId || `quad-${cardIndex + 1}`;
@@ -2486,28 +2486,43 @@
         // Clear existing content
         grid.innerHTML = '';
         
-        // Extract data from existing items
+        // Extract data from existing items - MUST BE IN ORDER
         const itemsData = [];
-        for (let i = 0; i < Math.min(4, items.length); i++) {
+        for (let i = 0; i < 4; i++) {
           const item = items[i];
+          if (!item) {
+            console.warn(`Quad tag ${i} not found!`);
+            continue;
+          }
           
-          // Try to find value element
-          const valElement = item.querySelector('[id*="quad-tag-val-"], .fw-bold, .tag-value, span') || item.querySelector('*');
-          const unitElement = item.querySelector('small, .text-muted, .value-unit');
+          // Get tag ID from data attribute
+          const tagId = item.getAttribute('data-tag-id');
+          if (!tagId) {
+            console.warn(`Tag ID not found for item ${i}`);
+            continue;
+          }
+          
+          // Find the value element by exact ID
+          const valElement = document.getElementById(`quad-tag-val-${tagId}`);
+          const unitElement = item.querySelector('small, .text-muted');
           const nameElement = item.querySelector('.quad-tag-name');
-          const writeBtn = item.querySelector('.write-btn, .btn');
           
+          // Extract current value and unit
           const value = valElement ? valElement.textContent.trim() : '0';
           const unit = unitElement ? unitElement.textContent.trim() : 'Kwh';
-          const id = valElement ? valElement.id || `quad-tag-val-${Date.now()}-${i}` : `quad-tag-val-${Date.now()}-${i}`;
           const name = nameElement ? nameElement.textContent.trim() : `Tag ${i + 1}`;
+          
+          // Use the correct ID format
+          const id = `quad-tag-val-${tagId}`;
+          
+          console.log(`Quad tag ${i}: ID=${id}, TagID=${tagId}, Value=${value}, Unit=${unit}`);
           
           itemsData.push({
             value: formatQuadTagValue(value),
             unit: unit,
             id: id,
-            name: name,
-            writeBtn: writeBtn ? writeBtn.outerHTML : ''
+            tagId: tagId,
+            name: name
           });
         }
         
@@ -2532,21 +2547,19 @@
             <div class="quad-sub-card-title" data-title-slot="left">${title1}</div>
           </div>
           <div class="quad-tag-row">
-            <div class="quad-tag-item pv-item">
+            <div class="quad-tag-item pv-item" data-tag-id="${itemsData[0].tagId}">
               <div class="quad-tag-label">PV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[0].id}">${itemsData[0].value}</div>
                 <div class="quad-tag-unit">${itemsData[0].unit}</div>
               </div>
-              ${itemsData[0].writeBtn}
             </div>
-            <div class="quad-tag-item sv-item">
+            <div class="quad-tag-item sv-item" data-tag-id="${itemsData[2].tagId}">
               <div class="quad-tag-label">SV</div>
               <div class="quad-tag-value-row">
-                <div class="quad-tag-value" id="${itemsData[1].id}">${itemsData[1].value}</div>
-                <div class="quad-tag-unit">${itemsData[1].unit}</div>
+                <div class="quad-tag-value" id="${itemsData[2].id}">${itemsData[2].value}</div>
+                <div class="quad-tag-unit">${itemsData[2].unit}</div>
               </div>
-              ${itemsData[1].writeBtn}
             </div>
           </div>
           <div class="quad-update-time">Last updated: ${new Date().toLocaleTimeString()}</div>
@@ -2560,21 +2573,19 @@
             <div class="quad-sub-card-title" data-title-slot="right">${title2}</div>
           </div>
           <div class="quad-tag-row">
-            <div class="quad-tag-item pv-item">
+            <div class="quad-tag-item pv-item" data-tag-id="${itemsData[1].tagId}">
               <div class="quad-tag-label">PV</div>
               <div class="quad-tag-value-row">
-                <div class="quad-tag-value" id="${itemsData[2].id}">${itemsData[2].value}</div>
-                <div class="quad-tag-unit">${itemsData[2].unit}</div>
+                <div class="quad-tag-value" id="${itemsData[1].id}">${itemsData[1].value}</div>
+                <div class="quad-tag-unit">${itemsData[1].unit}</div>
               </div>
-              ${itemsData[2].writeBtn}
             </div>
-            <div class="quad-tag-item sv-item">
+            <div class="quad-tag-item sv-item" data-tag-id="${itemsData[3].tagId}">
               <div class="quad-tag-label">SV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[3].id}">${itemsData[3].value}</div>
                 <div class="quad-tag-unit">${itemsData[3].unit}</div>
               </div>
-              ${itemsData[3].writeBtn}
             </div>
           </div>
           <div class="quad-update-time">Last updated: ${new Date().toLocaleTimeString()}</div>
@@ -2985,10 +2996,12 @@
           
           if (quadValEl) {
             const oldQuadVal = quadValEl.textContent;
-            const newQuadVal = String(tag.value);
+            // Format quad value the same way as initial display
+            const newQuadVal = formatQuadTagValue(tag.value);
             
             if (oldQuadVal !== newQuadVal) {
               pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
+              console.log(`Updating quad tag ${tag.id}: ${oldQuadVal} -> ${newQuadVal}`);
             }
           }
 
