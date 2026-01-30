@@ -969,8 +969,8 @@ class AlarmWorker:
             # Evaluate right column (tag2 top and tag4 bottom)
             self._evaluate_quad_column(
                 condition, "right",
-                tag2_value, tag4_value,
-                quad_card.get("tag2_id"), quad_card.get("tag4_id"),
+                tag4_value, tag2_value,
+                quad_card.get("tag4_id"), quad_card.get("tag2_id"),
                 quad_id
             )
             
