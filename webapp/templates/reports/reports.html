@@ -690,6 +690,16 @@
       bodyRows.forEach((rowData, rowIdx) => {
         const excelRow = sheet.addRow(rowData);
         
+        // Set borders for all cells in this row
+        excelRow.eachCell({ includeEmpty: true }, cell => {
+          cell.border = {
+            top: { style: 'thin' },
+            bottom: { style: 'thin' },
+            left: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+        });
+        
         // Apply highlighting based on comparison map
         comparisonMap.forEach(comp => {
           if (comp.type === 'compare') {
