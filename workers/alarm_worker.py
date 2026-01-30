@@ -969,8 +969,8 @@ class AlarmWorker:
             # Evaluate right column (tag2 top and tag4 bottom)
             self._evaluate_quad_column(
                 condition, "right",
-                tag4_value, tag2_value,
-                quad_card.get("tag4_id"), quad_card.get("tag2_id"),
+                tag2_value, tag4_value,
+                quad_card.get("tag2_id"), quad_card.get("tag4_id"),
                 quad_id
             )
             
@@ -1017,8 +1017,7 @@ class AlarmWorker:
                 # Compare both tags against threshold
                 if tag1_value is not None and tag2_value is not None:
                     high_condition_met = (
-                        self._compare_value(tag1_value, high_op, high_threshold) or
-                        self._compare_value(tag2_value, high_op, high_threshold)
+                        self._compare_value(tag1_value, high_op, high_threshold) ## only compare PV tag
                     )
         
         # Check LOW threshold
@@ -1034,8 +1033,7 @@ class AlarmWorker:
                 # Compare both tags against threshold
                 if tag1_value is not None and tag2_value is not None:
                     low_condition_met = (
-                        self._compare_value(tag1_value, low_op, low_threshold) or
-                        self._compare_value(tag2_value, low_op, low_threshold)
+                        self._compare_value(tag1_value, low_op, low_threshold) ## only compare PV tag
                     )
         
         # Determine overall alarm state
