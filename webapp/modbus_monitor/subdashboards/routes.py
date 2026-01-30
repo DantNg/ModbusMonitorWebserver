@@ -598,6 +598,61 @@ def delete_quad_tag_card(sid, quad_id):
         print(f"Error deleting quad tag card: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
+@subdash_bp.route("/<int:sid>/update_quad_tags/<int:quad_id>", methods=["POST"])
+def update_quad_tags(sid, quad_id):
+    """Update tags in a quad card"""
+    # Check if user is admin
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    
+    try:
+        # Get form data
+        tag1_id = request.form.get("tag1_id")
+        tag2_id = request.form.get("tag2_id")
+        tag3_id = request.form.get("tag3_id")
+        tag4_id = request.form.get("tag4_id")
+        
+        # Validate all tags are present
+        if not all([tag1_id, tag2_id, tag3_id, tag4_id]):
+            return jsonify({"success": False, "message": "All 4 tags are required"}), 400
+        
+        # Convert to integers
+        tag1_id = int(tag1_id)
+        tag2_id = int(tag2_id)
+        tag3_id = int(tag3_id)
+        tag4_id = int(tag4_id)
+        
+        # Validate all tags are different
+        tag_ids = [tag1_id, tag2_id, tag3_id, tag4_id]
+        if len(set(tag_ids)) != 4:
+            return jsonify({"success": False, "message": "All 4 tags must be different"}), 400
+        
+        # Verify quad card exists
+        quad_card = db.get_quad_card_by_id(quad_id)
+        if not quad_card:
+            return jsonify({"success": False, "message": "Quad card not found"}), 404
+        
+        # Update the quad card tags
+        result = db.update_quad_card(quad_id, tag1_id, tag2_id, tag3_id, tag4_id)
+        
+        if result:
+            # Force refresh subdashboard cache for real-time updates
+            try:
+                emission_manager = get_emission_manager()
+                emission_manager.force_refresh_subdash_cache()
+            except Exception as e:
+                print(f"Warning: Could not refresh subdashboard cache: {e}")
+            
+            return jsonify({"success": True, "message": "Quad tags updated successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to update quad tags"}), 500
+            
+    except ValueError as e:
+        return jsonify({"success": False, "message": "Invalid tag IDs"}), 400
+    except Exception as e:
+        print(f"Error updating quad tags: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @subdash_bp.route("/<int:sid>/update_quad_card/<int:quad_id>", methods=["POST"])
 def update_quad_tag_card(sid, quad_id):
     """Update a quad tag card"""

@@ -264,6 +264,17 @@
                     {% endif %}
                     <li><hr class="dropdown-divider"></li>
                     <li>
+                      <button class="dropdown-item edit-quad-tags-btn" 
+                              data-quad-id="{{ quad_card.id }}"
+                              data-tag1-id="{{ quad_card.tag1_id }}"
+                              data-tag2-id="{{ quad_card.tag2_id }}"
+                              data-tag3-id="{{ quad_card.tag3_id }}"
+                              data-tag4-id="{{ quad_card.tag4_id }}"
+                              title="Edit Tags in Quad Card">
+                        <i class="bi bi-pencil-square me-2"></i>Edit Tags
+                      </button>
+                    </li>
+                    <li>
                       <button class="dropdown-item text-danger delete-quad-btn" 
                               data-quad-id="{{ quad_card.id }}" 
                               title="Delete Quad Card">
@@ -864,6 +875,98 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-primary">Update Unit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Edit Quad Tags -->
+<div class="modal fade" id="editQuadTagsModal" tabindex="-1" aria-labelledby="editQuadTagsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="editQuadTagsModalLabel">
+          <i class="bi bi-pencil-square me-2"></i>Edit Quad Tags
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="editQuadTagsForm">
+        <input type="hidden" id="editQuadId" name="quad_id">
+        <div class="modal-body">
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            Select new tags for each position in the quad card. All 4 tags must be different.
+          </div>
+
+          <div class="row g-3">
+            <!-- Tag 1 (Top Left PV) -->
+            <div class="col-md-6">
+              <label for="edit_tag1_select" class="form-label">
+                <i class="bi bi-1-circle-fill text-primary me-1"></i>
+                <strong>Tag 1</strong> - Top Left (PV)
+              </label>
+              <select id="edit_tag1_select" name="tag1_id" class="form-select" required>
+                <option value="">Choose tag...</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <!-- Tag 2 (Top Right PV) -->
+            <div class="col-md-6">
+              <label for="edit_tag2_select" class="form-label">
+                <i class="bi bi-2-circle-fill text-success me-1"></i>
+                <strong>Tag 2</strong> - Top Right (PV)
+              </label>
+              <select id="edit_tag2_select" name="tag2_id" class="form-select" required>
+                <option value="">Choose tag...</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <!-- Tag 3 (Bottom Left SV) -->
+            <div class="col-md-6">
+              <label for="edit_tag3_select" class="form-label">
+                <i class="bi bi-3-circle-fill text-warning me-1"></i>
+                <strong>Tag 3</strong> - Bottom Left (SV)
+              </label>
+              <select id="edit_tag3_select" name="tag3_id" class="form-select" required>
+                <option value="">Choose tag...</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <!-- Tag 4 (Bottom Right SV) -->
+            <div class="col-md-6">
+              <label for="edit_tag4_select" class="form-label">
+                <i class="bi bi-4-circle-fill text-danger me-1"></i>
+                <strong>Tag 4</strong> - Bottom Right (SV)
+              </label>
+              <select id="edit_tag4_select" name="tag4_id" class="form-select" required>
+                <option value="">Choose tag...</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <!-- Error message -->
+          <div id="edit-quad-error-message" class="alert alert-danger mt-3" style="display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+          </button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle me-1"></i>Update Tags
+          </button>
         </div>
       </form>
     </div>
@@ -1926,6 +2029,110 @@
       }
     });
 
+    // Handle edit quad tags
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('.edit-quad-tags-btn')) {
+        e.preventDefault();
+        
+        const btn = e.target.closest('.edit-quad-tags-btn');
+        const quadId = btn.dataset.quadId;
+        const tag1Id = btn.dataset.tag1Id;
+        const tag2Id = btn.dataset.tag2Id;
+        const tag3Id = btn.dataset.tag3Id;
+        const tag4Id = btn.dataset.tag4Id;
+        
+        // Set quad ID
+        document.getElementById('editQuadId').value = quadId;
+        
+        // Set current tag selections
+        document.getElementById('edit_tag1_select').value = tag1Id;
+        document.getElementById('edit_tag2_select').value = tag2Id;
+        document.getElementById('edit_tag3_select').value = tag3Id;
+        document.getElementById('edit_tag4_select').value = tag4Id;
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('editQuadTagsModal'));
+        modal.show();
+      }
+    });
+
+    // Handle edit quad tags form submission
+    const editQuadTagsForm = document.getElementById('editQuadTagsForm');
+    if (editQuadTagsForm) {
+      editQuadTagsForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        
+        const quadId = document.getElementById('editQuadId').value;
+        const tag1Id = document.getElementById('edit_tag1_select').value;
+        const tag2Id = document.getElementById('edit_tag2_select').value;
+        const tag3Id = document.getElementById('edit_tag3_select').value;
+        const tag4Id = document.getElementById('edit_tag4_select').value;
+        
+        // Validate that all 4 tags are selected
+        if (!tag1Id || !tag2Id || !tag3Id || !tag4Id) {
+          showEditQuadError('Please select all 4 tags');
+          return;
+        }
+        
+        // Validate that all tags are different
+        const tagIds = [tag1Id, tag2Id, tag3Id, tag4Id];
+        const uniqueTagIds = [...new Set(tagIds)];
+        if (uniqueTagIds.length !== 4) {
+          showEditQuadError('All 4 tags must be different');
+          return;
+        }
+        
+        // Show loading
+        Swal.fire({
+          title: 'Updating Tags...',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+        
+        // Prepare form data
+        const formData = new FormData();
+        formData.append('tag1_id', tag1Id);
+        formData.append('tag2_id', tag2Id);
+        formData.append('tag3_id', tag3Id);
+        formData.append('tag4_id', tag4Id);
+        
+        // Send request
+        fetch(`/subdash/${currentSubdashId}/update_quad_tags/${quadId}`, {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            Swal.fire({
+              title: 'Success!',
+              text: 'Quad tags updated successfully',
+              icon: 'success',
+              timer: 2000
+            }).then(() => {
+              location.reload();
+            });
+          } else {
+            Swal.fire({
+              title: 'Error',
+              text: data.message || data.error || 'Failed to update quad tags',
+              icon: 'error'
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          Swal.fire({
+            title: 'Error',
+            text: 'An error occurred while updating tags',
+            icon: 'error'
+          });
+        });
+      });
+    }
+
 
 
     // Handle toggle new quad group button
@@ -2215,6 +2422,16 @@
   // Show error message for quad tag form
   function showQuadError(message) {
     const errorDiv = document.getElementById('quad-error-message');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    setTimeout(() => {
+      errorDiv.style.display = 'none';
+    }, 5000);
+  }
+
+  // Show error message for edit quad tags form
+  function showEditQuadError(message) {
+    const errorDiv = document.getElementById('edit-quad-error-message');
     errorDiv.textContent = message;
     errorDiv.style.display = 'block';
     setTimeout(() => {
