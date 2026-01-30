@@ -2845,6 +2845,16 @@
             
             if (oldQuadVal !== newQuadVal) {
               pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
+              
+              // Update last updated time for quad sub-card
+              const subCard = quadValEl.closest('.quad-sub-card');
+              if (subCard) {
+                const timeEl = subCard.querySelector('.quad-update-time');
+                if (timeEl) {
+                  const now = new Date();
+                  timeEl.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+                }
+              }
             }
           }
 
