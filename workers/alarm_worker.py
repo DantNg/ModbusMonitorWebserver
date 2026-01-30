@@ -1156,6 +1156,27 @@ class AlarmWorker:
                 # Store alarm type for OUTGOING event
                 self._alarm_types[alarm_key] = alarm_type
                 
+                # Save alarm event to database (similar to regular alarms)
+                if self.db_available:
+                    try:
+                        ts_now = datetime.now()
+                        # Set level based on alarm type: High -> High, Low -> Warning
+                        alarm_level = "High" if alarm_type == "High" else "Warning"
+                        event_id = self.db.insert_alarm_event(
+                            ts=ts_now,
+                            name=alarm_name,
+                            level=alarm_level,
+                            target=triggered_tag_id,
+                            value=triggered_value,
+                            note=f"Quad alarm activated ({alarm_type}): {operator} {threshold}",
+                            event_type="INCOMING",
+                            operator=operator,
+                            threshold=threshold
+                        )
+                        self.log("INFO", f"✅ Saved quad alarm INCOMING event to database: ID={event_id}, Level={alarm_level}")
+                    except Exception as e:
+                        self.log("ERROR", f"Failed to save quad alarm event to database: {e}")
+                
                 # Emit Socket.IO event for UI update
                 try:
                     event_data = {
@@ -1214,6 +1235,29 @@ class AlarmWorker:
                 # Log alarm deactivation
                 alarm_name = f"Quad {quad_id} - {column.capitalize()} Column"
                 self.log("INFO", f"✅ Quad Alarm CLEARED: {alarm_name} ({alarm_type}) - Value: {tag1_value}")
+                
+                # Save alarm clear event to database (similar to regular alarms)
+                if self.db_available:
+                    try:
+                        ts_now = datetime.now()
+                        # Use tag1_id as target since it's the primary tag for the column
+                        target_tag_id = tag1_id
+                        # Set level based on alarm type: High -> Critical, Low -> Warning
+                        alarm_level = "Critical" if alarm_type == "High" else "Warning"
+                        event_id = self.db.insert_alarm_event(
+                            ts=ts_now,
+                            name=alarm_name,
+                            level=alarm_level,
+                            target=target_tag_id,
+                            value=tag1_value,
+                            note=f"Quad alarm cleared ({alarm_type}): {operator} {threshold}",
+                            event_type="OUTGOING",
+                            operator=operator,
+                            threshold=threshold
+                        )
+                        self.log("INFO", f"✅ Saved quad alarm OUTGOING event to database: ID={event_id}, Level={alarm_level}")
+                    except Exception as e:
+                        self.log("ERROR", f"Failed to save quad alarm clear event to database: {e}")
                 
                 # Emit Socket.IO event for UI update
                 try:
