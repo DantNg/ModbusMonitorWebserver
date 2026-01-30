@@ -1073,7 +1073,7 @@ class AlarmWorker:
         # Debug logging with state tracking
         timer_exists = alarm_key in self._alarm_since
         timer_value = now - self._alarm_since[alarm_key] if timer_exists else 0
-        self.log("DEBUG", f"Quad {quad_id} {column}: condition={current_condition}, prev_active={previous_active}, timer={timer_value:.1f}s, current_type={current_alarm_type}, stored_type={stored_alarm_type}, tag1={tag1_value}, tag2={tag2_value}, threshold={threshold}, op={operator}")
+        # self.log("DEBUG", f"Quad {quad_id} {column}: condition={current_condition}, prev_active={previous_active}, timer={timer_value:.1f}s, current_type={current_alarm_type}, stored_type={stored_alarm_type}, tag1={tag1_value}, tag2={tag2_value}, threshold={threshold}, op={operator}")
         
         # Check if alarm type changed (LOW->HIGH or HIGH->LOW transition)
         alarm_type_changed = (previous_active and current_condition and 
@@ -1336,7 +1336,7 @@ class AlarmWorker:
                 alarm_rules = self._load_alarm_rules()
                 
                 if alarm_rules:
-                    self.log("DEBUG", f"Evaluating {len(alarm_rules)} alarm rules")
+                    # self.log("DEBUG", f"Evaluating {len(alarm_rules)} alarm rules")
                     
                     # Process each enabled alarm rule
                     for rule in alarm_rules:
