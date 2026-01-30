@@ -126,6 +126,7 @@ class AlarmWorker:
         self._alarm_states: Dict[int, bool] = {}  # rule_id -> active
         self._alarm_since: Dict[int, float] = {}  # rule_id -> timestamp when state changed
         self._last_notification: Dict[int, Dict[str, float]] = {}  # rule_id -> {"incoming": ts, "outgoing": ts}
+        self._alarm_types: Dict[str, str] = {}  # alarm_key -> "High" or "Low" (for quad alarms)
         
         # Operator mapping for faster evaluation
         self._operator_map = {
@@ -957,19 +958,19 @@ class AlarmWorker:
             tag3_value = self._get_tag_value(quad_card.get("tag3_id"))
             tag4_value = self._get_tag_value(quad_card.get("tag4_id"))
             
-            # Evaluate left column (tag1 and tag2)
+            # Evaluate left column (tag1 top and tag3 bottom)
             self._evaluate_quad_column(
                 condition, "left", 
-                tag1_value, tag2_value,
-                quad_card.get("tag1_id"), quad_card.get("tag2_id"),
+                tag1_value, tag3_value,
+                quad_card.get("tag1_id"), quad_card.get("tag3_id"),
                 quad_id
             )
             
-            # Evaluate right column (tag3 and tag4)
+            # Evaluate right column (tag2 top and tag4 bottom)
             self._evaluate_quad_column(
                 condition, "right",
-                tag3_value, tag4_value,
-                quad_card.get("tag3_id"), quad_card.get("tag4_id"),
+                tag2_value, tag4_value,
+                quad_card.get("tag2_id"), quad_card.get("tag4_id"),
                 quad_id
             )
             
@@ -1040,6 +1041,9 @@ class AlarmWorker:
         # Determine overall alarm state
         alarm_triggered = high_condition_met or low_condition_met
         
+        # Determine which alarm type is currently triggering
+        current_alarm_type = "High" if high_condition_met else ("Low" if low_condition_met else None)
+        
         # Process alarm state with stability
         self._process_quad_alarm_state(
             alarm_key, alarm_triggered, quad_id, column,
@@ -1049,7 +1053,8 @@ class AlarmWorker:
             high_off_stable if high_condition_met else low_off_stable,
             email, sms, description,
             high_value if high_condition_met else low_value,
-            high_op if high_condition_met else low_op
+            high_op if high_condition_met else low_op,
+            current_alarm_type
         )
     
     def _process_quad_alarm_state(self, alarm_key: str, current_condition: bool,
@@ -1059,14 +1064,57 @@ class AlarmWorker:
                                    high_met: bool, low_met: bool,
                                    on_stable_sec: int, off_stable_sec: int,
                                    email: str, sms: str, description: str,
-                                   threshold: float, operator: str):
+                                   threshold: float, operator: str,
+                                   current_alarm_type: str):
         """Process quad alarm state with stability timers"""
         
         now = time.time()
         previous_active = self._alarm_states.get(alarm_key, False)
+        stored_alarm_type = self._alarm_types.get(alarm_key)
         
-        # Debug logging
-        self.log("DEBUG", f"Quad {quad_id} {column}: condition={current_condition}, tag1={tag1_value}, tag2={tag2_value}, threshold={threshold}, op={operator}")
+        # Debug logging with state tracking
+        timer_exists = alarm_key in self._alarm_since
+        timer_value = now - self._alarm_since[alarm_key] if timer_exists else 0
+        self.log("DEBUG", f"Quad {quad_id} {column}: condition={current_condition}, prev_active={previous_active}, timer={timer_value:.1f}s, current_type={current_alarm_type}, stored_type={stored_alarm_type}, tag1={tag1_value}, tag2={tag2_value}, threshold={threshold}, op={operator}")
+        
+        # Check if alarm type changed (LOW->HIGH or HIGH->LOW transition)
+        alarm_type_changed = (previous_active and current_condition and 
+                             stored_alarm_type and current_alarm_type and 
+                             stored_alarm_type != current_alarm_type)
+        
+        if alarm_type_changed:
+            # Alarm type changed - treat as clear old + trigger new
+            self.log("INFO", f"🔄 Quad Alarm TYPE CHANGED: Quad {quad_id} {column} - {stored_alarm_type} → {current_alarm_type}")
+            
+            # Clear old alarm immediately (no stable time needed for type change)
+            self._alarm_states[alarm_key] = False
+            
+            # Emit OUTGOING for old alarm type
+            try:
+                event_data = {
+                    "quad_id": quad_id,
+                    "column": column,
+                    "alarm_type": stored_alarm_type,
+                    "status": "OUTGOING",
+                    "tag1_value": tag1_value,
+                    "tag2_value": tag2_value,
+                    "threshold": threshold,
+                    "operator": operator,
+                    "timestamp": datetime.now().isoformat()
+                }
+                self.data_queue.put({"type": "quad_alarm_event", "data": event_data})
+                try:
+                    sio.emit('quad_alarm_event', event_data)
+                except Exception:
+                    pass
+            except Exception as e:
+                self.log("ERROR", f"Failed to emit alarm type change OUTGOING: {e}")
+            
+            # Reset timer and start fresh for new alarm type
+            self._alarm_since[alarm_key] = now
+            self._alarm_types[alarm_key] = current_alarm_type
+            self.log("DEBUG", f"Quad {quad_id} {column}: Reset timer for new alarm type {current_alarm_type}")
+            return
         
         if current_condition and not previous_active:
             # Potential alarm activation
@@ -1081,18 +1129,34 @@ class AlarmWorker:
             if stable_time >= on_stable_sec:
                 self._alarm_states[alarm_key] = True
                 
-                # Determine which tag triggered (use the one with worse violation)
+                # Determine which tag triggered by checking which one violates the threshold
                 triggered_tag_id = tag1_id
                 triggered_value = tag1_value
+                triggered_tag_name = "Tag 1"
+                
+                # Check if tag1 violates threshold
+                tag1_violates = tag1_value is not None and self._compare_value(tag1_value, operator, threshold)
+                # Check if tag2 violates threshold
+                tag2_violates = tag2_value is not None and self._compare_value(tag2_value, operator, threshold)
+                
+                # Determine which tag to report (prefer the one with more severe violation)
+                if tag2_violates:
+                    if not tag1_violates or abs(tag2_value - threshold) > abs(tag1_value - threshold):
+                        triggered_tag_id = tag2_id
+                        triggered_value = tag2_value
+                        triggered_tag_name = "Tag 2"
                 
                 # Log alarm activation
                 alarm_name = f"Quad {quad_id} - {column.capitalize()} Column"
                 if high_met:
                     alarm_type = "High"
-                    self.log("INFO", f"⚠️ Quad Alarm TRIGGERED: {alarm_name} - HIGH threshold - Value: {triggered_value}")
+                    self.log("INFO", f"⚠️ Quad Alarm TRIGGERED: {alarm_name} - HIGH threshold - {triggered_tag_name} Value: {triggered_value} (threshold: {threshold})")
                 else:
                     alarm_type = "Low"
-                    self.log("INFO", f"⚠️ Quad Alarm TRIGGERED: {alarm_name} - LOW threshold - Value: {triggered_value}")
+                    self.log("INFO", f"⚠️ Quad Alarm TRIGGERED: {alarm_name} - LOW threshold - {triggered_tag_name} Value: {triggered_value} (threshold: {threshold})")
+                
+                # Store alarm type for OUTGOING event
+                self._alarm_types[alarm_key] = alarm_type
                 
                 # Emit Socket.IO event for UI update
                 try:
@@ -1137,21 +1201,28 @@ class AlarmWorker:
             # Potential alarm deactivation
             if alarm_key not in self._alarm_since:
                 self._alarm_since[alarm_key] = now
+                self.log("DEBUG", f"Quad {quad_id} {column}: Started stability timer for deactivation")
             
             # Check if stable time reached
             stable_time = now - self._alarm_since[alarm_key]
+            self.log("DEBUG", f"Quad {quad_id} {column}: Deactivation stable time = {stable_time:.1f}s / {off_stable_sec}s required")
+            
             if stable_time >= off_stable_sec:
                 self._alarm_states[alarm_key] = False
                 
+                # Get stored alarm type
+                alarm_type = self._alarm_types.get(alarm_key, "High")
+                
                 # Log alarm deactivation
                 alarm_name = f"Quad {quad_id} - {column.capitalize()} Column"
-                self.log("INFO", f"✅ Quad Alarm CLEARED: {alarm_name} - Value: {tag1_value}")
+                self.log("INFO", f"✅ Quad Alarm CLEARED: {alarm_name} ({alarm_type}) - Value: {tag1_value}")
                 
                 # Emit Socket.IO event for UI update
                 try:
                     event_data = {
                         "quad_id": quad_id,
                         "column": column,
+                        "alarm_type": alarm_type,  # Include alarm type for proper CSS class removal
                         "status": "OUTGOING",
                         "tag1_value": tag1_value,
                         "tag2_value": tag2_value,
@@ -1182,14 +1253,22 @@ class AlarmWorker:
                         operator, "outgoing", email, sms, description,
                         off_stable_sec
                     )
+                
+                # Clean up stored alarm type
+                if alarm_key in self._alarm_types:
+                    del self._alarm_types[alarm_key]
+                
+                # Reset stability timer after clearing
+                if alarm_key in self._alarm_since:
+                    del self._alarm_since[alarm_key]
         
-        # Reset stability timer if condition changed
-        if current_condition != previous_active:
-            pass  # Keep tracking
-        else:
-            # Condition stable, can reset timer
+        # Reset timer when condition and state match (stable state, no transition)
+        elif current_condition == previous_active:
+            # Both match means stable state: either both active or both inactive
+            # Reset timer so it's ready for next state change
             if alarm_key in self._alarm_since:
                 del self._alarm_since[alarm_key]
+                self.log("DEBUG", f"Quad {quad_id} {column}: Reset timer (stable state: condition={current_condition}, active={previous_active})")
     
     def _send_quad_notification(self, alarm_key: str, alarm_name: str,
                                 value: float, threshold: float, operator: str,
