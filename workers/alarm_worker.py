@@ -931,7 +931,7 @@ class AlarmWorker:
             if not quad_conditions:
                 return
             
-            self.log("DEBUG", f"Evaluating {len(quad_conditions)} quad tag conditions")
+            # self.log("DEBUG", f"Evaluating {len(quad_conditions)} quad tag conditions")
             
             for condition in quad_conditions:
                 try:
