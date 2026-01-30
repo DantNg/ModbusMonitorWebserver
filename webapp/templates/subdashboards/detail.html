@@ -2465,6 +2465,15 @@
     }
   }
 
+  // Format time to 24h format (HH:mm:ss)
+  function formatTime24h(date) {
+    if (!date) return '00:00:00';
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+  }
+
   // Format quad tag values for better display
   function formatQuadTagValue(value) {
     if (value === null || value === undefined || value === '') {
@@ -2627,7 +2636,7 @@
               </div>
             </div>
           </div>
-          <div class="quad-update-time">Last updated: ${new Date().toLocaleTimeString()}</div>
+          <div class="quad-update-time">Last updated: ${formatTime24h(new Date())}</div>
         `;
         
         // Create second sub-card (Items 3 & 4)
@@ -2655,7 +2664,7 @@
               </div>
             </div>
           </div>
-          <div class="quad-update-time">Last updated: ${new Date().toLocaleTimeString()}</div>
+          <div class="quad-update-time">Last updated: ${formatTime24h(new Date())}</div>
         `;
         
         // Add sub-cards to grid
@@ -3152,7 +3161,7 @@
                 const timeEl = subCard.querySelector('.quad-update-time');
                 if (timeEl) {
                   const now = new Date();
-                  timeEl.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+                  timeEl.textContent = `Last updated: ${formatTime24h(now)}`;
                 }
               }
             }
