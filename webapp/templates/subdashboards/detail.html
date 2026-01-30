@@ -1100,11 +1100,12 @@
 
 .quad-tag-value-row {
   display: flex !important;
-  align-items: baseline !important;
+  align-items: center !important;
   gap: 8px !important;
-  justify-content: center !important;
+  justify-content: space-between !important;
   flex: 1 1 auto !important;
   text-align: center !important;
+  position: relative !important;
 }
 
 .quad-sub-card .quad-tag-value {
@@ -1112,6 +1113,8 @@
   font-weight: 700 !important;
   color: #111827 !important;
   line-height: 1 !important;
+  flex: 1 1 auto !important;
+  text-align: center !important;
 }
 
 .quad-sub-card .quad-tag-unit {
@@ -1119,6 +1122,10 @@
   font-weight: 500 !important;
   color: #4b5563 !important;
   text-transform: uppercase !important;
+  position: absolute !important;
+  right: 8px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
 }
 
 .quad-update-time {
