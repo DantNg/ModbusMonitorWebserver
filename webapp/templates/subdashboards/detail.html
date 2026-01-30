@@ -2944,17 +2944,69 @@
           subCard.classList.remove('quad-alarm-high');
         }
         
-        // Show notification
+        // Get card title from header or use default
+        const cardHeader = quadCard.querySelector('.quad-card-title, .quad-card-header-title');
+        const cardTitle = cardHeader ? cardHeader.textContent.trim() : `Quad ${quadId}`;
+        
+        // Get sub-card title
+        const subCardTitle = subCard.querySelector('.quad-sub-card-title');
+        const groupName = subCardTitle ? subCardTitle.textContent.trim() : (column === 'left' ? 'Group A' : 'Group B');
+        
+        // Get tag values for display
+        const tag1Val = data.tag1_value !== null ? parseFloat(data.tag1_value).toFixed(1) : 'N/A';
+        const tag2Val = data.tag2_value !== null ? parseFloat(data.tag2_value).toFixed(1) : 'N/A';
+        const threshold = data.threshold !== null ? parseFloat(data.threshold).toFixed(1) : 'N/A';
+        const operator = data.operator || '>';
+        
+        // Create detailed notification message
+        const alarmTitle = `🚨 Quad Alarm: ${alarmType} Threshold`;
+        const alarmBody = `${cardTitle} - ${groupName}\nPV: ${tag1Val} | SV: ${tag2Val}\nCondition: ${operator} ${threshold}`;
+        
+        // Show browser notification
         if (window.Notification && Notification.permission === 'granted') {
-          new Notification(`🚨 Quad Alarm: ${alarmType}`, {
-            body: `Quad Card ${quadId} - ${column} column triggered`,
-            icon: '/static/favicon.ico'
+          const notification = new Notification(alarmTitle, {
+            body: alarmBody,
+            icon: '/static/favicon.ico',
+            tag: `quad-alarm-${quadId}-${column}`, // Prevent duplicate notifications
+            requireInteraction: false,
+            badge: '/static/favicon.ico'
+          });
+          
+          // Auto-close notification after 10 seconds
+          setTimeout(() => notification.close(), 10000);
+          
+          // Click notification to focus window
+          notification.onclick = function() {
+            window.focus();
+            notification.close();
+            // Scroll to the quad card
+            quadCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          };
+        }
+        
+        // Add to notification bell list with proper color coding
+        if (typeof NotificationSystem !== 'undefined') {
+          NotificationSystem.addNotification({
+            id: Date.now() + Math.random(),
+            serverId: undefined,
+            alarmId: `quad-${quadId}-${column}`,
+            tagId: null,
+            title: `🚨 ${cardTitle} - ${groupName}`,
+            message: `${alarmType} alarm: PV=${tag1Val}, SV=${tag2Val} (${operator} ${threshold})`,
+            level: alarmType === 'High' ? 'Critical' : 'Warning', // High=red, Low=yellow
+            timestamp: new Date(),
+            status: 'Active',
+            read: false
           });
         }
+        
+        console.log(`✅ Quad alarm notification shown: ${cardTitle} - ${groupName} (${alarmType})`);
         
       } else if (status === 'OUTGOING') {
         // Remove alarm classes
         subCard.classList.remove('quad-alarm-high', 'quad-alarm-low');
+        
+        console.log(`✅ Quad alarm cleared: Quad ${quadId} - ${column} column`);
       }
     });
 
