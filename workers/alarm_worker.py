@@ -64,7 +64,12 @@ def get_local_ip():
     return ip
 
 server_ip = get_local_ip()
-sio.connect(f'http://{server_ip}:5000')
+try:
+    sio.connect(f'http://{server_ip}:5000')
+    print(f"✅ Socket.IO connected to http://{server_ip}:5000")
+except Exception as e:
+    print(f"❌ Failed to connect Socket.IO: {e}")
+    
 @dataclass
 class AlarmConfig:
     """Configuration for alarm worker"""
@@ -913,6 +918,337 @@ class AlarmWorker:
         except Exception as e:
             self.log("ERROR", f"Failed to process alarm rule {rule.get('id', 'unknown')}: {e}")
     
+    def _evaluate_quad_conditions(self):
+        """Evaluate all active quad tag conditions"""
+        if not self.db_available:
+            return
+        
+        try:
+            # Get all active quad conditions
+            quad_conditions = self.db.get_all_active_quad_conditions()
+            
+            if not quad_conditions:
+                return
+            
+            self.log("DEBUG", f"Evaluating {len(quad_conditions)} quad tag conditions")
+            
+            for condition in quad_conditions:
+                try:
+                    self._process_quad_condition(condition)
+                except Exception as e:
+                    self.log("ERROR", f"Failed to process quad condition {condition.get('quad_card_id')}: {e}")
+                    
+        except Exception as e:
+            self.log("ERROR", f"Failed to load quad conditions: {e}")
+    
+    def _process_quad_condition(self, condition: dict):
+        """Process a single quad tag condition"""
+        quad_id = condition.get("quad_card_id")
+        
+        # Get quad card info to get tag IDs
+        try:
+            quad_card = self.db.get_quad_card_by_id(quad_id)
+            if not quad_card:
+                return
+            
+            # Get tag values for the quad card (4 tags)
+            tag1_value = self._get_tag_value(quad_card.get("tag1_id"))
+            tag2_value = self._get_tag_value(quad_card.get("tag2_id"))
+            tag3_value = self._get_tag_value(quad_card.get("tag3_id"))
+            tag4_value = self._get_tag_value(quad_card.get("tag4_id"))
+            
+            # Evaluate left column (tag1 and tag2)
+            self._evaluate_quad_column(
+                condition, "left", 
+                tag1_value, tag2_value,
+                quad_card.get("tag1_id"), quad_card.get("tag2_id"),
+                quad_id
+            )
+            
+            # Evaluate right column (tag3 and tag4)
+            self._evaluate_quad_column(
+                condition, "right",
+                tag3_value, tag4_value,
+                quad_card.get("tag3_id"), quad_card.get("tag4_id"),
+                quad_id
+            )
+            
+        except Exception as e:
+            self.log("ERROR", f"Failed to process quad condition for quad {quad_id}: {e}")
+    
+    def _evaluate_quad_column(self, condition: dict, column: str, 
+                             tag1_value: float, tag2_value: float,
+                             tag1_id: int, tag2_id: int, quad_id: int):
+        """Evaluate conditions for one column (left or right) of quad card"""
+        
+        # Build alarm key for tracking state
+        alarm_key = f"quad_{quad_id}_{column}"
+        
+        # Get condition parameters
+        high_op = condition.get(f"{column}_high_operator")
+        high_compare_type = condition.get(f"{column}_high_compare_type")
+        high_value = condition.get(f"{column}_high_value")
+        high_compare_tag_id = condition.get(f"{column}_high_compare_tag_id")
+        high_on_stable = condition.get(f"{column}_high_on_stable", 10)
+        high_off_stable = condition.get(f"{column}_high_off_stable", 30)
+        
+        low_op = condition.get(f"{column}_low_operator")
+        low_compare_type = condition.get(f"{column}_low_compare_type")
+        low_value = condition.get(f"{column}_low_value")
+        low_compare_tag_id = condition.get(f"{column}_low_compare_tag_id")
+        low_on_stable = condition.get(f"{column}_low_on_stable", 10)
+        low_off_stable = condition.get(f"{column}_low_off_stable", 30)
+        
+        email = condition.get(f"{column}_email", "")
+        sms = condition.get(f"{column}_sms", "")
+        description = condition.get(f"{column}_description", "")
+        
+        # Check HIGH threshold
+        high_condition_met = False
+        if high_op and (high_value is not None or high_compare_tag_id):
+            # Determine threshold value
+            if high_compare_type == "tag" and high_compare_tag_id:
+                high_threshold = self._get_tag_value(high_compare_tag_id)
+            else:
+                high_threshold = high_value
+            
+            if high_threshold is not None:
+                # Compare both tags against threshold
+                if tag1_value is not None and tag2_value is not None:
+                    high_condition_met = (
+                        self._compare_value(tag1_value, high_op, high_threshold) or
+                        self._compare_value(tag2_value, high_op, high_threshold)
+                    )
+        
+        # Check LOW threshold
+        low_condition_met = False
+        if low_op and (low_value is not None or low_compare_tag_id):
+            # Determine threshold value
+            if low_compare_type == "tag" and low_compare_tag_id:
+                low_threshold = self._get_tag_value(low_compare_tag_id)
+            else:
+                low_threshold = low_value
+            
+            if low_threshold is not None:
+                # Compare both tags against threshold
+                if tag1_value is not None and tag2_value is not None:
+                    low_condition_met = (
+                        self._compare_value(tag1_value, low_op, low_threshold) or
+                        self._compare_value(tag2_value, low_op, low_threshold)
+                    )
+        
+        # Determine overall alarm state
+        alarm_triggered = high_condition_met or low_condition_met
+        
+        # Process alarm state with stability
+        self._process_quad_alarm_state(
+            alarm_key, alarm_triggered, quad_id, column,
+            tag1_value, tag2_value, tag1_id, tag2_id,
+            high_condition_met, low_condition_met,
+            high_on_stable if high_condition_met else low_on_stable,
+            high_off_stable if high_condition_met else low_off_stable,
+            email, sms, description,
+            high_value if high_condition_met else low_value,
+            high_op if high_condition_met else low_op
+        )
+    
+    def _process_quad_alarm_state(self, alarm_key: str, current_condition: bool,
+                                   quad_id: int, column: str,
+                                   tag1_value: float, tag2_value: float,
+                                   tag1_id: int, tag2_id: int,
+                                   high_met: bool, low_met: bool,
+                                   on_stable_sec: int, off_stable_sec: int,
+                                   email: str, sms: str, description: str,
+                                   threshold: float, operator: str):
+        """Process quad alarm state with stability timers"""
+        
+        now = time.time()
+        previous_active = self._alarm_states.get(alarm_key, False)
+        
+        # Debug logging
+        self.log("DEBUG", f"Quad {quad_id} {column}: condition={current_condition}, tag1={tag1_value}, tag2={tag2_value}, threshold={threshold}, op={operator}")
+        
+        if current_condition and not previous_active:
+            # Potential alarm activation
+            if alarm_key not in self._alarm_since:
+                self._alarm_since[alarm_key] = now
+                self.log("DEBUG", f"Quad {quad_id} {column}: Started stability timer for activation")
+            
+            # Check if stable time reached
+            stable_time = now - self._alarm_since[alarm_key]
+            self.log("DEBUG", f"Quad {quad_id} {column}: Stable time = {stable_time:.1f}s / {on_stable_sec}s required")
+            
+            if stable_time >= on_stable_sec:
+                self._alarm_states[alarm_key] = True
+                
+                # Determine which tag triggered (use the one with worse violation)
+                triggered_tag_id = tag1_id
+                triggered_value = tag1_value
+                
+                # Log alarm activation
+                alarm_name = f"Quad {quad_id} - {column.capitalize()} Column"
+                if high_met:
+                    alarm_type = "High"
+                    self.log("INFO", f"⚠️ Quad Alarm TRIGGERED: {alarm_name} - HIGH threshold - Value: {triggered_value}")
+                else:
+                    alarm_type = "Low"
+                    self.log("INFO", f"⚠️ Quad Alarm TRIGGERED: {alarm_name} - LOW threshold - Value: {triggered_value}")
+                
+                # Emit Socket.IO event for UI update
+                try:
+                    event_data = {
+                        "quad_id": quad_id,
+                        "column": column,
+                        "alarm_type": alarm_type,
+                        "status": "INCOMING",
+                        "tag1_value": tag1_value,
+                        "tag2_value": tag2_value,
+                        "threshold": threshold,
+                        "operator": operator,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    self.log("INFO", f"📡 Emitting quad_alarm_event: {event_data}")
+                    
+                    # Send event via data_queue to main process for broadcasting
+                    self.data_queue.put({
+                        "type": "quad_alarm_event",
+                        "data": event_data
+                    })
+                    
+                    # Also try direct emit (fallback)
+                    try:
+                        sio.emit('quad_alarm_event', event_data)
+                    except Exception as emit_err:
+                        self.log("WARNING", f"Direct emit failed: {emit_err}")
+                    
+                    self.log("INFO", f"✅ Successfully queued quad_alarm_event")
+                except Exception as e:
+                    self.log("ERROR", f"Failed to emit quad alarm event: {e}")
+                
+                # Send notifications
+                if email or sms:
+                    self._send_quad_notification(
+                        alarm_key, alarm_name, triggered_value, threshold,
+                        operator, "incoming", email, sms, description,
+                        on_stable_sec
+                    )
+        
+        elif not current_condition and previous_active:
+            # Potential alarm deactivation
+            if alarm_key not in self._alarm_since:
+                self._alarm_since[alarm_key] = now
+            
+            # Check if stable time reached
+            stable_time = now - self._alarm_since[alarm_key]
+            if stable_time >= off_stable_sec:
+                self._alarm_states[alarm_key] = False
+                
+                # Log alarm deactivation
+                alarm_name = f"Quad {quad_id} - {column.capitalize()} Column"
+                self.log("INFO", f"✅ Quad Alarm CLEARED: {alarm_name} - Value: {tag1_value}")
+                
+                # Emit Socket.IO event for UI update
+                try:
+                    event_data = {
+                        "quad_id": quad_id,
+                        "column": column,
+                        "status": "OUTGOING",
+                        "tag1_value": tag1_value,
+                        "tag2_value": tag2_value,
+                        "threshold": threshold,
+                        "operator": operator,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    
+                    # Send event via data_queue to main process for broadcasting
+                    self.data_queue.put({
+                        "type": "quad_alarm_event",
+                        "data": event_data
+                    })
+                    
+                    # Also try direct emit (fallback)
+                    try:
+                        sio.emit('quad_alarm_event', event_data)
+                    except Exception as emit_err:
+                        self.log("WARNING", f"Direct emit failed: {emit_err}")
+                        
+                except Exception as e:
+                    self.log("ERROR", f"Failed to emit quad alarm clear event: {e}")
+                
+                # Send clear notifications
+                if email or sms:
+                    self._send_quad_notification(
+                        alarm_key, alarm_name, tag1_value, threshold,
+                        operator, "outgoing", email, sms, description,
+                        off_stable_sec
+                    )
+        
+        # Reset stability timer if condition changed
+        if current_condition != previous_active:
+            pass  # Keep tracking
+        else:
+            # Condition stable, can reset timer
+            if alarm_key in self._alarm_since:
+                del self._alarm_since[alarm_key]
+    
+    def _send_quad_notification(self, alarm_key: str, alarm_name: str,
+                                value: float, threshold: float, operator: str,
+                                notification_type: str, email: str, sms: str,
+                                description: str, stable_time_sec: int):
+        """Send notification for quad alarm"""
+        
+        # Check debounce
+        if not self._should_send_notification(hash(alarm_key), notification_type, stable_time_sec):
+            return
+        
+        # Create message
+        subject = f"🚨 QUAD ALARM: {alarm_name}" if notification_type == "incoming" else f"✅ QUAD ALARM CLEARED: {alarm_name}"
+        body = self.create_alarm_email_body(
+            device_name="Quad Tag Card",
+            alarm_name=alarm_name,
+            tag_value=value,
+            threshold=threshold,
+            operator=operator,
+            alarm_level="Warning",
+            notification_type=notification_type
+        )
+        
+        if description:
+            body += f"\n\nDescription: {description}"
+        
+        # Send email
+        if email and email.strip():
+            email_thread = threading.Thread(
+                target=self._send_email_async,
+                args=(email.strip(), subject, body, hash(alarm_key)),
+                daemon=True
+            )
+            email_thread.start()
+        
+        # Send SMS
+        if sms and sms.strip():
+            sms_message = self.create_alarm_sms_text(
+                alarm_name=alarm_name,
+                tag_value=value,
+                threshold=threshold,
+                operator=operator,
+                notification_type=notification_type
+            )
+            if description:
+                sms_message += f"\nNote: {description[:50]}"  # Limit description in SMS
+            
+            try:
+                if self.sms_queue is not None:
+                    self.sms_queue.put_nowait((sms.strip(), sms_message, hash(alarm_key)))
+                    self.log("DEBUG", f"📥 Queued SMS for quad alarm {alarm_key}")
+            except Exception as e:
+                self.log("ERROR", f"Failed to queue SMS for quad alarm: {e}")
+        
+        # Update last notification time
+        if hash(alarm_key) not in self._last_notification:
+            self._last_notification[hash(alarm_key)] = {}
+        self._last_notification[hash(alarm_key)][notification_type] = time.time()
+    
     def _alarm_loop(self):
         """Main alarm evaluation loop"""
         self.log("INFO", "Starting alarm evaluation loop")
@@ -929,6 +1265,12 @@ class AlarmWorker:
                     for rule in alarm_rules:
                         if rule.get("enabled", True):
                             self._process_alarm_rule(rule)
+                
+                # Evaluate quad tag conditions
+                try:
+                    self._evaluate_quad_conditions()
+                except Exception as e:
+                    self.log("ERROR", f"Failed to evaluate quad conditions: {e}")
                 
                 # Update sequence number
                 self.seq += 1

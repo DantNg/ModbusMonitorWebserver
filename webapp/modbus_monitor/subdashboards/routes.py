@@ -635,3 +635,99 @@ def update_quad_tag_card(sid, quad_id):
     except Exception as e:
         print(f"Error updating quad tag card: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ========== QUAD TAG CONDITIONS ROUTES ==========
+
+@subdash_bp.route("/<int:sid>/quad_condition/<int:quad_id>", methods=["GET"])
+def get_quad_condition(sid, quad_id):
+    """Lấy điều kiện alarm của quad tag card"""
+    try:
+        condition = db.get_quad_condition(quad_id)
+        if condition:
+            return jsonify({"success": True, "condition": condition})
+        else:
+            # Trả về cấu trúc rỗng nếu chưa có condition
+            return jsonify({"success": True, "condition": None})
+    except Exception as e:
+        print(f"Error getting quad condition: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/quad_condition/<int:quad_id>", methods=["POST"])
+def save_quad_condition(sid, quad_id):
+    """Lưu điều kiện alarm cho quad tag card"""
+    try:
+        data = request.get_json()
+        
+        # Chuẩn bị dữ liệu để lưu
+        conditions_data = {
+            "enabled": data.get("enabled", True),
+            
+            # Left column
+            "left_high_operator": data.get("left_high_operator"),
+            "left_high_compare_type": data.get("left_high_compare_type"),
+            "left_high_value": data.get("left_high_value"),
+            "left_high_compare_tag_id": data.get("left_high_compare_tag_id"),
+            "left_high_on_stable": data.get("left_high_on_stable", 10),
+            "left_high_off_stable": data.get("left_high_off_stable", 30),
+            
+            "left_low_operator": data.get("left_low_operator"),
+            "left_low_compare_type": data.get("left_low_compare_type"),
+            "left_low_value": data.get("left_low_value"),
+            "left_low_compare_tag_id": data.get("left_low_compare_tag_id"),
+            "left_low_on_stable": data.get("left_low_on_stable", 10),
+            "left_low_off_stable": data.get("left_low_off_stable", 30),
+            
+            "left_email": data.get("left_email"),
+            "left_sms": data.get("left_sms"),
+            "left_description": data.get("left_description"),
+            
+            # Right column
+            "right_high_operator": data.get("right_high_operator"),
+            "right_high_compare_type": data.get("right_high_compare_type"),
+            "right_high_value": data.get("right_high_value"),
+            "right_high_compare_tag_id": data.get("right_high_compare_tag_id"),
+            "right_high_on_stable": data.get("right_high_on_stable", 10),
+            "right_high_off_stable": data.get("right_high_off_stable", 30),
+            
+            "right_low_operator": data.get("right_low_operator"),
+            "right_low_compare_type": data.get("right_low_compare_type"),
+            "right_low_value": data.get("right_low_value"),
+            "right_low_compare_tag_id": data.get("right_low_compare_tag_id"),
+            "right_low_on_stable": data.get("right_low_on_stable", 10),
+            "right_low_off_stable": data.get("right_low_off_stable", 30),
+            
+            "right_email": data.get("right_email"),
+            "right_sms": data.get("right_sms"),
+            "right_description": data.get("right_description"),
+        }
+        
+        # Lưu vào database
+        condition_id = db.save_quad_condition(quad_id, conditions_data)
+        
+        return jsonify({
+            "success": True,
+            "message": "Điều kiện đã được lưu thành công",
+            "condition_id": condition_id
+        })
+        
+    except Exception as e:
+        print(f"Error saving quad condition: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/quad_condition/<int:quad_id>", methods=["DELETE"])
+def delete_quad_condition_route(sid, quad_id):
+    """Xóa điều kiện alarm của quad tag card"""
+    try:
+        result = db.delete_quad_condition(quad_id)
+        if result:
+            return jsonify({"success": True, "message": "Điều kiện đã được xóa"})
+        else:
+            return jsonify({"success": False, "message": "Không tìm thấy điều kiện"}), 404
+    except Exception as e:
+        print(f"Error deleting quad condition: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500

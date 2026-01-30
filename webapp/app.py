@@ -485,6 +485,27 @@ def handle_alarm_event(data):
     print('Received alarm_event from client:', data)
     # Optionally: broadcast lại cho các client khác
     socketio.emit('alarm_event', data)
+
+@socketio.on('quad_alarm_event')
+def handle_quad_alarm_event(data):
+    """
+    Handle quad alarm events from alarm worker and broadcast to all browser clients.
+    This receives events emitted by alarm_worker.py via socketio.Client().
+    """
+    try:
+        print('📡 Received quad_alarm_event from worker:', data)
+        
+        # Extract quad_id to determine which subdashboard this belongs to
+        quad_id = data.get('quad_id')
+        
+        # Broadcast to all clients (they will filter by quad_id on frontend)
+        socketio.emit('quad_alarm_event', data)
+        print(f'✅ Broadcasted quad_alarm_event to all clients: quad_id={quad_id}')
+        
+    except Exception as e:
+        print(f'❌ Error handling quad_alarm_event: {e}')
+        import traceback
+        traceback.print_exc()
     
 def start_data_queue_processor():
     """Background thread to process data from workers (disabled in webapp-only mode)"""

@@ -369,6 +369,55 @@ subdash_quad_cards = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# Bảng lưu điều kiện alarm cho Quad Tag
+quad_tag_conditions = Table(
+    "quad_tag_conditions", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("quad_card_id", Integer, ForeignKey("subdash_quad_cards.id", ondelete="CASCADE"), nullable=False),
+    Column("enabled", Boolean, default=True),  # Bật/tắt toàn bộ điều kiện
+    
+    # Left column conditions (tag1 & tag2)
+    Column("left_high_operator", String(10)),  # >, >=, ==, !=
+    Column("left_high_compare_type", String(10)),  # static hoặc tag
+    Column("left_high_value", Float, nullable=True),  # Giá trị ngưỡng nếu static
+    Column("left_high_compare_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),  # Tag để so sánh
+    Column("left_high_on_stable", Integer, default=10),  # Thời gian ổn định để kích hoạt (giây)
+    Column("left_high_off_stable", Integer, default=30),  # Thời gian ổn định để tắt (giây)
+    
+    Column("left_low_operator", String(10)),  # <, <=, ==, !=
+    Column("left_low_compare_type", String(10)),
+    Column("left_low_value", Float, nullable=True),
+    Column("left_low_compare_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
+    Column("left_low_on_stable", Integer, default=10),
+    Column("left_low_off_stable", Integer, default=30),
+    
+    Column("left_email", String(500), nullable=True),  # Danh sách email, phân cách bởi dấu phẩy
+    Column("left_sms", String(500), nullable=True),  # Danh sách số điện thoại
+    Column("left_description", String(500), nullable=True),
+    
+    # Right column conditions (tag3 & tag4)
+    Column("right_high_operator", String(10)),
+    Column("right_high_compare_type", String(10)),
+    Column("right_high_value", Float, nullable=True),
+    Column("right_high_compare_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
+    Column("right_high_on_stable", Integer, default=10),
+    Column("right_high_off_stable", Integer, default=30),
+    
+    Column("right_low_operator", String(10)),
+    Column("right_low_compare_type", String(10)),
+    Column("right_low_value", Float, nullable=True),
+    Column("right_low_compare_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
+    Column("right_low_on_stable", Integer, default=10),
+    Column("right_low_off_stable", Integer, default=30),
+    
+    Column("right_email", String(500), nullable=True),
+    Column("right_sms", String(500), nullable=True),
+    Column("right_description", String(500), nullable=True),
+    
+    Column("created_at", DateTime, server_default=func.now()),
+    Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now()),
+)
+
 
 def create_schema():
     """Tạo bảng nếu chưa có (idempotent)."""
@@ -2492,4 +2541,72 @@ def update_quad_card(quad_card_id: int, tag1_id: int, tag2_id: int, tag3_id: int
     except Exception as e:
         print(f"Error updating quad card {quad_card_id}: {e}")
         return False
+
+
+# ========== QUAD TAG CONDITIONS OPERATIONS ==========
+
+def save_quad_condition(quad_card_id: int, conditions_data: dict) -> int:
+    """
+    Lưu hoặc cập nhật điều kiện alarm cho quad tag card.
+    Trả về condition_id.
+    """
+    with init_engine().begin() as con:
+        # Kiểm tra xem đã có condition cho quad card này chưa
+        existing = con.execute(
+            select(quad_tag_conditions.c.id)
+            .where(quad_tag_conditions.c.quad_card_id == quad_card_id)
+        ).first()
+        
+        if existing:
+            # Update existing
+            con.execute(
+                update(quad_tag_conditions)
+                .where(quad_tag_conditions.c.quad_card_id == quad_card_id)
+                .values(**conditions_data)
+            )
+            return existing[0]
+        else:
+            # Insert new
+            conditions_data['quad_card_id'] = quad_card_id
+            result = con.execute(
+                insert(quad_tag_conditions).values(**conditions_data)
+            )
+            return result.inserted_primary_key[0]
+
+
+def get_quad_condition(quad_card_id: int):
+    """Lấy điều kiện alarm của quad tag card."""
+    with init_engine().connect() as con:
+        result = con.execute(
+            select(quad_tag_conditions)
+            .where(quad_tag_conditions.c.quad_card_id == quad_card_id)
+        ).mappings().first()
+        return dict(result) if result else None
+
+
+def delete_quad_condition(quad_card_id: int) -> bool:
+    """Xóa điều kiện alarm của quad tag card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(quad_tag_conditions)
+                .where(quad_tag_conditions.c.quad_card_id == quad_card_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting quad condition for card {quad_card_id}: {e}")
+        return False
+
+
+def get_all_active_quad_conditions():
+    """
+    Lấy tất cả điều kiện alarm đang active của tất cả quad cards.
+    Dùng cho alarm worker để monitor.
+    """
+    with init_engine().connect() as con:
+        result = con.execute(
+            select(quad_tag_conditions)
+            .where(quad_tag_conditions.c.enabled == True)
+        ).mappings().all()
+        return [dict(r) for r in result]
     

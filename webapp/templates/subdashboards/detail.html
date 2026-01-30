@@ -1153,13 +1153,83 @@
 [data-bs-theme="dark"] .quad-update-time {
   color: #9ca3af !important;
 }
+
+/* Quad Alarm States */
+.quad-sub-card.quad-alarm-high {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  border: 2px solid #dc2626 !important;
+  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4) !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
+.quad-sub-card.quad-alarm-low {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  border: 2px solid #f59e0b !important;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4) !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
+}
+
+.quad-sub-card.quad-alarm-high .quad-tag-value {
+  color: #dc2626 !important;
+  font-weight: 900 !important;
+}
+
+.quad-sub-card.quad-alarm-low .quad-tag-value {
+  color: #d97706 !important;
+  font-weight: 900 !important;
+}
+
+/* Pulse animations for alarms */
+@keyframes pulse-red {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(220, 38, 38, 0.7);
+  }
+}
+
+@keyframes pulse-yellow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.7);
+  }
+}
+
+/* Dark theme alarm states */
+[data-bs-theme="dark"] .quad-sub-card.quad-alarm-high {
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
+  border-color: #dc2626 !important;
+}
+
+[data-bs-theme="dark"] .quad-sub-card.quad-alarm-low {
+  background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+  border-color: #f59e0b !important;
+}
+
+[data-bs-theme="dark"] .quad-sub-card.quad-alarm-high .quad-tag-value {
+  color: #fca5a5 !important;
+}
+
+[data-bs-theme="dark"] .quad-sub-card.quad-alarm-low .quad-tag-value {
+  color: #fcd34d !important;
+}
 </style>
 {% endblock %}
 {% block scripts %}
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/quad_conditions.js') }}"></script>
 <script>
+  // Set subdashboard ID as data attribute for use in quad_conditions.js
+  document.addEventListener('DOMContentLoaded', function() {
+    document.body.setAttribute('data-subdash-id', '{{ subdash.id }}');
+    window.currentSubdashId = '{{ subdash.id }}';
+  });
+  
   // Wrap everything in DOMContentLoaded to ensure buttons exist
   document.addEventListener('DOMContentLoaded', function () {
 
@@ -2017,8 +2087,8 @@
       // Load available tags for comparison
       loadAvailableTagsForComparison();
       
-      // Load existing conditions from localStorage
-      loadConditionsFromStorage(quadId);
+      // Load existing conditions from API
+      loadConditionsFromAPI(quadId);
       
       // Show modal
       const modal = new bootstrap.Modal(document.getElementById('compareConditionsModal'));
@@ -2088,236 +2158,9 @@
       }
     });
     
-    // Load conditions from localStorage into modal
-    function loadConditionsFromStorage(quadId) {
-      // Global enabled state
-      const enabled = localStorage.getItem(`quad-card-${quadId}-enabled`) !== 'false';
-      document.getElementById('conditionsEnabled').checked = enabled;
-      
-      // Left column - High threshold
-      const leftHighOp = localStorage.getItem(`quad-card-${quadId}-left-high-op`) || '>';
-      const leftHighCompareType = localStorage.getItem(`quad-card-${quadId}-left-high-compare-type`) || 'static';
-      const leftHighValue = localStorage.getItem(`quad-card-${quadId}-left-high-value`) || '';
-      const leftHighCompareTag = localStorage.getItem(`quad-card-${quadId}-left-high-compare-tag`) || '';
-      const leftHighOnStable = localStorage.getItem(`quad-card-${quadId}-left-high-on-stable`) || '10';
-      const leftHighOffStable = localStorage.getItem(`quad-card-${quadId}-left-high-off-stable`) || '30';
-      document.getElementById('leftHighOperator').value = leftHighOp;
-      document.getElementById('leftHighCompareType').value = leftHighCompareType;
-      document.getElementById('leftHighValue').value = leftHighValue;
-      document.getElementById('leftHighCompareTag').value = leftHighCompareTag;
-      document.getElementById('leftHighOnStable').value = leftHighOnStable;
-      document.getElementById('leftHighOffStable').value = leftHighOffStable;
-      
-      // Toggle visibility based on compare type
-      if (leftHighCompareType === 'static') {
-        document.getElementById('leftHighValueContainer').style.display = 'block';
-        document.getElementById('leftHighTagContainer').style.display = 'none';
-      } else {
-        document.getElementById('leftHighValueContainer').style.display = 'none';
-        document.getElementById('leftHighTagContainer').style.display = 'block';
-      }
-      
-      // Left column - Low threshold
-      const leftLowOp = localStorage.getItem(`quad-card-${quadId}-left-low-op`) || '<';
-      const leftLowCompareType = localStorage.getItem(`quad-card-${quadId}-left-low-compare-type`) || 'static';
-      const leftLowValue = localStorage.getItem(`quad-card-${quadId}-left-low-value`) || '';
-      const leftLowCompareTag = localStorage.getItem(`quad-card-${quadId}-left-low-compare-tag`) || '';
-      const leftLowOnStable = localStorage.getItem(`quad-card-${quadId}-left-low-on-stable`) || '10';
-      const leftLowOffStable = localStorage.getItem(`quad-card-${quadId}-left-low-off-stable`) || '30';
-      document.getElementById('leftLowOperator').value = leftLowOp;
-      document.getElementById('leftLowCompareType').value = leftLowCompareType;
-      document.getElementById('leftLowValue').value = leftLowValue;
-      document.getElementById('leftLowCompareTag').value = leftLowCompareTag;
-      document.getElementById('leftLowOnStable').value = leftLowOnStable;
-      document.getElementById('leftLowOffStable').value = leftLowOffStable;
-      
-      // Toggle visibility
-      if (leftLowCompareType === 'static') {
-        document.getElementById('leftLowValueContainer').style.display = 'block';
-        document.getElementById('leftLowTagContainer').style.display = 'none';
-      } else {
-        document.getElementById('leftLowValueContainer').style.display = 'none';
-        document.getElementById('leftLowTagContainer').style.display = 'block';
-      }
-      
-      // Left column - Notifications
-      const leftEmail = localStorage.getItem(`quad-card-${quadId}-left-email`) || '';
-      const leftSMS = localStorage.getItem(`quad-card-${quadId}-left-sms`) || '';
-      const leftDesc = localStorage.getItem(`quad-card-${quadId}-left-description`) || '';
-      document.getElementById('leftEmail').value = leftEmail;
-      document.getElementById('leftSMS').value = leftSMS;
-      document.getElementById('leftDescription').value = leftDesc;
-      
-      // Right column - High threshold
-      const rightHighOp = localStorage.getItem(`quad-card-${quadId}-right-high-op`) || '>';
-      const rightHighCompareType = localStorage.getItem(`quad-card-${quadId}-right-high-compare-type`) || 'static';
-      const rightHighValue = localStorage.getItem(`quad-card-${quadId}-right-high-value`) || '';
-      const rightHighCompareTag = localStorage.getItem(`quad-card-${quadId}-right-high-compare-tag`) || '';
-      const rightHighOnStable = localStorage.getItem(`quad-card-${quadId}-right-high-on-stable`) || '10';
-      const rightHighOffStable = localStorage.getItem(`quad-card-${quadId}-right-high-off-stable`) || '30';
-      document.getElementById('rightHighOperator').value = rightHighOp;
-      document.getElementById('rightHighCompareType').value = rightHighCompareType;
-      document.getElementById('rightHighValue').value = rightHighValue;
-      document.getElementById('rightHighCompareTag').value = rightHighCompareTag;
-      document.getElementById('rightHighOnStable').value = rightHighOnStable;
-      document.getElementById('rightHighOffStable').value = rightHighOffStable;
-      
-      // Toggle visibility
-      if (rightHighCompareType === 'static') {
-        document.getElementById('rightHighValueContainer').style.display = 'block';
-        document.getElementById('rightHighTagContainer').style.display = 'none';
-      } else {
-        document.getElementById('rightHighValueContainer').style.display = 'none';
-        document.getElementById('rightHighTagContainer').style.display = 'block';
-      }
-      
-      // Right column - Low threshold
-      const rightLowOp = localStorage.getItem(`quad-card-${quadId}-right-low-op`) || '<';
-      const rightLowCompareType = localStorage.getItem(`quad-card-${quadId}-right-low-compare-type`) || 'static';
-      const rightLowValue = localStorage.getItem(`quad-card-${quadId}-right-low-value`) || '';
-      const rightLowCompareTag = localStorage.getItem(`quad-card-${quadId}-right-low-compare-tag`) || '';
-      const rightLowOnStable = localStorage.getItem(`quad-card-${quadId}-right-low-on-stable`) || '10';
-      const rightLowOffStable = localStorage.getItem(`quad-card-${quadId}-right-low-off-stable`) || '30';
-      document.getElementById('rightLowOperator').value = rightLowOp;
-      document.getElementById('rightLowCompareType').value = rightLowCompareType;
-      document.getElementById('rightLowValue').value = rightLowValue;
-      document.getElementById('rightLowCompareTag').value = rightLowCompareTag;
-      document.getElementById('rightLowOnStable').value = rightLowOnStable;
-      document.getElementById('rightLowOffStable').value = rightLowOffStable;
-      
-      // Toggle visibility
-      if (rightLowCompareType === 'static') {
-        document.getElementById('rightLowValueContainer').style.display = 'block';
-        document.getElementById('rightLowTagContainer').style.display = 'none';
-      } else {
-        document.getElementById('rightLowValueContainer').style.display = 'none';
-        document.getElementById('rightLowTagContainer').style.display = 'block';
-      }
-      
-      // Right column - Notifications
-      const rightEmail = localStorage.getItem(`quad-card-${quadId}-right-email`) || '';
-      const rightSMS = localStorage.getItem(`quad-card-${quadId}-right-sms`) || '';
-      const rightDesc = localStorage.getItem(`quad-card-${quadId}-right-description`) || '';
-      document.getElementById('rightEmail').value = rightEmail;
-      document.getElementById('rightSMS').value = rightSMS;
-      document.getElementById('rightDescription').value = rightDesc;
-    }
-    
-    // Save conditions button handler
+    // Save conditions button handler - use API from quad_conditions.js
     document.getElementById('saveConditionsBtn').addEventListener('click', function() {
-      const quadId = document.getElementById('conditionQuadId').value;
-      
-      if (!quadId) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'Quad card ID not found'
-        });
-        return;
-      }
-      
-      // Save global enabled state
-      const enabled = document.getElementById('conditionsEnabled').checked;
-      localStorage.setItem(`quad-card-${quadId}-enabled`, enabled);
-      
-      // Save left column conditions (High = Red, Low = Yellow)
-      localStorage.setItem(`quad-card-${quadId}-left-high-op`, document.getElementById('leftHighOperator').value);
-      localStorage.setItem(`quad-card-${quadId}-left-high-compare-type`, document.getElementById('leftHighCompareType').value);
-      localStorage.setItem(`quad-card-${quadId}-left-high-value`, document.getElementById('leftHighValue').value);
-      localStorage.setItem(`quad-card-${quadId}-left-high-compare-tag`, document.getElementById('leftHighCompareTag').value);
-      localStorage.setItem(`quad-card-${quadId}-left-high-color`, '#dc3545'); // Fixed red
-      localStorage.setItem(`quad-card-${quadId}-left-high-on-stable`, document.getElementById('leftHighOnStable').value);
-      localStorage.setItem(`quad-card-${quadId}-left-high-off-stable`, document.getElementById('leftHighOffStable').value);
-      
-      localStorage.setItem(`quad-card-${quadId}-left-low-op`, document.getElementById('leftLowOperator').value);
-      localStorage.setItem(`quad-card-${quadId}-left-low-compare-type`, document.getElementById('leftLowCompareType').value);
-      localStorage.setItem(`quad-card-${quadId}-left-low-value`, document.getElementById('leftLowValue').value);
-      localStorage.setItem(`quad-card-${quadId}-left-low-compare-tag`, document.getElementById('leftLowCompareTag').value);
-      localStorage.setItem(`quad-card-${quadId}-left-low-color`, '#ffc107'); // Fixed yellow
-      localStorage.setItem(`quad-card-${quadId}-left-low-on-stable`, document.getElementById('leftLowOnStable').value);
-      localStorage.setItem(`quad-card-${quadId}-left-low-off-stable`, document.getElementById('leftLowOffStable').value);
-      
-      localStorage.setItem(`quad-card-${quadId}-left-email`, document.getElementById('leftEmail').value);
-      localStorage.setItem(`quad-card-${quadId}-left-sms`, document.getElementById('leftSMS').value);
-      localStorage.setItem(`quad-card-${quadId}-left-description`, document.getElementById('leftDescription').value);
-      
-      // Save right column conditions (High = Red, Low = Yellow)
-      localStorage.setItem(`quad-card-${quadId}-right-high-op`, document.getElementById('rightHighOperator').value);
-      localStorage.setItem(`quad-card-${quadId}-right-high-compare-type`, document.getElementById('rightHighCompareType').value);
-      localStorage.setItem(`quad-card-${quadId}-right-high-value`, document.getElementById('rightHighValue').value);
-      localStorage.setItem(`quad-card-${quadId}-right-high-compare-tag`, document.getElementById('rightHighCompareTag').value);
-      localStorage.setItem(`quad-card-${quadId}-right-high-color`, '#dc3545'); // Fixed red
-      localStorage.setItem(`quad-card-${quadId}-right-high-on-stable`, document.getElementById('rightHighOnStable').value);
-      localStorage.setItem(`quad-card-${quadId}-right-high-off-stable`, document.getElementById('rightHighOffStable').value);
-      
-      localStorage.setItem(`quad-card-${quadId}-right-low-op`, document.getElementById('rightLowOperator').value);
-      localStorage.setItem(`quad-card-${quadId}-right-low-compare-type`, document.getElementById('rightLowCompareType').value);
-      localStorage.setItem(`quad-card-${quadId}-right-low-value`, document.getElementById('rightLowValue').value);
-      localStorage.setItem(`quad-card-${quadId}-right-low-compare-tag`, document.getElementById('rightLowCompareTag').value);
-      localStorage.setItem(`quad-card-${quadId}-right-low-color`, '#ffc107'); // Fixed yellow
-      localStorage.setItem(`quad-card-${quadId}-right-low-on-stable`, document.getElementById('rightLowOnStable').value);
-      localStorage.setItem(`quad-card-${quadId}-right-low-off-stable`, document.getElementById('rightLowOffStable').value);
-      
-      localStorage.setItem(`quad-card-${quadId}-right-email`, document.getElementById('rightEmail').value);
-      localStorage.setItem(`quad-card-${quadId}-right-sms`, document.getElementById('rightSMS').value);
-      localStorage.setItem(`quad-card-${quadId}-right-description`, document.getElementById('rightDescription').value);
-      
-      // Close modal
-      bootstrap.Modal.getInstance(document.getElementById('compareConditionsModal')).hide();
-      
-      // Show success message
-      Swal.fire({
-        icon: 'success',
-        title: 'Saved!',
-        html: `
-          <p>Compare conditions and alert settings have been saved successfully.</p>
-          <small class="text-muted">Monitoring is ${enabled ? 'ENABLED' : 'DISABLED'}</small>
-        `,
-        timer: 2500,
-        showConfirmButton: false
-      });
-      
-      // Log saved configuration for debugging
-      console.log('Quad Compare Conditions Saved:', {
-        quadId,
-        enabled,
-        leftHigh: {
-          op: document.getElementById('leftHighOperator').value,
-          compareType: document.getElementById('leftHighCompareType').value,
-          value: document.getElementById('leftHighValue').value,
-          compareTag: document.getElementById('leftHighCompareTag').value,
-          color: '#dc3545',
-          onStable: document.getElementById('leftHighOnStable').value,
-          offStable: document.getElementById('leftHighOffStable').value
-        },
-        leftLow: {
-          op: document.getElementById('leftLowOperator').value,
-          compareType: document.getElementById('leftLowCompareType').value,
-          value: document.getElementById('leftLowValue').value,
-          compareTag: document.getElementById('leftLowCompareTag').value,
-          color: '#ffc107',
-          onStable: document.getElementById('leftLowOnStable').value,
-          offStable: document.getElementById('leftLowOffStable').value
-        },
-        rightHigh: {
-          op: document.getElementById('rightHighOperator').value,
-          compareType: document.getElementById('rightHighCompareType').value,
-          value: document.getElementById('rightHighValue').value,
-          compareTag: document.getElementById('rightHighCompareTag').value,
-          color: '#dc3545',
-          onStable: document.getElementById('rightHighOnStable').value,
-          offStable: document.getElementById('rightHighOffStable').value
-        },
-        rightLow: {
-          op: document.getElementById('rightLowOperator').value,
-          compareType: document.getElementById('rightLowCompareType').value,
-          value: document.getElementById('rightLowValue').value,
-          compareTag: document.getElementById('rightLowCompareTag').value,
-          color: '#ffc107',
-          onStable: document.getElementById('rightLowOnStable').value,
-          offStable: document.getElementById('rightLowOffStable').value
-        }
-      });
+      saveConditionsToAPI();
     });
 
     // Reset quad tag modal when closed
@@ -3063,6 +2906,56 @@
           valEl.style.opacity = '';
           valEl.style.color = '';
         });
+      }
+    });
+
+    // Listen for quad alarm events
+    socket.on('quad_alarm_event', function (data) {
+      console.log('🚨 Quad alarm event received:', data);
+      
+      const quadId = data.quad_id;
+      const column = data.column; // 'left' or 'right'
+      const alarmType = data.alarm_type; // 'High' or 'Low'
+      const status = data.status; // 'INCOMING' or 'OUTGOING'
+      
+      // Find quad card element
+      const quadCard = document.querySelector(`.quad-tag-card[data-quad-id="${quadId}"]`);
+      if (!quadCard) {
+        console.warn(`Quad card ${quadId} not found`);
+        return;
+      }
+      
+      // Find the sub-card for this column (left=first, right=second)
+      const subCards = quadCard.querySelectorAll('.quad-sub-card');
+      const subCard = column === 'left' ? subCards[0] : subCards[1];
+      
+      if (!subCard) {
+        console.warn(`Sub-card for column ${column} not found`);
+        return;
+      }
+      
+      // Update alarm state
+      if (status === 'INCOMING') {
+        // Add alarm class based on type
+        if (alarmType === 'High') {
+          subCard.classList.add('quad-alarm-high');
+          subCard.classList.remove('quad-alarm-low');
+        } else {
+          subCard.classList.add('quad-alarm-low');
+          subCard.classList.remove('quad-alarm-high');
+        }
+        
+        // Show notification
+        if (window.Notification && Notification.permission === 'granted') {
+          new Notification(`🚨 Quad Alarm: ${alarmType}`, {
+            body: `Quad Card ${quadId} - ${column} column triggered`,
+            icon: '/static/favicon.ico'
+          });
+        }
+        
+      } else if (status === 'OUTGOING') {
+        // Remove alarm classes
+        subCard.classList.remove('quad-alarm-high', 'quad-alarm-low');
       }
     });
 
