@@ -110,8 +110,8 @@
           
           <div class="alert alert-info alert-sm mb-0 small">
             <i class="bi bi-info-circle"></i> 
-            <strong>Hướng dẫn:</strong> Chọn Tag chính để tô màu (màu xanh nhạt), sau đó chọn tối đa 2 tag phụ để so sánh. 
-            Các ô thỏa điều kiện sẽ được tô màu theo lựa chọn. Cấu hình được lưu tự động.
+            <strong>Hướng dẫn:</strong> Chọn Tag chính làm mốc so sánh, sau đó chọn tối đa 2 tag phụ để so sánh. 
+            Chỉ các ô của tag phụ thỏa điều kiện mới được tô màu theo lựa chọn. Cấu hình được lưu tự động.
           </div>
         </div>
       </div>
@@ -335,7 +335,7 @@
           
           <div class="row g-2 mb-2">
             <div class="col-md-3">
-              <label class="form-label small mb-1">Tag chính (sẽ tô màu xanh nhạt)</label>
+              <label class="form-label small mb-1">Tag chính (làm mốc so sánh)</label>
               <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'primaryTag', this.value)">
                 <option value="">-- Chọn tag --</option>
                 ${allTags.map(t => `<option value="${t}" ${pair.primaryTag === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
@@ -445,17 +445,6 @@
         th.textContent.trim().toLowerCase() === pair.primaryTag.toLowerCase()
       );
       if (primaryIndex === -1) return;
-
-      // Highlight primary tag column with light blue
-      document.querySelectorAll('#tbl tbody tr').forEach(tr => {
-        if (tr.style.display === 'none') return;
-        if (tr.querySelector('td[colspan]')) return;
-        
-        const cells = tr.querySelectorAll('td');
-        if (cells[primaryIndex]) {
-          cells[primaryIndex].style.backgroundColor = PRIMARY_TAG_COLOR;
-        }
-      });
 
       // Process comparison 1
       if (pair.compareTag1) {
@@ -632,7 +621,7 @@
         sheet.addRow(['COMPARISON CONDITIONS:']);
         comparisonPairs.forEach((pair, idx) => {
           if (pair.primaryTag) {
-            let conditionText = `${idx + 1}. Tag ${pair.primaryTag.toUpperCase()} (màu xanh nhạt)`;
+            let conditionText = `${idx + 1}. Tag ${pair.primaryTag.toUpperCase()} so sánh với:`;
             if (pair.compareTag1) {
               conditionText += ` ${conditionSymbols[pair.condition1]} ${pair.compareTag1.toUpperCase()}`;
             }
@@ -666,13 +655,6 @@
           
           const primaryIndex = header.findIndex(h => h.toLowerCase() === pair.primaryTag.toLowerCase());
           if (primaryIndex === -1) return;
-
-          // Add primary tag highlighting
-          comparisonMap.push({
-            type: 'primary',
-            index: primaryIndex,
-            color: 'FFE3F2FD' // Light blue
-          });
 
           // Add comparison 1
           if (pair.compareTag1) {
@@ -710,15 +692,7 @@
         
         // Apply highlighting based on comparison map
         comparisonMap.forEach(comp => {
-          if (comp.type === 'primary') {
-            // Highlight primary tag column
-            const cell = excelRow.getCell(comp.index + 1);
-            cell.fill = { 
-              type: 'pattern', 
-              pattern: 'solid', 
-              fgColor: { argb: comp.color } 
-            };
-          } else if (comp.type === 'compare') {
+          if (comp.type === 'compare') {
             // Apply comparison condition
             const primaryValue = parseFloat(rowData[comp.primaryIndex]);
             const compareValue = parseFloat(rowData[comp.compareIndex]);
