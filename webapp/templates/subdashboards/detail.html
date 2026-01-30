@@ -2845,7 +2845,6 @@
             
             if (oldQuadVal !== newQuadVal) {
               pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
-              console.log(`Updating quad tag ${tag.id}: ${oldQuadVal} -> ${newQuadVal}`);
             }
           }
 
@@ -2958,34 +2957,6 @@
         subCard.classList.remove('quad-alarm-high', 'quad-alarm-low');
       }
     });
-
-    // // Listen for alarm events from subdashboard tags
-    // socket.on('alarm_event', function (data) {
-    //   console.log('Received alarm_event:', data);
-    //   // Only show notifications for tags that belong to current subdashboard
-    //   console.log('Current Subdashboard ID:', currentSubdashId);
-    //   if (window.NotificationSystem) {
-    //     window.NotificationSystem.addNotification({
-    //       id: Date.now() + Math.random(),
-    //       title: data.title || 'Alarm Alert',
-    //       message: data.message || 'Alarm condition detected',
-    //       level: data.level || 'Critical',
-    //       created_at: new Date().toISOString(),
-    //       status: data.status || 'Active'
-    //     });
-    //   }
-
-    //   // Also show browser toast notification for important alarms
-    //   if (data.status === 'INCOMING' && data.level === 'Critical') {
-    //     if (Notification.permission === 'granted') {
-    //       new Notification(`🚨 ${data.title}`, {
-    //         body: data.message,
-    //         icon: '/static/favicon.ico',
-    //         tag: `alarm-${data.tag_id}-${Date.now()}`
-    //       });
-    //     }
-    //   }
-    // });
 
 
     // Join subdashboard room for targeted updates
