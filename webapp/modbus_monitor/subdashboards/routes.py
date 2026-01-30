@@ -90,6 +90,15 @@ def subdash_detail(sid):
         # Add quad cards to group
         g["quad_cards"] = db.get_quad_cards_for_group(g["id"]) if hasattr(db, "get_quad_cards_for_group") else []
 
+    # Get active quad alarms for this subdashboard
+    active_quad_alarms = []
+    if hasattr(db, "get_active_quad_alarms_by_subdash"):
+        try:
+            active_quad_alarms = db.get_active_quad_alarms_by_subdash(sid)
+            print(f"🔔 Found {len(active_quad_alarms)} active quad alarms for subdashboard {sid}")
+        except Exception as e:
+            print(f"⚠️ Could not load active quad alarms: {e}")
+
     current_group = request.args.get('group', '__all__')
 
     response = make_response(render_template(
@@ -97,7 +106,8 @@ def subdash_detail(sid):
         subdash=subdash,
         all_tags=all_tags,
         groups=groups,
-        current_group=current_group
+        current_group=current_group,
+        active_quad_alarms=active_quad_alarms
     ))
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['Pragma'] = 'no-cache'

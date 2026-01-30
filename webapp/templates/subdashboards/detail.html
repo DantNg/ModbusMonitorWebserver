@@ -61,6 +61,9 @@
 {% endif %}
 {% endwith %}
 
+<!-- Store active quad alarms as JSON in data attribute -->
+<div id="quad-alarm-data" style="display: none;" data-active-alarms='{{ active_quad_alarms | default([]) | tojson }}'></div>
+
 <div id="group-panels">
   {% if current_group == '__all__' %}
   {% for group in groups %}
@@ -2385,6 +2388,8 @@
         // Create first sub-card (Items 1 & 2)
         const subCard1 = document.createElement('div');
         subCard1.className = 'quad-sub-card';
+        subCard1.setAttribute('data-quad-id', cardId);
+        subCard1.setAttribute('data-column', 'left');
         subCard1.innerHTML = `
           <div class="quad-sub-card-head quad-group-1">
             <div class="quad-sub-card-title" data-title-slot="left">${title1}</div>
@@ -2411,6 +2416,8 @@
         // Create second sub-card (Items 3 & 4)
         const subCard2 = document.createElement('div');
         subCard2.className = 'quad-sub-card';
+        subCard2.setAttribute('data-quad-id', cardId);
+        subCard2.setAttribute('data-column', 'right');
         subCard2.innerHTML = `
           <div class="quad-sub-card-head quad-group-2">
             <div class="quad-sub-card-title" data-title-slot="right">${title2}</div>
@@ -2513,9 +2520,85 @@
         console.log(`Quad tag ${element.id}: ${element.textContent}`);
       });
       
+      // Apply active quad alarm states from database after layout is fixed
+      // Add a small delay to ensure DOM has been updated
+      setTimeout(function() {
+        applyActiveQuadAlarms();
+      }, 100);
+      
       console.log('✨ Quad layout initialization completed');
     }, 500);
   });
+
+  // Apply active quad alarm states on page load
+  function applyActiveQuadAlarms() {
+    console.log('🔔 Starting applyActiveQuadAlarms...');
+    
+    // Get active alarms from data attribute in HTML
+    const dataEl = document.getElementById('quad-alarm-data');
+    let activeAlarms = [];
+    
+    if (dataEl) {
+      console.log('✓ Found quad-alarm-data element');
+      try {
+        const dataStr = dataEl.getAttribute('data-active-alarms');
+        console.log('📊 Raw alarm data:', dataStr);
+        activeAlarms = dataStr ? JSON.parse(dataStr) : [];
+      } catch (e) {
+        console.error('❌ Failed to parse active quad alarms:', e);
+        activeAlarms = [];
+      }
+    } else {
+      console.warn('⚠️ quad-alarm-data element not found!');
+    }
+    
+    console.log('🔔 Applying active quad alarms:', activeAlarms);
+    
+    if (!activeAlarms || activeAlarms.length === 0) {
+      console.log('ℹ️ No active quad alarms to apply');
+      return;
+    }
+    
+    activeAlarms.forEach((alarm, index) => {
+      const quadId = alarm.quad_id;
+      const column = alarm.column;
+      const alarmType = alarm.alarm_type;
+      
+      console.log(`🔍 Processing alarm ${index + 1}:`, { quadId, column, alarmType });
+      
+      // Find the quad sub-card element
+      const selector = `[data-quad-id="${quadId}"][data-column="${column}"]`;
+      console.log(`🔍 Looking for selector: ${selector}`);
+      const subCard = document.querySelector(selector);
+      
+      if (subCard) {
+        console.log(`✓ Found sub-card for quad ${quadId} ${column}`);
+        // Remove any existing alarm classes
+        subCard.classList.remove('quad-alarm-high', 'quad-alarm-low');
+        
+        // Add the appropriate alarm class
+        if (alarmType === 'High') {
+          subCard.classList.add('quad-alarm-high');
+          console.log(`✅ Applied High alarm to quad ${quadId} ${column} column`);
+        } else if (alarmType === 'Low') {
+          subCard.classList.add('quad-alarm-low');
+          console.log(`✅ Applied Low alarm to quad ${quadId} ${column} column`);
+        }
+      } else {
+        console.error(`❌ Could not find sub-card for quad ${quadId} ${column} column`);
+        // Debug: list all available sub-cards
+        const allSubCards = document.querySelectorAll('.quad-sub-card');
+        console.log(`📋 Available sub-cards (${allSubCards.length}):`, 
+          Array.from(allSubCards).map(card => ({
+            quadId: card.getAttribute('data-quad-id'),
+            column: card.getAttribute('data-column')
+          }))
+        );
+      }
+    });
+    
+    console.log('🎯 applyActiveQuadAlarms completed');
+  }
 
   // Check if tag supports write operations
   function canWriteTag(functionCode) {

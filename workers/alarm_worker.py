@@ -1174,6 +1174,18 @@ class AlarmWorker:
                             threshold=threshold
                         )
                         self.log("INFO", f"✅ Saved quad alarm INCOMING event to database: ID={event_id}, Level={alarm_level}")
+                        
+                        # Save quad alarm state for persistence on page refresh
+                        state_id = self.db.insert_quad_alarm_state(
+                            quad_id=quad_id,
+                            column=column,
+                            alarm_type=alarm_type,
+                            tag1_value=tag1_value,
+                            tag2_value=tag2_value,
+                            threshold=threshold,
+                            operator=operator
+                        )
+                        self.log("INFO", f"✅ Saved quad alarm state to database: ID={state_id}")
                     except Exception as e:
                         self.log("ERROR", f"Failed to save quad alarm event to database: {e}")
                 
@@ -1256,6 +1268,10 @@ class AlarmWorker:
                             threshold=threshold
                         )
                         self.log("INFO", f"✅ Saved quad alarm OUTGOING event to database: ID={event_id}, Level={alarm_level}")
+                        
+                        # Delete quad alarm state when alarm clears
+                        deleted = self.db.delete_quad_alarm_state(quad_id, column)
+                        self.log("INFO", f"✅ Deleted quad alarm state from database: {deleted} row(s)")
                     except Exception as e:
                         self.log("ERROR", f"Failed to save quad alarm clear event to database: {e}")
                 

@@ -289,6 +289,26 @@ notifications = Table(
 # Index để truy vấn nhanh danh sách và badge
 Index("idx_notifications_user_status", notifications.c.user_id, notifications.c.status, notifications.c.created_at.desc())
 
+# --- Quad Alarm States - Lưu trạng thái alarm đang active của quad tags ---
+quad_alarm_states = Table(
+    "quad_alarm_states", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("quad_id", Integer, nullable=False),              # ID của quad tag card
+    Column("column", String(10), nullable=False),            # "left" hoặc "right"
+    Column("alarm_type", String(10), nullable=False),        # "High" hoặc "Low"
+    Column("triggered_at", DateTime, nullable=False),        # Thời điểm trigger alarm
+    Column("tag1_value", Float, nullable=True),              # Giá trị tag1 khi trigger
+    Column("tag2_value", Float, nullable=True),              # Giá trị tag2 khi trigger
+    Column("threshold", Float, nullable=True),               # Ngưỡng trigger
+    Column("operator", String(10), nullable=True),           # Toán tử so sánh
+    
+    # Unique constraint để đảm bảo mỗi column của mỗi quad chỉ có 1 active alarm
+    UniqueConstraint("quad_id", "column", name="uq_quad_alarm_state")
+)
+
+# Index để query nhanh theo quad_id
+Index("idx_quad_alarm_states_quad", quad_alarm_states.c.quad_id)
+
 # --- Bảng Data Logger ---
 data_loggers = Table(
     "data_loggers", _md,
@@ -880,7 +900,111 @@ def delete_alarm_event_row(eid: int) -> int:
 def delete_alarm_events(ids: list[int]) -> int:
     with init_engine().begin() as con:
         res = con.execute(delete(alarm_events).where(alarm_events.c.id.in_(ids)))
-        return res.rowcount 
+        return res.rowcount
+
+# ----------- QUAD ALARM STATES -----------
+def insert_quad_alarm_state(quad_id: int, column: str, alarm_type: str, 
+                           tag1_value: float, tag2_value: float, 
+                           threshold: float, operator: str):
+    """Insert or update quad alarm state (UPSERT)"""
+    try:
+        with init_engine().begin() as con:
+            # Try to delete existing state first, then insert new one
+            con.execute(
+                delete(quad_alarm_states)
+                .where(quad_alarm_states.c.quad_id == quad_id)
+                .where(quad_alarm_states.c.column == column)
+            )
+            
+            # Insert new state
+            res = con.execute(
+                quad_alarm_states.insert().values(
+                    quad_id=quad_id,
+                    column=column,
+                    alarm_type=alarm_type,
+                    triggered_at=datetime.now(),
+                    tag1_value=tag1_value,
+                    tag2_value=tag2_value,
+                    threshold=threshold,
+                    operator=operator
+                )
+            )
+            return res.inserted_primary_key[0] if res.inserted_primary_key else None
+    except Exception as e:
+        print(f"Error inserting quad alarm state: {e}")
+        return None
+
+def delete_quad_alarm_state(quad_id: int, column: str):
+    """Delete quad alarm state when alarm clears"""
+    try:
+        with init_engine().begin() as con:
+            res = con.execute(
+                delete(quad_alarm_states)
+                .where(quad_alarm_states.c.quad_id == quad_id)
+                .where(quad_alarm_states.c.column == column)
+            )
+            return res.rowcount
+    except Exception as e:
+        print(f"Error deleting quad alarm state: {e}")
+        return 0
+
+def get_active_quad_alarms():
+    """Get all active quad alarms"""
+    try:
+        with init_engine().connect() as con:
+            rows = con.execute(
+                select(quad_alarm_states).order_by(quad_alarm_states.c.triggered_at.desc())
+            ).mappings().all()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"Error getting active quad alarms: {e}")
+        return []
+
+def get_active_quad_alarms_by_subdash(subdash_id: int):
+    """Get active quad alarms for a specific subdashboard"""
+    try:
+        # Get all quad cards for this subdashboard first
+        quad_card_ids = []
+        with init_engine().connect() as con:
+            # Get quad card IDs through subdash_tag_groups
+            query = select(subdash_quad_cards.c.id).select_from(
+                subdash_quad_cards.join(
+                    subdash_tag_groups,
+                    subdash_quad_cards.c.group_id == subdash_tag_groups.c.id
+                )
+            ).where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            
+            rows = con.execute(query).fetchall()
+            quad_card_ids = [row[0] for row in rows]
+        
+        if not quad_card_ids:
+            return []
+        
+        # Now get active alarms for these quad cards
+        with init_engine().connect() as con:
+            query = select(
+                quad_alarm_states.c.quad_id,
+                quad_alarm_states.c.column,
+                quad_alarm_states.c.alarm_type,
+                quad_alarm_states.c.triggered_at,
+                quad_alarm_states.c.tag1_value,
+                quad_alarm_states.c.tag2_value,
+                quad_alarm_states.c.threshold,
+                quad_alarm_states.c.operator
+            ).where(
+                quad_alarm_states.c.quad_id.in_(quad_card_ids)
+            ).order_by(quad_alarm_states.c.triggered_at.desc())
+            
+            rows = con.execute(query).mappings().all()
+            result = [dict(r) for r in rows]
+            print(f"🔔 Loaded {len(result)} active quad alarms for subdash {subdash_id}: {result}")
+            return result
+    except Exception as e:
+        print(f"Error getting active quad alarms by subdash: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+ 
     
 def list_alarm_report():
     """Ghép INCOMING với OUTGOING + rule info để làm báo cáo alarm."""
