@@ -81,56 +81,37 @@
           <h6 class="mb-0">
             <button class="btn btn-link text-decoration-none p-0" type="button" data-bs-toggle="collapse" 
                     data-bs-target="#comparisonSettings" aria-expanded="false">
-              <i class="bi bi-funnel"></i> Tag Comparison Settings
+              <i class="bi bi-funnel"></i> Tag Comparison Settings (Advanced)
             </button>
           </h6>
         </div>
         
         <div class="collapse" id="comparisonSettings">
-          <div class="row g-2 align-items-end">
-            <div class="col-md-3">
-              <label class="form-label small mb-1">Reference Tag</label>
-              <select id="referenceTag" class="form-select form-select-sm">
-                <option value="">-- None --</option>
-                {% for c in columns if c != 'timestamp' %}
-                <option value="{{ c }}">{{ c|upper }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            
-            <div class="col-md-2">
-              <label class="form-label small mb-1">Condition</label>
-              <select id="comparisonCondition" class="form-select form-select-sm">
-                <option value="eq">=</option>
-                <option value="ne">≠</option>
-                <option value="gt">&gt;</option>
-                <option value="lt">&lt;</option>
-                <option value="gte">≥</option>
-                <option value="lte">≤</option>
-              </select>
-            </div>
-            
-            <div class="col-md-2">
-              <label class="form-label small mb-1">Highlight Color</label>
-              <input type="color" id="highlightColor" class="form-control form-control-sm form-control-color" value="#ffeb3b">
-            </div>
-            
-            <div class="col-md-3">
-              <button type="button" class="btn btn-sm btn-success me-1" onclick="applyComparison()">
-                <i class="bi bi-check-circle"></i> Apply
-              </button>
-              <button type="button" class="btn btn-sm btn-secondary" onclick="clearComparison()">
-                <i class="bi bi-x-circle"></i> Clear
-              </button>
-            </div>
-            
-            <div class="col-md-2">
-              <small class="text-muted d-block" id="comparisonStatus">Not active</small>
-            </div>
+          <!-- Comparison pairs container -->
+          <div id="comparisonPairsContainer"></div>
+          
+          <!-- Add pair button -->
+          <div class="mb-3">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addComparisonPair()">
+              <i class="bi bi-plus-circle"></i> Thêm cặp so sánh
+            </button>
           </div>
           
-          <div class="alert alert-info alert-sm mt-2 mb-0 small">
-            <i class="bi bi-info-circle"></i> Compare all tags against the reference tag value. Cells matching the condition will be highlighted.
+          <!-- Action buttons -->
+          <div class="d-flex gap-2 align-items-center mb-3">
+            <button type="button" class="btn btn-sm btn-success" onclick="applyComparison()">
+              <i class="bi bi-check-circle"></i> Áp dụng
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="clearComparison()">
+              <i class="bi bi-x-circle"></i> Xóa tất cả
+            </button>
+            <small class="text-muted ms-3" id="comparisonStatus">Chưa có điều kiện</small>
+          </div>
+          
+          <div class="alert alert-info alert-sm mb-0 small">
+            <i class="bi bi-info-circle"></i> 
+            <strong>Hướng dẫn:</strong> Chọn Tag chính để tô màu (màu xanh nhạt), sau đó chọn tối đa 2 tag phụ để so sánh. 
+            Các ô thỏa điều kiện sẽ được tô màu theo lựa chọn. Cấu hình được lưu tự động.
           </div>
         </div>
       </div>
@@ -293,101 +274,283 @@
     });
   }
 
-  // ===== Comparison Logic =====
-  let currentComparison = null;
+  // ===== Advanced Comparison Logic =====
+  let comparisonPairs = [];
+  const STORAGE_KEY = 'report_comparison_config';
+  const PRIMARY_TAG_COLOR = '#e3f2fd'; // Light blue for primary tags
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    loadComparisonConfig();
+    if (comparisonPairs.length > 0) {
+      renderComparisonPairs();
+      setTimeout(() => applyComparison(), 100);
+    } else {
+      addComparisonPair(); // Add first pair by default
+    }
+  });
+
+  function addComparisonPair() {
+    const pair = {
+      id: Date.now(),
+      primaryTag: '',
+      compareTag1: '',
+      condition1: 'eq',
+      color1: '#ffeb3b',
+      compareTag2: '',
+      condition2: 'eq',
+      color2: '#ffccbc'
+    };
+    comparisonPairs.push(pair);
+    renderComparisonPairs();
+    saveComparisonConfig();
+  }
+
+  function removeComparisonPair(id) {
+    comparisonPairs = comparisonPairs.filter(p => p.id !== id);
+    renderComparisonPairs();
+    saveComparisonConfig();
+    applyComparison();
+  }
+
+  function renderComparisonPairs() {
+    const container = document.getElementById('comparisonPairsContainer');
+    if (!container) return;
+
+    const allTags = Array.from(document.querySelectorAll('#tbl thead th'))
+      .map(th => th.textContent.trim())
+      .filter(t => t.toLowerCase() !== 'timestamp');
+
+    container.innerHTML = comparisonPairs.map((pair, index) => `
+      <div class="card mb-2 shadow-sm" style="border-left: 4px solid #2196F3;">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <strong class="text-primary">Cặp so sánh ${index + 1}</strong>
+            ${comparisonPairs.length > 1 ? `
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeComparisonPair(${pair.id})">
+                <i class="bi bi-trash"></i>
+              </button>
+            ` : ''}
+          </div>
+          
+          <div class="row g-2 mb-2">
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Tag chính (sẽ tô màu xanh nhạt)</label>
+              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'primaryTag', this.value)">
+                <option value="">-- Chọn tag --</option>
+                ${allTags.map(t => `<option value="${t}" ${pair.primaryTag === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+
+          <div class="row g-2 mb-2 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Tag so sánh 1</label>
+              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'compareTag1', this.value)">
+                <option value="">-- Không chọn --</option>
+                ${allTags.map(t => `<option value="${t}" ${pair.compareTag1 === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Điều kiện</label>
+              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'condition1', this.value)">
+                <option value="eq" ${pair.condition1 === 'eq' ? 'selected' : ''}>=</option>
+                <option value="ne" ${pair.condition1 === 'ne' ? 'selected' : ''}>≠</option>
+                <option value="gt" ${pair.condition1 === 'gt' ? 'selected' : ''}>&gt;</option>
+                <option value="lt" ${pair.condition1 === 'lt' ? 'selected' : ''}>&lt;</option>
+                <option value="gte" ${pair.condition1 === 'gte' ? 'selected' : ''}>≥</option>
+                <option value="lte" ${pair.condition1 === 'lte' ? 'selected' : ''}>≤</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Màu highlight</label>
+              <input type="color" class="form-control form-control-sm form-control-color" 
+                     value="${pair.color1}" onchange="updatePairData(${pair.id}, 'color1', this.value)">
+            </div>
+          </div>
+
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Tag so sánh 2 (tùy chọn)</label>
+              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'compareTag2', this.value)">
+                <option value="">-- Không chọn --</option>
+                ${allTags.map(t => `<option value="${t}" ${pair.compareTag2 === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Điều kiện</label>
+              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'condition2', this.value)">
+                <option value="eq" ${pair.condition2 === 'eq' ? 'selected' : ''}>=</option>
+                <option value="ne" ${pair.condition2 === 'ne' ? 'selected' : ''}>≠</option>
+                <option value="gt" ${pair.condition2 === 'gt' ? 'selected' : ''}>&gt;</option>
+                <option value="lt" ${pair.condition2 === 'lt' ? 'selected' : ''}>&lt;</option>
+                <option value="gte" ${pair.condition2 === 'gte' ? 'selected' : ''}>≥</option>
+                <option value="lte" ${pair.condition2 === 'lte' ? 'selected' : ''}>≤</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Màu highlight</label>
+              <input type="color" class="form-control form-control-sm form-control-color" 
+                     value="${pair.color2}" onchange="updatePairData(${pair.id}, 'color2', this.value)">
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function updatePairData(id, field, value) {
+    const pair = comparisonPairs.find(p => p.id === id);
+    if (pair) {
+      pair[field] = value;
+      saveComparisonConfig();
+    }
+  }
+
+  function saveComparisonConfig() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(comparisonPairs));
+    } catch (e) {
+      console.error('Failed to save comparison config:', e);
+    }
+  }
+
+  function loadComparisonConfig() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        comparisonPairs = JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load comparison config:', e);
+      comparisonPairs = [];
+    }
+  }
 
   function applyComparison() {
-    const referenceTag = document.getElementById('referenceTag').value;
-    const condition = document.getElementById('comparisonCondition').value;
-    const color = document.getElementById('highlightColor').value;
-
-    if (!referenceTag) {
-      alert('Please select a reference tag!');
-      return;
-    }
-
-    // Store comparison config
-    currentComparison = { referenceTag, condition, color };
-
-    // Get column index of reference tag
-    const headers = Array.from(document.querySelectorAll('#tbl thead th'));
-    const refIndex = headers.findIndex(th => th.textContent.trim().toLowerCase() === referenceTag.toLowerCase());
-    
-    if (refIndex === -1) {
-      alert('Reference tag not found in table!');
-      return;
-    }
-
-    // Clear previous highlights
+    // Clear all previous highlights
     document.querySelectorAll('#tbl tbody td').forEach(td => {
       td.style.backgroundColor = '';
     });
 
-    // Apply comparison to all rows
-    let matchCount = 0;
-    document.querySelectorAll('#tbl tbody tr').forEach(tr => {
-      if (tr.style.display === 'none') return; // Skip filtered rows
-      if (tr.querySelector('td[colspan]')) return; // Skip "No data" row
+    const headers = Array.from(document.querySelectorAll('#tbl thead th'));
+    let totalMatches = 0;
+    let appliedConditions = 0;
 
-      const cells = tr.querySelectorAll('td');
-      if (cells.length <= refIndex) return;
+    // Apply each comparison pair
+    comparisonPairs.forEach(pair => {
+      if (!pair.primaryTag) return;
 
-      const refValue = parseFloat(cells[refIndex].textContent.trim());
-      if (isNaN(refValue)) return; // Skip non-numeric reference values
+      const primaryIndex = headers.findIndex(th => 
+        th.textContent.trim().toLowerCase() === pair.primaryTag.toLowerCase()
+      );
+      if (primaryIndex === -1) return;
 
-      // Compare each cell (except timestamp) with reference
-      cells.forEach((cell, idx) => {
-        if (idx === 0) return; // Skip timestamp column
-        if (idx === refIndex) return; // Skip reference column itself
-
-        const cellValue = parseFloat(cell.textContent.trim());
-        if (isNaN(cellValue)) return;
-
-        let matches = false;
-        switch (condition) {
-          case 'eq': matches = cellValue === refValue; break;
-          case 'ne': matches = cellValue !== refValue; break;
-          case 'gt': matches = cellValue > refValue; break;
-          case 'lt': matches = cellValue < refValue; break;
-          case 'gte': matches = cellValue >= refValue; break;
-          case 'lte': matches = cellValue <= refValue; break;
-        }
-
-        if (matches) {
-          cell.style.backgroundColor = color;
-          cell.style.transition = 'background-color 0.3s ease';
-          matchCount++;
+      // Highlight primary tag column with light blue
+      document.querySelectorAll('#tbl tbody tr').forEach(tr => {
+        if (tr.style.display === 'none') return;
+        if (tr.querySelector('td[colspan]')) return;
+        
+        const cells = tr.querySelectorAll('td');
+        if (cells[primaryIndex]) {
+          cells[primaryIndex].style.backgroundColor = PRIMARY_TAG_COLOR;
         }
       });
+
+      // Process comparison 1
+      if (pair.compareTag1) {
+        const compareIndex1 = headers.findIndex(th => 
+          th.textContent.trim().toLowerCase() === pair.compareTag1.toLowerCase()
+        );
+        if (compareIndex1 !== -1) {
+          appliedConditions++;
+          totalMatches += applyComparisonCondition(primaryIndex, compareIndex1, pair.condition1, pair.color1);
+        }
+      }
+
+      // Process comparison 2
+      if (pair.compareTag2) {
+        const compareIndex2 = headers.findIndex(th => 
+          th.textContent.trim().toLowerCase() === pair.compareTag2.toLowerCase()
+        );
+        if (compareIndex2 !== -1) {
+          appliedConditions++;
+          totalMatches += applyComparisonCondition(primaryIndex, compareIndex2, pair.condition2, pair.color2);
+        }
+      }
     });
 
     // Update status
-    const conditionSymbols = { eq: '=', ne: '≠', gt: '>', lt: '<', gte: '≥', lte: '≤' };
-    document.getElementById('comparisonStatus').innerHTML = 
-      `<span class="badge bg-success">${matchCount} matches</span> comparing to <strong>${referenceTag.toUpperCase()}</strong> ${conditionSymbols[condition]}`;
+    const statusEl = document.getElementById('comparisonStatus');
+    if (appliedConditions > 0) {
+      statusEl.innerHTML = `<span class="badge bg-success">${totalMatches} ô thỏa điều kiện</span> từ ${appliedConditions} điều kiện so sánh`;
+    } else {
+      statusEl.textContent = 'Chưa có điều kiện';
+    }
+
+    saveComparisonConfig();
+  }
+
+  function applyComparisonCondition(primaryIndex, compareIndex, condition, color) {
+    let matchCount = 0;
+    
+    document.querySelectorAll('#tbl tbody tr').forEach(tr => {
+      if (tr.style.display === 'none') return;
+      if (tr.querySelector('td[colspan]')) return;
+
+      const cells = tr.querySelectorAll('td');
+      if (cells.length <= Math.max(primaryIndex, compareIndex)) return;
+
+      const primaryValue = parseFloat(cells[primaryIndex].textContent.trim());
+      const compareValue = parseFloat(cells[compareIndex].textContent.trim());
+      
+      if (isNaN(primaryValue) || isNaN(compareValue)) return;
+
+      let matches = false;
+      switch (condition) {
+        case 'eq': matches = primaryValue === compareValue; break;
+        case 'ne': matches = primaryValue !== compareValue; break;
+        case 'gt': matches = primaryValue > compareValue; break;
+        case 'lt': matches = primaryValue < compareValue; break;
+        case 'gte': matches = primaryValue >= compareValue; break;
+        case 'lte': matches = primaryValue <= compareValue; break;
+      }
+
+      if (matches) {
+        // Highlight the compare tag cell
+        cells[compareIndex].style.backgroundColor = color;
+        cells[compareIndex].style.transition = 'background-color 0.3s ease';
+        matchCount++;
+      }
+    });
+
+    return matchCount;
   }
 
   function clearComparison() {
-    currentComparison = null;
+    if (!confirm('Xóa tất cả các cặp so sánh?')) return;
+    
+    comparisonPairs = [];
     
     // Clear all highlights
     document.querySelectorAll('#tbl tbody td').forEach(td => {
       td.style.backgroundColor = '';
     });
 
-    // Reset form
-    document.getElementById('referenceTag').value = '';
-    document.getElementById('comparisonCondition').value = 'eq';
-    document.getElementById('highlightColor').value = '#ffeb3b';
-    document.getElementById('comparisonStatus').textContent = 'Not active';
+    // Clear storage
+    localStorage.removeItem(STORAGE_KEY);
+    
+    // Re-render
+    addComparisonPair();
+    
+    document.getElementById('comparisonStatus').textContent = 'Chưa có điều kiện';
   }
 
   // Reapply comparison after filtering
   const originalFilterRows = filterRows;
   filterRows = function(q) {
     originalFilterRows(q);
-    if (currentComparison) {
-      // Reapply comparison after a short delay to ensure filter is complete
+    if (comparisonPairs.length > 0) {
       setTimeout(() => applyComparison(), 50);
     }
   };
@@ -464,9 +627,21 @@
       sheet.addRow([]);
       
       // Add comparison info if active
-      if (currentComparison) {
+      if (comparisonPairs && comparisonPairs.length > 0) {
         const conditionSymbols = { eq: '=', ne: '≠', gt: '>', lt: '<', gte: '≥', lte: '≤' };
-        sheet.addRow(['COMPARISON:', `${currentComparison.referenceTag.toUpperCase()} ${conditionSymbols[currentComparison.condition]} (highlighted in color)`]);
+        sheet.addRow(['COMPARISON CONDITIONS:']);
+        comparisonPairs.forEach((pair, idx) => {
+          if (pair.primaryTag) {
+            let conditionText = `${idx + 1}. Tag ${pair.primaryTag.toUpperCase()} (màu xanh nhạt)`;
+            if (pair.compareTag1) {
+              conditionText += ` ${conditionSymbols[pair.condition1]} ${pair.compareTag1.toUpperCase()}`;
+            }
+            if (pair.compareTag2) {
+              conditionText += ` và ${conditionSymbols[pair.condition2]} ${pair.compareTag2.toUpperCase()}`;
+            }
+            sheet.addRow(['', conditionText]);
+          }
+        });
       }
       
       sheet.addRow([]);
@@ -483,52 +658,93 @@
         };
       });
 
-      // Get reference column index for comparison
-      let refColIndex = -1;
-      if (currentComparison) {
-        refColIndex = header.findIndex(h => h.toLowerCase() === currentComparison.referenceTag.toLowerCase());
+      // Build comparison map for Excel export
+      const comparisonMap = [];
+      if (comparisonPairs && comparisonPairs.length > 0) {
+        comparisonPairs.forEach(pair => {
+          if (!pair.primaryTag) return;
+          
+          const primaryIndex = header.findIndex(h => h.toLowerCase() === pair.primaryTag.toLowerCase());
+          if (primaryIndex === -1) return;
+
+          // Add primary tag highlighting
+          comparisonMap.push({
+            type: 'primary',
+            index: primaryIndex,
+            color: 'FFE3F2FD' // Light blue
+          });
+
+          // Add comparison 1
+          if (pair.compareTag1) {
+            const compareIndex1 = header.findIndex(h => h.toLowerCase() === pair.compareTag1.toLowerCase());
+            if (compareIndex1 !== -1) {
+              comparisonMap.push({
+                type: 'compare',
+                primaryIndex: primaryIndex,
+                compareIndex: compareIndex1,
+                condition: pair.condition1,
+                color: 'FF' + pair.color1.replace('#', '').toUpperCase()
+              });
+            }
+          }
+
+          // Add comparison 2
+          if (pair.compareTag2) {
+            const compareIndex2 = header.findIndex(h => h.toLowerCase() === pair.compareTag2.toLowerCase());
+            if (compareIndex2 !== -1) {
+              comparisonMap.push({
+                type: 'compare',
+                primaryIndex: primaryIndex,
+                compareIndex: compareIndex2,
+                condition: pair.condition2,
+                color: 'FF' + pair.color2.replace('#', '').toUpperCase()
+              });
+            }
+          }
+        });
       }
 
       // Data rows with comparison highlighting
       bodyRows.forEach((rowData, rowIdx) => {
         const excelRow = sheet.addRow(rowData);
         
-        // Apply comparison highlighting if active
-        if (currentComparison && refColIndex !== -1) {
-          const refValue = parseFloat(rowData[refColIndex]);
-          
-          if (!isNaN(refValue)) {
-            excelRow.eachCell((cell, colIdx) => {
-              // Skip timestamp column (index 1) and reference column itself
-              if (colIdx === 1 || colIdx === refColIndex + 1) return;
-              
-              const cellValue = parseFloat(cell.value);
-              if (isNaN(cellValue)) return;
-              
-              // Apply same comparison logic as in browser
+        // Apply highlighting based on comparison map
+        comparisonMap.forEach(comp => {
+          if (comp.type === 'primary') {
+            // Highlight primary tag column
+            const cell = excelRow.getCell(comp.index + 1);
+            cell.fill = { 
+              type: 'pattern', 
+              pattern: 'solid', 
+              fgColor: { argb: comp.color } 
+            };
+          } else if (comp.type === 'compare') {
+            // Apply comparison condition
+            const primaryValue = parseFloat(rowData[comp.primaryIndex]);
+            const compareValue = parseFloat(rowData[comp.compareIndex]);
+            
+            if (!isNaN(primaryValue) && !isNaN(compareValue)) {
               let matches = false;
-              switch (currentComparison.condition) {
-                case 'eq': matches = cellValue === refValue; break;
-                case 'ne': matches = cellValue !== refValue; break;
-                case 'gt': matches = cellValue > refValue; break;
-                case 'lt': matches = cellValue < refValue; break;
-                case 'gte': matches = cellValue >= refValue; break;
-                case 'lte': matches = cellValue <= refValue; break;
+              switch (comp.condition) {
+                case 'eq': matches = primaryValue === compareValue; break;
+                case 'ne': matches = primaryValue !== compareValue; break;
+                case 'gt': matches = primaryValue > compareValue; break;
+                case 'lt': matches = primaryValue < compareValue; break;
+                case 'gte': matches = primaryValue >= compareValue; break;
+                case 'lte': matches = primaryValue <= compareValue; break;
               }
               
               if (matches) {
-                // Convert hex color to ARGB (add FF for full opacity)
-                const hexColor = currentComparison.color.replace('#', '');
-                const argbColor = 'FF' + hexColor.toUpperCase();
+                const cell = excelRow.getCell(comp.compareIndex + 1);
                 cell.fill = { 
                   type: 'pattern', 
                   pattern: 'solid', 
-                  fgColor: { argb: argbColor } 
+                  fgColor: { argb: comp.color } 
                 };
               }
-            });
+            }
           }
-        }
+        });
       });
 
       // Auto width per column
