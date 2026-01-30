@@ -2322,27 +2322,67 @@
         document.getElementById('rightLowCompareTag')
       ];
       
-      // Collect tags from page
-      const tags = [];
-      document.querySelectorAll('[id^="tag-val-"]').forEach(el => {
-        const tagId = el.id.replace('tag-val-', '');
-        const tagNameEl = document.querySelector(`[data-tag-id="${tagId}"]`);
-        let tagName = tagNameEl ? tagNameEl.closest('.d-flex')?.querySelector('.fw-bold')?.textContent?.trim() : null;
+      // Collect tags from page - Use Map to avoid duplicates
+      const tagsMap = new Map();
+      
+      // 1. Collect regular tags - Find tag name from button data attributes or card structure
+      document.querySelectorAll('.write-btn[data-tag-id]').forEach(btn => {
+        const tagId = btn.getAttribute('data-tag-id');
+        const tagName = btn.getAttribute('data-tag-name');
         
-        // Try alternative selector for quad tags
-        if (!tagName) {
-          const quadTagLabel = document.querySelector(`[data-tag-id="${tagId}"]`)?.closest('.quad-tag-item')?.querySelector('.quad-tag-label');
-          tagName = quadTagLabel ? quadTagLabel.textContent.trim() : `Tag ${tagId}`;
+        if (tagId && tagName) {
+          tagsMap.set(tagId, tagName);
         }
-        
-        tags.push({ id: tagId, name: tagName || `Tag ${tagId}` });
       });
+      
+      // 2. Also check remove-tag-btn in case write-btn is not present
+      document.querySelectorAll('.remove-tag-btn[data-tag-id]').forEach(btn => {
+        const tagId = btn.getAttribute('data-tag-id');
+        const tagName = btn.getAttribute('data-tag-name');
+        
+        if (tagId && tagName && !tagsMap.has(tagId)) {
+          tagsMap.set(tagId, tagName);
+        }
+      });
+      
+      // 3. Collect from quad tags - Look for write-quad-tag-btn buttons
+      document.querySelectorAll('.write-quad-tag-btn[data-tag-id]').forEach(btn => {
+        const tagId = btn.getAttribute('data-tag-id');
+        const tagName = btn.getAttribute('data-tag-name');
+        
+        if (tagId && tagName && !tagsMap.has(tagId)) {
+          tagsMap.set(tagId, tagName);
+        }
+      });
+      
+      // 4. Fallback: Get from select dropdowns if they exist (tag1_select, tag2_select, etc.)
+      const tagSelectors = ['tag1_select', 'tag2_select', 'tag3_select', 'tag4_select'];
+      tagSelectors.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (select) {
+          Array.from(select.options).forEach(option => {
+            if (option.value && option.text && option.value !== '') {
+              if (!tagsMap.has(option.value)) {
+                tagsMap.set(option.value, option.text);
+              }
+            }
+          });
+        }
+      });
+      
+      // 5. Convert Map to array and sort by tag name
+      const tags = Array.from(tagsMap.entries()).map(([id, name]) => ({
+        id: id,
+        name: name
+      })).sort((a, b) => a.name.localeCompare(b.name));
+      
+      console.log(`📋 Loaded ${tags.length} tags for comparison:`, tags);
       
       // Populate all tag dropdowns
       tagSelects.forEach(select => {
         if (!select) return;
         
-        // Clear existing options except first one
+        // Clear existing options except first one (placeholder)
         while (select.options.length > 1) {
           select.remove(1);
         }
