@@ -1010,15 +1010,15 @@ class AlarmWorker:
             # Determine threshold value
             if high_compare_type == "tag" and high_compare_tag_id:
                 high_threshold = self._get_tag_value(high_compare_tag_id)
+                if high_threshold is None:
+                    self.log("DEBUG", f"Quad {quad_id} {column}: HIGH compare tag {high_compare_tag_id} has no value")
             else:
                 high_threshold = high_value
             
             if high_threshold is not None:
-                # Compare both tags against threshold
-                if tag1_value is not None and tag2_value is not None:
-                    high_condition_met = (
-                        self._compare_value(tag1_value, high_op, high_threshold) ## only compare PV tag
-                    )
+                # Only compare tag1 (PV) against threshold - tag2 (SV) is for display only
+                if tag1_value is not None:
+                    high_condition_met = self._compare_value(tag1_value, high_op, high_threshold)
         
         # Check LOW threshold
         low_condition_met = False
@@ -1026,15 +1026,15 @@ class AlarmWorker:
             # Determine threshold value
             if low_compare_type == "tag" and low_compare_tag_id:
                 low_threshold = self._get_tag_value(low_compare_tag_id)
+                if low_threshold is None:
+                    self.log("DEBUG", f"Quad {quad_id} {column}: LOW compare tag {low_compare_tag_id} has no value")
             else:
                 low_threshold = low_value
             
             if low_threshold is not None:
-                # Compare both tags against threshold
-                if tag1_value is not None and tag2_value is not None:
-                    low_condition_met = (
-                        self._compare_value(tag1_value, low_op, low_threshold) ## only compare PV tag
-                    )
+                # Only compare tag1 (PV) against threshold - tag2 (SV) is for display only
+                if tag1_value is not None:
+                    low_condition_met = self._compare_value(tag1_value, low_op, low_threshold)
         
         # Determine overall alarm state
         alarm_triggered = high_condition_met or low_condition_met
