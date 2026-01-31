@@ -289,6 +289,19 @@ notifications = Table(
 # Index để truy vấn nhanh danh sách và badge
 Index("idx_notifications_user_status", notifications.c.user_id, notifications.c.status, notifications.c.created_at.desc())
 
+# --- User Report Comparison Configs - Lưu cấu hình so sánh report theo user ---
+user_report_comparison_configs = Table(
+    "user_report_comparison_configs", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("config_json", String(4000), nullable=False),  # JSON string chứa comparison pairs
+    Column("created_at", DateTime, server_default=func.now()),
+    Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now()),
+    UniqueConstraint("user_id", name="uq_user_comparison_config")
+)
+
+Index("idx_user_comparison_config", user_report_comparison_configs.c.user_id)
+
 # --- Quad Alarm States - Lưu trạng thái alarm đang active của quad tags ---
 quad_alarm_states = Table(
     "quad_alarm_states", _md,
@@ -2763,6 +2776,90 @@ def delete_quad_condition(quad_card_id: int) -> bool:
             return result.rowcount > 0
     except Exception as e:
         print(f"Error deleting quad condition for card {quad_card_id}: {e}")
+        return False
+
+
+# ===== User Report Comparison Config Functions =====
+
+def save_user_comparison_config(user_id: int, config_json: str) -> bool:
+    """
+    Lưu hoặc cập nhật cấu hình comparison của user.
+    
+    Args:
+        user_id: ID của user
+        config_json: JSON string chứa comparison pairs
+    
+    Returns:
+        True nếu thành công, False nếu thất bại
+    """
+    try:
+        with init_engine().begin() as con:
+            # Check if config exists
+            existing = con.execute(
+                select(user_report_comparison_configs.c.id)
+                .where(user_report_comparison_configs.c.user_id == user_id)
+            ).first()
+            
+            if existing:
+                # Update existing config
+                con.execute(
+                    update(user_report_comparison_configs)
+                    .where(user_report_comparison_configs.c.user_id == user_id)
+                    .values(config_json=config_json, updated_at=func.now())
+                )
+            else:
+                # Insert new config
+                con.execute(
+                    insert(user_report_comparison_configs)
+                    .values(user_id=user_id, config_json=config_json)
+                )
+            return True
+    except Exception as e:
+        print(f"Error saving comparison config for user {user_id}: {e}")
+        return False
+
+
+def get_user_comparison_config(user_id: int) -> Optional[str]:
+    """
+    Lấy cấu hình comparison của user.
+    
+    Args:
+        user_id: ID của user
+    
+    Returns:
+        JSON string chứa comparison pairs hoặc None nếu không tìm thấy
+    """
+    try:
+        with init_engine().connect() as con:
+            result = con.execute(
+                select(user_report_comparison_configs.c.config_json)
+                .where(user_report_comparison_configs.c.user_id == user_id)
+            ).first()
+            return result[0] if result else None
+    except Exception as e:
+        print(f"Error getting comparison config for user {user_id}: {e}")
+        return None
+
+
+def delete_user_comparison_config(user_id: int) -> bool:
+    """
+    Xóa cấu hình comparison của user.
+    
+    Args:
+        user_id: ID của user
+    
+    Returns:
+        True nếu thành công, False nếu thất bại
+    """
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(user_report_comparison_configs)
+                .where(user_report_comparison_configs.c.user_id == user_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting comparison config for user {user_id}: {e}")
         return False
 
 

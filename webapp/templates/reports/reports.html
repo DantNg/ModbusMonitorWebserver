@@ -276,18 +276,18 @@
 
   // ===== Advanced Comparison Logic =====
   let comparisonPairs = [];
-  const STORAGE_KEY = 'report_comparison_config';
   const PRIMARY_TAG_COLOR = '#e3f2fd'; // Light blue for primary tags
 
   // Initialize on page load
   document.addEventListener('DOMContentLoaded', function() {
-    loadComparisonConfig();
-    if (comparisonPairs.length > 0) {
-      renderComparisonPairs();
-      setTimeout(() => applyComparison(), 100);
-    } else {
-      addComparisonPair(); // Add first pair by default
-    }
+    loadComparisonConfig().then(() => {
+      if (comparisonPairs.length > 0) {
+        renderComparisonPairs();
+        setTimeout(() => applyComparison(), 100);
+      } else {
+        addComparisonPair(); // Add first pair by default
+      }
+    });
   });
 
   function addComparisonPair() {
@@ -461,23 +461,40 @@
   }
 
   function saveComparisonConfig() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(comparisonPairs));
-    } catch (e) {
-      console.error('Failed to save comparison config:', e);
-    }
+    // Save to database via API
+    fetch('{{ url_for("reports_bp.save_comparison_config") }}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ config: comparisonPairs })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (!data.success) {
+        console.error('Failed to save comparison config:', data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Error saving comparison config:', error);
+    });
   }
 
   function loadComparisonConfig() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        comparisonPairs = JSON.parse(saved);
-      }
-    } catch (e) {
-      console.error('Failed to load comparison config:', e);
-      comparisonPairs = [];
-    }
+    // Load from database via API
+    return fetch('{{ url_for("reports_bp.load_comparison_config") }}')
+      .then(response => response.json())
+      .then(data => {
+        if (data.success && data.config) {
+          comparisonPairs = data.config;
+        } else {
+          comparisonPairs = [];
+        }
+      })
+      .catch(error => {
+        console.error('Error loading comparison config:', error);
+        comparisonPairs = [];
+      });
   }
 
   function applyComparison() {
@@ -582,8 +599,19 @@
       td.style.backgroundColor = '';
     });
 
-    // Clear storage
-    localStorage.removeItem(STORAGE_KEY);
+    // Delete from database
+    fetch('{{ url_for("reports_bp.delete_comparison_config") }}', {
+      method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (!data.success) {
+        console.error('Failed to delete comparison config:', data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Error deleting comparison config:', error);
+    });
     
     // Re-render
     addComparisonPair();

@@ -116,3 +116,74 @@ def clear_logger_report_data(logger_id: int):
     
     return redirect(url_for("reports_bp.reports", logger=logger_id))
 
+
+# ===== Comparison Config API Endpoints =====
+
+@reports_bp.post("/api/comparison-config/save")
+def save_comparison_config():
+    """Save user's comparison configuration to database"""
+    try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"success": False, "error": "User not logged in"}), 401
+        
+        data = request.get_json()
+        if not data or "config" not in data:
+            return jsonify({"success": False, "error": "No config provided"}), 400
+        
+        import json
+        config_json = json.dumps(data["config"])
+        
+        success = db.save_user_comparison_config(user_id, config_json)
+        
+        if success:
+            return jsonify({"success": True, "message": "Config saved successfully"})
+        else:
+            return jsonify({"success": False, "error": "Failed to save config"}), 500
+            
+    except Exception as e:
+        print(f"Error saving comparison config: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@reports_bp.get("/api/comparison-config/load")
+def load_comparison_config():
+    """Load user's comparison configuration from database"""
+    try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"success": False, "error": "User not logged in"}), 401
+        
+        config_json = db.get_user_comparison_config(user_id)
+        
+        if config_json:
+            import json
+            config = json.loads(config_json)
+            return jsonify({"success": True, "config": config})
+        else:
+            return jsonify({"success": True, "config": []})
+            
+    except Exception as e:
+        print(f"Error loading comparison config: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@reports_bp.delete("/api/comparison-config/delete")
+def delete_comparison_config():
+    """Delete user's comparison configuration from database"""
+    try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"success": False, "error": "User not logged in"}), 401
+        
+        success = db.delete_user_comparison_config(user_id)
+        
+        if success:
+            return jsonify({"success": True, "message": "Config deleted successfully"})
+        else:
+            return jsonify({"success": True, "message": "No config to delete"})
+            
+    except Exception as e:
+        print(f"Error deleting comparison config: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
