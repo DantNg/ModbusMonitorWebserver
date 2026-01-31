@@ -2674,10 +2674,10 @@
           const unit = unitElement ? unitElement.textContent.trim() : 'Kwh';
           const name = nameElement ? nameElement.textContent.trim() : `Tag ${i + 1}`;
           
-          // Use the correct ID format
-          const id = `quad-tag-val-${tagId}`;
+          // ✅ Use UNIQUE ID format: cardId + tagId để tránh duplicate IDs
+          const id = `quad-tag-val-${cardId}-${tagId}`;
           
-          console.log(`Quad tag ${i}: ID=${id}, TagID=${tagId}, Value=${value}, Unit=${unit}`);
+          console.log(`Quad tag ${i}: ID=${id}, CardID=${cardId}, TagID=${tagId}, Value=${value}, Unit=${unit}`);
           
           itemsData.push({
             value: value, // Keep original value without K/M formatting
@@ -2688,9 +2688,9 @@
           });
         }
         
-        // Hide all original items
+        // ✅ REMOVE all original items completely to avoid duplicate IDs
         items.forEach(item => {
-          item.style.display = 'none';
+          item.remove();  // Xóa hoàn toàn khỏi DOM thay vì chỉ hide
         });
         
         // Get titles from data attributes (from database) with fallback to default names
@@ -3217,8 +3217,8 @@
           // Update regular tags
           const valEl = document.getElementById('tag-val-' + tag.id);
           
-          // Update quad tags
-          const quadValEl = document.getElementById('quad-tag-val-' + tag.id);
+          // ✅ Update quad tags - tìm TẤT CẢ elements với pattern này
+          const quadValElements = document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tag.id}"]`);
           
           if (valEl) {
             const oldVal = valEl.textContent;
@@ -3229,7 +3229,8 @@
             }
           }
           
-          if (quadValEl) {
+          // ✅ Loop qua TẤT CẢ quad tag elements với tag.id này
+          quadValElements.forEach(quadValEl => {
             const oldQuadVal = quadValEl.textContent;
             // Display original value without K/M formatting
             const newQuadVal = String(tag.value);
@@ -3247,7 +3248,7 @@
                 }
               }
             }
-          }
+          });
 
           // Always update timestamp and timer if ts exists
           const tsEl = document.getElementById('tag-ts-' + tag.id);
@@ -3258,7 +3259,7 @@
           }
           
           // Reset timer for both regular and quad tags
-          if (valEl || quadValEl) {
+          if (valEl || quadValElements.length > 0) {
             resetTagTimer(tag.id);
           }
 
