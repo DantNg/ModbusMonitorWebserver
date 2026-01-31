@@ -93,25 +93,25 @@
           <!-- Add pair button -->
           <div class="mb-3">
             <button type="button" class="btn btn-sm btn-outline-primary" onclick="addComparisonPair()">
-              <i class="bi bi-plus-circle"></i> Thêm cặp so sánh
+              <i class="bi bi-plus-circle"></i> Add Comparison Pair
             </button>
           </div>
           
           <!-- Action buttons -->
           <div class="d-flex gap-2 align-items-center mb-3">
             <button type="button" class="btn btn-sm btn-success" onclick="applyComparison()">
-              <i class="bi bi-check-circle"></i> Áp dụng
+              <i class="bi bi-check-circle"></i> Apply
             </button>
             <button type="button" class="btn btn-sm btn-secondary" onclick="clearComparison()">
-              <i class="bi bi-x-circle"></i> Xóa tất cả
+              <i class="bi bi-x-circle"></i> Clear All
             </button>
-            <small class="text-muted ms-3" id="comparisonStatus">Chưa có điều kiện</small>
+            <small class="text-muted ms-3" id="comparisonStatus">No conditions</small>
           </div>
           
           <div class="alert alert-info alert-sm mb-0 small">
             <i class="bi bi-info-circle"></i> 
-            <strong>Hướng dẫn:</strong> Chọn <strong>Tag chính</strong> để tô màu, sau đó chọn tối đa 2 <strong>tag để so sánh</strong>. 
-            Khi điều kiện thỏa mãn (ví dụ: Tag5 = Tag3), <strong>ô của Tag chính (Tag5)</strong> sẽ được tô màu. Cấu hình được lưu tự động.
+            <strong>Guide:</strong> Select <strong>Main Tag</strong> to highlight, then select up to 2 <strong>tags to compare</strong>. 
+            When condition is met (e.g., Tag5 = Tag3), <strong>Main Tag cell (Tag5)</strong> will be highlighted. Configuration is saved automatically.
           </div>
         </div>
       </div>
@@ -318,7 +318,7 @@
   }
 
   function generateConditionPreview(pair) {
-    if (!pair.primaryTag) return '<span class="text-muted">Chưa chọn tag chính</span>';
+    if (!pair.primaryTag) return '<span class="text-muted">No main tag selected</span>';
     
     let preview = '';
     const primaryTag = pair.primaryTag.toUpperCase();
@@ -348,7 +348,7 @@
     }
     
     if (!pair.compareTag1 && !pair.compareTag2) {
-      preview = '<span class="text-muted">Chưa chọn tag để so sánh</span>';
+      preview = '<span class="text-muted">No compare tag selected</span>';
     }
     
     return preview;
@@ -366,7 +366,7 @@
       <div class="card mb-3 shadow-sm" style="border-left: 4px solid #2196F3;">
         <div class="card-body p-3">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <strong class="text-primary">Điều kiện ${index + 1}</strong>
+            <strong class="text-primary">Condition ${index + 1}</strong>
             ${comparisonPairs.length > 1 ? `
               <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeComparisonPair(${pair.id})">
                 <i class="bi bi-trash"></i>
@@ -374,22 +374,22 @@
             ` : ''}
           </div>
           
-          <!-- Preview của điều kiện -->
+          <!-- Condition Preview -->
           <div class="alert alert-light border mb-3 py-2" style="background-color: #f8f9fa;">
-            <small class="text-muted d-block mb-1"><i class="bi bi-eye"></i> Xem trước điều kiện:</small>
+            <small class="text-muted d-block mb-1"><i class="bi bi-eye"></i> Condition Preview:</small>
             <div class="preview-condition">${generateConditionPreview(pair)}</div>
           </div>
           
           <div class="row g-2 mb-3">
             <div class="col-md-9">
-              <label class="form-label small mb-1"><strong>Tag chính (sẽ được tô màu)</strong></label>
+              <label class="form-label small mb-1"><strong>Main Tag (will be highlighted)</strong></label>
               <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'primaryTag', this.value); renderComparisonPairs();">
-                <option value="">-- Chọn tag --</option>
+                <option value="">-- Select tag --</option>
                 ${allTags.map(t => `<option value="${t}" ${pair.primaryTag === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
               </select>
             </div>
             <div class="col-md-3">
-              <label class="form-label small mb-1"><strong>Màu tô</strong></label>
+              <label class="form-label small mb-1"><strong>Highlight Color</strong></label>
               <input type="color" class="form-control form-control-sm form-control-color w-100" 
                      value="${pair.color || pair.color1 || '#ffeb3b'}" 
                      onchange="updatePairData(${pair.id}, 'color', this.value); renderComparisonPairs();">
@@ -398,14 +398,14 @@
 
           <div class="row g-2 mb-2 align-items-end">
             <div class="col-md-6">
-              <label class="form-label small mb-1">Tag được so sánh 1</label>
+              <label class="form-label small mb-1">Compare Tag 1</label>
               <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'compareTag1', this.value); renderComparisonPairs();">
-                <option value="">-- Không chọn --</option>
+                <option value="">-- Not selected --</option>
                 ${allTags.map(t => `<option value="${t}" ${pair.compareTag1 === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
               </select>
             </div>
             <div class="col-md-3">
-              <label class="form-label small mb-1">Điều kiện</label>
+              <label class="form-label small mb-1">Condition</label>
               <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'condition1', this.value); renderComparisonPairs();">
                 <option value="eq" ${pair.condition1 === 'eq' ? 'selected' : ''}>=</option>
                 <option value="ne" ${pair.condition1 === 'ne' ? 'selected' : ''}>≠</option>
@@ -417,21 +417,21 @@
             </div>
             <div class="col-md-3">
               <small class="text-muted d-block mb-1">
-                ${pair.compareTag1 && pair.primaryTag ? `Tô <strong>${pair.primaryTag.toUpperCase()}</strong> khi thỏa` : 'Chưa chọn tag'}
+                ${pair.compareTag1 && pair.primaryTag ? `Highlight <strong>${pair.primaryTag.toUpperCase()}</strong> when met` : 'No tag selected'}
               </small>
             </div>
           </div>
 
           <div class="row g-2 align-items-end">
             <div class="col-md-6">
-              <label class="form-label small mb-1">Tag được so sánh 2 (tùy chọn)</label>
+              <label class="form-label small mb-1">Compare Tag 2 (optional)</label>
               <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'compareTag2', this.value); renderComparisonPairs();">
-                <option value="">-- Không chọn --</option>
+                <option value="">-- Not selected --</option>
                 ${allTags.map(t => `<option value="${t}" ${pair.compareTag2 === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
               </select>
             </div>
             <div class="col-md-3">
-              <label class="form-label small mb-1">Điều kiện</label>
+              <label class="form-label small mb-1">Condition</label>
               <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'condition2', this.value); renderComparisonPairs();">
                 <option value="eq" ${pair.condition2 === 'eq' ? 'selected' : ''}>=</option>
                 <option value="ne" ${pair.condition2 === 'ne' ? 'selected' : ''}>≠</option>
@@ -443,7 +443,7 @@
             </div>
             <div class="col-md-3">
               <small class="text-muted d-block mb-1">
-                ${pair.compareTag2 && pair.primaryTag ? `Tô <strong>${pair.primaryTag.toUpperCase()}</strong> khi thỏa` : 'Chưa chọn tag'}
+                ${pair.compareTag2 && pair.primaryTag ? `Highlight <strong>${pair.primaryTag.toUpperCase()}</strong> when met` : 'No tag selected'}
               </small>
             </div>
           </div>
@@ -544,9 +544,9 @@
     // Update status
     const statusEl = document.getElementById('comparisonStatus');
     if (appliedConditions > 0) {
-      statusEl.innerHTML = `<span class="badge bg-success">${totalMatches} ô thỏa điều kiện</span> từ ${appliedConditions} điều kiện so sánh`;
+      statusEl.innerHTML = `<span class="badge bg-success">${totalMatches} cells matched</span> from ${appliedConditions} comparison conditions`;
     } else {
-      statusEl.textContent = 'Chưa có điều kiện';
+      statusEl.textContent = 'No conditions';
     }
 
     saveComparisonConfig();
@@ -590,7 +590,7 @@
   }
 
   function clearComparison() {
-    if (!confirm('Xóa tất cả các cặp so sánh?')) return;
+    if (!confirm('Delete all comparison pairs?')) return;
     
     comparisonPairs = [];
     
@@ -616,7 +616,7 @@
     // Re-render
     addComparisonPair();
     
-    document.getElementById('comparisonStatus').textContent = 'Chưa có điều kiện';
+    document.getElementById('comparisonStatus').textContent = 'No conditions';
   }
 
   // Reapply comparison after filtering
@@ -694,7 +694,7 @@
       const sheet = workbook.addWorksheet('Report');
 
       // Title and period rows
-      sheet.addRow(['DATALOGGER TRUY VẤN', currentLoggerName]);
+      sheet.addRow(['DATALOGGER QUERY', currentLoggerName]);
       sheet.addRow(['FROM DATE:', fromDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
       sheet.addRow(['TO DATE:', toDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
       sheet.addRow([]);
@@ -855,7 +855,7 @@
     } else {
       // CSV via SheetJS or manual build
       const rows = [];
-      rows.push(['DATALOGGER TRUY VẤN', currentLoggerName]);
+      rows.push(['DATALOGGER QUERY', currentLoggerName]);
       rows.push(['FROM DATE:', fromDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
       rows.push(['TO DATE:', toDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
       rows.push([]); rows.push([]); rows.push([]);
