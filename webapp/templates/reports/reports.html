@@ -705,15 +705,32 @@
         sheet.addRow(['COMPARISON CONDITIONS:']);
         comparisonPairs.forEach((pair, idx) => {
           if (pair.primaryTag) {
+            const color = 'FF' + (pair.color || pair.color1 || '#ffeb3b').replace('#', '').toUpperCase();
             let parts = [];
+            
             if (pair.compareTag1) {
               parts.push(`${pair.compareTag1.toUpperCase()} ${conditionSymbols[pair.condition1]} ${pair.primaryTag.toUpperCase()}`);
             }
             if (pair.compareTag2) {
               parts.push(`${pair.compareTag2.toUpperCase()} ${conditionSymbols[pair.condition2]} ${pair.primaryTag.toUpperCase()}`);
             }
+            
             if (parts.length > 0) {
-              sheet.addRow(['', `${idx + 1}. ${parts.join(' AND ')}`]);
+              const conditionRow = sheet.addRow(['', `${idx + 1}. ${parts.join(' AND ')}`]);
+              
+              // Tô màu background cho ô điều kiện
+              conditionRow.getCell(2).fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: color }
+              };
+              conditionRow.getCell(2).font = { bold: true, color: { argb: 'FF000000' } };
+              conditionRow.getCell(2).border = {
+                top: { style: 'thin' },
+                bottom: { style: 'thin' },
+                left: { style: 'thin' },
+                right: { style: 'thin' }
+              };
             }
           }
         });
