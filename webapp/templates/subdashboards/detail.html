@@ -181,9 +181,13 @@
         {% if group.quad_cards %}
           {% for quad_card in group.quad_cards %}
           <div class="col-12 col-lg-8 col-xl-6">
-            <div class="card h-100 shadow-soft quad-tag-card" data-quad-id="{{ quad_card.id }}">
+            <div class="card h-100 shadow-soft quad-tag-card" 
+                 data-quad-id="{{ quad_card.id }}"
+                 data-card-title="{{ quad_card.card_title or 'Quad Tag Card' }}"
+                 data-left-title="{{ quad_card.left_title or 'Group A' }}"
+                 data-right-title="{{ quad_card.right_title or 'Group B' }}">
               <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
-                <span class="quad-card-header-title fw-semibold">{{ quad_card.name or 'Quad Tag Card' }}</span>
+                <span class="quad-card-header-title fw-semibold">{{ quad_card.card_title or 'Quad Tag Card' }}</span>
                 {% if session.get('role') == 'admin' %}
                 <div class="dropdown">
                   <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Quad Card Settings">
@@ -443,9 +447,13 @@
         {% if group.quad_cards %}
           {% for quad_card in group.quad_cards %}
           <div class="col-12 col-lg-8 col-xl-6">
-            <div class="card h-100 shadow-soft quad-tag-card" data-quad-id="{{ quad_card.id }}">
+            <div class="card h-100 shadow-soft quad-tag-card" 
+                 data-quad-id="{{ quad_card.id }}"
+                 data-card-title="{{ quad_card.card_title or 'Quad Tag Card' }}"
+                 data-left-title="{{ quad_card.left_title or 'Group A' }}"
+                 data-right-title="{{ quad_card.right_title or 'Group B' }}">
               <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
-                <span class="quad-card-header-title fw-semibold">{{ quad_card.name or 'Quad Tag Card' }}</span>
+                <span class="quad-card-header-title fw-semibold">{{ quad_card.card_title or 'Quad Tag Card' }}</span>
                 {% if session.get('role') == 'admin' %}
                 <div class="dropdown">
                   <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Quad Card Settings">
@@ -2214,7 +2222,7 @@
       }
     });
 
-    // Rename quad card title and both columns (stored in localStorage)
+    // Rename quad card title and both columns (stored in DATABASE)
     document.addEventListener('click', function (e) {
       const btn = e.target.closest('.rename-quad-btn');
       if (!btn) return;
@@ -2231,40 +2239,36 @@
 
       const subTitles = card.querySelectorAll('.quad-sub-card-title');
       let titleEl = null;
-      let storageKey = '';
       let defaultTitle = '';
 
       if (target === 'left') {
         titleEl = subTitles[0] || null;
-        storageKey = `quad-card-${quadId}-title-left`;
         defaultTitle = (titleEl && titleEl.textContent.trim()) || 'Group A';
       } else if (target === 'right') {
         titleEl = subTitles[1] || null;
-        storageKey = `quad-card-${quadId}-title-right`;
         defaultTitle = (titleEl && titleEl.textContent.trim()) || 'Group B';
       } else {
         titleEl = card.querySelector('.quad-card-title') || card.querySelector('.quad-card-header-title');
-        storageKey = `quad-card-${quadId}-title-main`;
         defaultTitle = (titleEl && titleEl.textContent.trim()) || 'Quad Tag Card';
       }
 
       const currentTitle = (titleEl && titleEl.textContent.trim()) || defaultTitle;
 
       Swal.fire({
-        title: 'Rename',
+        title: 'Đổi tên',
         input: 'text',
-        inputLabel: 'New title:',
+        inputLabel: 'Tiêu đề mới:',
         inputValue: currentTitle,
-        inputPlaceholder: 'Enter new title',
+        inputPlaceholder: 'Nhập tiêu đề mới',
         showCancelButton: true,
-        confirmButtonText: 'Update',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: 'Cập nhật',
+        cancelButtonText: 'Hủy',
         inputValidator: (value) => {
           if (!value || !value.trim()) {
-            return 'Please enter a title';
+            return 'Vui lòng nhập tiêu đề';
           }
           if (value.trim() === currentTitle) {
-            return 'Please enter a different title';
+            return 'Vui lòng nhập tiêu đề khác';
           }
         }
       }).then((result) => {
@@ -2272,20 +2276,59 @@
 
         const newTitle = result.value.trim();
 
-        if (titleEl) {
-          titleEl.textContent = newTitle;
-        }
-
-        if (storageKey) {
-          setStoredTitle(storageKey, newTitle);
-        }
-
+        // Show loading
         Swal.fire({
-          icon: 'success',
-          title: 'Updated',
-          text: 'Title updated successfully',
-          timer: 1500,
-          showConfirmButton: false
+          title: 'Đang cập nhật...',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        // Send AJAX request to update title in database
+        fetch(`/subdash/${currentSubdashId}/quad_card/${quadId}/rename`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            target: target,
+            title: newTitle
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Update the title element immediately
+            if (titleEl) {
+              titleEl.textContent = newTitle;
+            }
+
+            Swal.fire({
+              icon: 'success',
+              title: 'Thành công',
+              text: 'Đã cập nhật tiêu đề',
+              timer: 1500,
+              showConfirmButton: false
+            }).then(() => {
+              // Reload to ensure all clients see the change
+              location.reload();
+            });
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'Lỗi',
+              text: data.message || 'Không thể cập nhật tiêu đề'
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          Swal.fire({
+            icon: 'error',
+            title: 'Lỗi',
+            text: 'Đã xảy ra lỗi khi cập nhật tiêu đề'
+          });
         });
       });
     });
@@ -2650,13 +2693,13 @@
           item.style.display = 'none';
         });
         
-        // Choose titles for each half of the card (prefer values from localStorage, otherwise use tag names)
-        const defaultTitle1 = extractGroupName(itemsData[0].name, itemsData[1].name) || 'Group A';
-        const defaultTitle2 = extractGroupName(itemsData[2].name, itemsData[3].name) || 'Group B';
-        const titleKey1 = `quad-card-${cardId}-title-left`;
-        const titleKey2 = `quad-card-${cardId}-title-right`;
-        const title1 = getStoredTitle(titleKey1) || defaultTitle1;
-        const title2 = getStoredTitle(titleKey2) || defaultTitle2;
+        // Get titles from data attributes (from database) with fallback to default names
+        const cardTitleFromDB = card.getAttribute('data-card-title') || 'Quad Tag Card';
+        const leftTitleFromDB = card.getAttribute('data-left-title') || extractGroupName(itemsData[0].name, itemsData[1].name) || 'Group A';
+        const rightTitleFromDB = card.getAttribute('data-right-title') || extractGroupName(itemsData[2].name, itemsData[3].name) || 'Group B';
+        
+        const title1 = leftTitleFromDB;
+        const title2 = rightTitleFromDB;
 
         // Create first sub-card (Items 1 & 2)
         const subCard1 = document.createElement('div');
@@ -2717,15 +2760,9 @@
         // Add sub-cards to grid
         grid.appendChild(subCard1);
         grid.appendChild(subCard2);
-
-        // Allow renaming headers and store them in localStorage
-        attachTitleEditor(subCard1.querySelector('.quad-sub-card-title'), titleKey1, defaultTitle1);
-        attachTitleEditor(subCard2.querySelector('.quad-sub-card-title'), titleKey2, defaultTitle2);
         
-        // Update card header title only (keep existing gear dropdown)
-        const cardTitleKey = `quad-card-${cardId}-title-main`;
-        const defaultCardTitle = 'Quad Tag Card';
-        const cardTitle = getStoredTitle(cardTitleKey) || defaultCardTitle;
+        // Update card header title from database
+        const cardTitle = cardTitleFromDB;
 
         let cardHeader = card.querySelector('.card-header');
         if (!cardHeader) {
@@ -2751,8 +2788,6 @@
         } else {
           headerTitleEl.textContent = cardTitle;
         }
-
-        attachTitleEditor(headerTitleEl, cardTitleKey, defaultCardTitle);
         
         console.log(`✅ Successfully restructured quad card ${cardIndex + 1}`);
       }

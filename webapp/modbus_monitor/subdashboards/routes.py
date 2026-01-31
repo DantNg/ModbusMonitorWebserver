@@ -796,3 +796,54 @@ def delete_quad_condition_route(sid, quad_id):
     except Exception as e:
         print(f"Error deleting quad condition: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ========== QUAD TAG TITLES ROUTES ==========
+
+@subdash_bp.route("/<int:sid>/quad_card/<int:quad_id>/rename", methods=["POST"])
+def rename_quad_card_title(sid, quad_id):
+    """Đổi tên các tiêu đề của quad tag card"""
+    # Check if user is admin
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    
+    try:
+        data = request.get_json() or {}
+        target = data.get("target")  # 'card', 'left', or 'right'
+        new_title = data.get("title", "").strip()
+        
+        if not target or not new_title:
+            return jsonify({"success": False, "message": "Target và title không được để trống"}), 400
+        
+        # Verify quad card exists
+        quad_card = db.get_quad_card_by_id(quad_id)
+        if not quad_card:
+            return jsonify({"success": False, "message": "Quad card không tồn tại"}), 404
+        
+        # Update the appropriate title
+        if target == "card":
+            result = db.update_quad_card_titles(quad_id, card_title=new_title)
+        elif target == "left":
+            result = db.update_quad_card_titles(quad_id, left_title=new_title)
+        elif target == "right":
+            result = db.update_quad_card_titles(quad_id, right_title=new_title)
+        else:
+            return jsonify({"success": False, "message": "Target không hợp lệ"}), 400
+        
+        if result:
+            # Force refresh subdashboard cache for real-time updates
+            try:
+                emission_manager = get_emission_manager()
+                emission_manager.force_refresh_subdash_cache()
+            except Exception as e:
+                print(f"Warning: Could not refresh subdashboard cache: {e}")
+            
+            return jsonify({"success": True, "message": "Đã cập nhật tiêu đề thành công"})
+        else:
+            return jsonify({"success": False, "message": "Không thể cập nhật tiêu đề"}), 500
+            
+    except Exception as e:
+        print(f"Error renaming quad card title: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500

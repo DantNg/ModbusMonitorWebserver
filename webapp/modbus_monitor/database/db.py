@@ -386,6 +386,9 @@ subdash_quad_cards = Table(
     Column("tag2_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
     Column("tag3_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
     Column("tag4_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("card_title", String(200), nullable=True),  # Tên card
+    Column("left_title", String(200), nullable=True),  # Tên cột trái
+    Column("right_title", String(200), nullable=True),  # Tên cột phải
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -2586,7 +2589,8 @@ def mark_user_notifications_dismissed(user_id: int) -> bool:
 
 # ========== QUAD TAG CARDS OPERATIONS ==========
 
-def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int, tag4_id: int) -> int:
+def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int, tag4_id: int, 
+                       card_title: str = None, left_title: str = None, right_title: str = None) -> int:
     """Add a new quad tag card to a group."""
     with init_engine().begin() as con:
         res = con.execute(
@@ -2595,7 +2599,10 @@ def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int, t
                 tag1_id=tag1_id,
                 tag2_id=tag2_id,
                 tag3_id=tag3_id,
-                tag4_id=tag4_id
+                tag4_id=tag4_id,
+                card_title=card_title,
+                left_title=left_title,
+                right_title=right_title
             )
         )
         return res.inserted_primary_key[0]
@@ -2647,23 +2654,60 @@ def get_quad_card_by_id(quad_card_id: int):
         ).mappings().first()
         return dict(result) if result else None
 
-def update_quad_card(quad_card_id: int, tag1_id: int, tag2_id: int, tag3_id: int, tag4_id: int) -> bool:
+def update_quad_card(quad_card_id: int, tag1_id: int, tag2_id: int, tag3_id: int, tag4_id: int, 
+                     card_title: str = None, left_title: str = None, right_title: str = None) -> bool:
     """Update a quad tag card."""
     try:
         with init_engine().begin() as con:
+            values_dict = {
+                'tag1_id': tag1_id,
+                'tag2_id': tag2_id,
+                'tag3_id': tag3_id,
+                'tag4_id': tag4_id
+            }
+            
+            # Only update titles if provided
+            if card_title is not None:
+                values_dict['card_title'] = card_title
+            if left_title is not None:
+                values_dict['left_title'] = left_title
+            if right_title is not None:
+                values_dict['right_title'] = right_title
+            
             result = con.execute(
                 update(subdash_quad_cards)
                 .where(subdash_quad_cards.c.id == quad_card_id)
-                .values(
-                    tag1_id=tag1_id,
-                    tag2_id=tag2_id,
-                    tag3_id=tag3_id,
-                    tag4_id=tag4_id
-                )
+                .values(**values_dict)
             )
             return result.rowcount > 0
     except Exception as e:
         print(f"Error updating quad card {quad_card_id}: {e}")
+        return False
+
+def update_quad_card_titles(quad_card_id: int, card_title: str = None, left_title: str = None, right_title: str = None) -> bool:
+    """Update only the titles of a quad tag card."""
+    try:
+        with init_engine().begin() as con:
+            values_dict = {}
+            
+            if card_title is not None:
+                values_dict['card_title'] = card_title
+            if left_title is not None:
+                values_dict['left_title'] = left_title
+            if right_title is not None:
+                values_dict['right_title'] = right_title
+            
+            if not values_dict:
+                return True  # Nothing to update
+            
+            result = con.execute(
+                update(subdash_quad_cards)
+                .where(subdash_quad_cards.c.id == quad_card_id)
+                .values(**values_dict)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating quad card titles {quad_card_id}: {e}")
         return False
 
 
