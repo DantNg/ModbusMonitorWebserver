@@ -963,7 +963,7 @@ class AlarmWorker:
                 condition, "left", 
                 tag1_value, tag3_value,
                 quad_card.get("tag1_id"), quad_card.get("tag3_id"),
-                quad_id
+                quad_id, quad_card
             )
             
             # Evaluate right column (tag2 top and tag4 bottom)
@@ -971,7 +971,7 @@ class AlarmWorker:
                 condition, "right",
                 tag2_value, tag4_value,
                 quad_card.get("tag2_id"), quad_card.get("tag4_id"),
-                quad_id
+                quad_id, quad_card
             )
             
         except Exception as e:
@@ -979,7 +979,7 @@ class AlarmWorker:
     
     def _evaluate_quad_column(self, condition: dict, column: str, 
                              tag1_value: float, tag2_value: float,
-                             tag1_id: int, tag2_id: int, quad_id: int):
+                             tag1_id: int, tag2_id: int, quad_id: int, quad_card: dict = None):
         """Evaluate conditions for one column (left or right) of quad card"""
         
         # Build alarm key for tracking state
@@ -1077,7 +1077,8 @@ class AlarmWorker:
             high_threshold if high_condition_met else low_threshold,
             high_op if high_condition_met else low_op,
             current_alarm_type,
-            high_threshold, low_threshold, high_op, low_op  # Pass all thresholds for OUTGOING note
+            high_threshold, low_threshold, high_op, low_op,  # Pass all thresholds for OUTGOING note
+            quad_card  # Pass quad_card to get name
         )
     
     def _process_quad_alarm_state(self, alarm_key: str, current_condition: bool,
@@ -1090,12 +1091,17 @@ class AlarmWorker:
                                    threshold: float, operator: str,
                                    current_alarm_type: str,
                                    high_threshold: float, low_threshold: float,
-                                   high_op: str, low_op: str):
+                                   high_op: str, low_op: str,
+                                   quad_card: dict = None):
         """Process quad alarm state with stability timers"""
         
         now = time.time()
         previous_active = self._alarm_states.get(alarm_key, False)
         stored_alarm_type = self._alarm_types.get(alarm_key)
+        
+        # Get quad tag name for alarm name
+        quad_tag_name = quad_card.get("name", f"Quad {quad_id}") if quad_card else f"Quad {quad_id}"
+        column_display = "Column Left" if column == "left" else "Column Right"
         
         # Debug logging with state tracking
         timer_exists = alarm_key in self._alarm_since
@@ -1172,7 +1178,7 @@ class AlarmWorker:
                         triggered_tag_name = "Tag 2"
                 
                 # Log alarm activation
-                alarm_name = f"Quad {quad_id} - {column.capitalize()} Column"
+                alarm_name = quad_tag_name
                 if high_met:
                     alarm_type = "High"
                     self.log("INFO", f"⚠️ Quad Alarm TRIGGERED: {alarm_name} - HIGH threshold - {triggered_tag_name} Value: {triggered_value} (threshold: {threshold})")
@@ -1195,7 +1201,7 @@ class AlarmWorker:
                             level=alarm_level,
                             target=triggered_tag_id,
                             value=triggered_value,
-                            note=f"Quad alarm activated ({alarm_type}): {operator} {threshold}",
+                            note=f"{column_display} - Quad alarm activated ({alarm_type}): {operator} {threshold}",
                             event_type="INCOMING",
                             operator=operator,
                             threshold=threshold
@@ -1276,7 +1282,7 @@ class AlarmWorker:
                 stored_operator = high_op if alarm_type == "High" else low_op
                 
                 # Log alarm deactivation
-                alarm_name = f"Quad {quad_id} - {column.capitalize()} Column"
+                alarm_name = quad_tag_name
                 self.log("INFO", f"✅ Quad Alarm CLEARED: {alarm_name} ({alarm_type}) - Value: {tag1_value}")
                 
                 # Save alarm clear event to database (similar to regular alarms)
@@ -1293,7 +1299,7 @@ class AlarmWorker:
                             level=alarm_level,
                             target=target_tag_id,
                             value=tag1_value,
-                            note=f"Quad alarm cleared ({alarm_type}): {stored_operator} {stored_threshold}",
+                            note=f"{column_display} - Quad alarm cleared ({alarm_type}): {stored_operator} {stored_threshold}",
                             event_type="OUTGOING",
                             operator=stored_operator,
                             threshold=stored_threshold
