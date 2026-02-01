@@ -324,12 +324,18 @@
     const primaryTag = pair.primaryTag.toUpperCase();
     const color = pair.color || pair.color1 || '#ffeb3b'; // Fallback for old config
     
+    // Helper function to reverse condition for display
+    const reverseCondition = (condition) => {
+      const reverseMap = { eq: '=', ne: '≠', gt: '<', lt: '>', gte: '≤', lte: '≥' };
+      return reverseMap[condition] || '=';
+    };
+    
     // Condition 1
     if (pair.compareTag1) {
       const compareTag1 = pair.compareTag1.toUpperCase();
-      const symbol1 = getConditionSymbol(pair.condition1);
+      const symbol1 = reverseCondition(pair.condition1);
       preview += `<span class="badge" style="background-color: ${color}; color: #000; font-size: 0.9rem; padding: 6px 10px;">`;
-      preview += `${compareTag1} ${symbol1} ${primaryTag}`;
+      preview += `${primaryTag} ${symbol1} ${compareTag1}`;
       preview += `</span>`;
     }
     
@@ -341,9 +347,9 @@
     // Condition 2
     if (pair.compareTag2) {
       const compareTag2 = pair.compareTag2.toUpperCase();
-      const symbol2 = getConditionSymbol(pair.condition2);
+      const symbol2 = reverseCondition(pair.condition2);
       preview += `<span class="badge" style="background-color: ${color}; color: #000; font-size: 0.9rem; padding: 6px 10px;">`;
-      preview += `${compareTag2} ${symbol2} ${primaryTag}`;
+      preview += `${primaryTag} ${symbol2} ${compareTag2}`;
       preview += `</span>`;
     }
     
