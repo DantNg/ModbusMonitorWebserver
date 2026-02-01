@@ -1011,6 +1011,14 @@
   padding: 8px !important;
   margin: 0 !important;
 }
+
+/* Responsive: 1 column on mobile */
+@media (max-width: 768px) {
+  .quad-tag-grid {
+    grid-template-columns: 1fr !important;
+    min-height: auto !important;
+  }
+}
 .quad-tag-card:hover {
   box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important;
   /* Avoid shifting card to prevent dropdown jitter */
