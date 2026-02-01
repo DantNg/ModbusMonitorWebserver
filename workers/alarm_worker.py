@@ -1076,7 +1076,8 @@ class AlarmWorker:
             email, sms, description,
             high_threshold if high_condition_met else low_threshold,
             high_op if high_condition_met else low_op,
-            current_alarm_type
+            current_alarm_type,
+            high_threshold, low_threshold, high_op, low_op  # Pass all thresholds for OUTGOING note
         )
     
     def _process_quad_alarm_state(self, alarm_key: str, current_condition: bool,
@@ -1087,7 +1088,9 @@ class AlarmWorker:
                                    on_stable_sec: int, off_stable_sec: int,
                                    email: str, sms: str, description: str,
                                    threshold: float, operator: str,
-                                   current_alarm_type: str):
+                                   current_alarm_type: str,
+                                   high_threshold: float, low_threshold: float,
+                                   high_op: str, low_op: str):
         """Process quad alarm state with stability timers"""
         
         now = time.time()
@@ -1268,6 +1271,10 @@ class AlarmWorker:
                 # Get stored alarm type
                 alarm_type = self._alarm_types.get(alarm_key, "High")
                 
+                # Get the correct threshold and operator based on stored alarm type
+                stored_threshold = high_threshold if alarm_type == "High" else low_threshold
+                stored_operator = high_op if alarm_type == "High" else low_op
+                
                 # Log alarm deactivation
                 alarm_name = f"Quad {quad_id} - {column.capitalize()} Column"
                 self.log("INFO", f"✅ Quad Alarm CLEARED: {alarm_name} ({alarm_type}) - Value: {tag1_value}")
@@ -1286,10 +1293,10 @@ class AlarmWorker:
                             level=alarm_level,
                             target=target_tag_id,
                             value=tag1_value,
-                            note=f"Quad alarm cleared ({alarm_type}): {operator} {threshold}",
+                            note=f"Quad alarm cleared ({alarm_type}): {stored_operator} {stored_threshold}",
                             event_type="OUTGOING",
-                            operator=operator,
-                            threshold=threshold
+                            operator=stored_operator,
+                            threshold=stored_threshold
                         )
                         self.log("INFO", f"✅ Saved quad alarm OUTGOING event to database: ID={event_id}, Level={alarm_level}")
                         
@@ -1308,8 +1315,8 @@ class AlarmWorker:
                         "status": "OUTGOING",
                         "tag1_value": tag1_value,
                         "tag2_value": tag2_value,
-                        "threshold": threshold,
-                        "operator": operator,
+                        "threshold": stored_threshold,
+                        "operator": stored_operator,
                         "timestamp": datetime.now().isoformat()
                     }
                     
@@ -1331,8 +1338,8 @@ class AlarmWorker:
                 # Send clear notifications
                 if email or sms:
                     self._send_quad_notification(
-                        alarm_key, alarm_name, tag1_value, threshold,
-                        operator, "outgoing", email, sms, description,
+                        alarm_key, alarm_name, tag1_value, stored_threshold,
+                        stored_operator, "outgoing", email, sms, description,
                         off_stable_sec
                     )
                 
