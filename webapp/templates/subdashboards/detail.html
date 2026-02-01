@@ -4,9 +4,9 @@
 
 <div id="subdash-toolbar" class="sticky-top shadow-sm subdash-toolbar">
   <div class="card border-0 shadow-soft mb-3 rounded-0">
-    <div class="card-body d-flex flex-wrap gap-2 align-items-center" style="padding: 0.75rem 1rem;">
-      <div>
-        <select id="sel-group" class="form-select form-select-sm" onchange="App.changeGroup(this.value)">
+    <div class="card-body d-flex flex-nowrap gap-2 align-items-center" style="padding: 0.75rem 1rem;">
+      <div class="flex-shrink-0">
+        <select id="sel-group" class="form-select form-select-sm" onchange="App.changeGroup(this.value)" style="min-width: 100px;">
           <option value="__all__" {{ 'selected' if current_group=='__all__' else '' }}>All Groups</option>
           {% for group in groups %}
           <option value="{{ group.id }}" {{ 'selected' if current_group==group.id|string else '' }}>
@@ -15,9 +15,12 @@
           {% endfor %}
         </select>
       </div>
-      <div class="ms-auto d-flex gap-2 align-items-center">
+      <div class="ms-auto d-flex gap-2 align-items-center flex-shrink-0">
   {% if session.get('role') != 'user' %}
-  <a href="{{ url_for('subdash_bp.list_subdash') }}" class="btn btn-sm btn-outline-secondary">← Back</a>
+  <a href="{{ url_for('subdash_bp.list_subdash') }}" class="btn btn-sm btn-outline-secondary toolbar-back-btn">
+    <span class="d-none d-md-inline">← Back</span>
+    <span class="d-md-none">←</span>
+  </a>
   {% endif %}
         <!-- <button id="testSocketBtn" class="btn btn-sm btn-info">🔌 Test Socket</button>
         <button id="forceRefreshBtn" class="btn btn-sm btn-warning">🔄 Force Refresh</button> -->
@@ -25,7 +28,7 @@
         <div class="dropdown"></div>
         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="settingsDropdown"
           data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="bi bi-gear"></i> Settings
+          <i class="bi bi-gear"></i><span class="d-none d-md-inline ms-1">Settings</span>
         </button>
         <ul class="dropdown-menu" aria-labelledby="settingsDropdown">
           <li>
@@ -984,6 +987,28 @@
 
 {% block extra_css %}
 <style>
+/* Toolbar responsive */
+@media (max-width: 768px) {
+  #subdash-toolbar .card-body {
+    padding: 0.5rem 0.75rem !important;
+  }
+  
+  #subdash-toolbar .gap-2 {
+    gap: 0.5rem !important;
+  }
+  
+  #subdash-toolbar .form-select-sm {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+    min-width: 90px !important;
+  }
+  
+  #subdash-toolbar .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+  }
+}
+
 /* Quad Tag Card Styles - Dashboard Style */
 
 .quad-tag-card {
