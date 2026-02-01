@@ -1046,13 +1046,33 @@ class AlarmWorker:
         # Determine which alarm type is currently triggering
         current_alarm_type = "High" if high_condition_met else ("Low" if low_condition_met else None)
         
+        # Get stored alarm type to determine which stable times to use for deactivation
+        stored_alarm_type = self._alarm_types.get(alarm_key)
+        previous_active = self._alarm_states.get(alarm_key, False)
+        
+        # Determine stable times based on context:
+        # - For activation: use the triggering alarm's on_stable
+        # - For deactivation: use the STORED (previously active) alarm's off_stable
+        if alarm_triggered:
+            # Activation or staying active - use current triggering alarm's times
+            selected_on_stable = high_on_stable if high_condition_met else low_on_stable
+            selected_off_stable = high_off_stable if high_condition_met else low_off_stable
+        elif previous_active and stored_alarm_type:
+            # Deactivation - use the stored alarm type's off_stable
+            selected_on_stable = high_on_stable if stored_alarm_type == "High" else low_on_stable
+            selected_off_stable = high_off_stable if stored_alarm_type == "High" else low_off_stable
+        else:
+            # Default fallback
+            selected_on_stable = high_on_stable if high_condition_met else low_on_stable
+            selected_off_stable = high_off_stable if high_condition_met else low_off_stable
+        
         # Process alarm state with stability
         self._process_quad_alarm_state(
             alarm_key, alarm_triggered, quad_id, column,
             tag1_value, tag2_value, tag1_id, tag2_id,
             high_condition_met, low_condition_met,
-            high_on_stable if high_condition_met else low_on_stable,
-            high_off_stable if high_condition_met else low_off_stable,
+            selected_on_stable,
+            selected_off_stable,
             email, sms, description,
             high_threshold if high_condition_met else low_threshold,
             high_op if high_condition_met else low_op,
