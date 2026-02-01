@@ -2,77 +2,57 @@
 {% set page_title = "Alarm Events" %}
 {% block content %}
 <div class="card border-0 shadow-soft mb-3">
-  <div class="card-body">
-    <!-- Time Filter Row -->
-    <div class="row mb-3">
-      <div class="col-md-6">
-        <div class="d-flex gap-3 align-items-center">
-          <label class="fw-semibold text-muted mb-0" for="timeFilterSelect">Time Filter:</label>
-          <select class="form-select form-select-sm" id="timeFilterSelect" style="width: auto; min-width: 150px;">
-            <option value="all" {{ 'selected' if time_filter=='all' or not time_filter else '' }}>All Time</option>
-            <option value="today" {{ 'selected' if time_filter=='today' else '' }}>Today</option>
-            <option value="yesterday" {{ 'selected' if time_filter=='yesterday' else '' }}>Yesterday</option>
-            <option value="last7days" {{ 'selected' if time_filter=='last7days' else '' }}>Last 7 Days</option>
-            <option value="last30days" {{ 'selected' if time_filter=='last30days' else '' }}>Last 30 Days</option>
-            <option value="custom" {{ 'selected' if time_filter=='custom' else '' }}>Custom Range</option>
-          </select>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <!-- Filter Status -->
+  <div class="card-body" style="padding: 0.75rem 1rem;">
+    <!-- Single Row with all elements -->
+    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+      <!-- Time Filter -->
+      <div class="d-flex gap-2 align-items-center">
+        <label class="fw-semibold text-muted mb-0 small" for="timeFilterSelect">Time:</label>
+        <select class="form-select form-select-sm" id="timeFilterSelect" style="width: auto; min-width: 140px;">
+          <option value="all" {{ 'selected' if time_filter=='all' or not time_filter else '' }}>All Time</option>
+          <option value="today" {{ 'selected' if time_filter=='today' else '' }}>Today</option>
+          <option value="yesterday" {{ 'selected' if time_filter=='yesterday' else '' }}>Yesterday</option>
+          <option value="last7days" {{ 'selected' if time_filter=='last7days' else '' }}>Last 7 Days</option>
+          <option value="last30days" {{ 'selected' if time_filter=='last30days' else '' }}>Last 30 Days</option>
+          <option value="custom" {{ 'selected' if time_filter=='custom' else '' }}>Custom Range</option>
+        </select>
+        
+        <!-- Filter Status Badge -->
         {% if time_filter and time_filter != 'all' %}
-        <div class="d-flex align-items-center">
-          <small class="text-muted">
-            Active:
-            {% if time_filter == 'today' %}
-            <span class="badge bg-info">Today</span>
-            {% elif time_filter == 'yesterday' %}
-            <span class="badge bg-info">Yesterday</span>
-            {% elif time_filter == 'last7days' %}
-            <span class="badge bg-info">Last 7 Days</span>
-            {% elif time_filter == 'last30days' %}
-            <span class="badge bg-info">Last 30 Days</span>
-            {% elif time_filter == 'custom' %}
-            <span class="badge bg-info">Custom Range</span>
-            {% endif %}
-            <a href="{{ url_for('alarms_bp.alarm_events') }}" class="text-decoration-none ms-1"
-              title="Clear filter">✕</a>
-          </small>
-        </div>
+        <a href="{{ url_for('alarms_bp.alarm_events') }}" class="text-decoration-none" title="Clear filter">
+          {% if time_filter == 'today' %}
+          <span class="badge bg-info">Today ✕</span>
+          {% elif time_filter == 'yesterday' %}
+          <span class="badge bg-info">Yesterday ✕</span>
+          {% elif time_filter == 'last7days' %}
+          <span class="badge bg-info">Last 7 Days ✕</span>
+          {% elif time_filter == 'last30days' %}
+          <span class="badge bg-info">Last 30 Days ✕</span>
+          {% elif time_filter == 'custom' %}
+          <span class="badge bg-info">Custom ✕</span>
+          {% endif %}
+        </a>
         {% endif %}
       </div>
-    </div>
 
-    <!-- Custom Date Range (hidden by default) -->
-    <div class="row mb-3" id="customDateRange" style="display: none;">
-      <div class="col-md-4">
-        <label class="form-label small">From Date:</label>
-        <input type="datetime-local" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}">
+      <!-- Custom Date Range (inline, hidden by default) -->
+      <div id="customDateRange" class="d-flex gap-2 align-items-center" style="display: none !important;">
+        <input type="datetime-local" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}" style="width: 180px;">
+        <span class="text-muted">→</span>
+        <input type="datetime-local" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}" style="width: 180px;">
+        <button type="button" class="btn btn-success btn-sm" onclick="applyTimeFilter()">Apply</button>
       </div>
-      <div class="col-md-4">
-        <label class="form-label small">To Date:</label>
-        <input type="datetime-local" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}">
-      </div>
-      <div class="col-md-4 d-flex align-items-end">
-        <button type="button" class="btn btn-success btn-sm" onclick="applyTimeFilter()">Apply Custom Range</button>
-      </div>
-    </div>
 
-    <!-- Search and Actions Row -->
-    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
-      <div>
-        <div class="position-relative d-inline-block" style="min-width:280px;max-width:360px;width:100%;">
-          <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
-           <input id="alarmSearchInput" class="form-control ps-5" placeholder="Search alarms…" oninput="App.filterTable('#tbl', this.value)">
-        </div>
+      <!-- Search Box -->
+      <div class="position-relative" style="min-width:200px;max-width:280px;width:auto;">
+        <span class="position-absolute top-50 translate-middle-y ms-2 opacity-50">🔎</span>
+        <input id="alarmSearchInput" class="form-control form-control-sm ps-4" placeholder="  Search…" oninput="App.filterTable('#tbl', this.value)">
       </div>
-      <div class="d-flex gap-2 mb-2">
-        <!-- Apply Filter Button (hidden by default, only show for non-custom) -->
-        <button type="button" class="btn btn-success btn-sm" id="quickApplyBtn" onclick="applyTimeFilter()"
-          style="display: none;">Apply Filter</button>
 
+      <!-- Action Buttons -->
+      <div class="d-flex gap-2 align-items-center">
         <!-- Export button -->
-        <button type="button" class="btn btn-primary btn-sm" onclick="exportAlarms()">Export XLSX</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="exportAlarms()">Export</button>
 
         <!-- Clear All button - chỉ admin -->
         {% if session.get("role") == "admin" %}
@@ -110,8 +90,7 @@
         {% endif %}
         <th>Time</th>
         <th>Name</th>
-        <th>Level</th>
-        <th>Value</th>
+        <th class="text-center">Value</th>
         <th>Note</th>
       </tr>
     </thead>
@@ -123,13 +102,12 @@
         {% endif %}
         <td>{{ e.ts }}</td>
         <td>{{ e.name }}</td>
-        <td><span class="badge text-bg-secondary">{{ e.level }}</span></td>
-        <td>{{ e.value }}</td>
+        <td class="text-center">{{ e.value }}</td>
         <td>{{ e.note }}</td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="7" class="text-center text-muted py-4">No alarm events.</td>
+        <td colspan="6" class="text-center text-muted py-4">No alarm events.</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -204,7 +182,7 @@
         if (!tbody) return;
         tbody.innerHTML = "";
         if (!data.items || data.items.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No alarm events.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No alarm events.</td></tr>`;
           return;
         }
 
@@ -212,7 +190,6 @@
           const checked = selectedIds.has(String(e.id)) ? "checked" : "";
 
           const note = (e.note || "").toLowerCase();
-          const level = (e.level || "").toLowerCase();
 
           // 🌈 Màu nền cho cả row dựa trên note
           const rowClass =
@@ -225,14 +202,6 @@
               note.includes("activated") ? "text-bg-danger" :
                 "text-bg-secondary";
 
-          // ⚡ Màu badge riêng cho level
-          const levelBadgeClass =
-            level === "critical" ? "bg-critical" :
-              level === "high" ? "text-bg-danger" :
-                level === "medium" ? "text-bg-info text-dark" :
-                  level === "warning" ? "text-bg-warning text-dark" :
-                    "text-bg-secondary";
-
           const row = document.createElement("tr");
           row.className = rowClass; // 👈 Nền của cả hàng
 
@@ -243,8 +212,7 @@
           </td>
           <td>${escapeHtml(e.ts || "")}</td>
           <td>${escapeHtml(e.name || "")}</td>
-          <td><span class="badge ${levelBadgeClass}">${escapeHtml(e.level || "")}</span></td>
-          <td>${escapeHtml(String(e.value ?? ""))}</td>
+          <td class="text-center">${escapeHtml(String(e.value ?? ""))}</td>
           <td><span class="badge ${noteBadgeClass}">${escapeHtml(e.note || "")}</span></td>
         `;
 
