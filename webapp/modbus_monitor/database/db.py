@@ -2311,7 +2311,7 @@ def get_logger_statistics(logger_id: int) -> dict:
             'unique_tags': range_result['unique_tags'] if range_result else 0
         }
 
-def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime):
+def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime, offset: int = 0, limit: int = None):
     """
     Load dữ liệu datalogger từ bảng tag_logs cho một logger cụ thể
     Returns: (items, columns) - items là list dict, columns là list tên cột
@@ -2374,16 +2374,22 @@ def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime):
         
         # Convert sang format cho template
         items = []
-        for ts_str in sorted(timestamp_data.keys()):
+        for ts_str in sorted(timestamp_data.keys(), reverse=True):  # Newest first
             row = {"timestamp": ts_str}
             for tag in tag_info:
                 tag_name = tag['name']
                 row[tag_name] = timestamp_data[ts_str].get(tag_name, None)
             items.append(row)
         
+        # Apply pagination
+        if offset > 0:
+            items = items[offset:]
+        if limit is not None:
+            items = items[:limit]
+        
         return items, columns
 
-def get_all_datalogger_data(dt_from: datetime, dt_to: datetime):
+def get_all_datalogger_data(dt_from: datetime, dt_to: datetime, offset: int = 0, limit: int = None):
     """
     Load dữ liệu cho tất cả dataloggers từ bảng tag_logs
     Returns: (items, columns)
@@ -2451,11 +2457,17 @@ def get_all_datalogger_data(dt_from: datetime, dt_to: datetime):
         
         # Convert sang format cho template
         items = []
-        for ts_str in sorted(timestamp_data.keys()):
+        for ts_str in sorted(timestamp_data.keys(), reverse=True):  # Newest first
             row = {"timestamp": ts_str}
             for col in columns[1:]:  # Skip timestamp column
                 row[col] = timestamp_data[ts_str].get(col, None)
             items.append(row)
+        
+        # Apply pagination
+        if offset > 0:
+            items = items[offset:]
+        if limit is not None:
+            items = items[:limit]
         
         return items, columns
 

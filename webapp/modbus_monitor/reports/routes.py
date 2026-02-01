@@ -48,16 +48,16 @@ def reports():
         to_dt = now
     print(f"Reports: Time filter {time_filter}, from {from_dt} to {to_dt}")
 
+    # Only get columns for initial page load, no data
     if current_logger_id == "all":
-        # Load dữ liệu cho tất cả logger từ bảng tag_logs
-        items, columns = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt)
+        _, columns = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt, limit=1)
     else:
-        # Load dữ liệu cho logger cụ thể từ bảng tag_logs
-        items, columns = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt)
+        _, columns = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt, limit=1)
 
     if "timestamp" not in columns:
         columns = ["timestamp"] + [c for c in columns if c != "timestamp"]
-    print(f"Reports: Loaded {len(items)} rows for logger {current_logger_id} from {from_dt} to {to_dt}")
+    
+    print(f"Reports: Initial page load for logger {current_logger_id}")
     return render_template(
         "reports/reports.html",
         loggers=loggers,
@@ -67,8 +67,74 @@ def reports():
         from_dt=from_dt.strftime("%Y-%m-%dT%H:%M") if time_filter == "custom" else "",
         to_dt=to_dt.strftime("%Y-%m-%dT%H:%M") if time_filter == "custom" else "",
         columns=columns,
-        items=items
+        items=[]  # No initial data, will be loaded via API
     )
+
+
+@reports_bp.get("/reports/api/data")
+def get_reports_data():
+    """API endpoint for paginated report data"""
+    loggers = db.list_data_loggers()
+    logger_arg = request.args.get("logger") or (loggers[0]["id"] if loggers else 0)
+    
+    if logger_arg == "all":
+        current_logger_id = "all"
+    else:
+        try:
+            current_logger_id = int(logger_arg)
+        except Exception:
+            current_logger_id = loggers[0]["id"] if loggers else 0
+
+    # Get pagination params
+    offset = int(request.args.get("offset", 0))
+    limit = int(request.args.get("limit", 100))
+    
+    # Handle time filter
+    time_filter = request.args.get("time_filter", "today")
+    now = safe_datetime_now()
+    
+    if time_filter == "today":
+        from_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        to_dt = now
+    elif time_filter == "yesterday":
+        yesterday = now - timedelta(days=1)
+        from_dt = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+        to_dt = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif time_filter == "last7days":
+        from_dt = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        to_dt = now
+    elif time_filter == "last30days":
+        from_dt = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        to_dt = now
+    elif time_filter == "custom":
+        from_dt = _parse_dt(request.args.get("from"))
+        to_dt = _parse_dt(request.args.get("to"))
+        if not to_dt:
+            to_dt = now
+        if not from_dt:
+            from_dt = now - timedelta(days=1)
+    else:  # "all"
+        from_dt = now - timedelta(days=365)
+        to_dt = now
+
+    try:
+        if current_logger_id == "all":
+            items, columns = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
+        else:
+            items, columns = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
+        
+        print(f"Reports API: Loaded {len(items)} rows (offset={offset}, limit={limit})")
+        return jsonify({
+            "success": True,
+            "items": items,
+            "columns": columns,
+            "offset": offset,
+            "limit": limit,
+            "has_more": len(items) == limit
+        })
+    except Exception as e:
+        print(f"Error loading report data: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 def _parse_dt(s):

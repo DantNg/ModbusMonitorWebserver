@@ -185,6 +185,17 @@
     z-index: 1;
     background: var(--bs-body-bg, #fff);
   }
+  
+  #loadingIndicator {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    display: none;
+  }
+  
+  #loadingIndicator.active {
+    display: block;
+  }
 </style>
 
 <!-- Table -->
@@ -200,25 +211,21 @@
       </tr>
     </thead>
     <tbody>
-      {% if items and items|length %}
-        {% for row in items %}
-          <tr>
-            <td>{{ row.get('timestamp','') }}</td>
-            {% for c in columns if c != 'timestamp' %}
-              <td class="text-center">{{ row.get(c,'') }}</td>
-            {% endfor %}
-          </tr>
-        {% endfor %}
-      {% else %}
-        <tr>
-          <td colspan="{{ 1 + (columns|length - ( 'timestamp' in columns and 1 or 0 )) }}">No data</td>
-        </tr>
-      {% endif %}
+      <tr>
+        <td colspan="{{ 1 + (columns|length - ( 'timestamp' in columns and 1 or 0 )) }}" class="text-center text-muted py-4">
+          <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+          Loading data...
+        </td>
+      </tr>
     </tbody>
   </table>
+  <div id="loadingIndicator">
+    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+    <span>Loading more data...</span>
+  </div>
 </div>
   <div class="card-footer small text-muted d-flex justify-content-between">
-    <div>Showing {{ items|length if items else 0 }} rows</div>
+    <div>Showing 0 rows</div>
     <div>Tip: Use Export → open with Excel</div>
   </div>
 </div>
@@ -228,6 +235,13 @@
 <!-- Optional: keep SheetJS for CSV path only -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+  // ===== Infinite Scroll Variables =====
+  let currentOffset = 0;
+  const batchSize = 100;
+  let isLoading = false;
+  let hasMoreData = true;
+  let allLoadedRows = []; // Store all loaded rows for filtering and comparison
+
   // Back to top functionality
  function scrollToTop() {
     const tbl = document.getElementById('tbl');
@@ -255,7 +269,130 @@
     if (window.scrollY > 200) {
       backToTop.style.display = 'block';
     }
+    
+    // Load comparison config first, then load data
+    loadComparisonConfig().then(() => {
+      if (comparisonPairs.length > 0) {
+        renderComparisonPairs();
+      } else {
+        addComparisonPair(); // Add first pair by default
+      }
+      
+      // Load initial data after comparison config is loaded
+      loadMoreData();
+    });
+    
+    // Setup infinite scroll
+    const tableContainer = document.querySelector('.table-responsive');
+    if (tableContainer) {
+      tableContainer.addEventListener('scroll', function() {
+        const scrollTop = tableContainer.scrollTop;
+        const scrollHeight = tableContainer.scrollHeight;
+        const clientHeight = tableContainer.clientHeight;
+        
+        // Load more when near bottom (within 200px)
+        if (scrollTop + clientHeight >= scrollHeight - 200) {
+          if (!isLoading && hasMoreData) {
+            loadMoreData();
+          }
+        }
+      });
+    }
   });
+
+  // Load data from API
+  async function loadMoreData() {
+    if (isLoading || !hasMoreData) return;
+    
+    isLoading = true;
+    
+    // Show loading indicator
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    if (loadingIndicator) {
+      loadingIndicator.classList.add('active');
+    }
+    
+    // Build API URL with current filter params
+    const url = new URL(window.location.origin + '/reports/api/data');
+    const params = new URLSearchParams(window.location.search);
+    params.set('offset', currentOffset);
+    params.set('limit', batchSize);
+    url.search = params.toString();
+    
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.success && data.items && data.items.length > 0) {
+        appendRowsToTable(data.items, data.columns);
+        allLoadedRows = allLoadedRows.concat(data.items);
+        currentOffset += data.items.length;
+        hasMoreData = data.has_more;
+        
+        // Update row count
+        updateRowCount();
+        
+        // Apply comparison if active
+        if (comparisonPairs.length > 0) {
+          setTimeout(() => applyComparison(), 100);
+        }
+      } else {
+        hasMoreData = false;
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      hasMoreData = false;
+    } finally {
+      isLoading = false;
+      
+      // Hide loading indicator
+      if (loadingIndicator) {
+        loadingIndicator.classList.remove('active');
+      }
+    }
+  }
+  
+  // Append rows to table
+  function appendRowsToTable(items, columns) {
+    const tbody = document.querySelector('#tbl tbody');
+    if (!tbody) return;
+    
+    // Remove "No data" row if exists
+    const noDataRow = tbody.querySelector('td[colspan]');
+    if (noDataRow) {
+      noDataRow.parentElement.remove();
+    }
+    
+    items.forEach(row => {
+      const tr = document.createElement('tr');
+      
+      // Timestamp cell
+      const tdTs = document.createElement('td');
+      tdTs.textContent = row.timestamp || '';
+      tr.appendChild(tdTs);
+      
+      // Data cells
+      columns.forEach(col => {
+        if (col !== 'timestamp') {
+          const td = document.createElement('td');
+          td.className = 'text-center';
+          td.textContent = row[col] !== null && row[col] !== undefined ? row[col] : '';
+          tr.appendChild(td);
+        }
+      });
+      
+      tbody.appendChild(tr);
+    });
+  }
+  
+  // Update row count display
+  function updateRowCount() {
+    const countDiv = document.querySelector('.card-footer div');
+    if (countDiv) {
+      const visibleCount = document.querySelectorAll('#tbl tbody tr:not([style*="display: none"])').length;
+      countDiv.textContent = `Showing ${visibleCount} of ${allLoadedRows.length} rows${hasMoreData ? ' (scroll for more)' : ''}`;
+    }
+  }
 
   // Toggle custom date range visibility
   function toggleCustomRange() {
@@ -275,23 +412,12 @@
       if (tr.querySelector('td[colspan]')) return; // hàng "No data"
       tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
     });
+    updateRowCount();
   }
 
   // ===== Advanced Comparison Logic =====
   let comparisonPairs = [];
   const PRIMARY_TAG_COLOR = '#e3f2fd'; // Light blue for primary tags
-
-  // Initialize on page load
-  document.addEventListener('DOMContentLoaded', function() {
-    loadComparisonConfig().then(() => {
-      if (comparisonPairs.length > 0) {
-        renderComparisonPairs();
-        setTimeout(() => applyComparison(), 100);
-      } else {
-        addComparisonPair(); // Add first pair by default
-      }
-    });
-  });
 
   function addComparisonPair() {
     const pair = {
@@ -639,7 +765,7 @@
 
 
 
-  function exportReport(kind) {
+  async function exportReport(kind) {
     const currentLoggerName = (document.querySelector('select[name="logger"] option:checked')?.textContent || '').trim();
     const filterSelect = document.getElementById('timeFilterSelect');
     const selectedFilter = filterSelect ? filterSelect.value : 'all';
@@ -687,14 +813,52 @@
       toDateStr = toD ? fmt(toD) : toDateStr;
     }
 
-    // Build data from table honoring client-side filters
-    const header = Array.from(document.querySelectorAll('#tbl thead th')).map(th => th.textContent.trim());
-    const bodyRows = [];
-    document.querySelectorAll('#tbl tbody tr').forEach(tr => {
-      if (tr.style.display === 'none') return;
-      const tds = Array.from(tr.querySelectorAll('td'));
-      if (!tds.length) return;
-      bodyRows.push(tds.map(td => (td.textContent || '').trim()));
+    // Show loading indicator
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    if (loadingIndicator) {
+      loadingIndicator.innerHTML = '<div class="spinner-border spinner-border-sm me-2" role="status"></div><span>Preparing export...</span>';
+      loadingIndicator.classList.add('active');
+    }
+
+    // Fetch ALL data from API for export
+    const url = new URL(window.location.origin + '/reports/api/data');
+    const params = new URLSearchParams(window.location.search);
+    params.set('offset', 0);
+    params.set('limit', 999999); // Get all data
+    url.search = params.toString();
+
+    let allData = [];
+    let header = [];
+    
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.success && data.items) {
+        allData = data.items;
+        header = data.columns || Array.from(document.querySelectorAll('#tbl thead th')).map(th => th.textContent.trim());
+      } else {
+        alert('Failed to fetch data for export');
+        if (loadingIndicator) loadingIndicator.classList.remove('active');
+        return;
+      }
+    } catch (error) {
+      console.error('Error fetching data for export:', error);
+      alert('Error fetching data for export');
+      if (loadingIndicator) loadingIndicator.classList.remove('active');
+      return;
+    }
+
+    // Build body rows from fetched data
+    const bodyRows = allData.map(row => {
+      return header.map(col => {
+        // Try exact match first, then lowercase
+        let value = row[col];
+        if (value === undefined || value === null) {
+          value = row[col.toLowerCase()];
+        }
+        return value !== null && value !== undefined ? String(value) : '';
+      });
     });
 
     if (kind === 'xlsx') {
@@ -860,6 +1024,12 @@
 
       workbook.xlsx.writeBuffer().then(buffer => {
         saveAs(new Blob([buffer]), `report_{{ current_logger_name|replace(' ','_') }}.xlsx`);
+        
+        // Hide loading indicator
+        if (loadingIndicator) {
+          loadingIndicator.innerHTML = '<div class="spinner-border spinner-border-sm me-2" role="status"></div><span>Loading more data...</span>';
+          loadingIndicator.classList.remove('active');
+        }
       });
     } else {
       // CSV via SheetJS or manual build
@@ -883,6 +1053,12 @@
       });
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
+      
+      // Hide loading indicator
+      if (loadingIndicator) {
+        loadingIndicator.innerHTML = '<div class="spinner-border spinner-border-sm me-2" role="status"></div><span>Loading more data...</span>';
+        loadingIndicator.classList.remove('active');
+      }
     }
   }
 </script>
