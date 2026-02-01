@@ -1050,7 +1050,7 @@ class AlarmWorker:
             high_on_stable if high_condition_met else low_on_stable,
             high_off_stable if high_condition_met else low_off_stable,
             email, sms, description,
-            high_value if high_condition_met else low_value,
+            high_threshold if high_condition_met else low_threshold,
             high_op if high_condition_met else low_op,
             current_alarm_type
         )
