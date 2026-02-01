@@ -323,7 +323,7 @@
     sheet.addRow([]);
 
     const header = [
-      "Alarm code", "Level Alarm", "INCOMING DATE", "INCOMING VALUE",
+      "Alarm code", "INCOMING DATE", "INCOMING VALUE",
       "OUTGOING DATE", "OUTGOING VALUE", "MODE COMPARE", "VALUE COMPARE"
     ];
     const headerRow = sheet.addRow(header);
@@ -342,7 +342,7 @@
 
     data.items.forEach(e => {
       sheet.addRow([
-        e.code || "", e.level || "", e.incoming_date || "", e.incoming_value ?? "",
+        e.code || "", e.incoming_date || "", e.incoming_value ?? "",
         e.outgoing_date || "", e.outgoing_value ?? "", e.operator || "", e.threshold ?? ""
       ]);
     });
