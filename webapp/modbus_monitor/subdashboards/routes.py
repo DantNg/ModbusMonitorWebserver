@@ -515,6 +515,9 @@ def add_quad_tag_card(sid):
         tag4_id = request.form.get("tag4_id")
         group_id = request.form.get("group_id")
         new_group_name = request.form.get("new_group_name")
+        card_title = request.form.get("card_title", "").strip()
+        left_title = request.form.get("left_title", "").strip()
+        right_title = request.form.get("right_title", "").strip()
         
         # Validate required fields
         if not all([tag1_id, tag2_id, tag3_id, tag4_id]):
@@ -547,7 +550,16 @@ def add_quad_tag_card(sid):
             return jsonify({"success": False, "message": "Please select a group or enter a new group name"}), 400
         
         # Add quad tag card
-        quad_card_id = db.add_quad_tag_card(group_id, tag_ids[0], tag_ids[1], tag_ids[2], tag_ids[3])
+        quad_card_id = db.add_quad_tag_card(
+            group_id, 
+            tag_ids[0], 
+            tag_ids[1], 
+            tag_ids[2], 
+            tag_ids[3],
+            card_title if card_title else None,
+            left_title if left_title else None,
+            right_title if right_title else None
+        )
         
         # Force refresh subdashboard cache for real-time updates
         try:

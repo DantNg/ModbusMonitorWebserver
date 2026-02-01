@@ -1780,6 +1780,16 @@
         if (newGroupName) {
           formData.append('new_group_name', newGroupName);
         }
+        // Add quad card titles
+        if (cardTitle) {
+          formData.append('card_title', cardTitle);
+        }
+        if (leftTitle) {
+          formData.append('left_title', leftTitle);
+        }
+        if (rightTitle) {
+          formData.append('right_title', rightTitle);
+        }
         
         // Send request
         console.log('Sending request to:', `/subdash/${currentSubdashId}/add_quad_tag`);
@@ -1797,16 +1807,6 @@
         .then(data => {
           console.log('Response data:', data);
           if (data.success) {
-            if (cardTitle) {
-              localStorage.setItem(`quad-card-${data.quad_card_id}-title-main`, cardTitle);
-            }
-            if (leftTitle) {
-              localStorage.setItem(`quad-card-${data.quad_card_id}-title-left`, leftTitle);
-            }
-            if (rightTitle) {
-              localStorage.setItem(`quad-card-${data.quad_card_id}-title-right`, rightTitle);
-            }
-
             Swal.fire({
               title: 'Success!',
               text: 'Quad tag card added successfully',
