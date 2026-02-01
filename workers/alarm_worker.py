@@ -1004,6 +1004,10 @@ class AlarmWorker:
         sms = condition.get(f"{column}_sms", "")
         description = condition.get(f"{column}_description", "")
         
+        # Initialize thresholds with default values
+        high_threshold = None
+        low_threshold = None
+        
         # Check HIGH threshold
         high_condition_met = False
         if high_op and (high_value is not None or high_compare_tag_id):
