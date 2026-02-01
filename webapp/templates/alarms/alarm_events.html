@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% set page_title = "Alarm Events" %}
 {% block content %}
-<div class="card border-0 shadow-soft mb-3" style="margin-top: -1.5rem;">
+<div class="card border-0 shadow-soft mb-2" style="margin-top: -1.5rem;">
   <div class="card-body" style="padding: 0.75rem 1rem;">
-    <!-- Single Row with all elements -->
-    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
-      <!-- Time Filter -->
-      <div class="d-flex gap-2 align-items-center">
+    <!-- Main toolbar row -->
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+      <!-- Time Filter - Always visible -->
+      <div class="d-flex gap-2 align-items-center" style="flex: 1 1 auto; min-width: 200px;">
         <label class="fw-semibold text-muted mb-0 small" for="timeFilterSelect">Time:</label>
         <select class="form-select form-select-sm" id="timeFilterSelect" style="width: auto; min-width: 140px;">
           <option value="all" {{ 'selected' if time_filter=='all' or not time_filter else '' }}>All Time</option>
@@ -35,33 +35,52 @@
         {% endif %}
       </div>
 
-      <!-- Custom Date Range (inline, hidden by default) -->
-      <div id="customDateRange" class="d-flex gap-2 align-items-center" style="display: none !important;">
-        <input type="datetime-local" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}" style="width: 180px;">
-        <span class="text-muted">→</span>
-        <input type="datetime-local" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}" style="width: 180px;">
-        <button type="button" class="btn btn-success btn-sm" onclick="applyTimeFilter()">Apply</button>
+      <!-- Toggle button - visible on all screens -->
+      <div class="align-self-center">
+        <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" 
+                data-bs-target="#alarmFilters" aria-expanded="false">
+          <i class="bi bi-funnel"></i> Filters
+        </button>
       </div>
+    </div>
 
-      <!-- Search Box -->
-      <div class="position-relative" style="min-width:200px;max-width:280px;width:auto;">
-        <span class="position-absolute top-50 translate-middle-y ms-2 opacity-50">🔎</span>
-        <input id="alarmSearchInput" class="form-control form-control-sm ps-4" placeholder="  Search…" oninput="App.filterTable('#tbl', this.value)">
+    <!-- Collapsible filters section - hidden by default -->
+    <div class="collapse" id="alarmFilters">
+      <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+        <!-- Search Box -->
+        <div class="position-relative" style="min-width:200px; flex: 1 1 200px;">
+          <span class="position-absolute top-50 translate-middle-y ms-2 opacity-50">🔎</span>
+          <input id="alarmSearchInput" class="form-control form-control-sm ps-4" placeholder="  Search…" oninput="App.filterTable('#tbl', this.value)">
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="d-flex gap-2 align-items-center">
+          <!-- Export button -->
+          <button type="button" class="btn btn-primary btn-sm" onclick="exportAlarms()">
+            <i class="bi bi-file-earmark-excel"></i> Export
+          </button>
+
+          <!-- Clear All button - chỉ admin -->
+          {% if session.get("role") == "admin" %}
+          <form method="post" action="{{ url_for('alarms_bp.clear_alarm_events_route') }}"
+            onsubmit="return confirm('Clear all alarm events?')" style="display:inline;">
+            <button type="submit" class="btn btn-danger btn-sm">
+              <i class="bi bi-trash"></i> Clear All
+            </button>
+          </form>
+          {% endif %}
+        </div>
       </div>
+    </div>
 
-      <!-- Action Buttons -->
-      <div class="d-flex gap-2 align-items-center">
-        <!-- Export button -->
-        <button type="button" class="btn btn-primary btn-sm" onclick="exportAlarms()">Export</button>
-
-        <!-- Clear All button - chỉ admin -->
-        {% if session.get("role") == "admin" %}
-        <form method="post" action="{{ url_for('alarms_bp.clear_alarm_events_route') }}"
-          onsubmit="return confirm('Clear all alarm events?')" style="display:inline;">
-          <button type="submit" class="btn btn-danger btn-sm">Clear All</button>
-        </form>
-        {% endif %}
-      </div>
+    <!-- Custom Date Range (shown when custom is selected) -->
+    <div id="customDateRange" class="d-flex gap-2 align-items-center mb-1" style="display: none !important;">
+      <label class="small text-muted mb-0">From:</label>
+      <input type="datetime-local" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}" style="width: 180px;">
+      <span class="text-muted">→</span>
+      <label class="small text-muted mb-0">To:</label>
+      <input type="datetime-local" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}" style="width: 180px;">
+      <button type="button" class="btn btn-success btn-sm" onclick="applyTimeFilter()">Apply</button>
     </div>
   </div>
 </div>
