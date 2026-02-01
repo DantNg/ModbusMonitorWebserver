@@ -4,9 +4,8 @@
 
 <div id="subdash-toolbar" class="sticky-top shadow-sm subdash-toolbar">
   <div class="card border-0 shadow-soft mb-3 rounded-0">
-    <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+    <div class="card-body d-flex flex-wrap gap-2 align-items-center" style="padding: 0.75rem 1rem;">
       <div>
-        <div class="text-muted small">Group</div>
         <select id="sel-group" class="form-select form-select-sm" onchange="App.changeGroup(this.value)">
           <option value="__all__" {{ 'selected' if current_group=='__all__' else '' }}>All Groups</option>
           {% for group in groups %}
