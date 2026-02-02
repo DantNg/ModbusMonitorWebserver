@@ -1268,23 +1268,7 @@
   transition: opacity 0.2s ease !important;
 }
 
-/* Force override old quad item layout inside card body only */
-.quad-tag-card .card-body .d-flex {
-  display: none !important;
-}
-
-/* Hide original quad items after transformation inside card body */
-.quad-tag-card .card-body .d-flex.align-items-center {
-  display: none !important;
-}
-
-.quad-tag-card .fw-bold {
-  display: none !important;
-}
-
-.quad-tag-card .text-muted {
-  display: none !important;
-}
+/* Legacy layout overrides removed to tránh nháy xám khi render quad tag */
 
 .btn-xs {
   --bs-btn-padding-y: 0.25rem;
@@ -2896,26 +2880,25 @@
   // Initialize quad tag values formatting on page load
   document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DOM loaded, starting quad layout fix...');
-    
-    // Add a small delay to ensure all elements are rendered
-    setTimeout(function() {
+
+    // Thực hiện ngay khi DOM sẵn sàng để tránh nháy xám
+    requestAnimationFrame(function() {
       fixQuadTagLayout();
-      
+
       // Keep original values without K/M formatting
       document.querySelectorAll('[id^="quad-tag-val-"]').forEach(element => {
         // Values already loaded from server, no need to reformat
         // Just log for debugging
         console.log(`Quad tag ${element.id}: ${element.textContent}`);
       });
-      
-      // Apply active quad alarm states from database after layout is fixed
-      // Add a small delay to ensure DOM has been updated
-      setTimeout(function() {
+
+      // Áp dụng trạng thái alarm sau khi layout đã dựng xong
+      requestAnimationFrame(function() {
         applyActiveQuadAlarms();
-      }, 100);
-      
+      });
+
       console.log('✨ Quad layout initialization completed');
-    }, 500);
+    });
   });
 
   // Apply active quad alarm states on page load
