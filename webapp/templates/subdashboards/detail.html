@@ -189,7 +189,16 @@
                  data-left-title="{{ quad_card.left_title or 'Group A' }}"
                  data-right-title="{{ quad_card.right_title or 'Group B' }}">
               <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
-                <span class="quad-card-header-title fw-semibold">{{ quad_card.card_title or 'Quad Tag Card' }}</span>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="quad-card-header-title fw-semibold">{{ quad_card.card_title or 'Quad Tag Card' }}</span>
+                  <span class="quad-status-indicator" 
+                        id="quad-status-{{ quad_card.id }}" 
+                        data-quad-id="{{ quad_card.id }}"
+                        data-pv-tag-id="{{ quad_card.tag1_id }}"
+                        title="Device status">
+                    <i class="bi bi-circle-fill"></i>
+                  </span>
+                </div>
                 {% if session.get('role') == 'admin' %}
                 <div class="dropdown">
                   <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Quad Card Settings">
@@ -455,7 +464,16 @@
                  data-left-title="{{ quad_card.left_title or 'Group A' }}"
                  data-right-title="{{ quad_card.right_title or 'Group B' }}">
               <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
-                <span class="quad-card-header-title fw-semibold">{{ quad_card.card_title or 'Quad Tag Card' }}</span>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="quad-card-header-title fw-semibold">{{ quad_card.card_title or 'Quad Tag Card' }}</span>
+                  <span class="quad-status-indicator" 
+                        id="quad-status-{{ quad_card.id }}-2" 
+                        data-quad-id="{{ quad_card.id }}"
+                        data-pv-tag-id="{{ quad_card.tag1_id }}"
+                        title="Device status">
+                    <i class="bi bi-circle-fill"></i>
+                  </span>
+                </div>
                 {% if session.get('role') == 'admin' %}
                 <div class="dropdown">
                   <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Quad Card Settings">
@@ -1008,6 +1026,35 @@
     padding: 0.25rem 0.5rem;
     font-size: 0.8rem;
   }
+}
+
+/* Quad Status Indicator */
+.quad-status-indicator {
+  font-size: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.quad-status-indicator i {
+  transition: color 0.3s ease;
+}
+
+/* Online - xanh lá đậm không nhấp nháy */
+.quad-status-indicator.status-online i {
+  color: #10b981;
+  animation: none;
+}
+
+/* Offline - đỏ đậm không nhấp nháy */
+.quad-status-indicator.status-offline i {
+  color: #dc2626;
+  animation: none;
+}
+
+/* Unknown - vàng không nhấp nháy */
+.quad-status-indicator.status-unknown i {
+  color: #f59e0b;
+  animation: none;
 }
 
 /* Quad Tag Card Styles - Dashboard Style */
@@ -3118,6 +3165,29 @@
   // Simple tag timer system for 30s timeout - DECLARE EARLY
   const tagTimers = new Map(); // Store timeout IDs for each tag
 
+  // Update quad status indicator based on PV tag device status
+  function updateQuadStatusIndicator(tagId, deviceStatus) {
+    // Find all quad cards that use this tag as PV (tag1)
+    const indicators = document.querySelectorAll(`.quad-status-indicator[data-pv-tag-id="${tagId}"]`);
+    
+    indicators.forEach(indicator => {
+      // Remove all status classes
+      indicator.classList.remove('status-online', 'status-offline', 'status-unknown');
+      
+      // Add appropriate status class
+      if (deviceStatus === 'connected') {
+        indicator.classList.add('status-online');
+        indicator.title = 'Device online';
+      } else if (deviceStatus === 'disconnected') {
+        indicator.classList.add('status-offline');
+        indicator.title = 'Device offline';
+      } else {
+        indicator.classList.add('status-unknown');
+        indicator.title = 'Device status unknown';
+      }
+    });
+  }
+
   // Reset timer for a tag (called when ts is updated)
   function resetTagTimer(tagId) {
     // Clear existing timer if any
@@ -3137,6 +3207,11 @@
     const valEl = document.getElementById('tag-val-' + tagId);
     if (valEl && valEl.style.opacity === '0.5') {
       restoreTagToActive(tagId);
+    } else {
+      // Tag is active, update quad indicator to reflect current device status
+      const barEl = document.getElementById('tag-bar-' + tagId);
+      const deviceStatus = barEl ? barEl.getAttribute('data-device-status') : 'unknown';
+      updateQuadStatusIndicator(tagId, deviceStatus);
     }
   }
 
@@ -3174,6 +3249,9 @@
       badgeEl.classList.add('bg-danger');
       badgeEl.textContent = 'Offline';
     }
+    
+    // Update quad status indicator to offline for this tag
+    updateQuadStatusIndicator(tagId, 'disconnected');
 
     // console.log(`Tag ${tagId} marked inactive (no ts update for 30s)`);
   }
@@ -3201,6 +3279,9 @@
       // Restore normal progress bar based on device status
       const deviceStatus = barEl.getAttribute('data-device-status') || 'unknown';
       barEl.classList.remove('tag-inactive');
+      
+      // Update quad status indicator to match device status
+      updateQuadStatusIndicator(tagId, deviceStatus);
 
       if (deviceStatus === 'connected') {
         barEl.style.width = '100%';
@@ -3242,7 +3323,10 @@
       const deviceStatus =
         (data.ok === true) || (data.status === 'connected') ? 'connected' : 'disconnected';
 
-      // 2) Update each tag
+      // 2) Update quad status indicators if device status changed
+      updateQuadStatusIndicator(data.tag_id, deviceStatus);
+
+      // 3) Update each tag
       if (Array.isArray(data.tags)) {
         // Collect value updates (only when value changes)
         const pending = [];
@@ -3448,6 +3532,16 @@
 
     // Join subdashboard room for targeted updates
     socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
+
+    // Initialize quad status indicators based on current device status
+    document.querySelectorAll('.quad-status-indicator').forEach(indicator => {
+      const pvTagId = indicator.getAttribute('data-pv-tag-id');
+      if (pvTagId) {
+        const barEl = document.getElementById('tag-bar-' + pvTagId);
+        const deviceStatus = barEl ? barEl.getAttribute('data-device-status') : 'unknown';
+        updateQuadStatusIndicator(parseInt(pvTagId), deviceStatus);
+      }
+    });
 
     // Initialize tag tracking and start timeout checker
     document.querySelectorAll('[id^="tag-val-"]').forEach(el => {

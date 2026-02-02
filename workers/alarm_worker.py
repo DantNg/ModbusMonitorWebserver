@@ -1206,7 +1206,7 @@ class AlarmWorker:
                             level=alarm_level,
                             target=triggered_tag_id,
                             value=triggered_value,
-                            note=f"{column_display} - alarm activated ({alarm_type}): {operator} {threshold}",
+                            note=f"{column_display} - Alarm activated ({alarm_type}): {operator} {threshold}",
                             event_type="INCOMING",
                             operator=operator,
                             threshold=threshold
@@ -1304,7 +1304,7 @@ class AlarmWorker:
                             level=alarm_level,
                             target=target_tag_id,
                             value=tag1_value,
-                            note=f"{column_display} - alarm cleared ({alarm_type}): {stored_operator} {stored_threshold}",
+                            note=f"{column_display} - Alarm cleared ({alarm_type}): {stored_operator} {stored_threshold}",
                             event_type="OUTGOING",
                             operator=stored_operator,
                             threshold=stored_threshold
