@@ -294,13 +294,14 @@ user_report_comparison_configs = Table(
     "user_report_comparison_configs", _md,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("logger_id", String(50), nullable=False, server_default='all'),  # Logger ID hoặc 'all'
     Column("config_json", String(4000), nullable=False),  # JSON string chứa comparison pairs
     Column("created_at", DateTime, server_default=func.now()),
     Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now()),
-    UniqueConstraint("user_id", name="uq_user_comparison_config")
+    UniqueConstraint("user_id", "logger_id", name="uq_user_logger_comparison_config")
 )
 
-Index("idx_user_comparison_config", user_report_comparison_configs.c.user_id)
+Index("idx_user_comparison_config", user_report_comparison_configs.c.user_id, user_report_comparison_configs.c.logger_id)
 
 # --- Quad Alarm States - Lưu trạng thái alarm đang active của quad tags ---
 quad_alarm_states = Table(
@@ -2797,12 +2798,13 @@ def delete_quad_condition(quad_card_id: int) -> bool:
 
 # ===== User Report Comparison Config Functions =====
 
-def save_user_comparison_config(user_id: int, config_json: str) -> bool:
+def save_user_comparison_config(user_id: int, logger_id: str, config_json: str) -> bool:
     """
-    Lưu hoặc cập nhật cấu hình comparison của user.
+    Lưu hoặc cập nhật cấu hình comparison của user cho logger cụ thể.
     
     Args:
         user_id: ID của user
+        logger_id: ID của datalogger (hoặc 'all')
         config_json: JSON string chứa comparison pairs
     
     Returns:
@@ -2813,34 +2815,41 @@ def save_user_comparison_config(user_id: int, config_json: str) -> bool:
             # Check if config exists
             existing = con.execute(
                 select(user_report_comparison_configs.c.id)
-                .where(user_report_comparison_configs.c.user_id == user_id)
+                .where(
+                    (user_report_comparison_configs.c.user_id == user_id) &
+                    (user_report_comparison_configs.c.logger_id == str(logger_id))
+                )
             ).first()
             
             if existing:
                 # Update existing config
                 con.execute(
                     update(user_report_comparison_configs)
-                    .where(user_report_comparison_configs.c.user_id == user_id)
+                    .where(
+                        (user_report_comparison_configs.c.user_id == user_id) &
+                        (user_report_comparison_configs.c.logger_id == str(logger_id))
+                    )
                     .values(config_json=config_json, updated_at=func.now())
                 )
             else:
                 # Insert new config
                 con.execute(
                     insert(user_report_comparison_configs)
-                    .values(user_id=user_id, config_json=config_json)
+                    .values(user_id=user_id, logger_id=str(logger_id), config_json=config_json)
                 )
             return True
     except Exception as e:
-        print(f"Error saving comparison config for user {user_id}: {e}")
+        print(f"Error saving comparison config for user {user_id}, logger {logger_id}: {e}")
         return False
 
 
-def get_user_comparison_config(user_id: int) -> Optional[str]:
+def get_user_comparison_config(user_id: int, logger_id: str) -> Optional[str]:
     """
-    Lấy cấu hình comparison của user.
+    Lấy cấu hình comparison của user cho logger cụ thể.
     
     Args:
         user_id: ID của user
+        logger_id: ID của datalogger (hoặc 'all')
     
     Returns:
         JSON string chứa comparison pairs hoặc None nếu không tìm thấy
@@ -2849,20 +2858,24 @@ def get_user_comparison_config(user_id: int) -> Optional[str]:
         with init_engine().connect() as con:
             result = con.execute(
                 select(user_report_comparison_configs.c.config_json)
-                .where(user_report_comparison_configs.c.user_id == user_id)
+                .where(
+                    (user_report_comparison_configs.c.user_id == user_id) &
+                    (user_report_comparison_configs.c.logger_id == str(logger_id))
+                )
             ).first()
             return result[0] if result else None
     except Exception as e:
-        print(f"Error getting comparison config for user {user_id}: {e}")
+        print(f"Error getting comparison config for user {user_id}, logger {logger_id}: {e}")
         return None
 
 
-def delete_user_comparison_config(user_id: int) -> bool:
+def delete_user_comparison_config(user_id: int, logger_id: str) -> bool:
     """
-    Xóa cấu hình comparison của user.
+    Xóa cấu hình comparison của user cho logger cụ thể.
     
     Args:
         user_id: ID của user
+        logger_id: ID của datalogger (hoặc 'all')
     
     Returns:
         True nếu thành công, False nếu thất bại
@@ -2871,11 +2884,14 @@ def delete_user_comparison_config(user_id: int) -> bool:
         with init_engine().begin() as con:
             result = con.execute(
                 delete(user_report_comparison_configs)
-                .where(user_report_comparison_configs.c.user_id == user_id)
+                .where(
+                    (user_report_comparison_configs.c.user_id == user_id) &
+                    (user_report_comparison_configs.c.logger_id == str(logger_id))
+                )
             )
             return result.rowcount > 0
     except Exception as e:
-        print(f"Error deleting comparison config for user {user_id}: {e}")
+        print(f"Error deleting comparison config for user {user_id}, logger {logger_id}: {e}")
         return False
 
 

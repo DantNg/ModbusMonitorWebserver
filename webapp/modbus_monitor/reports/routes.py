@@ -197,10 +197,13 @@ def save_comparison_config():
         if not data or "config" not in data:
             return jsonify({"success": False, "error": "No config provided"}), 400
         
+        # Lấy logger_id từ request (mặc định là 'all')
+        logger_id = data.get("logger_id", "all")
+        
         import json
         config_json = json.dumps(data["config"])
         
-        success = db.save_user_comparison_config(user_id, config_json)
+        success = db.save_user_comparison_config(user_id, logger_id, config_json)
         
         if success:
             return jsonify({"success": True, "message": "Config saved successfully"})
@@ -220,7 +223,10 @@ def load_comparison_config():
         if not user_id:
             return jsonify({"success": False, "error": "User not logged in"}), 401
         
-        config_json = db.get_user_comparison_config(user_id)
+        # Lấy logger_id từ query parameter (mặc định là 'all')
+        logger_id = request.args.get("logger_id", "all")
+        
+        config_json = db.get_user_comparison_config(user_id, logger_id)
         
         if config_json:
             import json
@@ -242,7 +248,10 @@ def delete_comparison_config():
         if not user_id:
             return jsonify({"success": False, "error": "User not logged in"}), 401
         
-        success = db.delete_user_comparison_config(user_id)
+        # Lấy logger_id từ query parameter (mặc định là 'all')
+        logger_id = request.args.get("logger_id", "all")
+        
+        success = db.delete_user_comparison_config(user_id, logger_id)
         
         if success:
             return jsonify({"success": True, "message": "Config deleted successfully"})

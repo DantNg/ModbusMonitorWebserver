@@ -243,6 +243,7 @@
   let isLoading = false;
   let hasMoreData = true;
   let allLoadedRows = []; // Store all loaded rows for filtering and comparison
+  let currentLoggerId = '{{ current_logger_id }}'; // Store current logger ID
 
   // Back to top functionality
  function scrollToTop() {
@@ -604,7 +605,10 @@
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ config: comparisonPairs })
+      body: JSON.stringify({ 
+        config: comparisonPairs,
+        logger_id: currentLoggerId  // Gửi logger_id hiện tại
+      })
     })
     .then(response => response.json())
     .then(data => {
@@ -619,7 +623,7 @@
 
   function loadComparisonConfig() {
     // Load from database via API
-    return fetch('{{ url_for("reports_bp.load_comparison_config") }}')
+    return fetch('{{ url_for("reports_bp.load_comparison_config") }}?logger_id=' + encodeURIComponent(currentLoggerId))
       .then(response => response.json())
       .then(data => {
         if (data.success && data.config) {
@@ -737,7 +741,7 @@
     });
 
     // Delete from database
-    fetch('{{ url_for("reports_bp.delete_comparison_config") }}', {
+    fetch('{{ url_for("reports_bp.delete_comparison_config") }}?logger_id=' + encodeURIComponent(currentLoggerId), {
       method: 'DELETE'
     })
     .then(response => response.json())
