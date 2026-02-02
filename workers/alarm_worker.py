@@ -1099,9 +1099,14 @@ class AlarmWorker:
         previous_active = self._alarm_states.get(alarm_key, False)
         stored_alarm_type = self._alarm_types.get(alarm_key)
         
-        # Get quad tag name for alarm name
-        quad_tag_name = quad_card.get("name", f"Quad {quad_id}") if quad_card else f"Quad {quad_id}"
-        column_display = "Column Left" if column == "left" else "Column Right"
+        # Get quad card title for alarm name (use card_title for display, not tag name)
+        quad_tag_name = quad_card.get("card_title", quad_card.get("name", f"Quad {quad_id}")) if quad_card else f"Quad {quad_id}"
+        
+        # Get column title for display (use left_title/right_title instead of generic "Column Left"/"Column Right")
+        if column == "left":
+            column_display = quad_card.get("left_title", "Column Left") if quad_card else "Column Left"
+        else:
+            column_display = quad_card.get("right_title", "Column Right") if quad_card else "Column Right"
         
         # Debug logging with state tracking
         timer_exists = alarm_key in self._alarm_since
