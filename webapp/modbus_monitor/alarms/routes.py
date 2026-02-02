@@ -319,7 +319,7 @@ def api_alarm_events():
     # Optionally format datetime
     for e in items:
         if isinstance(e.get("ts"), datetime):
-            e["ts"] = e["ts"].strftime("%Y-%m-%d %H:%M:%S")
+            e["ts"] = e["ts"].strftime("%d/%m/%Y %H:%M:%S")
     return jsonify({"items": items})
 
 @alarms_bp.route("/api/alarms/events/clear", methods=["POST"])

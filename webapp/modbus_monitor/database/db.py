@@ -1057,9 +1057,9 @@ def list_alarm_report():
                 "acknowledged": False,
                 "code": inc["name"] or "",            # hoặc mã từ rules nếu bạn có
                 "level": inc["level"],
-                "incoming_date": inc["incoming_date"].strftime("%Y-%m-%d %H:%M:%S"),
+                "incoming_date": inc["incoming_date"].strftime("%d/%m/%Y %H:%M:%S"),
                 "incoming_value": inc["incoming_value"],
-                "outgoing_date": out["outgoing_date"].strftime("%Y-%m-%d %H:%M:%S") if out else "",
+                "outgoing_date": out["outgoing_date"].strftime("%d/%m/%Y %H:%M:%S") if out else "",
                 "outgoing_value": out["outgoing_value"] if out else "",
                 "operator": inc["op"] if inc["op"] is not None else "",
                 "threshold": inc["th"] if inc["th"] is not None else "",
@@ -1109,9 +1109,9 @@ def list_alarm_report_by_date_range(start_date, end_date):
                 "acknowledged": False,
                 "code": inc["name"] or "",
                 "level": inc["level"],
-                "incoming_date": inc["incoming_date"].strftime("%Y-%m-%d %H:%M:%S"),
+                "incoming_date": inc["incoming_date"].strftime("%d/%m/%Y %H:%M:%S"),
                 "incoming_value": inc["incoming_value"],
-                "outgoing_date": out["outgoing_date"].strftime("%Y-%m-%d %H:%M:%S") if out else "",
+                "outgoing_date": out["outgoing_date"].strftime("%d/%m/%Y %H:%M:%S") if out else "",
                 "outgoing_value": out["outgoing_value"] if out else "",
                 "operator": inc["op"] if inc["op"] is not None else "",
                 "threshold": inc["th"] if inc["th"] is not None else "",
@@ -1269,7 +1269,7 @@ def get_logger_rows(logger_id: int, dt_from: datetime = None, dt_to: datetime = 
         # Gom dữ liệu theo timestamp
         data_map = {}
         for tag_id, ts, value in rows:
-            ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
+            ts_str = ts.strftime("%d/%m/%Y %H:%M:%S")
             if ts_str not in data_map:
                 data_map[ts_str] = {}
             data_map[ts_str][tags_map[tag_id]] = value
@@ -2367,7 +2367,7 @@ def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime, offs
         # Group data theo timestamp
         timestamp_data = {}
         for row in log_data:
-            ts_str = row['ts'].strftime("%Y-%m-%d %H:%M:%S")
+            ts_str = row['ts'].strftime("%d/%m/%Y %H:%M:%S")
             if ts_str not in timestamp_data:
                 timestamp_data[ts_str] = {}
             timestamp_data[ts_str][tag_id_to_name[row['tag_id']]] = row['value']
@@ -2449,7 +2449,7 @@ def get_all_datalogger_data(dt_from: datetime, dt_to: datetime, offset: int = 0,
         # Group data theo timestamp
         timestamp_data = {}
         for row in log_data:
-            ts_str = row['ts'].strftime("%Y-%m-%d %H:%M:%S")
+            ts_str = row['ts'].strftime("%d/%m/%Y %H:%M:%S")
             if ts_str not in timestamp_data:
                 timestamp_data[ts_str] = {}
             col_name = f"{row['logger_name']}.{row['tag_name']}"
