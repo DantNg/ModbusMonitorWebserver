@@ -2367,6 +2367,10 @@ def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime, offs
         # Group data theo timestamp
         timestamp_data = {}
         for row in log_data:
+            # Skip tags không còn được assign cho logger này (có thể đã bị xóa/unassign)
+            if row['tag_id'] not in tag_id_to_name:
+                continue
+            
             ts_str = row['ts'].strftime("%d/%m/%Y %H:%M:%S")
             if ts_str not in timestamp_data:
                 timestamp_data[ts_str] = {}

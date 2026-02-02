@@ -158,20 +158,20 @@ class LoggerWorker:
         start_time = time.time()
         
         try:
+            # Sử dụng 1 timestamp THỐNG NHẤT cho tất cả tags trong lần capture này
+            # Điều này đảm bảo:
+            # 1. Interval chính xác theo cấu hình
+            # 2. Tất cả tags được ghi cùng 1 timestamp → không bị ô trống
+            unified_timestamp = safe_datetime_now()
+            
             # Convert to format expected by bulk_insert_tag_logs
             # (logger_id, tag_id, ts, value)
             log_entries = []
-            for tag_id, value, timestamp in tag_values:
-                # Ensure timestamp is a proper datetime object
-                if isinstance(timestamp, str):
-                    timestamp = datetime.fromisoformat(timestamp)
-                elif timestamp is None:
-                    timestamp = safe_datetime_now()
-                
-                log_entries.append((self.logger_id, tag_id, timestamp, float(value)))
+            for tag_id, value, _ in tag_values:  # Bỏ qua timestamp cũ từ tag_latest_values
+                log_entries.append((self.logger_id, tag_id, unified_timestamp, float(value)))
             
             # Debug log
-            self.log_message("DEBUG", f"Prepared {len(log_entries)} log entries for bulk insert")
+            self.log_message("DEBUG", f"Prepared {len(log_entries)} log entries with unified timestamp {unified_timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
             
             # Bulk insert with idempotency
             rows_affected = bulk_insert_tag_logs(log_entries)

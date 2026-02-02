@@ -365,9 +365,9 @@ class TCPWorker:
                 # DB write latest
                 try:
                     if update_tag_latest_value:
-                        update_tag_latest_value(t.id, val, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                        update_tag_latest_value(t.id, val, datetime.now())
                     elif self.db:
-                        self.db.update_tag_latest_value(t.id, val, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                        self.db.update_tag_latest_value(t.id, val, datetime.now())
                 except Exception as e:
                     last_error = str(e)
                     if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
