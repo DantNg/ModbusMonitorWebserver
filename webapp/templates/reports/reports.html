@@ -5,12 +5,14 @@
 <!-- Toolbar - Fixed position -->
 <div id="toolbar" class="sticky-top shadow-sm" style="z-index: 100;">
   <form class="card border-0 shadow-soft mb-0" method="get" action="{{ url_for('reports_bp.reports') }}" style="margin-top: -1.5rem;">
-    <div class="card-body">
+    <div class="card-body" style="padding: 0.75rem 1rem;">
       <!-- Main toolbar row with all controls -->
-      <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
-        <!-- Data Logger - Always visible -->
-        <div style="min-width: 180px; flex: 1 1 180px;">
-          <label class="small text-muted mb-1">Data Logger</label>
+      <div class="d-flex flex-nowrap gap-3 align-items-center mb-0">
+        <!-- Data Logger Label - visible on desktop -->
+        <label class="small text-muted mb-0 d-none d-md-block flex-shrink-0" style="white-space: nowrap;">Data Logger</label>
+        
+        <!-- Data Logger Select -->
+        <div style="min-width: 180px; flex: 1 1 auto;">
           <select class="form-select form-select-sm" name="logger" onchange="this.form.submit()">
             {% for lg in loggers %}
             <option value="{{ lg.id }}" {{ 'selected' if lg.id==current_logger_id else '' }}>
@@ -21,7 +23,7 @@
         </div>
 
         <!-- Toggle button - visible on all screens -->
-        <div class="align-self-end">
+        <div class="flex-shrink-0">
           <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" 
                   data-bs-target="#mobileFilters" aria-expanded="false">
             <i class="bi bi-funnel"></i> Filters
