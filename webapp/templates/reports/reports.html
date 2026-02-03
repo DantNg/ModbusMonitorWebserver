@@ -1218,44 +1218,12 @@
         });
       });
 
-      // Auto width per column - tính riêng cho từng cột
-      // Tạo mảng lưu độ dài tối đa của từng cột
-      const columnWidths = header.map(() => 10); // Khởi tạo width tối thiểu
-      
-      // Duyệt qua tất cả các dòng để tìm text dài nhất trong mỗi cột
-      sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-        row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-          if (cell.value) {
-            let cellValue = '';
-            
-            // Xử lý các loại giá trị khác nhau
-            if (typeof cell.value === 'object' && cell.value.richText) {
-              // Rich text
-              cellValue = cell.value.richText.map(t => t.text).join('');
-            } else if (typeof cell.value === 'object' && cell.value.text) {
-              // Hyperlink
-              cellValue = cell.value.text;
-            } else {
-              // Plain text hoặc number
-              cellValue = cell.value.toString();
-            }
-            
-            // Tính độ dài text (mỗi ký tự ~ 1.2 đơn vị width trong Excel)
-            const textLength = cellValue.length;
-            
-            // Cập nhật width tối đa cho cột này
-            if (colNumber <= columnWidths.length) {
-              columnWidths[colNumber - 1] = Math.max(columnWidths[colNumber - 1], textLength);
-            }
-          }
-        });
-      });
-      
-      // Áp dụng width cho từng cột dựa trên độ dài text tối đa trong cột đó
-      sheet.columns = columnWidths.map(maxLen => {
-        // Công thức: (độ dài text * 1.2) + padding
-        // Min: 12, Max: 80 để tránh cột quá hẹp hoặc quá rộng
-        return { width: Math.min(80, Math.max(12, maxLen * 1.2 + 3)) };
+      // Auto width per column chỉ dựa trên tên cột
+      sheet.columns = header.map(colName => {
+        const textLen = (colName || '').length;
+        // Công thức: (độ dài tên * 1.2) + padding, min 12, max 80
+        const width = Math.min(80, Math.max(12, textLen * 1.2 + 3));
+        return { width };
       });
 
       workbook.xlsx.writeBuffer().then(buffer => {
