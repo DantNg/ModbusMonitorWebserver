@@ -147,6 +147,11 @@ class AlarmWorker:
         self.sms_queue = pyqueue.Queue(maxsize=500) if SMS_AVAILABLE else None
         self.sms_sender_thread = None
         self.sms_sender_stop = threading.Event()
+
+        # Device status cache for quad tag evaluation
+        self._device_status_cache: Dict[int, dict] = {}
+        self._device_status_cache_ts = 0.0
+        self._tag_device_map: Dict[int, Optional[int]] = {}
         
         
     def _load_notification_config(self):
@@ -224,6 +229,47 @@ class AlarmWorker:
             }, block=False)
         except:
             pass  # Queue full
+
+    def _refresh_device_status_cache(self) -> Dict[int, dict]:
+        """Refresh device status cache with short TTL to avoid frequent DB hits."""
+        if not self.db_available:
+            return {}
+        now = time.time()
+        if not self._device_status_cache or (now - self._device_status_cache_ts) > 3.0:
+            try:
+                self._device_status_cache = self.db.get_all_device_statuses_from_db() or {}
+            except Exception as e:
+                self.log("ERROR", f"Failed to refresh device statuses: {e}")
+                self._device_status_cache = {}
+            self._device_status_cache_ts = now
+        return self._device_status_cache
+
+    def _get_tag_device_id(self, tag_id: int) -> Optional[int]:
+        """Resolve and cache device_id for a tag."""
+        if tag_id in self._tag_device_map:
+            return self._tag_device_map[tag_id]
+        device_id = None
+        try:
+            tag = self.db.get_tag(tag_id)
+            if tag:
+                device_id = tag.get("device_id")
+        except Exception as e:
+            self.log("ERROR", f"Failed to resolve device for tag {tag_id}: {e}")
+        self._tag_device_map[tag_id] = device_id
+        return device_id
+
+    def _is_tag_device_online(self, tag_id: int) -> Optional[bool]:
+        """Return device online status for a tag. None if unknown."""
+        if tag_id is None or not self.db_available:
+            return None
+        device_id = self._get_tag_device_id(tag_id)
+        if not device_id:
+            return None
+        statuses = self._refresh_device_status_cache()
+        status_info = statuses.get(device_id)
+        if status_info is None:
+            return None
+        return status_info.get("is_online")
     
     def _compare_value(self, value: float, operator: str, threshold: float) -> bool:
         """Compare value with threshold using operator"""
@@ -1003,6 +1049,30 @@ class AlarmWorker:
         email = condition.get(f"{column}_email", "")
         sms = condition.get(f"{column}_sms", "")
         description = condition.get(f"{column}_description", "")
+
+        # Skip evaluation if any involved tag's device is offline
+        offline_tags = set()
+
+        for tid in (tag1_id, tag2_id):
+            if tid:
+                online = self._is_tag_device_online(tid)
+                if online is False:
+                    offline_tags.add(tid)
+
+        compare_tag_ids = []
+        if high_compare_type == "tag" and high_compare_tag_id:
+            compare_tag_ids.append(high_compare_tag_id)
+        if low_compare_type == "tag" and low_compare_tag_id:
+            compare_tag_ids.append(low_compare_tag_id)
+
+        for tid in compare_tag_ids:
+            online = self._is_tag_device_online(tid)
+            if online is False:
+                offline_tags.add(tid)
+
+        if offline_tags:
+            self.log("DEBUG", f"Quad {quad_id} {column}: skip evaluation - device offline for tag(s) {sorted(offline_tags)}")
+            return
         
         # Initialize thresholds with default values
         high_threshold = None
