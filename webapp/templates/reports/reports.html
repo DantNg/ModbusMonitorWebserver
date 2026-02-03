@@ -916,6 +916,7 @@
 
     let allData = [];
     let header = [];
+    let originalColumns = []; // Keep original column names for data mapping
     
     try {
       const response = await fetch(url);
@@ -923,7 +924,8 @@
       
       if (data.success && data.items) {
         allData = data.items;
-        header = data.columns || Array.from(document.querySelectorAll('#tbl thead th')).map(th => th.textContent.trim());
+        originalColumns = data.columns || Array.from(document.querySelectorAll('#tbl thead th')).map(th => th.textContent.trim());
+        header = originalColumns.map(col => col.toUpperCase()); // Display names in uppercase
       } else {
         alert('Failed to fetch data for export');
         if (loadingIndicator) loadingIndicator.classList.remove('active');
@@ -938,12 +940,9 @@
 
     // Build body rows from fetched data
     const bodyRows = allData.map(row => {
-      return header.map(col => {
-        // Try exact match first, then lowercase
-        let value = row[col];
-        if (value === undefined || value === null) {
-          value = row[col.toLowerCase()];
-        }
+      return originalColumns.map(col => {
+        // Use original column names to get values from row object
+        const value = row[col] !== undefined ? row[col] : row[col.toLowerCase()];
         return value !== null && value !== undefined ? String(value) : '';
       });
     });
