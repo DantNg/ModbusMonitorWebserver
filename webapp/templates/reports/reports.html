@@ -1069,20 +1069,22 @@
               const conditionText = `${idx + 1}. ${parts.join(' AND ')}`;
               const conditionRow = sheet.addRow([conditionText]);
               
-              // Không merge, chỉ style cho ô A
-              conditionRow.getCell(1).fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: color }
-              };
-              conditionRow.getCell(1).font = { bold: true, color: { argb: 'FF000000' } };
-              conditionRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
-              conditionRow.getCell(1).border = {
-                top: { style: 'thin' },
-                bottom: { style: 'thin' },
-                left: { style: 'thin' },
-                right: { style: 'thin' }
-              };
+              // Phủ màu cho toàn bộ dòng (tất cả các ô)
+              conditionRow.eachCell((cell) => {
+                cell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: color }
+                };
+                cell.font = { bold: true, color: { argb: 'FF000000' } };
+                cell.alignment = { horizontal: 'left', vertical: 'middle' };
+                cell.border = {
+                  top: { style: 'thin' },
+                  bottom: { style: 'thin' },
+                  left: { style: 'thin' },
+                  right: { style: 'thin' }
+                };
+              });
             }
           }
         });
