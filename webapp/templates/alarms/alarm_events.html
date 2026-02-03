@@ -375,6 +375,18 @@
       ]);
     });
 
+    // Add thin borders for all cells (header + data)
+    sheet.eachRow({ includeEmpty: true }, (row) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" }
+        };
+      });
+    });
+
     // Auto width
     sheet.columns.forEach(col => {
       let max = 0;

@@ -1027,6 +1027,38 @@ def list_alarm_report():
     """Ghép INCOMING với OUTGOING + rule info để làm báo cáo alarm."""
     print("Generating alarm report...")
     items = []
+    tag_names = {}
+    quad_titles = {}
+    # Preload tag names and quad card titles for export naming
+    try:
+        with init_engine().connect() as con:
+            tag_rows = con.execute(select(tags.c.id, tags.c.name)).mappings().all()
+            tag_names = {r["id"]: r["name"] for r in tag_rows}
+
+            quad_rows = con.execute(
+                select(
+                    subdash_quad_cards.c.card_title,
+                    subdash_quad_cards.c.left_title,
+                    subdash_quad_cards.c.right_title,
+                    subdash_quad_cards.c.tag1_id,
+                    subdash_quad_cards.c.tag2_id,
+                    subdash_quad_cards.c.tag3_id,
+                    subdash_quad_cards.c.tag4_id,
+                )
+            ).mappings().all()
+
+            for qr in quad_rows:
+                # Map tag to quad card title + column title
+                if qr.get("tag1_id") is not None:
+                    quad_titles[qr["tag1_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('left_title') or 'Left'}"
+                if qr.get("tag3_id") is not None:
+                    quad_titles[qr["tag3_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('left_title') or 'Left'}"
+                if qr.get("tag2_id") is not None:
+                    quad_titles[qr["tag2_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('right_title') or 'Right'}"
+                if qr.get("tag4_id") is not None:
+                    quad_titles[qr["tag4_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('right_title') or 'Right'}"
+    except Exception as e:
+        print(f"⚠️ Cannot preload tag/quad names: {e}")
     with init_engine().connect() as con:
         q_in = select(
             alarm_events.c.id,
@@ -1054,9 +1086,12 @@ def list_alarm_report():
 
             out = con.execute(q_out).mappings().first()
 
+            # Prefer quad title if tag belongs to quad, else tag name, else stored event name
+            display_name = quad_titles.get(inc["target"]) or tag_names.get(inc["target"], inc["name"] or "")
+
             items.append({
                 "acknowledged": False,
-                "code": inc["name"] or "",            # hoặc mã từ rules nếu bạn có
+                "code": display_name,
                 "level": inc["level"],
                 "incoming_date": inc["incoming_date"].strftime("%d/%m/%Y %H:%M:%S"),
                 "incoming_value": inc["incoming_value"],
@@ -1073,6 +1108,37 @@ def list_alarm_report_by_date_range(start_date, end_date):
     OUTGOING is matched as the first event after INCOMING (may be outside range)."""
     print(f"Generating alarm report for range: {start_date} -> {end_date}")
     items = []
+    tag_names = {}
+    quad_titles = {}
+    # Preload tag and quad names for correct export labels
+    try:
+        with init_engine().connect() as con:
+            tag_rows = con.execute(select(tags.c.id, tags.c.name)).mappings().all()
+            tag_names = {r["id"]: r["name"] for r in tag_rows}
+
+            quad_rows = con.execute(
+                select(
+                    subdash_quad_cards.c.card_title,
+                    subdash_quad_cards.c.left_title,
+                    subdash_quad_cards.c.right_title,
+                    subdash_quad_cards.c.tag1_id,
+                    subdash_quad_cards.c.tag2_id,
+                    subdash_quad_cards.c.tag3_id,
+                    subdash_quad_cards.c.tag4_id,
+                )
+            ).mappings().all()
+
+            for qr in quad_rows:
+                if qr.get("tag1_id") is not None:
+                    quad_titles[qr["tag1_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('left_title') or 'Left'}"
+                if qr.get("tag3_id") is not None:
+                    quad_titles[qr["tag3_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('left_title') or 'Left'}"
+                if qr.get("tag2_id") is not None:
+                    quad_titles[qr["tag2_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('right_title') or 'Right'}"
+                if qr.get("tag4_id") is not None:
+                    quad_titles[qr["tag4_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('right_title') or 'Right'}"
+    except Exception as e:
+        print(f"⚠️ Cannot preload tag/quad names: {e}")
     with init_engine().connect() as con:
         q_in = select(
             alarm_events.c.id,
@@ -1106,9 +1172,11 @@ def list_alarm_report_by_date_range(start_date, end_date):
 
             out = con.execute(q_out).mappings().first()
 
+            display_name = quad_titles.get(inc["target"]) or tag_names.get(inc["target"], inc["name"] or "")
+
             items.append({
                 "acknowledged": False,
-                "code": inc["name"] or "",
+                "code": display_name,
                 "level": inc["level"],
                 "incoming_date": inc["incoming_date"].strftime("%d/%m/%Y %H:%M:%S"),
                 "incoming_value": inc["incoming_value"],
