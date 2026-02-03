@@ -98,7 +98,7 @@
 <button id="backToTop" class="btn btn-primary position-fixed shadow"
   style="bottom: 5px; right: 20px; z-index: 1000;border-radius: 25px; width: 50px; height: 50px;background-color: #3b83f691;"
   onclick="scrollToTop()" title="Back to Top">
-  <i class="bi bi-arrow-up fs-5"></i>
+  <i class="bi bi-arrow-down fs-5"></i>
 </button>
 <div class="table-responsive table-wrap" style="max-height:70vh; overflow:auto;">
   <table class="table align-middle mb-0" id="tbl">
@@ -143,6 +143,20 @@
     background: var(--bs-body-bg, #fff);
     /* nền để không trong suốt */
   }
+
+  /* Hiệu ứng ẩn/hiện cho nút Back to Top */
+  #backToTop {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(8px);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+  }
+
+  #backToTop.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
 </style>
 </form>
 </div>
@@ -167,6 +181,7 @@
   };
   let lastAlarmId = null;
   let selectedIds = new Set();
+  let backToTopShown = false; // track first show state
 
   function toggleSelect(id, checked) {
     if (checked) selectedIds.add(String(id));
@@ -505,31 +520,66 @@
     } else {
       window.scrollTo({ top: next, behavior: 'smooth' });
     }
-    updateScrollButtonIcon();
+    updateBackToTopState();
   }
 
-  function updateScrollButtonIcon() {
-    const icon = document.querySelector('#backToTop i');
-    if (!icon) return;
+  function updateBackToTopState() {
+    const btn = document.getElementById('backToTop');
+    if (!btn) return;
 
     const tableWrap = document.querySelector('.table-wrap');
+    const tableScroll = tableWrap ? tableWrap.scrollTop : 0;
+    const pageScroll = window.pageYOffset || document.documentElement.scrollTop || 0;
+    const shouldShow = tableScroll > 80 || pageScroll > 80;
+
+    if (!shouldShow) {
+      btn.classList.remove('show');
+      backToTopShown = false;
+      const iconReset = btn.querySelector('i');
+      if (iconReset) {
+        iconReset.classList.remove('bi-arrow-up', 'bi-arrow-down');
+        iconReset.classList.add('bi-arrow-down');
+      }
+      return;
+    }
+
+    if (shouldShow && !backToTopShown) {
+      // First appearance after scroll: force down arrow and show
+      btn.classList.add('show');
+      backToTopShown = true;
+      const firstIcon = btn.querySelector('i');
+      if (firstIcon) {
+        firstIcon.classList.remove('bi-arrow-up', 'bi-arrow-down');
+        firstIcon.classList.add('bi-arrow-down');
+      }
+      return;
+    }
+
+    btn.classList.add('show');
+
+    const icon = btn.querySelector('i');
+    if (!icon) return;
+
     const useTable = tableWrap && (tableWrap.scrollHeight - tableWrap.clientHeight > 5);
     const current = useTable
       ? tableWrap.scrollTop
       : (window.pageYOffset || document.documentElement.scrollTop || 0);
-    const nearTop = current <= 10;
+    const maxScroll = useTable
+      ? Math.max(0, tableWrap.scrollHeight - tableWrap.clientHeight)
+      : Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const nearBottom = (maxScroll - current) <= 10 && current > 160; // chỉ đổi lên khi sát đáy
 
     icon.classList.remove('bi-arrow-up', 'bi-arrow-down');
-    icon.classList.add(nearTop ? 'bi-arrow-down' : 'bi-arrow-up');
+    icon.classList.add(nearBottom ? 'bi-arrow-up' : 'bi-arrow-down');
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     const tableWrap = document.querySelector('.table-wrap');
     if (tableWrap) {
-      tableWrap.addEventListener('scroll', updateScrollButtonIcon);
+      tableWrap.addEventListener('scroll', updateBackToTopState);
     }
-    window.addEventListener('scroll', updateScrollButtonIcon);
-    updateScrollButtonIcon();
+    window.addEventListener('scroll', updateBackToTopState);
+    updateBackToTopState();
   });
 
   // Mobile-friendly positioning & hit area
