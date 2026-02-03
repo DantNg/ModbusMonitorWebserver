@@ -194,6 +194,7 @@
                         id="quad-status-{{ quad_card.id }}" 
                         data-quad-id="{{ quad_card.id }}"
                         data-pv-tag-id="{{ quad_card.tag1_id }}"
+                    data-device-status="{{ quad_card.tag1.device_status or 'unknown' }}"
                         title="Device status">
                     <i class="bi bi-circle-fill"></i>
                   </span>
@@ -469,6 +470,7 @@
                         id="quad-status-{{ quad_card.id }}-2" 
                         data-quad-id="{{ quad_card.id }}"
                         data-pv-tag-id="{{ quad_card.tag1_id }}"
+                    data-device-status="{{ quad_card.tag1.device_status or 'unknown' }}"
                         title="Device status">
                     <i class="bi bi-circle-fill"></i>
                   </span>
@@ -3156,6 +3158,7 @@
     indicators.forEach(indicator => {
       // Remove all status classes
       indicator.classList.remove('status-online', 'status-offline', 'status-unknown');
+      indicator.setAttribute('data-device-status', deviceStatus);
       
       // Add appropriate status class
       if (deviceStatus === 'connected') {
@@ -3193,7 +3196,8 @@
     } else {
       // Tag is active, update quad indicator to reflect current device status
       const barEl = document.getElementById('tag-bar-' + tagId);
-      const deviceStatus = barEl ? barEl.getAttribute('data-device-status') : 'unknown';
+      const indicator = document.querySelector(`.quad-status-indicator[data-pv-tag-id="${tagId}"]`);
+      const deviceStatus = barEl?.getAttribute('data-device-status') || indicator?.getAttribute('data-device-status') || 'unknown';
       updateQuadStatusIndicator(tagId, deviceStatus);
     }
   }
@@ -3302,18 +3306,21 @@
 
       socketConnected = true;
 
-      // 1) Derive device status correctly
-      const deviceStatus =
+      // 1) Derive default device status from payload (fallback only)
+      const payloadDeviceStatus =
         (data.ok === true) || (data.status === 'connected') ? 'connected' : 'disconnected';
-
-      // 2) Update quad status indicators if device status changed
-      updateQuadStatusIndicator(data.tag_id, deviceStatus);
 
       // 3) Update each tag
       if (Array.isArray(data.tags)) {
         // Collect value updates (only when value changes)
         const pending = [];
         data.tags.forEach(tag => {
+          // Derive device status per tag (prefer tag fields)
+          const perTagStatus = tag.device_status || tag.status || payloadDeviceStatus;
+
+          // Update quad status indicators first so quad-only screens still work
+          updateQuadStatusIndicator(tag.id, perTagStatus);
+
           // Update regular tags
           const valEl = document.getElementById('tag-val-' + tag.id);
           
@@ -3367,15 +3374,15 @@
           const barEl = document.getElementById('tag-bar-' + tag.id);
           if (barEl) {
             // update data attribute to stay correct on the next render
-            barEl.setAttribute('data-device-status', deviceStatus);
+            barEl.setAttribute('data-device-status', perTagStatus);
 
             // reset previous classes
             barEl.classList.remove('device-connected', 'device-disconnected', 'device-unknown', 'tag-inactive');
 
-            if (deviceStatus === 'connected') {
+            if (perTagStatus === 'connected') {
               barEl.classList.add('device-connected');
               barEl.style.width = '100%';
-            } else if (deviceStatus === 'disconnected') {
+            } else if (perTagStatus === 'disconnected') {
               barEl.classList.add('device-disconnected');
               barEl.style.width = '0%';
             }
@@ -3386,10 +3393,10 @@
           if (badgeEl) {
             // Reset classes
             badgeEl.classList.remove('bg-success', 'bg-danger', 'bg-secondary');
-            if (deviceStatus === 'connected') {
+            if (perTagStatus === 'connected') {
               badgeEl.classList.add('bg-success');
               badgeEl.textContent = 'Online';
-            } else if (deviceStatus === 'disconnected') {
+            } else if (perTagStatus === 'disconnected') {
               badgeEl.classList.add('bg-danger');
               badgeEl.textContent = 'Offline';
             } else {
@@ -3521,7 +3528,8 @@
       const pvTagId = indicator.getAttribute('data-pv-tag-id');
       if (pvTagId) {
         const barEl = document.getElementById('tag-bar-' + pvTagId);
-        const deviceStatus = barEl ? barEl.getAttribute('data-device-status') : 'unknown';
+        const indicatorStatus = indicator.getAttribute('data-device-status');
+        const deviceStatus = indicatorStatus || (barEl ? barEl.getAttribute('data-device-status') : 'unknown');
         updateQuadStatusIndicator(parseInt(pvTagId), deviceStatus);
       }
     });
