@@ -189,12 +189,39 @@
   }
   /* Tăng chiều cao vùng hiển thị bảng để sát lề dưới hơn */
   .reports-table-wrapper {
-    max-height: calc(100vh - 160px);
+    max-height: calc(100vh - 150px);
     overflow: auto;
   }
   @media (max-width: 768px) {
     .reports-table-wrapper {
-      max-height: calc(100vh - 210px);
+      max-height: calc(100vh - 230px);
+    }
+  }
+  /* Mobile polish: giảm padding, font và căn pagination gọn hơn */
+  @media (max-width: 576px) {
+    #toolbar .card-body {
+      padding: 0.6rem 0.75rem;
+    }
+    .reports-table-wrapper {
+      max-height: calc(100vh - 220px);
+      padding-bottom: 24px;
+    }
+    table.table th, table.table td {
+      padding: 0.5rem 0.55rem;
+      font-size: 0.9rem;
+    }
+    #paginationContainer .page-link {
+      padding: 0.25rem 0.55rem;
+      font-size: 0.85rem;
+    }
+    .card-footer {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      padding-top: 0.65rem;
+    }
+    .card-footer > div:first-child {
+      width: 100%;
     }
   }
   
@@ -221,6 +248,24 @@
     color: #6b7280 !important;
   }
 
+  /* Giảm khoảng cách phía dưới thẻ card để sát lề hơn */
+  .reports-card {
+    margin-bottom: 0;
+  }
+  .reports-card .card-footer {
+    padding-top: 0.45rem;
+    padding-bottom: 0.2rem;
+  }
+  @media (max-width: 576px) {
+    .reports-card {
+      margin-bottom: 0;
+    }
+    .reports-card .card-footer {
+      padding-top: 0.35rem;
+      padding-bottom: 0.1rem;
+    }
+  }
+
   [data-bs-theme="dark"] .alert.condition-preview-box,
   [data-bs-theme="dark"] .condition-preview-box {
     background: #1f2937 !important;
@@ -233,7 +278,7 @@
 </style>
 
 <!-- Table -->
-<div class="card border-0 shadow-soft">
+<div class="card border-0 shadow-soft reports-card">
   <div class="table-responsive reports-table-wrapper">
   <table id="tbl" class="table table-hover align-middle mb-0">
     <thead class="table-dark-subtle">
