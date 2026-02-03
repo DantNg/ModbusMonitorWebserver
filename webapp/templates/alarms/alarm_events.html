@@ -370,7 +370,7 @@
     sheet.addRow([]);
 
     const header = [
-      "Alarm code", "INCOMING DATE", "INCOMING VALUE",
+      "ALARM CODE", "INCOMING DATE", "INCOMING VALUE",
       "OUTGOING DATE", "OUTGOING VALUE", "MODE COMPARE", "VALUE COMPARE"
     ];
     const headerRow = sheet.addRow(header);
@@ -413,14 +413,14 @@
       });
     });
 
-    // Auto-fit chiều rộng theo nội dung (cộng thêm 2 ký tự đệm)
+    // Auto-fit chiều rộng theo nội dung (cộng thêm 5 ký tự đệm cho thoáng hơn)
     sheet.columns.forEach(col => {
       let max = 0;
       col.eachCell({ includeEmpty: true }, c => {
         const len = c.value ? c.value.toString().length : 0;
         max = Math.max(max, len);
       });
-      col.width = Math.max(10, max + 2);
+      col.width = Math.max(15, max + 5);
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
