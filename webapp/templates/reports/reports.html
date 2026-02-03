@@ -198,6 +198,28 @@
   #loadingIndicator.active {
     display: block;
   }
+
+  /* Condition Preview: force light by default, override when data-bs-theme="dark" */
+  .alert.condition-preview-box,
+  .condition-preview-box {
+    background: #ffffff !important;
+    color: #111827 !important;
+    border-color: #e5e7eb !important;
+    box-shadow: none;
+  }
+  .condition-preview-box .text-muted {
+    color: #6b7280 !important;
+  }
+
+  [data-bs-theme="dark"] .alert.condition-preview-box,
+  [data-bs-theme="dark"] .condition-preview-box {
+    background: #1f2937 !important;
+    color: #e5e7eb !important;
+    border-color: #334155 !important;
+  }
+  [data-bs-theme="dark"] .condition-preview-box .text-muted {
+    color: #cbd5e1 !important;
+  }
 </style>
 
 <!-- Table -->
@@ -572,7 +594,7 @@
           </div>
           
           <!-- Condition Preview -->
-          <div class="alert alert-light border mb-3 py-2" style="background-color: #f8f9fa;">
+          <div class="alert condition-preview-box border mb-3 py-2">
             <small class="text-muted d-block mb-1"><i class="bi bi-eye"></i> Condition Preview:</small>
             <div class="preview-condition">${generateConditionPreview(pair)}</div>
           </div>
