@@ -304,7 +304,7 @@
               <div class="card-body">
                 <div class="quad-tag-grid">
                   <!-- Top Left -->
-                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag1_id }}">
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag1_id }}" data-device-status="{{ quad_card.tag1.device_status or 'unknown' }}">
                     <div class="quad-tag-name">{{ quad_card.tag1.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-{{ quad_card.tag1_id }}" class="fw-bold">{{ quad_card.tag1.last_value or '0' }}</span>
@@ -313,7 +313,7 @@
                   </div>
                   
                   <!-- Top Right -->
-                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag2_id }}">
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag2_id }}" data-device-status="{{ quad_card.tag2.device_status or 'unknown' }}">
                     <div class="quad-tag-name">{{ quad_card.tag2.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-{{ quad_card.tag2_id }}" class="fw-bold">{{ quad_card.tag2.last_value or '0' }}</span>
@@ -322,7 +322,7 @@
                   </div>
                   
                   <!-- Bottom Left -->
-                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag3_id }}">
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag3_id }}" data-device-status="{{ quad_card.tag3.device_status or 'unknown' }}">
                     <div class="quad-tag-name">{{ quad_card.tag3.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-{{ quad_card.tag3_id }}" class="fw-bold">{{ quad_card.tag3.last_value or '0' }}</span>
@@ -331,7 +331,7 @@
                   </div>
                   
                   <!-- Bottom Right -->
-                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag4_id }}">
+                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag4_id }}" data-device-status="{{ quad_card.tag4.device_status or 'unknown' }}">
                     <div class="quad-tag-name">{{ quad_card.tag4.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-{{ quad_card.tag4_id }}" class="fw-bold">{{ quad_card.tag4.last_value or '0' }}</span>
@@ -1490,6 +1490,10 @@
           if (!isNaN(tagId)) {
             // Dim without overwriting existing displayed value
             dimTagInitial(tagId);
+            // Force quad values for this tag to 0 at load if offline
+            document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]`).forEach(el => {
+              el.textContent = '0';
+            });
           }
         }
       });
@@ -3167,6 +3171,10 @@
       } else if (deviceStatus === 'disconnected') {
         indicator.classList.add('status-offline');
         indicator.title = 'Device offline';
+        // Force all quad tag values tied to this device to 0 when offline
+        document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]`).forEach(el => {
+          el.textContent = '0';
+        });
       } else {
         indicator.classList.add('status-unknown');
         indicator.title = 'Device status unknown';
@@ -3202,6 +3210,29 @@
     }
   }
 
+  // Update tất cả ô giá trị quad liên quan tới cùng một tag
+  function setQuadTagValueByTagId(tagId, valueText) {
+    // New layout dùng data-tag-id và id dạng quad-tag-val-{cardId}-{tagId}
+    document.querySelectorAll(`.quad-tag-item[data-tag-id="${tagId}"] .quad-tag-value`).forEach(span => {
+      span.textContent = valueText;
+    });
+
+    // Fallback cho id kết thúc bằng -tagId
+    document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]`).forEach(span => {
+      span.textContent = valueText;
+    });
+  }
+
+  // Gỡ trạng thái alarm trên mọi quad sub-card chứa tag này
+  function clearQuadAlarmByTag(tagId) {
+    document.querySelectorAll(`.quad-tag-item[data-tag-id="${tagId}"]`).forEach(item => {
+      const subCard = item.closest('.quad-sub-card');
+      if (subCard) {
+        subCard.classList.remove('quad-alarm-high', 'quad-alarm-low');
+      }
+    });
+  }
+
   // Mark tag as inactive (no ts update for 30s)
   function markTagInactive(tagId) {
     const valEl = document.getElementById('tag-val-' + tagId);
@@ -3215,6 +3246,11 @@
       valEl.style.opacity = '0.5';
       valEl.style.color = '#6c757d';
     }
+
+    // Đồng bộ giá trị về 0 cho tất cả quad tag hiển thị cùng tag này
+    setQuadTagValueByTagId(tagId, '0');
+    // Khi mất kết nối cũng tắt trạng thái alarm của quad tag đó
+    clearQuadAlarmByTag(tagId);
 
     if (tsEl) {
       // Show timeout message
@@ -3315,21 +3351,27 @@
         // Collect value updates (only when value changes)
         const pending = [];
         data.tags.forEach(tag => {
-          // Derive device status per tag (prefer tag fields)
-          const perTagStatus = tag.device_status || tag.status || payloadDeviceStatus;
+          // Derive device status per tag (prefer tag fields, then DOM fallbacks)
+          const barEl = document.getElementById('tag-bar-' + tag.id);
+          const indicatorEl = document.querySelector(`.quad-status-indicator[data-pv-tag-id="${tag.id}"]`);
+          const domStatus = barEl?.getAttribute('data-device-status') || indicatorEl?.getAttribute('data-device-status');
+          const perTagStatus = tag.device_status || tag.status || tag.connection_status || domStatus || payloadDeviceStatus;
 
           // Update quad status indicators first so quad-only screens still work
           updateQuadStatusIndicator(tag.id, perTagStatus);
+          if (perTagStatus === 'disconnected') {
+            clearQuadAlarmByTag(tag.id);
+          }
 
           // Update regular tags
           const valEl = document.getElementById('tag-val-' + tag.id);
-          
+
           // ✅ Update quad tags - tìm TẤT CẢ elements với pattern này
           const quadValElements = document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tag.id}"]`);
           
           if (valEl) {
             const oldVal = valEl.textContent;
-            const newVal = String(tag.value); // or formatValue(tag.value, tag.datatype)
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value); // hoặc formatValue(tag.value, tag.datatype)
 
             if (oldVal !== newVal) {
               pending.push({ valEl, newVal, tag });
@@ -3339,8 +3381,8 @@
           // ✅ Loop qua TẤT CẢ quad tag elements với tag.id này
           quadValElements.forEach(quadValEl => {
             const oldQuadVal = quadValEl.textContent;
-            // Display original value without K/M formatting
-            const newQuadVal = String(tag.value);
+            // Khi offline thì ép về 0, tránh giữ giá trị cũ
+            const newQuadVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
             
             if (oldQuadVal !== newQuadVal) {
               pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
@@ -3371,20 +3413,20 @@
           }
 
           // 3) Update the meter bar per tag based on device status
-          const barEl = document.getElementById('tag-bar-' + tag.id);
-          if (barEl) {
+          const meterBarEl = document.getElementById('tag-bar-' + tag.id);
+          if (meterBarEl) {
             // update data attribute to stay correct on the next render
-            barEl.setAttribute('data-device-status', perTagStatus);
+            meterBarEl.setAttribute('data-device-status', perTagStatus);
 
             // reset previous classes
-            barEl.classList.remove('device-connected', 'device-disconnected', 'device-unknown', 'tag-inactive');
+            meterBarEl.classList.remove('device-connected', 'device-disconnected', 'device-unknown', 'tag-inactive');
 
             if (perTagStatus === 'connected') {
-              barEl.classList.add('device-connected');
-              barEl.style.width = '100%';
+              meterBarEl.classList.add('device-connected');
+              meterBarEl.style.width = '100%';
             } else if (perTagStatus === 'disconnected') {
-              barEl.classList.add('device-disconnected');
-              barEl.style.width = '0%';
+              meterBarEl.classList.add('device-disconnected');
+              meterBarEl.style.width = '0%';
             }
           }
 
