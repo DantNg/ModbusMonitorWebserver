@@ -177,7 +177,7 @@
 <button id="backToTop" class="btn btn-primary position-fixed shadow"
   style="bottom: 20px; right: 20px; z-index: 1000;border-radius: 25px; width: 50px; height: 50px;background-color: #3b83f691;"
   onclick="scrollToTop()" title="Back to Top">
-  <i class="bi bi-arrow-up fs-5"></i>
+  <i class="bi bi-arrow-down fs-5"></i>
 </button>
 
 <style>
@@ -249,29 +249,65 @@
  function scrollToTop() {
     const tbl = document.getElementById('tbl');
     const scroller = tbl?.closest('.table-responsive') || tbl?.parentElement;
-    if (scroller && scroller.scrollTo) {
-      scroller.scrollTo({ top: 0, left: 0, behavior: 'smooth' }); // cuộn dọc & ngang về đầu
+    const useTable = scroller && scroller.scrollHeight - scroller.clientHeight > 5;
+    const current = useTable
+      ? scroller.scrollTop
+      : (window.pageYOffset || document.documentElement.scrollTop || 0);
+    const maxScroll = useTable
+      ? Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+      : Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const nearBottom = (maxScroll - current) <= 10;
+    const next = nearBottom ? 0 : maxScroll;
+
+    setBackToTopIcon(nearBottom ? 'up' : 'down'); // gần đáy thì icon lên, còn lại xuống
+
+    if (useTable) {
+      scroller.scrollTo({ top: next, left: 0, behavior: 'smooth' });
     } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: next, behavior: 'smooth' });
     }
+    updateBackToTopState();
+  }
+
+  function updateBackToTopState() {
+    const btn = document.getElementById('backToTop');
+    if (!btn) return;
+    const tbl = document.getElementById('tbl');
+    const scroller = tbl?.closest('.table-responsive') || tbl?.parentElement;
+    const tableScroll = scroller ? scroller.scrollTop : 0;
+    const pageScroll = window.scrollY || document.documentElement.scrollTop || 0;
+    const shouldShow = tableScroll > 80 || pageScroll > 80;
+    btn.style.display = shouldShow ? 'block' : 'none';
+
+    const icon = btn.querySelector('i');
+    if (!icon) return;
+    const useTable = scroller && scroller.scrollHeight - scroller.clientHeight > 5;
+    const current = useTable
+      ? scroller.scrollTop
+      : (window.pageYOffset || document.documentElement.scrollTop || 0);
+    const maxScroll = useTable
+      ? Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+      : Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const nearBottom = (maxScroll - current) <= 10;
+    setBackToTopIcon(nearBottom ? 'up' : 'down');
+  }
+
+  function setBackToTopIcon(direction) {
+    const icon = document.querySelector('#backToTop i');
+    if (!icon) return;
+    icon.classList.remove('bi-arrow-up', 'bi-arrow-down');
+    if (direction === 'up') icon.classList.add('bi-arrow-up');
+    else icon.classList.add('bi-arrow-down');
   }
 
   // Show/hide back to top button
-  window.addEventListener('scroll', function () {
-    const backToTop = document.getElementById('backToTop');
-    if (window.scrollY > 200) {  // Hiện sớm hơn (200px thay vì 300px)
-      backToTop.style.display = 'block';
-    } else {
-      backToTop.style.display = 'none';
-    }
-  });
+  window.addEventListener('scroll', updateBackToTopState);
 
   // Initialize - show button if already scrolled
   document.addEventListener('DOMContentLoaded', function () {
-    const backToTop = document.getElementById('backToTop');
-    if (window.scrollY > 200) {
-      backToTop.style.display = 'block';
-    }
+    updateBackToTopState();
+    // Poll in case scroll events miss (mobile inertia/overscroll)
+    setInterval(updateBackToTopState, 250);
     
     // Load comparison config first, then load data
     loadComparisonConfig().then(() => {
@@ -288,6 +324,7 @@
     // Setup infinite scroll
     const tableContainer = document.querySelector('.table-responsive');
     if (tableContainer) {
+      tableContainer.addEventListener('scroll', updateBackToTopState);
       tableContainer.addEventListener('scroll', function() {
         const scrollTop = tableContainer.scrollTop;
         const scrollHeight = tableContainer.scrollHeight;
@@ -301,6 +338,28 @@
         }
       });
     }
+  });
+
+  // Mobile-friendly sizing and touch feedback
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('backToTop');
+    if (!btn) return;
+    const applyMobileStyle = () => {
+      const isMobile = window.matchMedia('(max-width: 576px)').matches;
+      btn.style.bottom = isMobile ? '12px' : '20px';
+      btn.style.right = isMobile ? '12px' : '20px';
+      btn.style.width = isMobile ? '56px' : '50px';
+      btn.style.height = isMobile ? '56px' : '50px';
+      btn.style.borderRadius = isMobile ? '28px' : '25px';
+      btn.style.backgroundImage = 'linear-gradient(135deg, #3b82f6, #2563eb)';
+      btn.style.boxShadow = '0 8px 18px rgba(37, 99, 235, 0.35)';
+      btn.style.opacity = '0.9';
+      btn.style.transition = 'transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease';
+    };
+    applyMobileStyle();
+    window.addEventListener('resize', applyMobileStyle);
+    btn.addEventListener('pointerdown', () => { btn.style.transform = 'scale(0.96)'; });
+    btn.addEventListener('pointerup', () => { btn.style.transform = 'scale(1)'; });
   });
 
   // Load data from API
