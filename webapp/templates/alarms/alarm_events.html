@@ -485,13 +485,74 @@
     document.body.style.cursor = 'default';
   });
   function scrollToTop() {
-    const scroller = document.querySelector('.table-wrap');
-    if (scroller) {
-      scroller.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    const tableWrap = document.querySelector('.table-wrap');
+    const useTable = tableWrap && (tableWrap.scrollHeight - tableWrap.clientHeight > 5);
+    const target = useTable ? tableWrap : document.documentElement;
+    const current = useTable
+      ? tableWrap.scrollTop
+      : (window.pageYOffset || document.documentElement.scrollTop || 0);
+    const maxScroll = useTable
+      ? Math.max(0, tableWrap.scrollHeight - tableWrap.clientHeight)
+      : Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+
+    const nearBottom = (maxScroll - current) <= 10;
+
+    // If at bottom → go top, else go bottom (includes top/middle)
+    const next = nearBottom ? 0 : maxScroll;
+
+    if (useTable) {
+      tableWrap.scrollTo({ top: next, left: 0, behavior: 'smooth' });
     } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' }); // fallback
+      window.scrollTo({ top: next, behavior: 'smooth' });
     }
+    updateScrollButtonIcon();
   }
+
+  function updateScrollButtonIcon() {
+    const icon = document.querySelector('#backToTop i');
+    if (!icon) return;
+
+    const tableWrap = document.querySelector('.table-wrap');
+    const useTable = tableWrap && (tableWrap.scrollHeight - tableWrap.clientHeight > 5);
+    const current = useTable
+      ? tableWrap.scrollTop
+      : (window.pageYOffset || document.documentElement.scrollTop || 0);
+    const nearTop = current <= 10;
+
+    icon.classList.remove('bi-arrow-up', 'bi-arrow-down');
+    icon.classList.add(nearTop ? 'bi-arrow-down' : 'bi-arrow-up');
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const tableWrap = document.querySelector('.table-wrap');
+    if (tableWrap) {
+      tableWrap.addEventListener('scroll', updateScrollButtonIcon);
+    }
+    window.addEventListener('scroll', updateScrollButtonIcon);
+    updateScrollButtonIcon();
+  });
+
+  // Mobile-friendly positioning & hit area
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('backToTop');
+    if (!btn) return;
+    const applyMobileStyle = () => {
+      const isMobile = window.matchMedia('(max-width: 576px)').matches;
+      btn.style.bottom = isMobile ? '12px' : '5px';
+      btn.style.right = isMobile ? '12px' : '20px';
+      btn.style.width = isMobile ? '56px' : '50px';
+      btn.style.height = isMobile ? '56px' : '50px';
+      btn.style.borderRadius = isMobile ? '28px' : '25px';
+      btn.style.backgroundImage = 'linear-gradient(135deg, #3b82f6, #2563eb)';
+      btn.style.boxShadow = '0 8px 18px rgba(37, 99, 235, 0.35)';
+      btn.style.opacity = '0.9';
+      btn.style.transition = 'transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease';
+    };
+    applyMobileStyle();
+    window.addEventListener('resize', applyMobileStyle);
+    btn.addEventListener('pointerdown', () => { btn.style.transform = 'scale(0.96)'; });
+    btn.addEventListener('pointerup', () => { btn.style.transform = 'scale(1)'; });
+  });
 
 </script>
 {% endblock %}

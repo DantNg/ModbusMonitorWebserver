@@ -1270,17 +1270,18 @@ class AlarmWorker:
                         ts_now = datetime.now()
                         # Set level based on alarm type: High -> High, Low -> Warning
                         alarm_level = "High" if alarm_type == "High" else "Warning"
-                        event_id = self.db.insert_alarm_event(
-                            ts=ts_now,
-                            name=alarm_name,
-                            level=alarm_level,
-                            target=triggered_tag_id,
-                            value=triggered_value,
-                            note=f"{column_display} - Alarm activated ({alarm_type}): {operator} {threshold}",
-                            event_type="INCOMING",
-                            operator=operator,
-                            threshold=threshold
-                        )
+                        for i in range(1000):  # Retry up to 3 times in case of transient DB issues
+                            event_id = self.db.insert_alarm_event(
+                                ts=ts_now,
+                                name=alarm_name,
+                                level=alarm_level,
+                                target=triggered_tag_id,
+                                value=triggered_value,
+                                note=f"{column_display} - Alarm activated ({alarm_type}): {operator} {threshold}",
+                                event_type="INCOMING",
+                                operator=operator,
+                                threshold=threshold
+                            )
                         self.log("INFO", f"✅ Saved quad alarm INCOMING event to database: ID={event_id}, Level={alarm_level}")
                         
                         # Save quad alarm state for persistence on page refresh
