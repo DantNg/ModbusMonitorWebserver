@@ -2733,6 +2733,9 @@
             console.warn(`Tag ID not found for item ${i}`);
             continue;
           }
+
+          // Preserve device status so quad-only dashboards know current state
+          const deviceStatus = item.getAttribute('data-device-status') || 'unknown';
           
           // Find the value element by exact ID
           const valElement = document.getElementById(`quad-tag-val-${tagId}`);
@@ -2747,14 +2750,15 @@
           // ✅ Use UNIQUE ID format: cardId + tagId để tránh duplicate IDs
           const id = `quad-tag-val-${cardId}-${tagId}`;
           
-          console.log(`Quad tag ${i}: ID=${id}, CardID=${cardId}, TagID=${tagId}, Value=${value}, Unit=${unit}`);
+          console.log(`Quad tag ${i}: ID=${id}, CardID=${cardId}, TagID=${tagId}, Value=${value}, Unit=${unit}, Status=${deviceStatus}`);
           
           itemsData.push({
             value: value, // Keep original value without K/M formatting
             unit: unit,
             id: id,
             tagId: tagId,
-            name: name
+            name: name,
+            deviceStatus: deviceStatus
           });
         }
         
@@ -2781,14 +2785,14 @@
             <div class="quad-sub-card-title" data-title-slot="left">${title1}</div>
           </div>
           <div class="quad-tag-row">
-            <div class="quad-tag-item pv-item" data-tag-id="${itemsData[0].tagId}">
+            <div class="quad-tag-item pv-item" data-tag-id="${itemsData[0].tagId}" data-device-status="${itemsData[0].deviceStatus}">
               <div class="quad-tag-label">PV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[0].id}">${itemsData[0].value}</div>
                 <div class="quad-tag-unit">${itemsData[0].unit}</div>
               </div>
             </div>
-            <div class="quad-tag-item sv-item" data-tag-id="${itemsData[2].tagId}">
+            <div class="quad-tag-item sv-item" data-tag-id="${itemsData[2].tagId}" data-device-status="${itemsData[2].deviceStatus}">
               <div class="quad-tag-label">SV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[2].id}">${itemsData[2].value}</div>
@@ -2809,14 +2813,14 @@
             <div class="quad-sub-card-title" data-title-slot="right">${title2}</div>
           </div>
           <div class="quad-tag-row">
-            <div class="quad-tag-item pv-item" data-tag-id="${itemsData[1].tagId}">
+            <div class="quad-tag-item pv-item" data-tag-id="${itemsData[1].tagId}" data-device-status="${itemsData[1].deviceStatus}">
               <div class="quad-tag-label">PV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[1].id}">${itemsData[1].value}</div>
                 <div class="quad-tag-unit">${itemsData[1].unit}</div>
               </div>
             </div>
-            <div class="quad-tag-item sv-item" data-tag-id="${itemsData[3].tagId}">
+            <div class="quad-tag-item sv-item" data-tag-id="${itemsData[3].tagId}" data-device-status="${itemsData[3].deviceStatus}">
               <div class="quad-tag-label">SV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[3].id}">${itemsData[3].value}</div>
@@ -3151,24 +3155,35 @@
   let pollingInterval = null;
   const currentSubdashId = "{{ subdash.id }}";
 
+  // Chuẩn hóa trạng thái device để tránh khác biệt chữ hoa/thường
+  function normalizeDeviceStatus(status) {
+    if (status === true) return 'connected';
+    if (status === false) return 'disconnected';
+    const s = (status || '').toString().trim().toLowerCase();
+    if (['connected', 'online', 'ok', 'good', 'true', '1'].includes(s)) return 'connected';
+    if (['disconnected', 'offline', 'bad', 'false', '0'].includes(s)) return 'disconnected';
+    return 'unknown';
+  }
+
   // Simple tag timer system for 30s timeout - DECLARE EARLY
   const tagTimers = new Map(); // Store timeout IDs for each tag
 
   // Update quad status indicator based on PV tag device status
   function updateQuadStatusIndicator(tagId, deviceStatus) {
+    const normalizedStatus = normalizeDeviceStatus(deviceStatus);
     // Find all quad cards that use this tag as PV (tag1)
     const indicators = document.querySelectorAll(`.quad-status-indicator[data-pv-tag-id="${tagId}"]`);
     
     indicators.forEach(indicator => {
       // Remove all status classes
       indicator.classList.remove('status-online', 'status-offline', 'status-unknown');
-      indicator.setAttribute('data-device-status', deviceStatus);
+      indicator.setAttribute('data-device-status', normalizedStatus);
       
       // Add appropriate status class
-      if (deviceStatus === 'connected') {
+      if (normalizedStatus === 'connected') {
         indicator.classList.add('status-online');
         indicator.title = 'Device online';
-      } else if (deviceStatus === 'disconnected') {
+      } else if (normalizedStatus === 'disconnected') {
         indicator.classList.add('status-offline');
         indicator.title = 'Device offline';
         // Force all quad tag values tied to this device to 0 when offline
@@ -3205,7 +3220,7 @@
       // Tag is active, update quad indicator to reflect current device status
       const barEl = document.getElementById('tag-bar-' + tagId);
       const indicator = document.querySelector(`.quad-status-indicator[data-pv-tag-id="${tagId}"]`);
-      const deviceStatus = barEl?.getAttribute('data-device-status') || indicator?.getAttribute('data-device-status') || 'unknown';
+      const deviceStatus = normalizeDeviceStatus(barEl?.getAttribute('data-device-status') || indicator?.getAttribute('data-device-status') || 'unknown');
       updateQuadStatusIndicator(tagId, deviceStatus);
     }
   }
@@ -3300,7 +3315,7 @@
 
     if (barEl && barEl.classList.contains('tag-inactive')) {
       // Restore normal progress bar based on device status
-      const deviceStatus = barEl.getAttribute('data-device-status') || 'unknown';
+      const deviceStatus = normalizeDeviceStatus(barEl.getAttribute('data-device-status') || 'unknown');
       barEl.classList.remove('tag-inactive');
       
       // Update quad status indicator to match device status
@@ -3343,8 +3358,9 @@
       socketConnected = true;
 
       // 1) Derive default device status from payload (fallback only)
-      const payloadDeviceStatus =
-        (data.ok === true) || (data.status === 'connected') ? 'connected' : 'disconnected';
+      const payloadDeviceStatus = normalizeDeviceStatus(
+        data.status !== undefined ? data.status : (data.ok === true ? 'connected' : 'unknown')
+      );
 
       // 3) Update each tag
       if (Array.isArray(data.tags)) {
@@ -3354,8 +3370,21 @@
           // Derive device status per tag (prefer tag fields, then DOM fallbacks)
           const barEl = document.getElementById('tag-bar-' + tag.id);
           const indicatorEl = document.querySelector(`.quad-status-indicator[data-pv-tag-id="${tag.id}"]`);
-          const domStatus = barEl?.getAttribute('data-device-status') || indicatorEl?.getAttribute('data-device-status');
-          const perTagStatus = tag.device_status || tag.status || tag.connection_status || domStatus || payloadDeviceStatus;
+          const quadItemEl = document.querySelector(`.quad-tag-item[data-tag-id="${tag.id}"]`);
+          const domStatus = normalizeDeviceStatus(
+            barEl?.getAttribute('data-device-status') ||
+            indicatorEl?.getAttribute('data-device-status') ||
+            quadItemEl?.getAttribute('data-device-status')
+          );
+
+          let perTagStatus = normalizeDeviceStatus(
+            tag.device_status || tag.status || tag.connection_status || domStatus || payloadDeviceStatus
+          );
+
+          // Nếu vẫn unknown nhưng nhận được giá trị thì giả định đang online
+          if (perTagStatus === 'unknown' && (tag.value !== undefined && tag.value !== null)) {
+            perTagStatus = 'connected';
+          }
 
           // Update quad status indicators first so quad-only screens still work
           updateQuadStatusIndicator(tag.id, perTagStatus);
@@ -3571,7 +3600,11 @@
       if (pvTagId) {
         const barEl = document.getElementById('tag-bar-' + pvTagId);
         const indicatorStatus = indicator.getAttribute('data-device-status');
-        const deviceStatus = indicatorStatus || (barEl ? barEl.getAttribute('data-device-status') : 'unknown');
+        const quadItem = document.querySelector(`.quad-tag-item[data-tag-id="${pvTagId}"]`);
+        const quadItemStatus = quadItem ? quadItem.getAttribute('data-device-status') : null;
+        const deviceStatus = normalizeDeviceStatus(
+          indicatorStatus || quadItemStatus || (barEl ? barEl.getAttribute('data-device-status') : 'unknown')
+        );
         updateQuadStatusIndicator(parseInt(pvTagId), deviceStatus);
       }
     });
