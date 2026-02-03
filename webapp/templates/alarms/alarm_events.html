@@ -56,7 +56,7 @@
         <!-- Action Buttons -->
         <div class="d-flex gap-2 align-items-center">
           <!-- Export button -->
-          <button type="button" class="btn btn-primary btn-sm" onclick="exportAlarms()">
+          <button type="button" class="btn btn-primary btn-sm" id="exportBtn" onclick="exportAlarms()">
             <i class="bi bi-file-earmark-excel"></i> Export
           </button>
 
@@ -284,6 +284,10 @@
   }
 
   async function exportAlarms() {
+    if (!window.ExcelJS || !window.saveAs) {
+      alert('Không tải được thư viện Excel. Vui lòng kiểm tra mạng/CDN và thử lại.');
+      return;
+    }
     // Determine current filter and custom range BEFORE building API URL
     const filterSelect = document.getElementById('timeFilterSelect');
     const selectedFilter = filterSelect ? filterSelect.value : 'all';
@@ -384,13 +388,17 @@
     });
 
     data.items.forEach(e => {
-      sheet.addRow([
+      const row = sheet.addRow([
         e.code || "", e.incoming_date || "", e.incoming_value ?? "",
         e.outgoing_date || "", e.outgoing_value ?? "", e.operator || "", e.threshold ?? ""
       ]);
+      // Căn giữa toàn bộ dữ liệu
+      row.eachCell(cell => {
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      });
     });
 
-    // Add thin borders for all cells (header + data)
+    // Add thin borders for all cells (header + data) và căn giữa mặc định
     sheet.eachRow({ includeEmpty: true }, (row) => {
       row.eachCell((cell) => {
         cell.border = {
@@ -399,16 +407,20 @@
           left: { style: "thin" },
           right: { style: "thin" }
         };
+        if (!cell.alignment || !cell.alignment.horizontal) {
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        }
       });
     });
 
-    // Auto width
+    // Auto-fit chiều rộng theo nội dung (cộng thêm 2 ký tự đệm)
     sheet.columns.forEach(col => {
       let max = 0;
       col.eachCell({ includeEmpty: true }, c => {
-        max = Math.max(max, (c.value ? c.value.toString().length : 0) + 5);
+        const len = c.value ? c.value.toString().length : 0;
+        max = Math.max(max, len);
       });
-      col.width = Math.max(20, max);
+      col.width = Math.max(10, max + 2);
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -448,6 +460,12 @@
       document.getElementById('customDateRange').style.display = 'block';
     }
     document.body.style.cursor = 'default';
+
+    // Đảm bảo nút export luôn gắn handler cả khi inline bị chặn bởi CSP
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', exportAlarms);
+    }
   });
 
   // Apply time filter
