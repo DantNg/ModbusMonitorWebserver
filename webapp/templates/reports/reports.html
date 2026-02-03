@@ -957,12 +957,17 @@
       sheet.addRow(['DATALOGGER QUERY', currentLoggerName]);
       sheet.addRow(['FROM DATE:', fromDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
       sheet.addRow(['TO DATE:', toDateStr || (selectedFilter === 'all' ? 'All Time' : '')]);
-      sheet.addRow([]);
       
-      // Add comparison info if active
+      // Add comparison info if active - đặt ở A5, A6, ...
       if (comparisonPairs && comparisonPairs.length > 0) {
         const conditionSymbols = { eq: '=', ne: '≠', gt: '>', lt: '<', gte: '≥', lte: '≤' };
-        sheet.addRow(['COMPARISON CONDITIONS:']);
+        
+        // Dòng A5: Label "COMPARISON CONDITIONS:"
+        const labelRow = sheet.addRow(['COMPARISON CONDITIONS:']);
+        labelRow.font = { bold: true };
+        labelRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+        
+        // Từ dòng A6 trở đi: Các điều kiện (không merge, chỉ để ở cột A)
         comparisonPairs.forEach((pair, idx) => {
           if (pair.primaryTag) {
             const color = 'FF' + (pair.color || pair.color1 || '#ffeb3b').replace('#', '').toUpperCase();
@@ -976,16 +981,18 @@
             }
             
             if (parts.length > 0) {
-              const conditionRow = sheet.addRow(['', `${idx + 1}. ${parts.join(' AND ')}`]);
+              const conditionText = `${idx + 1}. ${parts.join(' AND ')}`;
+              const conditionRow = sheet.addRow([conditionText]);
               
-              // Tô màu background cho ô điều kiện
-              conditionRow.getCell(2).fill = {
+              // Không merge, chỉ style cho ô A
+              conditionRow.getCell(1).fill = {
                 type: 'pattern',
                 pattern: 'solid',
                 fgColor: { argb: color }
               };
-              conditionRow.getCell(2).font = { bold: true, color: { argb: 'FF000000' } };
-              conditionRow.getCell(2).border = {
+              conditionRow.getCell(1).font = { bold: true, color: { argb: 'FF000000' } };
+              conditionRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+              conditionRow.getCell(1).border = {
                 top: { style: 'thin' },
                 bottom: { style: 'thin' },
                 left: { style: 'thin' },
@@ -1100,14 +1107,16 @@
         });
       });
 
-      // Auto width per column
+      // Auto width per column - chỉ tính từ header row trở xuống
       sheet.columns = header.map(() => ({ width: 20 }));
-      sheet.columns.forEach((column) => {
+      sheet.columns.forEach((column, colIndex) => {
         let max = 10;
-        column.eachCell({ includeEmpty: true }, (cell) => {
+        // Chỉ tính từ header row (bỏ qua các dòng title, dates, comparison conditions)
+        for (let rowNum = headerRow.number; rowNum <= sheet.rowCount; rowNum++) {
+          const cell = sheet.getRow(rowNum).getCell(colIndex + 1);
           const v = (cell.value ?? '').toString();
           max = Math.max(max, Math.min(60, v.length + 5));
-        });
+        }
         column.width = max;
       });
 
