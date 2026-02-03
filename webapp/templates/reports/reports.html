@@ -1001,10 +1001,11 @@
 
       // Header
       const headerRow = sheet.addRow(header);
-      headerRow.eachCell(cell => {
+      const timestampIndex = header.findIndex((h) => h.toLowerCase() === 'timestamp');
+      headerRow.eachCell((cell, colNumber) => {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD966' } }; // Yellow like alarm_events
         cell.font = { bold: true };
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.alignment = { horizontal: (colNumber - 1) === timestampIndex ? 'left' : 'center', vertical: 'middle' };
         cell.border = {
           top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' }
         };
@@ -1055,14 +1056,15 @@
       bodyRows.forEach((rowData, rowIdx) => {
         const excelRow = sheet.addRow(rowData);
         
-        // Set borders for all cells in this row
-        excelRow.eachCell({ includeEmpty: true }, cell => {
+        // Set borders and alignment for all cells in this row
+        excelRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
           cell.border = {
             top: { style: 'thin' },
             bottom: { style: 'thin' },
             left: { style: 'thin' },
             right: { style: 'thin' }
           };
+          cell.alignment = { horizontal: (colNumber - 1) === timestampIndex ? 'left' : 'center', vertical: 'middle' };
         });
         
         // Apply highlighting based on comparison map
