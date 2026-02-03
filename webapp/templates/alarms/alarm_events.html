@@ -132,6 +132,15 @@
     </tbody>
   </table>
 </div>
+  <div class="card-footer small text-muted d-flex justify-content-between align-items-center">
+    <div id="rowCount">Showing 0 rows</div>
+    <nav aria-label="Page navigation">
+      <ul class="pagination pagination-sm mb-0" id="paginationContainer">
+        <!-- Pagination will be rendered here by JavaScript -->
+      </ul>
+    </nav>
+    <div>Auto-refresh every 3s</div>
+  </div>
 
 <style>
   /* Header bảng cố định trong khung cuộn */
@@ -179,6 +188,14 @@
       row.style.display = (!search || text.includes(search)) ? '' : 'none';
     });
   };
+  
+  // ===== Pagination Variables =====
+  let currentPage = 1;
+  const pageSize = 100;
+  let totalPages = 1;
+  let totalRows = 0;
+  let isLoading = false;
+  
   let lastAlarmId = null;
   let selectedIds = new Set();
   let backToTopShown = false; // track first show state
@@ -196,63 +213,82 @@
     });
   }
 
-  function fetchAlarmEvents() {
+  // Load alarm events by page
+  async function loadPage(page) {
+    if (isLoading) return;
+    
+    isLoading = true;
+    currentPage = page;
+    
     // Forward the current page's time filter params to the API
     const apiUrl = new URL(window.location.origin + "/alarms/api/alarm-events");
     const pageParams = new URLSearchParams(window.location.search);
     const tf = pageParams.get('time_filter');
     const fd = pageParams.get('from_date');
     const td = pageParams.get('to_date');
+    
     if (tf) apiUrl.searchParams.set('time_filter', tf);
     if (tf === 'custom') {
       if (fd) apiUrl.searchParams.set('from_date', fd);
       if (td) apiUrl.searchParams.set('to_date', td);
     }
+    
+    // Add pagination params
+    apiUrl.searchParams.set('offset', (page - 1) * pageSize);
+    apiUrl.searchParams.set('limit', pageSize);
 
-    fetch(apiUrl.toString())
-      .then(res => res.json())
-      .then(data => {
+    try {
+      const res = await fetch(apiUrl.toString());
+      const data = await res.json();
+      
+      if (data.success && data.items) {
+        totalRows = data.total || 0;
+        totalPages = Math.ceil(totalRows / pageSize);
+        
         const tbody = document.querySelector("#tbl tbody");
         if (!tbody) return;
+        
         tbody.innerHTML = "";
-        if (!data.items || data.items.length === 0) {
+        
+        if (data.items.length === 0) {
           tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No alarm events.</td></tr>`;
-          return;
+        } else {
+          data.items.forEach(e => {
+            const checked = selectedIds.has(String(e.id)) ? "checked" : "";
+            const note = (e.note || "").toLowerCase();
+
+            // 🌈 Màu nền cho cả row dựa trên note
+            const rowClass =
+              note.includes("clear") ? "table-success" :
+                note.includes("activated") ? "table-danger" : "";
+
+            // 🎯 Màu badge riêng cho note
+            const noteBadgeClass =
+              note.includes("clear") ? "text-bg-success" :
+                note.includes("activated") ? "text-bg-danger" :
+                  "text-bg-secondary";
+
+            const row = document.createElement("tr");
+            row.className = rowClass; // 👈 Nền của cả hàng
+
+            row.innerHTML = `
+            <td>
+              <input type="checkbox" name="ids" value="${e.id}" ${checked}
+                     onchange="toggleSelect(this.value,this.checked)">
+            </td>
+            <td>${escapeHtml(e.ts || "")}</td>
+            <td>${escapeHtml(e.name || "")}</td>
+            <td class="text-center">${escapeHtml(String(e.value ?? ""))}</td>
+            <td><span class="badge ${noteBadgeClass}">${escapeHtml(e.note || "")}</span></td>
+          `;
+
+            tbody.appendChild(row);
+          });
         }
-
-        data.items.forEach(e => {
-          const checked = selectedIds.has(String(e.id)) ? "checked" : "";
-
-          const note = (e.note || "").toLowerCase();
-
-          // 🌈 Màu nền cho cả row dựa trên note
-          const rowClass =
-            note.includes("clear") ? "table-success" :
-              note.includes("activated") ? "table-danger" : "";
-
-          // 🎯 Màu badge riêng cho note
-          const noteBadgeClass =
-            note.includes("clear") ? "text-bg-success" :
-              note.includes("activated") ? "text-bg-danger" :
-                "text-bg-secondary";
-
-          const row = document.createElement("tr");
-          row.className = rowClass; // 👈 Nền của cả hàng
-
-          row.innerHTML = `
-          <td>
-            <input type="checkbox" name="ids" value="${e.id}" ${checked}
-                   onchange="toggleSelect(this.value,this.checked)">
-          </td>
-          <td>${escapeHtml(e.ts || "")}</td>
-          <td>${escapeHtml(e.name || "")}</td>
-          <td class="text-center">${escapeHtml(String(e.value ?? ""))}</td>
-          <td><span class="badge ${noteBadgeClass}">${escapeHtml(e.note || "")}</span></td>
-        `;
-
-          tbody.appendChild(row);
-        });
-
+        
+        // Update pagination UI
+        updatePaginationUI();
+        
         // 🔒 Bảo vệ chống XSS
         function escapeHtml(s) {
           return String(s)
@@ -262,11 +298,100 @@
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
         }
-      });
+      }
+    } catch (error) {
+      console.error('Error loading alarm events:', error);
+    } finally {
+      isLoading = false;
+    }
+  }
+  
+  // Pagination navigation functions
+  function nextPage() {
+    if (currentPage < totalPages) {
+      loadPage(currentPage + 1);
+    }
+  }
+  
+  function prevPage() {
+    if (currentPage > 1) {
+      loadPage(currentPage - 1);
+    }
+  }
+  
+  function goToPage(page) {
+    if (page >= 1 && page <= totalPages) {
+      loadPage(page);
+    }
+  }
+  
+  // Update pagination UI
+  function updatePaginationUI() {
+    const paginationContainer = document.getElementById('paginationContainer');
+    if (!paginationContainer) return;
+    
+    let html = '';
+    
+    // Previous button
+    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">`;
+    html += `<a class="page-link" href="#" onclick="prevPage(); return false;">Previous</a>`;
+    html += `</li>`;
+    
+    // Page numbers
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage < maxVisible - 1) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    if (startPage > 1) {
+      html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1); return false;">1</a></li>`;
+      if (startPage > 2) {
+        html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+      }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      html += `<li class="page-item ${i === currentPage ? 'active' : ''}">`;
+      html += `<a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>`;
+      html += `</li>`;
+    }
+    
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+      }
+      html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${totalPages}); return false;">${totalPages}</a></li>`;
+    }
+    
+    // Next button
+    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">`;
+    html += `<a class="page-link" href="#" onclick="nextPage(); return false;">Next</a>`;
+    html += `</li>`;
+    
+    paginationContainer.innerHTML = html;
+    
+    // Update row count display
+    const countDiv = document.getElementById('rowCount');
+    if (countDiv) {
+      const startRow = (currentPage - 1) * pageSize + 1;
+      const endRow = Math.min(currentPage * pageSize, totalRows);
+      countDiv.textContent = totalRows > 0 
+        ? `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`
+        : 'Showing 0 rows';
+    }
   }
 
-  fetchAlarmEvents();
-  // setInterval(fetchAlarmEvents, 3000);
+  function fetchAlarmEvents() {
+    // Use loadPage instead
+    loadPage(currentPage);
+  }
+
+  // Initial load and auto-refresh
+  loadPage(1);
+  setInterval(fetchAlarmEvents, 3000);
 
   // Confirm and populate IDs before delete
   function confirmDelete(event) {

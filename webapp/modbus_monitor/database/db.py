@@ -874,22 +874,53 @@ def insert_alarm_event(ts, name, level, target, value, note="", event_type="INCO
     return inserted_id
 
 # ----------- ALARM EVENTS (history) -----------
-def list_alarm_events():
-    """Return all alarm events, oldest first (ascending by timestamp)."""
+def list_alarm_events(offset: int = 0, limit: int = None):
+    """Return all alarm events with pagination, oldest first (ascending by timestamp).
+    Returns: (items, total_count)
+    """
     with init_engine().connect() as con:
-        rows = con.execute(select(alarm_events).order_by(alarm_events.c.ts.asc())).mappings().all()
-        return [dict(r) for r in rows]
+        # Get total count first
+        count_result = con.execute(select(func.count()).select_from(alarm_events)).scalar()
+        total_count = count_result or 0
+        
+        # Build query with pagination
+        query = select(alarm_events).order_by(alarm_events.c.ts.asc())
+        if offset > 0:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        
+        rows = con.execute(query).mappings().all()
+        return [dict(r) for r in rows], total_count
 
-def list_alarm_events_by_date_range(start_date, end_date):
-    """Return alarm events within date range, oldest first (ascending by timestamp)."""
+def list_alarm_events_by_date_range(start_date, end_date, offset: int = 0, limit: int = None):
+    """Return alarm events within date range with pagination, oldest first (ascending by timestamp).
+    Returns: (items, total_count)
+    """
     with init_engine().connect() as con:
-        rows = con.execute(
-            select(alarm_events)
-            .where(alarm_events.c.ts >= start_date)
-            .where(alarm_events.c.ts <= end_date)
-            .order_by(alarm_events.c.ts.asc())
-        ).mappings().all()
-        return [dict(r) for r in rows]
+        # Get total count first
+        count_query = select(func.count()).select_from(alarm_events).where(
+            alarm_events.c.ts >= start_date
+        ).where(
+            alarm_events.c.ts <= end_date
+        )
+        count_result = con.execute(count_query).scalar()
+        total_count = count_result or 0
+        
+        # Build query with pagination
+        query = select(alarm_events).where(
+            alarm_events.c.ts >= start_date
+        ).where(
+            alarm_events.c.ts <= end_date
+        ).order_by(alarm_events.c.ts.asc())
+        
+        if offset > 0:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        
+        rows = con.execute(query).mappings().all()
+        return [dict(r) for r in rows], total_count
 
 def clear_alarm_events():
     """Delete all alarm events."""

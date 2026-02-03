@@ -77,14 +77,9 @@ def alarm_events():
             flash("Invalid date format", "error")
             start_date = end_date = None
     
-    # Get filtered items
-    if start_date and end_date:
-        items = list_alarm_events_by_date_range(start_date, end_date)
-    else:
-        items = list_alarm_events()
-    
+    # Don't load items here - let frontend fetch via API with pagination
     return render_template("alarms/alarm_events.html", 
-                         items=items,
+                         items=[],  # Empty initially, will be loaded via API
                          time_filter=time_filter,
                          from_date=from_date,
                          to_date=to_date)
@@ -278,14 +273,16 @@ def _to_int(s, default=None):
 @alarms_bp.route("/api/alarm-events")
 def api_alarm_events():
     """
-    Return alarm events optionally filtered by the same time range
-    parameters used on the page (time_filter, from_date, to_date).
+    Return alarm events with pagination support.
+    Query params: time_filter, from_date, to_date, offset, limit
     """
     from datetime import timedelta
 
     time_filter = request.args.get('time_filter', 'all')
     from_date = request.args.get('from_date', '')
     to_date = request.args.get('to_date', '')
+    offset = int(request.args.get('offset', 0))
+    limit = int(request.args.get('limit', 100))
 
     now = safe_datetime_now()
     start_date = None
@@ -311,16 +308,29 @@ def api_alarm_events():
         except ValueError:
             start_date = end_date = None
 
-    if start_date and end_date:
-        items = list_alarm_events_by_date_range(start_date, end_date)
-    else:
-        items = list_alarm_events()
+    try:
+        if start_date and end_date:
+            items, total_count = list_alarm_events_by_date_range(start_date, end_date, offset=offset, limit=limit)
+        else:
+            items, total_count = list_alarm_events(offset=offset, limit=limit)
 
-    # Optionally format datetime
-    for e in items:
-        if isinstance(e.get("ts"), datetime):
-            e["ts"] = e["ts"].strftime("%d/%m/%Y %H:%M:%S")
-    return jsonify({"items": items})
+        # Format datetime
+        for e in items:
+            if isinstance(e.get("ts"), datetime):
+                e["ts"] = e["ts"].strftime("%d/%m/%Y %H:%M:%S")
+        
+        print(f"Alarm Events API: Loaded {len(items)} of {total_count} total (offset={offset}, limit={limit})")
+        return jsonify({
+            "success": True,
+            "items": items,
+            "offset": offset,
+            "limit": limit,
+            "total": total_count,
+            "has_more": offset + len(items) < total_count
+        })
+    except Exception as e:
+        print(f"Error loading alarm events: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @alarms_bp.route("/api/alarms/events/clear", methods=["POST"])
 def api_clear_alarm_events():
