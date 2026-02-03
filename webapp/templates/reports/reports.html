@@ -947,10 +947,10 @@
             let parts = [];
             
             if (pair.compareTag1) {
-              parts.push(`${pair.compareTag1.toUpperCase()} ${conditionSymbols[pair.condition1]} ${pair.primaryTag.toUpperCase()}`);
+              parts.push(`${pair.primaryTag.toUpperCase()} ${conditionSymbols[pair.condition1]} ${pair.compareTag1.toUpperCase()}`);
             }
             if (pair.compareTag2) {
-              parts.push(`${pair.compareTag2.toUpperCase()} ${conditionSymbols[pair.condition2]} ${pair.primaryTag.toUpperCase()}`);
+              parts.push(`${pair.primaryTag.toUpperCase()} ${conditionSymbols[pair.condition2]} ${pair.compareTag2.toUpperCase()}`);
             }
             
             if (parts.length > 0) {
