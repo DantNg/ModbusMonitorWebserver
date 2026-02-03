@@ -248,8 +248,13 @@
     <span>Loading more data...</span>
   </div>
 </div>
-  <div class="card-footer small text-muted d-flex justify-content-between">
+  <div class="card-footer small text-muted d-flex justify-content-between align-items-center">
     <div>Showing 0 rows</div>
+    <nav aria-label="Page navigation">
+      <ul class="pagination pagination-sm mb-0" id="paginationContainer">
+        <!-- Pagination will be rendered here by JavaScript -->
+      </ul>
+    </nav>
     <div>Tip: Use Export → open with Excel</div>
   </div>
 </div>
@@ -259,11 +264,12 @@
 <!-- Optional: keep SheetJS for CSV path only -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-  // ===== Infinite Scroll Variables =====
-  let currentOffset = 0;
-  const batchSize = 100;
+  // ===== Pagination Variables =====
+  let currentPage = 1;
+  const pageSize = 100;
   let isLoading = false;
-  let hasMoreData = true;
+  let totalPages = 1;
+  let totalRows = 0;
   let allLoadedRows = []; // Store all loaded rows for filtering and comparison
   let currentLoggerId = '{{ current_logger_id }}'; // Store current logger ID
 
@@ -340,25 +346,13 @@
       }
       
       // Load initial data after comparison config is loaded
-      loadMoreData();
+      loadPage(1);
     });
     
-    // Setup infinite scroll
+    // Setup scroll listener for back to top button only
     const tableContainer = document.querySelector('.table-responsive');
     if (tableContainer) {
       tableContainer.addEventListener('scroll', updateBackToTopState);
-      tableContainer.addEventListener('scroll', function() {
-        const scrollTop = tableContainer.scrollTop;
-        const scrollHeight = tableContainer.scrollHeight;
-        const clientHeight = tableContainer.clientHeight;
-        
-        // Load more when near bottom (within 200px)
-        if (scrollTop + clientHeight >= scrollHeight - 200) {
-          if (!isLoading && hasMoreData) {
-            loadMoreData();
-          }
-        }
-      });
     }
   });
 
@@ -384,11 +378,12 @@
     btn.addEventListener('pointerup', () => { btn.style.transform = 'scale(1)'; });
   });
 
-  // Load data from API
-  async function loadMoreData() {
-    if (isLoading || !hasMoreData) return;
+  // Load data from API by page
+  async function loadPage(page) {
+    if (isLoading) return;
     
     isLoading = true;
+    currentPage = page;
     
     // Show loading indicator
     const loadingIndicator = document.getElementById('loadingIndicator');
@@ -399,33 +394,46 @@
     // Build API URL with current filter params
     const url = new URL(window.location.origin + '/reports/api/data');
     const params = new URLSearchParams(window.location.search);
-    params.set('offset', currentOffset);
-    params.set('limit', batchSize);
+    params.set('offset', (page - 1) * pageSize);
+    params.set('limit', pageSize);
     url.search = params.toString();
     
     try {
       const response = await fetch(url);
       const data = await response.json();
       
-      if (data.success && data.items && data.items.length > 0) {
-        appendRowsToTable(data.items, data.columns);
-        allLoadedRows = allLoadedRows.concat(data.items);
-        currentOffset += data.items.length;
-        hasMoreData = data.has_more;
+      if (data.success && data.items) {
+        // Clear existing rows and replace with new page data
+        const tbody = document.querySelector('#tbl tbody');
+        if (tbody) tbody.innerHTML = '';
         
-        // Update row count
-        updateRowCount();
+        if (data.items.length > 0) {
+          appendRowsToTable(data.items, data.columns);
+          allLoadedRows = data.items;
+          
+          // Calculate total pages
+          totalRows = data.total || data.items.length;
+          totalPages = Math.ceil(totalRows / pageSize);
+        } else {
+          // No data
+          const tbody = document.querySelector('#tbl tbody');
+          if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="100" class="text-center text-muted py-4">No data available.</td></tr>';
+          }
+          totalPages = 1;
+        }
+        
+        // Update pagination UI
+        updatePaginationUI();
         
         // Apply comparison if active
         if (comparisonPairs.length > 0) {
           setTimeout(() => applyComparison(), 100);
         }
-      } else {
-        hasMoreData = false;
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      hasMoreData = false;
+      alert('Error loading data. Please try again.');
     } finally {
       isLoading = false;
       
@@ -433,6 +441,82 @@
       if (loadingIndicator) {
         loadingIndicator.classList.remove('active');
       }
+    }
+  }
+  
+  // Pagination navigation functions
+  function nextPage() {
+    if (currentPage < totalPages) {
+      loadPage(currentPage + 1);
+    }
+  }
+  
+  function prevPage() {
+    if (currentPage > 1) {
+      loadPage(currentPage - 1);
+    }
+  }
+  
+  function goToPage(page) {
+    if (page >= 1 && page <= totalPages) {
+      loadPage(page);
+    }
+  }
+  
+  // Update pagination UI
+  function updatePaginationUI() {
+    const paginationContainer = document.getElementById('paginationContainer');
+    if (!paginationContainer) return;
+    
+    let html = '';
+    
+    // Previous button
+    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">`;
+    html += `<a class="page-link" href="#" onclick="prevPage(); return false;">Previous</a>`;
+    html += `</li>`;
+    
+    // Page numbers
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage < maxVisible - 1) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    if (startPage > 1) {
+      html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1); return false;">1</a></li>`;
+      if (startPage > 2) {
+        html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+      }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      html += `<li class="page-item ${i === currentPage ? 'active' : ''}">`;
+      html += `<a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>`;
+      html += `</li>`;
+    }
+    
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+      }
+      html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${totalPages}); return false;">${totalPages}</a></li>`;
+    }
+    
+    // Next button
+    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">`;
+    html += `<a class="page-link" href="#" onclick="nextPage(); return false;">Next</a>`;
+    html += `</li>`;
+    
+    paginationContainer.innerHTML = html;
+    
+    // Update row count display
+    const countDiv = document.querySelector('.card-footer div');
+    if (countDiv) {
+      const startRow = (currentPage - 1) * pageSize + 1;
+      const endRow = Math.min(currentPage * pageSize, totalRows);
+      countDiv.textContent = `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`;
     }
   }
   
@@ -469,12 +553,14 @@
     });
   }
   
-  // Update row count display
+  // Update row count display (now handled by updatePaginationUI)
   function updateRowCount() {
     const countDiv = document.querySelector('.card-footer div');
     if (countDiv) {
       const visibleCount = document.querySelectorAll('#tbl tbody tr:not([style*="display: none"])').length;
-      countDiv.textContent = `Showing ${visibleCount} of ${allLoadedRows.length} rows${hasMoreData ? ' (scroll for more)' : ''}`;
+      const startRow = (currentPage - 1) * pageSize + 1;
+      const endRow = Math.min(currentPage * pageSize, totalRows);
+      countDiv.textContent = `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`;
     }
   }
 

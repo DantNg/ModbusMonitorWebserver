@@ -50,9 +50,9 @@ def reports():
 
     # Only get columns for initial page load, no data
     if current_logger_id == "all":
-        _, columns = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt, limit=1)
+        _, columns, _ = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt, limit=1)
     else:
-        _, columns = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt, limit=1)
+        _, columns, _ = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt, limit=1)
 
     if "timestamp" not in columns:
         columns = ["timestamp"] + [c for c in columns if c != "timestamp"]
@@ -119,18 +119,19 @@ def get_reports_data():
 
     try:
         if current_logger_id == "all":
-            items, columns = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
+            items, columns, total_count = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
         else:
-            items, columns = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
+            items, columns, total_count = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
         
-        print(f"Reports API: Loaded {len(items)} rows (offset={offset}, limit={limit})")
+        print(f"Reports API: Loaded {len(items)} rows of {total_count} total (offset={offset}, limit={limit})")
         return jsonify({
             "success": True,
             "items": items,
             "columns": columns,
             "offset": offset,
             "limit": limit,
-            "has_more": len(items) == limit
+            "total": total_count,
+            "has_more": offset + len(items) < total_count
         })
     except Exception as e:
         print(f"Error loading report data: {e}")

@@ -2380,10 +2380,10 @@ def get_logger_statistics(logger_id: int) -> dict:
             'unique_tags': range_result['unique_tags'] if range_result else 0
         }
 
-def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime, offset: int = 0, limit: int = None):
+def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime, offset: int = 0, limit: int = None, count_only: bool = False):
     """
     Load dữ liệu datalogger từ bảng tag_logs cho một logger cụ thể
-    Returns: (items, columns) - items là list dict, columns là list tên cột
+    Returns: (items, columns, total_count) - items là list dict, columns là list tên cột, total_count là tổng số rows
     """
     with init_engine().connect() as con:
         # Lấy thông tin logger và tags
@@ -2392,7 +2392,7 @@ def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime, offs
         ).mappings().first()
         
         if not logger_info:
-            return [], ["timestamp"]
+            return [], ["timestamp"], 0
         
         # Lấy tags được assign cho logger này
         tag_info = con.execute(
@@ -2411,7 +2411,7 @@ def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime, offs
         ).mappings().all()
         
         if not tag_info:
-            return [], ["timestamp"]
+            return [], ["timestamp"], 0
         
         # Load data từ tag_logs
         log_data = con.execute(
@@ -2454,18 +2454,21 @@ def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime, offs
                 row[tag_name] = timestamp_data[ts_str].get(tag_name, None)
             items.append(row)
         
+        # Total count trước khi pagination
+        total_count = len(items)
+        
         # Apply pagination
         if offset > 0:
             items = items[offset:]
         if limit is not None:
             items = items[:limit]
         
-        return items, columns
+        return items, columns, total_count
 
 def get_all_datalogger_data(dt_from: datetime, dt_to: datetime, offset: int = 0, limit: int = None):
     """
     Load dữ liệu cho tất cả dataloggers từ bảng tag_logs
-    Returns: (items, columns)
+    Returns: (items, columns, total_count)
     """
     with init_engine().connect() as con:
         # Load tất cả data trong khoảng thời gian từ dataloggers có data
@@ -2486,7 +2489,7 @@ def get_all_datalogger_data(dt_from: datetime, dt_to: datetime, offset: int = 0,
         ).mappings().all()
         
         if not log_data:
-            return [], ["timestamp"]
+            return [], ["timestamp"], 0
         
         # Tạo columns theo thứ tự gắn tag vào logger (created_at) để tag mới thêm xếp sau
         # 1) Xác định các cột thực sự có dữ liệu trong khoảng thời gian lọc
@@ -2536,13 +2539,16 @@ def get_all_datalogger_data(dt_from: datetime, dt_to: datetime, offset: int = 0,
                 row[col] = timestamp_data[ts_str].get(col, None)
             items.append(row)
         
+        # Total count trước khi pagination
+        total_count = len(items)
+        
         # Apply pagination
         if offset > 0:
             items = items[offset:]
         if limit is not None:
             items = items[:limit]
         
-        return items, columns
+        return items, columns, total_count
 
 # ----------- NOTIFICATIONS -----------
 def insert_notification(alarm_event_id: int) -> int:
