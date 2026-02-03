@@ -1052,7 +1052,9 @@
         labelRow.font = { bold: true };
         labelRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
         
-        // Từ dòng A6 trở đi: Các điều kiện (không merge, chỉ để ở cột A)
+        // Chuẩn bị danh sách các conditions
+        const conditionData = [];
+        
         comparisonPairs.forEach((pair, idx) => {
           if (pair.primaryTag) {
             const color = 'FF' + (pair.color || pair.color1 || '#ffeb3b').replace('#', '').toUpperCase();
@@ -1067,26 +1069,38 @@
             
             if (parts.length > 0) {
               const conditionText = `${idx + 1}. ${parts.join(' AND ')}`;
-              const conditionRow = sheet.addRow([conditionText]);
-              
-              // Phủ màu cho toàn bộ dòng (tất cả các ô)
-              conditionRow.eachCell((cell) => {
-                cell.fill = {
-                  type: 'pattern',
-                  pattern: 'solid',
-                  fgColor: { argb: color }
-                };
-                cell.font = { bold: true, color: { argb: 'FF000000' } };
-                cell.alignment = { horizontal: 'left', vertical: 'middle' };
-                cell.border = {
-                  top: { style: 'thin' },
-                  bottom: { style: 'thin' },
-                  left: { style: 'thin' },
-                  right: { style: 'thin' }
-                };
-              });
+              conditionData.push({ text: conditionText, color: color });
             }
           }
+        });
+        
+        // Merge tất cả các cột có sẵn để đảm bảo text hiển thị đầy đủ
+        const columnsNeeded = header.length;
+        
+        // Vẽ tất cả các conditions với merge toàn bộ chiều rộng
+        conditionData.forEach(data => {
+          const conditionRow = sheet.addRow([data.text]);
+          
+          // Merge tất cả các cột từ A đến cột cuối
+          if (columnsNeeded > 1) {
+            sheet.mergeCells(conditionRow.number, 1, conditionRow.number, columnsNeeded);
+          }
+          
+          // Set màu và style cho ô đầu tiên (ô đã merge)
+          const cell = conditionRow.getCell(1);
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: data.color }
+          };
+          cell.font = { bold: true, color: { argb: 'FF000000' } };
+          cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+          cell.border = {
+            top: { style: 'thin' },
+            bottom: { style: 'thin' },
+            left: { style: 'thin' },
+            right: { style: 'thin' }
+          };
         });
       }
       
@@ -1194,17 +1208,44 @@
         });
       });
 
-      // Auto width per column - chỉ tính từ header row trở xuống
-      sheet.columns = header.map(() => ({ width: 20 }));
-      sheet.columns.forEach((column, colIndex) => {
-        let max = 10;
-        // Chỉ tính từ header row (bỏ qua các dòng title, dates, comparison conditions)
-        for (let rowNum = headerRow.number; rowNum <= sheet.rowCount; rowNum++) {
-          const cell = sheet.getRow(rowNum).getCell(colIndex + 1);
-          const v = (cell.value ?? '').toString();
-          max = Math.max(max, Math.min(60, v.length + 5));
-        }
-        column.width = max;
+      // Auto width per column - tính riêng cho từng cột
+      // Tạo mảng lưu độ dài tối đa của từng cột
+      const columnWidths = header.map(() => 10); // Khởi tạo width tối thiểu
+      
+      // Duyệt qua tất cả các dòng để tìm text dài nhất trong mỗi cột
+      sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+          if (cell.value) {
+            let cellValue = '';
+            
+            // Xử lý các loại giá trị khác nhau
+            if (typeof cell.value === 'object' && cell.value.richText) {
+              // Rich text
+              cellValue = cell.value.richText.map(t => t.text).join('');
+            } else if (typeof cell.value === 'object' && cell.value.text) {
+              // Hyperlink
+              cellValue = cell.value.text;
+            } else {
+              // Plain text hoặc number
+              cellValue = cell.value.toString();
+            }
+            
+            // Tính độ dài text (mỗi ký tự ~ 1.2 đơn vị width trong Excel)
+            const textLength = cellValue.length;
+            
+            // Cập nhật width tối đa cho cột này
+            if (colNumber <= columnWidths.length) {
+              columnWidths[colNumber - 1] = Math.max(columnWidths[colNumber - 1], textLength);
+            }
+          }
+        });
+      });
+      
+      // Áp dụng width cho từng cột dựa trên độ dài text tối đa trong cột đó
+      sheet.columns = columnWidths.map(maxLen => {
+        // Công thức: (độ dài text * 1.2) + padding
+        // Min: 12, Max: 80 để tránh cột quá hẹp hoặc quá rộng
+        return { width: Math.min(80, Math.max(12, maxLen * 1.2 + 3)) };
       });
 
       workbook.xlsx.writeBuffer().then(buffer => {
