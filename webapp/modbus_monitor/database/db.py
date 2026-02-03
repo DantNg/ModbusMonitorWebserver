@@ -875,19 +875,19 @@ def insert_alarm_event(ts, name, level, target, value, note="", event_type="INCO
 
 # ----------- ALARM EVENTS (history) -----------
 def list_alarm_events():
-    """Return all alarm events, newest first."""
+    """Return all alarm events, oldest first (ascending by timestamp)."""
     with init_engine().connect() as con:
-        rows = con.execute(select(alarm_events).order_by(alarm_events.c.ts.desc())).mappings().all()
+        rows = con.execute(select(alarm_events).order_by(alarm_events.c.ts.asc())).mappings().all()
         return [dict(r) for r in rows]
 
 def list_alarm_events_by_date_range(start_date, end_date):
-    """Return alarm events within date range, newest first."""
+    """Return alarm events within date range, oldest first (ascending by timestamp)."""
     with init_engine().connect() as con:
         rows = con.execute(
             select(alarm_events)
             .where(alarm_events.c.ts >= start_date)
             .where(alarm_events.c.ts <= end_date)
-            .order_by(alarm_events.c.ts.desc())
+            .order_by(alarm_events.c.ts.asc())
         ).mappings().all()
         return [dict(r) for r in rows]
 
@@ -2447,7 +2447,7 @@ def get_datalogger_data(logger_id: int, dt_from: datetime, dt_to: datetime, offs
         
         # Convert sang format cho template
         items = []
-        for ts_str in sorted(timestamp_data.keys(), reverse=True):  # Newest first
+        for ts_str in sorted(timestamp_data.keys()):  # Oldest first
             row = {"timestamp": ts_str}
             for tag in tag_info:
                 tag_name = tag['name']
@@ -2530,7 +2530,7 @@ def get_all_datalogger_data(dt_from: datetime, dt_to: datetime, offset: int = 0,
         
         # Convert sang format cho template
         items = []
-        for ts_str in sorted(timestamp_data.keys(), reverse=True):  # Newest first
+        for ts_str in sorted(timestamp_data.keys()):  # Oldest first
             row = {"timestamp": ts_str}
             for col in columns[1:]:  # Skip timestamp column
                 row[col] = timestamp_data[ts_str].get(col, None)
