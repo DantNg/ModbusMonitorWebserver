@@ -545,10 +545,10 @@
     ];
     const headerRow = sheet.addRow(header);
 
-    headerRow.eachCell(cell => {
+    headerRow.eachCell((cell, colNumber) => {
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD966" } };
       cell.font = { bold: true };
-      cell.alignment = { horizontal: "center" };
+      cell.alignment = { horizontal: colNumber === 1 ? "left" : "center" };
       cell.border = {
         top: { style: "thin" },
         bottom: { style: "thin" },
@@ -562,9 +562,9 @@
         e.code || "", e.incoming_date || "", e.incoming_value ?? "",
         e.outgoing_date || "", e.outgoing_value ?? "", e.operator || "", e.threshold ?? ""
       ]);
-      // Căn giữa toàn bộ dữ liệu
-      row.eachCell(cell => {
-        cell.alignment = { horizontal: "center", vertical: "middle" };
+      // Căn trái cột ALARM CODE, các cột còn lại giữ center
+      row.eachCell((cell, colNumber) => {
+        cell.alignment = { horizontal: colNumber === 1 ? "left" : "center", vertical: "middle" };
       });
     });
 
