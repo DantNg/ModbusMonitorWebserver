@@ -286,7 +286,7 @@
     // Notification System with "unread" logic
     window.NotificationSystem = {
       notifications: [],
-      maxNotifications: 10,
+      maxNotifications: 50,
       // Track unique keys to aggressively deduplicate across sources
       seenKeys: new Set(),
 
@@ -474,7 +474,8 @@
         // Count unread notifications
         const unreadCount = this.notifications.filter(n => !n.read).length;
         if (unreadCount > 0) {
-          badge.textContent = unreadCount;
+          const displayCount = unreadCount > 10 ? '10+' : unreadCount;
+          badge.textContent = displayCount;
           badge.style.display = 'block';
         } else {
           badge.style.display = 'none';
