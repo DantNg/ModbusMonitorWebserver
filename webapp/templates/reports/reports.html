@@ -187,14 +187,16 @@
     z-index: 1;
     background: var(--bs-body-bg, #fff);
   }
-  /* Tăng chiều cao vùng hiển thị bảng để sát lề dưới hơn */
+  /* Giới hạn chiều cao bảng để tránh scroll toàn trang; giữ nội dung gọn trong viewport */
   .reports-table-wrapper {
-    max-height: calc(100vh - 150px);
+    max-height: calc(100vh - 190px);
     overflow: auto;
+    padding-bottom: 10px;
   }
   @media (max-width: 768px) {
     .reports-table-wrapper {
-      max-height: calc(100vh - 230px);
+      max-height: calc(100vh - 280px);
+      padding-bottom: 24px;
     }
   }
   /* Mobile polish: giảm padding, font và căn pagination gọn hơn */
@@ -204,7 +206,7 @@
     }
     .reports-table-wrapper {
       max-height: calc(100vh - 220px);
-      padding-bottom: 24px;
+      padding-bottom: 10px;
     }
     table.table th, table.table td {
       padding: 0.5rem 0.55rem;

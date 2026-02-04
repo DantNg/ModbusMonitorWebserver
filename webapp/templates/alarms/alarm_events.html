@@ -170,17 +170,17 @@
     transform: translateY(0);
   }
 
-  /* Tăng chiều cao viewport bảng và chừa đệm với pagination */
+  /* Giới hạn chiều cao để tránh scroll toàn trang; ưu tiên giữ nội dung trong viewport */
   .table-wrap {
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 260px);
     overflow: auto;
-    padding-bottom: 30px;
+    padding-bottom: 16px;
   }
 
   @media (max-width: 768px) {
     .table-wrap {
-      max-height: calc(100vh - 230px);
-      padding-bottom: 50px;
+      max-height: calc(100vh - 300px);
+      padding-bottom: 24px;
     }
   }
 
@@ -196,8 +196,8 @@
     }
 
     .table-wrap {
-      max-height: calc(100vh - 240px);
-      padding-bottom: 70px;
+      max-height: calc(100vh - 320px);
+      padding-bottom: 32px;
     }
 
     .table th,
