@@ -3367,6 +3367,8 @@
         // Collect value updates (only when value changes)
         const pending = [];
         data.tags.forEach(tag => {
+          // Stamp the quad cards even khi giá trị không đổi để hiển thị thời gian mới nhất
+          const nowForTag = new Date();
           // Derive device status per tag (prefer tag fields, then DOM fallbacks)
           const barEl = document.getElementById('tag-bar-' + tag.id);
           const indicatorEl = document.querySelector(`.quad-status-indicator[data-pv-tag-id="${tag.id}"]`);
@@ -3397,6 +3399,17 @@
 
           // ✅ Update quad tags - tìm TẤT CẢ elements với pattern này
           const quadValElements = document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tag.id}"]`);
+
+          const updateQuadLastUpdated = () => {
+            quadValElements.forEach(quadValEl => {
+              const subCard = quadValEl.closest('.quad-sub-card');
+              if (!subCard) return;
+              const timeEl = subCard.querySelector('.quad-update-time');
+              if (timeEl) {
+                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
+              }
+            });
+          };
           
           if (valEl) {
             const oldVal = valEl.textContent;
@@ -3415,18 +3428,14 @@
             
             if (oldQuadVal !== newQuadVal) {
               pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
-              
-              // Update last updated time for quad sub-card
-              const subCard = quadValEl.closest('.quad-sub-card');
-              if (subCard) {
-                const timeEl = subCard.querySelector('.quad-update-time');
-                if (timeEl) {
-                  const now = new Date();
-                  timeEl.textContent = `Last updated: ${formatTime24h(now)}`;
-                }
-              }
+              updateQuadLastUpdated();
             }
           });
+
+          // Ngay cả khi giá trị không đổi, vẫn cập nhật thời gian nhận bản tin
+          if (quadValElements.length > 0) {
+            updateQuadLastUpdated();
+          }
 
           // Always update timestamp and timer if ts exists
           const tsEl = document.getElementById('tag-ts-' + tag.id);
