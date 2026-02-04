@@ -16,7 +16,7 @@
           <option value="last30days" {{ 'selected' if time_filter=='last30days' else '' }}>Last 30 Days</option>
           <option value="custom" {{ 'selected' if time_filter=='custom' else '' }}>Custom Range</option>
         </select>
-        
+
         <!-- Filter Status Badge -->
         {% if time_filter and time_filter != 'all' %}
         <a href="{{ url_for('alarms_bp.alarm_events') }}" class="text-decoration-none" title="Clear filter">
@@ -37,8 +37,8 @@
 
       <!-- Toggle button - visible on all screens -->
       <div class="align-self-center">
-        <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" 
-                data-bs-target="#alarmFilters" aria-expanded="false">
+        <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse"
+          data-bs-target="#alarmFilters" aria-expanded="false">
           <i class="bi bi-funnel"></i> Filters
         </button>
       </div>
@@ -50,7 +50,8 @@
         <!-- Search Box -->
         <div class="position-relative" style="min-width:200px; flex: 1 1 200px;">
           <span class="position-absolute top-50 translate-middle-y ms-2 opacity-50">🔎</span>
-          <input id="alarmSearchInput" class="form-control form-control-sm ps-4" placeholder="  Search…" oninput="App.filterTable('#tbl', this.value)">
+          <input id="alarmSearchInput" class="form-control form-control-sm ps-4" placeholder="  Search…"
+            oninput="App.filterTable('#tbl', this.value)">
         </div>
 
         <!-- Action Buttons -->
@@ -76,10 +77,12 @@
     <!-- Custom Date Range (shown when custom is selected) -->
     <div id="customDateRange" class="d-flex gap-2 align-items-center mb-1" style="display: none !important;">
       <label class="small text-muted mb-0">From:</label>
-      <input type="datetime-local" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}" style="width: 180px;">
+      <input type="datetime-local" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}"
+        style="width: 180px;">
       <span class="text-muted">→</span>
       <label class="small text-muted mb-0">To:</label>
-      <input type="datetime-local" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}" style="width: 180px;">
+      <input type="datetime-local" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}"
+        style="width: 180px;">
       <button type="button" class="btn btn-success btn-sm" onclick="applyTimeFilter()">Apply</button>
     </div>
   </div>
@@ -132,15 +135,15 @@
     </tbody>
   </table>
 </div>
-  <div class="card-footer small text-muted d-flex justify-content-between align-items-center">
-    <div id="rowCount">Showing 0 rows</div>
-    <nav aria-label="Page navigation">
-      <ul class="pagination pagination-sm mb-0" id="paginationContainer">
-        <!-- Pagination will be rendered here by JavaScript -->
-      </ul>
-    </nav>
-    <div><br></div>
-  </div>
+<div class="card-footer small text-muted d-flex justify-content-between align-items-center">
+  <div id="rowCount">Showing 0 rows</div>
+  <nav aria-label="Page navigation">
+    <ul class="pagination pagination-sm mb-0" id="paginationContainer">
+      <!-- Pagination will be rendered here by JavaScript -->
+    </ul>
+  </nav>
+  <div><br></div>
+</div>
 
 <style>
   /* Header bảng cố định trong khung cuộn */
@@ -173,10 +176,11 @@
     overflow: auto;
     padding-bottom: 30px;
   }
+
   @media (max-width: 768px) {
     .table-wrap {
       max-height: calc(100vh - 230px);
-      padding-bottom:50px;
+      padding-bottom: 50px;
     }
   }
 
@@ -190,23 +194,29 @@
     .card-body {
       padding: 0.6rem 0.75rem;
     }
+
     .table-wrap {
       max-height: calc(100vh - 240px);
       padding-bottom: 70px;
     }
-    .table th, .table td {
+
+    .table th,
+    .table td {
       padding: 0.5rem 0.55rem;
       font-size: 0.9rem;
     }
+
     #paginationContainer .page-link {
       padding: 0.25rem 0.55rem;
       font-size: 0.85rem;
     }
+
     .card-footer {
       flex-direction: column;
       align-items: flex-start;
       gap: 6px;
     }
+
     #rowCount {
       width: 100%;
     }
@@ -233,14 +243,14 @@
       row.style.display = (!search || text.includes(search)) ? '' : 'none';
     });
   };
-  
+
   // ===== Pagination Variables =====
   let currentPage = 1;
   const pageSize = 100;
   let totalPages = 1;
   let totalRows = 0;
   let isLoading = false;
-  
+
   let lastAlarmId = null;
   let selectedIds = new Set();
   let backToTopShown = false; // track first show state
@@ -261,23 +271,23 @@
   // Load alarm events by page
   async function loadPage(page) {
     if (isLoading) return;
-    
+
     isLoading = true;
     currentPage = page;
-    
+
     // Forward the current page's time filter params to the API
     const apiUrl = new URL(window.location.origin + "/alarms/api/alarm-events");
     const pageParams = new URLSearchParams(window.location.search);
     const tf = pageParams.get('time_filter');
     const fd = pageParams.get('from_date');
     const td = pageParams.get('to_date');
-    
+
     if (tf) apiUrl.searchParams.set('time_filter', tf);
     if (tf === 'custom') {
       if (fd) apiUrl.searchParams.set('from_date', fd);
       if (td) apiUrl.searchParams.set('to_date', td);
     }
-    
+
     // Add pagination params
     apiUrl.searchParams.set('offset', (page - 1) * pageSize);
     apiUrl.searchParams.set('limit', pageSize);
@@ -285,16 +295,16 @@
     try {
       const res = await fetch(apiUrl.toString());
       const data = await res.json();
-      
+
       if (data.success && data.items) {
         totalRows = data.total || 0;
         totalPages = Math.ceil(totalRows / pageSize);
-        
+
         const tbody = document.querySelector("#tbl tbody");
         if (!tbody) return;
-        
+
         tbody.innerHTML = "";
-        
+
         if (data.items.length === 0) {
           tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No alarm events.</td></tr>`;
         } else {
@@ -330,10 +340,10 @@
             tbody.appendChild(row);
           });
         }
-        
+
         // Update pagination UI
         updatePaginationUI();
-        
+
         // 🔒 Bảo vệ chống XSS
         function escapeHtml(s) {
           return String(s)
@@ -350,80 +360,80 @@
       isLoading = false;
     }
   }
-  
+
   // Pagination navigation functions
   function nextPage() {
     if (currentPage < totalPages) {
       loadPage(currentPage + 1);
     }
   }
-  
+
   function prevPage() {
     if (currentPage > 1) {
       loadPage(currentPage - 1);
     }
   }
-  
+
   function goToPage(page) {
     if (page >= 1 && page <= totalPages) {
       loadPage(page);
     }
   }
-  
+
   // Update pagination UI
   function updatePaginationUI() {
     const paginationContainer = document.getElementById('paginationContainer');
     if (!paginationContainer) return;
-    
+
     let html = '';
-    
+
     // Previous button
     html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">`;
     html += `<a class="page-link" href="#" onclick="prevPage(); return false;">Previous</a>`;
     html += `</li>`;
-    
+
     // Page numbers
     const maxVisible = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    
+
     if (endPage - startPage < maxVisible - 1) {
       startPage = Math.max(1, endPage - maxVisible + 1);
     }
-    
+
     if (startPage > 1) {
       html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1); return false;">1</a></li>`;
       if (startPage > 2) {
         html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
       }
     }
-    
+
     for (let i = startPage; i <= endPage; i++) {
       html += `<li class="page-item ${i === currentPage ? 'active' : ''}">`;
       html += `<a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>`;
       html += `</li>`;
     }
-    
+
     if (endPage < totalPages) {
       if (endPage < totalPages - 1) {
         html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
       }
       html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${totalPages}); return false;">${totalPages}</a></li>`;
     }
-    
+
     // Next button
     html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">`;
     html += `<a class="page-link" href="#" onclick="nextPage(); return false;">Next</a>`;
     html += `</li>`;
-    
+
     paginationContainer.innerHTML = html;
-    
+
     // Update row count display
     const countDiv = document.getElementById('rowCount');
     if (countDiv) {
       const startRow = (currentPage - 1) * pageSize + 1;
       const endRow = Math.min(currentPage * pageSize, totalRows);
-      countDiv.textContent = totalRows > 0 
+      countDiv.textContent = totalRows > 0
         ? `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`
         : 'Showing 0 rows';
     }
@@ -445,11 +455,11 @@
       alert('Please select at least one alarm event to delete');
       return false;
     }
-    
+
     const idsArray = Array.from(selectedIds);
     document.getElementById('ids-input').value = idsArray.join(",");
     console.log('Deleting IDs:', idsArray.join(",")); // Debug log
-    
+
     return confirm(`Delete ${selectedIds.size} selected alarm event(s)?`);
   }
 
@@ -458,13 +468,22 @@
       alert('Không tải được thư viện Excel. Vui lòng kiểm tra mạng/CDN và thử lại.');
       return;
     }
+    // Chuẩn hóa dấu thập phân về dạng x.x để Excel không tự đổi sang x,x
+    const normalizeNumber = (value) => {
+      if (value === null || value === undefined) return "";
+      const str = String(value).trim();
+      if (!str) return "";
+      const normalized = str.replace(/,/g, ".");
+      const num = Number(normalized);
+      return Number.isFinite(num) ? num : str;
+    };
     // Determine current filter and custom range BEFORE building API URL
     const filterSelect = document.getElementById('timeFilterSelect');
     const selectedFilter = filterSelect ? filterSelect.value : 'all';
     const fromInput = document.getElementById('fromDate');
     const toInput = document.getElementById('toDate');
-  const qInput = document.getElementById('alarmSearchInput');
-  const q = (qInput?.value || '').trim();
+    const qInput = document.getElementById('alarmSearchInput');
+    const q = (qInput?.value || '').trim();
 
     // Build API URL with time filter params so backend returns filtered data
     const apiUrl = new URL(window.location.origin + "/alarms/api/alarm-report");
@@ -490,13 +509,13 @@
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Alarm Report");
 
-  // ==== Compute FROM / TO similar to Reports ====
+    // ==== Compute FROM / TO similar to Reports ====
 
     const fmt = (d) => {
       if (!d) return '';
       // Format: DD/MM/YYYY HH:mm:ss (local)
       const pad = (n) => String(n).padStart(2, '0');
-      return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     };
     const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
     const endOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
@@ -559,8 +578,8 @@
 
     data.items.forEach(e => {
       const row = sheet.addRow([
-        e.code || "", e.incoming_date || "", e.incoming_value ?? "",
-        e.outgoing_date || "", e.outgoing_value ?? "", e.operator || "", e.threshold ?? ""
+        e.code || "", e.incoming_date || "", normalizeNumber(e.incoming_value),
+        e.outgoing_date || "", normalizeNumber(e.outgoing_value), e.operator || "", normalizeNumber(e.threshold)
       ]);
       // Căn trái cột ALARM CODE, các cột còn lại giữ center
       row.eachCell((cell, colNumber) => {
