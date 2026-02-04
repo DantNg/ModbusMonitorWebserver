@@ -1100,7 +1100,9 @@
       
       // Add comparison info if active - đặt ở A5, A6, ...
       if (comparisonPairs && comparisonPairs.length > 0) {
-        const conditionSymbols = { eq: '=', ne: '≠', gt: '>', lt: '<', gte: '≥', lte: '≤' };
+        // Hiển thị hướng điều kiện theo trục PrimaryTag (bên trái) so với CompareTag (bên phải)
+        // Vì logic so sánh thực tế là compareTag ? primaryTag nên cần đảo chiều ký hiệu cho các phép bất đẳng thức
+        const conditionSymbols = { eq: '=', ne: '≠', gt: '<', lt: '>', gte: '≤', lte: '≥' };
         
         // Dòng A5: Label "COMPARISON CONDITIONS:"
         const labelRow = sheet.addRow(['COMPARISON CONDITIONS:']);
@@ -1267,7 +1269,11 @@
       sheet.columns = header.map(colName => {
         const textLen = (colName || '').length;
         // Công thức: (độ dài tên * 1.2) + padding, min 12, max 80
-        const width = Math.min(80, Math.max(12, textLen * 1.2 + 3));
+        let width = Math.min(80, Math.max(12, textLen * 1.2 + 3));
+        // Timestamp cần rộng hơn để hiển thị đầy đủ ngày giờ
+        if ((colName || '').toLowerCase() === 'timestamp') {
+          width = Math.max(width, 22);
+        }
         return { width };
       });
 
