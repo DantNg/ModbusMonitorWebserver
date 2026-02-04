@@ -475,7 +475,7 @@
       if (!str) return "";
       const normalized = str.replace(/,/g, ".");
       // Thêm ' để Excel coi là text, không tự đổi sang dấu phẩy theo locale
-      return `'${normalized}`;
+      return `${normalized}`;
     };
     // Determine current filter and custom range BEFORE building API URL
     const filterSelect = document.getElementById('timeFilterSelect');
