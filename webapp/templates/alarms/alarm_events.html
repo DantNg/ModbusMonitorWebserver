@@ -468,14 +468,14 @@
       alert('Không tải được thư viện Excel. Vui lòng kiểm tra mạng/CDN và thử lại.');
       return;
     }
-    // Chuẩn hóa dấu thập phân về dạng x.x để Excel không tự đổi sang x,x
+    // Chuẩn hóa dấu thập phân về dạng x.x và buộc Excel giữ nguyên (đẩy dạng text)
     const normalizeNumber = (value) => {
       if (value === null || value === undefined) return "";
       const str = String(value).trim();
       if (!str) return "";
       const normalized = str.replace(/,/g, ".");
-      const num = Number(normalized);
-      return Number.isFinite(num) ? num : str;
+      // Thêm ' để Excel coi là text, không tự đổi sang dấu phẩy theo locale
+      return `'${normalized}`;
     };
     // Determine current filter and custom range BEFORE building API URL
     const filterSelect = document.getElementById('timeFilterSelect');
