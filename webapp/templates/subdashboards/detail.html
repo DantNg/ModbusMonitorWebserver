@@ -1300,6 +1300,23 @@
   .quad-tag-value {
     font-size: 1rem;
   }
+
+  /* Giữ đơn vị không đè lên giá trị ở màn hình nhỏ */
+  .quad-tag-value-row {
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  .quad-sub-card .quad-tag-unit {
+    position: static !important;
+    transform: none !important;
+    right: auto !important;
+    top: auto !important;
+    margin-left: 4px !important;
+    align-self: center !important;
+    line-height: 1.1 !important;
+  }
 }
 
 /* Dark theme support */
