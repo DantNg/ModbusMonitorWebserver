@@ -3603,7 +3603,7 @@
             tagId: null,
             title: `🚨 ${cardTitle} - ${groupName}`,
             message: `${alarmType} alarm: PV=${tag1Val}, SV=${tag2Val} (${operator} ${threshold})`,
-            level: alarmType === 'High' ? 'Critical' : 'Warning', // High=red, Low=yellow
+            level: 'High',
             timestamp: new Date(),
             status: 'Active',
             read: false
@@ -3623,16 +3623,16 @@
             serverId: undefined,
             alarmId: `quad-${quadId}-${column}`,
             tagId: null,
-            title: `✅ Quad ${quadId} - ${column === 'left' ? 'Left' : 'Right'}`,
-            message: `Alarm cleared (${alarmType})`,
-            level: 'Info',
+            title: `🚨 ${cardTitle} - ${groupName}`,
+            message: `${alarmType} alarm: PV=${tag1Val}, SV=${tag2Val} (${operator} ${threshold})`,
+            level: 'Info', 
             timestamp: new Date(),
             status: 'Cleared',
             read: false
           });
         }
         
-        console.log(`✅ Quad alarm cleared: Quad ${quadId} - ${column} column`);
+        
       }
     });
 
