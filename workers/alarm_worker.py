@@ -1269,7 +1269,7 @@ class AlarmWorker:
                     try:
                         ts_now = datetime.now()
                         # Set level based on alarm type: High -> High, Low -> Warning
-                        alarm_level = "High" if alarm_type == "High" else "Warning"
+                        alarm_level = "Critical"
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now,
                             name=alarm_name,
@@ -1367,7 +1367,7 @@ class AlarmWorker:
                         # Use tag1_id as target since it's the primary tag for the column
                         target_tag_id = tag1_id
                         # Set level based on alarm type: High -> Critical, Low -> Warning
-                        alarm_level = "Critical" if alarm_type == "High" else "Warning"
+                        alarm_level = "Warning"
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now,
                             name=alarm_name,
