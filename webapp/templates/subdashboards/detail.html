@@ -3523,17 +3523,21 @@
       const alarmType = data.alarm_type; // 'High' or 'Low'
       const status = data.status; // 'INCOMING' or 'OUTGOING'
       
-      // Find quad card element
+      // Tìm quad card
       const quadCard = document.querySelector(`.quad-tag-card[data-quad-id="${quadId}"]`);
       if (!quadCard) {
         console.warn(`Quad card ${quadId} not found`);
         return;
       }
-      
-      // Find the sub-card for this column (left=first, right=second)
-      const subCards = quadCard.querySelectorAll('.quad-sub-card');
-      const subCard = column === 'left' ? subCards[0] : subCards[1];
-      
+
+      // Tìm sub-card chuẩn bằng data-attribute; fallback về index nếu cần
+      const subCardSelector = `.quad-sub-card[data-quad-id="${quadId}"][data-column="${column}"]`;
+      let subCard = document.querySelector(subCardSelector);
+      if (!subCard) {
+        const subCards = quadCard.querySelectorAll('.quad-sub-card');
+        subCard = column === 'left' ? subCards[0] : subCards[1];
+      }
+
       if (!subCard) {
         console.warn(`Sub-card for column ${column} not found`);
         return;
@@ -3609,8 +3613,24 @@
         console.log(`✅ Quad alarm notification shown: ${cardTitle} - ${groupName} (${alarmType})`);
         
       } else if (status === 'OUTGOING') {
-        // Remove alarm classes
+        // Gỡ class cảnh báo
         subCard.classList.remove('quad-alarm-high', 'quad-alarm-low');
+
+        // Hiển thị thông báo clear (nếu NotificationSystem sẵn có)
+        if (typeof NotificationSystem !== 'undefined') {
+          NotificationSystem.addNotification({
+            id: Date.now() + Math.random(),
+            serverId: undefined,
+            alarmId: `quad-${quadId}-${column}`,
+            tagId: null,
+            title: `✅ Quad ${quadId} - ${column === 'left' ? 'Left' : 'Right'}`,
+            message: `Alarm cleared (${alarmType})`,
+            level: 'Info',
+            timestamp: new Date(),
+            status: 'Cleared',
+            read: false
+          });
+        }
         
         console.log(`✅ Quad alarm cleared: Quad ${quadId} - ${column} column`);
       }
