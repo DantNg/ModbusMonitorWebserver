@@ -3406,8 +3406,8 @@
             tag.device_status || tag.status || tag.connection_status || domStatus || payloadDeviceStatus
           );
 
-          // Nếu vẫn unknown nhưng nhận được giá trị thì giả định đang online
-          if (perTagStatus === 'unknown' && (tag.value !== undefined && tag.value !== null)) {
+          // Nếu vẫn unknown/disconnected nhưng liên tục nhận giá trị thì coi như online
+          if ((perTagStatus === 'unknown' || perTagStatus === 'disconnected') && (tag.value !== undefined && tag.value !== null)) {
             perTagStatus = 'connected';
           }
 
