@@ -1905,9 +1905,15 @@
       });
     }
 
-    // Request notification permission on page load
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
+    // Request notification permission on page load (only when secure context)
+    function canUseNativeNotifications() {
+      return typeof Notification !== 'undefined' && window.isSecureContext && Notification.permission === 'granted';
+    }
+
+    if (typeof Notification !== 'undefined' && window.isSecureContext && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {
+        console.warn('Notification permission request failed (likely insecure context).');
+      });
     }
 
     // Handle remove tag from group
@@ -3572,8 +3578,8 @@
         const alarmTitle = `🚨 Quad Alarm: ${alarmType} Threshold`;
         const alarmBody = `${cardTitle} - ${groupName}\nPV: ${tag1Val} | SV: ${tag2Val}\nCondition: ${operator} ${threshold}`;
         
-        // Show browser notification
-        if (window.Notification && Notification.permission === 'granted') {
+        // Show browser notification when allowed; otherwise fallback to bell list only
+        if (canUseNativeNotifications()) {
           const notification = new Notification(alarmTitle, {
             body: alarmBody,
             icon: '/static/favicon.ico',
@@ -3592,6 +3598,8 @@
             // Scroll to the quad card
             quadCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
           };
+        } else {
+          console.warn('Native notifications unavailable (permission denied or insecure context); using bell list only.');
         }
         
         // Add to notification bell list with proper color coding

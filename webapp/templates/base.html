@@ -304,34 +304,36 @@
           if (response.ok) {
             const serverNotifications = await response.json();
             console.log('[Notifications] Loaded from server:', serverNotifications?.length ?? 0);
-            
-            // Convert server notifications to notification format
+            // Preserve local transient notifications (no serverId)
+            const localTransient = this.notifications.filter(n => !n.serverId);
+
+            // Reset cache to mirror server truth
+            this.notifications = [];
+            this.seenKeys.clear();
+
+            // Hydrate from server
             serverNotifications.forEach(notification => {
-              // Check if notification already exists
               const createdAt = notification.created_at ? new Date(notification.created_at) : new Date();
               const alarmId = notification.alarm_event_id;
               const tagId = notification.tag_id;
-              const exists = this.notifications.some(n =>
-                (n.serverId && n.serverId === notification.id) ||
-                (alarmId && n.alarmId === alarmId) ||
-                (tagId && n.tagId === tagId && n.timestamp && new Date(n.timestamp).getTime() === createdAt.getTime())
-              );
-              
-              if (!exists) {
-                this.addNotification({
-                  serverId: notification.id,
-                  alarmId,
-                  tagId,
-                  title: notification.title || 'System Notification',
-                  message: notification.message || '',
-                  level: notification.level || 'Medium',
-                  timestamp: createdAt,
-                  read: notification.is_read || false,
-                  type: 'server'
-                }, false); // false = don't show animation for existing notifications
-              }
+
+              this.addNotification({
+                serverId: notification.id,
+                alarmId,
+                tagId,
+                title: notification.title || 'System Notification',
+                message: notification.message || '',
+                level: notification.level || 'Medium',
+                timestamp: createdAt,
+                read: notification.is_read || false,
+                type: 'server'
+              }, false); // false = don't show animation for existing notifications
             });
-            // After merging, update UI in case nothing else changed
+
+            // Re-append transient (local) notifications without serverId
+            localTransient.forEach(n => this.addNotification(n, false));
+
+            // After syncing, update UI
             this.updateUI();
           }
         } catch (e) {
