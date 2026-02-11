@@ -311,8 +311,14 @@
             this.notifications = [];
             this.seenKeys.clear();
 
-            // Hydrate from server
-            serverNotifications.forEach(notification => {
+            // Hydrate from server (newest first)
+            const sorted = [...serverNotifications].sort((a, b) => {
+              const aTime = new Date(a.created_at || 0).getTime();
+              const bTime = new Date(b.created_at || 0).getTime();
+              return bTime - aTime;
+            });
+
+            sorted.forEach(notification => {
               const createdAt = notification.created_at ? new Date(notification.created_at) : new Date();
               const alarmId = notification.alarm_event_id;
               const tagId = notification.tag_id;
@@ -333,12 +339,24 @@
             // Re-append transient (local) notifications without serverId
             localTransient.forEach(n => this.addNotification(n, false));
 
+            // Ensure newest notifications stay on top across all sources
+            this.sortNotificationsDesc();
+
             // After syncing, update UI
             this.updateUI();
           }
         } catch (e) {
           console.error('Error loading server notifications:', e);
         }
+      },
+
+      // Sort notifications by timestamp (newest first)
+      sortNotificationsDesc() {
+        this.notifications.sort((a, b) => {
+          const at = new Date(a.timestamp || 0).getTime();
+          const bt = new Date(b.timestamp || 0).getTime();
+          return bt - at;
+        });
       },
 
       bindEvents() {
@@ -615,6 +633,8 @@
           this.notifications = [];
           this.seenKeys.clear();
         }
+        // Keep newest on top after loading from localStorage
+        this.sortNotificationsDesc();
         this.updateUI();
       },
 
