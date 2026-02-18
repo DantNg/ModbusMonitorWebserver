@@ -1,0 +1,118 @@
+/* ==========================================================================
+   Reports Page Styles
+   Extracted from reports/reports.html inline <style>
+   ========================================================================== */
+
+/* Sticky table headers */
+.table-responsive thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bs-body-bg, #fff);
+}
+
+/* Limit table height to keep content within viewport */
+.reports-table-wrapper {
+  max-height: calc(100vh - 190px);
+  overflow: auto;
+  padding-bottom: 10px;
+}
+
+@media (max-width: 768px) {
+  .reports-table-wrapper {
+    max-height: calc(100vh - 280px);
+    padding-bottom: 24px;
+  }
+}
+
+/* Mobile polish: reduce padding, font size and align pagination */
+@media (max-width: 576px) {
+  #toolbar .card-body {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .reports-table-wrapper {
+    max-height: calc(100vh - 220px);
+    padding-bottom: 10px;
+  }
+
+  table.table th,
+  table.table td {
+    padding: 0.5rem 0.55rem;
+    font-size: 0.9rem;
+  }
+
+  #paginationContainer .page-link {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.85rem;
+  }
+
+  .card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding-top: 0.65rem;
+  }
+
+  .card-footer > div:first-child {
+    width: 100%;
+  }
+}
+
+/* Loading indicator */
+#loadingIndicator {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  display: none;
+}
+
+#loadingIndicator.active {
+  display: block;
+}
+
+/* Condition Preview: force light by default, override when dark theme */
+.alert.condition-preview-box,
+.condition-preview-box {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #e5e7eb !important;
+  box-shadow: none;
+}
+
+.condition-preview-box .text-muted {
+  color: #6b7280 !important;
+}
+
+/* Reduce bottom spacing of reports card */
+.reports-card {
+  margin-bottom: 0;
+}
+
+.reports-card .card-footer {
+  padding-top: 0.45rem;
+  padding-bottom: 0.2rem;
+}
+
+@media (max-width: 576px) {
+  .reports-card {
+    margin-bottom: 0;
+  }
+
+  .reports-card .card-footer {
+    padding-top: 0.35rem;
+    padding-bottom: 0.1rem;
+  }
+}
+
+/* Dark theme overrides */
+[data-bs-theme="dark"] .alert.condition-preview-box,
+[data-bs-theme="dark"] .condition-preview-box {
+  background: #1f2937 !important;
+  color: #e5e7eb !important;
+  border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .condition-preview-box .text-muted {
+  color: #cbd5e1 !important;
+}

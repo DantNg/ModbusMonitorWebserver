@@ -83,6 +83,10 @@ except Exception as e:
 
 
 def main():
+	# --- Single Instance Check ---
+	from utils.single_instance import ensure_single_instance
+	_instance_lock = ensure_single_instance("modbus_webserver")
+
 	logger.info("🌐 Starting Flask Modbus Monitor - via modbus_monitor_webserver.py")
 	logger.info("• This process runs the web interface (Socket.IO enabled)")
 	

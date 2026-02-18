@@ -263,6 +263,10 @@ class ModbusOrchestrator:
 
 
 def main():
+    # --- Single Instance Check ---
+    from utils.single_instance import ensure_single_instance
+    _instance_lock = ensure_single_instance("orchestra_modbus")
+
     parser = argparse.ArgumentParser(description="Modbus Workers Orchestrator")
     parser.add_argument("--webapp-url", default="http://127.0.0.1:5000",
                         help="URL webapp (Socket.IO) để workers TCP emit realtime")

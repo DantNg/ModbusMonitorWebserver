@@ -393,6 +393,10 @@ class OrchestraDatalogger:
 
 def main():
     """Main entry point"""
+    # --- Single Instance Check ---
+    from utils.single_instance import ensure_single_instance
+    _instance_lock = ensure_single_instance("orchestra_datalogger")
+
     import argparse
     
     parser = argparse.ArgumentParser(description='Orchestra Datalogger - Manage multiple datalogger workers')

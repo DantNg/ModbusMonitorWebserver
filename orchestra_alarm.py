@@ -155,6 +155,10 @@ def signal_handler(signum, frame):
     
 def main():
     """Main entry point"""
+    # --- Single Instance Check ---
+    from utils.single_instance import ensure_single_instance
+    _instance_lock = ensure_single_instance("orchestra_alarm")
+
     print("🚨 Modbus Monitor - Alarm Worker Service")
     print("=" * 50)
     

@@ -58,21 +58,6 @@
   </div>
 </div>
 <script>
-window.App = window.App || {};
-App.filterTable = function(tableSelector, keyword) {
-  const table = document.querySelector(tableSelector);
-  if (!table) return;
-  const rows = table.querySelectorAll('tbody tr');
-  const search = keyword.trim().toLowerCase();
-  rows.forEach(row => {
-    // Combine all cell text in the row
-    const text = Array.from(row.cells).map(td => td.textContent.toLowerCase()).join(' ');
-    // Show row if search is empty or found in text
-    row.style.display = (!search || text.includes(search)) ? '' : 'none';
-  });
-};
-</script>
-<script>
 // Reload Datalogger worker (orchestra_datalogger.exe)
 (function(){
   const btn = document.getElementById('reloadDataloggerBtn');

@@ -1,0 +1,78 @@
+/* ==========================================================================
+   Alarm Events Page Styles
+   Extracted from alarms/alarm_events.html inline <style>
+   ========================================================================== */
+
+/* Sticky table headers within scroll container */
+.table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bs-body-bg, #fff);
+}
+
+/* Back to Top button show/hide effect */
+#backToTop {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+}
+
+#backToTop.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Limit table height to keep content within viewport */
+.table-wrap {
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+  padding-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .table-wrap {
+    max-height: calc(100vh - 300px);
+    padding-bottom: 24px;
+  }
+}
+
+/* Light spacing between table and pagination */
+.card-footer {
+  padding-top: 0.65rem;
+}
+
+/* Mobile refinements: reduce padding, font size, align pagination */
+@media (max-width: 576px) {
+  .card-body {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .table-wrap {
+    max-height: calc(100vh - 320px);
+    padding-bottom: 32px;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.5rem 0.55rem;
+    font-size: 0.9rem;
+  }
+
+  #paginationContainer .page-link {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.85rem;
+  }
+
+  .card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  #rowCount {
+    width: 100%;
+  }
+}
