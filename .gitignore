@@ -49,3 +49,6 @@ release_*
 test/*
 output/*
 config/SMTP_config.json
+/build/*
+/release/*
+*.spec
