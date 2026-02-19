@@ -63,7 +63,7 @@ def create_app():
     app.secret_key = smtp_cfg.get("SECRET_KEY")
 
     # App naming configuration: support customizing brand/title, login and footer names
-    # Sources (priority): root 'config.txt' then 'config/config.txt'
+    # Sources (priority): root 'web_config.txt' then 'config/web_config.txt'
     # Supported formats:
     #  - Plain text: first line is the brand/title name
     #  - JSON: {"app_name":"...", "brand_name":"...", "login_name":"...", "footer_name":"..."}
@@ -96,14 +96,14 @@ def create_app():
             if first_line:
                 brand_name = first_line
 
-    # Try root config.txt first
-    root_cfg = os.path.join(project_root, 'config.txt')
+    # Try root web_config.txt first
+    root_cfg = os.path.join(project_root, 'web_config.txt')
     if os.path.exists(root_cfg):
         with open(root_cfg, 'r', encoding='utf-8') as f:
             _parse_names(f.read())
     else:
-        # Fallback: config/config.txt
-        alt_cfg = os.path.join(project_root, "config", "config.txt")
+        # Fallback: config/web_config.txt
+        alt_cfg = os.path.join(project_root, "config", "web_config.txt")
         if os.path.exists(alt_cfg):
             with open(alt_cfg, 'r', encoding='utf-8') as f:
                 _parse_names(f.read())

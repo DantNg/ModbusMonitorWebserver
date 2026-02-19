@@ -61,7 +61,7 @@ set "DATA_WORKERS=--add-data=workers;workers/"
 set "DATA_UTILS=--add-data=utils;utils/"
 set "DATA_SHARED=--add-data=shared;shared/"
 set "DATA_WEBAPP=--add-data=webapp;webapp/"
-set "DATA_CONFIG=--add-data=config.txt;."
+set "DATA_CONFIG=--add-data=web_config.txt;."
 
 :: Track build results
 set "BUILD_SUCCESS=0"
@@ -189,7 +189,7 @@ if %ERRORLEVEL% equ 0 (
 echo.
 echo [INFO] Copying additional files to release...
 
-if exist "config.txt" copy /Y "config.txt" "release\config.txt" >nul 2>&1
+if exist "web_config.txt" copy /Y "web_config.txt" "release\web_config.txt" >nul 2>&1
 if exist "config" xcopy /Y /E /I "config" "release\config" >nul 2>&1
 if exist "version_info.txt" copy /Y "version_info.txt" "release\version_info.txt" >nul 2>&1
 
