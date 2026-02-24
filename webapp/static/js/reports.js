@@ -1003,4 +1003,3 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
       }
     }
   }
-</script>

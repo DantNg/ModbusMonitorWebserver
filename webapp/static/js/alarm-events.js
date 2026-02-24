@@ -586,5 +586,3 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     btn.addEventListener('pointerdown', () => { btn.style.transform = 'scale(0.96)'; });
     btn.addEventListener('pointerup', () => { btn.style.transform = 'scale(1)'; });
   });
-
-</script>

@@ -52,3 +52,4 @@ config/SMTP_config.json
 /build/*
 /release/*
 *.spec
+*.exe
