@@ -89,6 +89,22 @@ def subdash_detail(sid):
         g["tags"] = [enrich_tag(tag) for tag in db.get_tags_of_group(g["id"])]
         # Add quad cards to group
         g["quad_cards"] = db.get_quad_cards_for_group(g["id"]) if hasattr(db, "get_quad_cards_for_group") else []
+        # Enrich device_status for quad card tags (fix: quad tags were missing status on page load)
+        for qc in g["quad_cards"]:
+            for pos in [1, 2, 3, 4]:
+                tag_data = qc.get(f'tag{pos}')
+                if tag_data and isinstance(tag_data, dict):
+                    device_id = tag_data.get('device_id')
+                    if device_id:
+                        status_str, last_seen = _get_device_status(device_id)
+                        tag_data['device_status'] = status_str
+                        tag_data['device_last_seen'] = last_seen
+                    else:
+                        tag_data['device_status'] = 'unknown'
+                        tag_data['device_last_seen'] = None
+                    # Force value to 0 if device is disconnected
+                    if tag_data.get('device_status') == 'disconnected':
+                        tag_data['last_value'] = 0
 
     # Get active quad alarms for this subdashboard
     active_quad_alarms = []
