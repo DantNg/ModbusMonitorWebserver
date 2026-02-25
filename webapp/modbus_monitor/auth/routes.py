@@ -74,12 +74,17 @@ def edit_user(username):
 
 @auth_bp.route("/user-management/<username>/delete", methods=["POST"])
 def delete_user(username):
+    # Only admin can delete users
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
+
     user = db.get_user_by_username(username)
     if not user:
         return "User not found", 404
 
-    if user["role"] == "admin":
-        return "Cannot delete admin users.", 403
+    # Admin cannot delete their own account
+    if user["id"] == session.get("user_id"):
+        return "Cannot delete your own account.", 403
 
     db.delete_user_row(user["id"])
     return redirect(url_for("auth_bp.user_management"))
