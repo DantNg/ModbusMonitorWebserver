@@ -229,6 +229,14 @@ def load_comparison_config():
         
         config_json = db.get_user_comparison_config(user_id, logger_id)
         
+        # Fallback: nếu user hiện tại không có config, thử load từ admin users
+        if not config_json and session.get("role") != "admin":
+            admin_users = [u for u in db.list_users() if u.get("role") == "admin"]
+            for admin_user in admin_users:
+                config_json = db.get_user_comparison_config(admin_user["id"], logger_id)
+                if config_json:
+                    break
+        
         if config_json:
             import json
             config = json.loads(config_json)

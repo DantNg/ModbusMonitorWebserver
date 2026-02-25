@@ -106,6 +106,7 @@
                   <div class="fw-semibold">{{ tag.name }}</div>
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
+                {% if session.get("role") == "admin" %}
                 <div class="dropdown">
                   <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"
                     aria-expanded="false">
@@ -120,16 +121,15 @@
                       </button>
                     </li>
                     {% endif %}
-                    {% if session.get("role") == "admin" %}
                     <li>
                       <button class="dropdown-item text-danger remove-tag-btn" data-tag-id="{{ tag.id }}"
                         data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}">
                         <i class="bi bi-x-circle me-2"></i>Remove from Group
                       </button>
                     </li>
-                    {% endif %}
                   </ul>
                 </div>
+                {% endif %}
               </div>
               <div class="d-flex justify-content-between mt-2">
                 <div>
@@ -392,6 +392,7 @@
                   <div class="fw-semibold">{{ tag.name }}</div>
                   <div class="text-muted small">{{ tag.description or ' ' }}</div>
                 </div>
+                {% if session.get("role") == "admin" %}
                 <div class="dropdown">
                   <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"
                     aria-expanded="false">
@@ -407,16 +408,15 @@
                       </button>
                     </li>
                     {% endif %}
-                    {% if session.get("role") == "admin" %}
                     <li>
                       <button class="dropdown-item text-danger remove-tag-btn" data-tag-id="{{ tag.id }}"
                         data-tag-name="{{ tag.name }}" data-group-id="{{ group.id }}">
                         <i class="bi bi-x-circle me-2"></i>Remove from Group
                       </button>
                     </li>
-                    {% endif %}
                   </ul>
                 </div>
+                {% endif %}
               </div>
               <div class="d-flex justify-content-between mt-2">
                 <div>

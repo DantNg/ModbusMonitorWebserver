@@ -7,7 +7,9 @@
       <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
       <input class="form-control ps-5" placeholder="Search users…" oninput="App.filterTable('#tbl', this.value)">
     </div>
+    {% if session.get("role") == "admin" %}
     <a class="btn btn-primary" href="{{ url_for('auth_bp.add_user') }}">+ Add User</a>
+    {% endif %}
   </div>
 </div>
 
@@ -40,14 +42,18 @@
             {% endif %}
           </td>
           <td class="text-end">
+            {% if session.get("role") == "admin" or user.id == session.get("user_id") %}
             <div class="btn-group">
               <a href="{{ url_for('auth_bp.edit_user', username=user['username']) }}"
                 class="btn btn-sm btn-outline-secondary">Edit</a>
+              {% if session.get("role") == "admin" and user.role != 'admin' %}
               <form method="post" action="{{ url_for('auth_bp.delete_user', username=user['username']) }}"
                 class="d-inline" onsubmit="return confirm('Delete this user?')">
                 <button class="btn btn-sm btn-outline-danger">Delete</button>
               </form>
+              {% endif %}
             </div>
+            {% endif %}
           </td>
         </tr>
         {% endif %}

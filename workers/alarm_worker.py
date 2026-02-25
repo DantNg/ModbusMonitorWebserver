@@ -127,6 +127,7 @@ class AlarmWorker:
         self._alarm_since: Dict[int, float] = {}  # rule_id -> timestamp when state changed
         self._last_notification: Dict[int, Dict[str, float]] = {}  # rule_id -> {"incoming": ts, "outgoing": ts}
         self._alarm_types: Dict[str, str] = {}  # alarm_key -> "High" or "Low" (for quad alarms)
+        self._offline_skipped: set = set()  # alarm_keys skipped due to device offline (for reconnect re-emit)
         
         # Operator mapping for faster evaluation
         self._operator_map = {
@@ -1072,7 +1073,15 @@ class AlarmWorker:
 
         if offline_tags:
             self.log("DEBUG", f"Quad {quad_id} {column}: skip evaluation - device offline for tag(s) {sorted(offline_tags)}")
+            # Track that this alarm_key was skipped due to offline device
+            self._offline_skipped.add(alarm_key)
             return
+        
+        # Check if device just came back online (was previously offline-skipped)
+        reconnected = alarm_key in self._offline_skipped
+        if reconnected:
+            self._offline_skipped.discard(alarm_key)
+            self.log("INFO", f"Quad {quad_id} {column}: device back online, will re-evaluate alarm state")
         
         # Initialize thresholds with default values
         high_threshold = None
@@ -1148,7 +1157,8 @@ class AlarmWorker:
             high_op if high_condition_met else low_op,
             current_alarm_type,
             high_threshold, low_threshold, high_op, low_op,  # Pass all thresholds for OUTGOING note
-            quad_card  # Pass quad_card to get name
+            quad_card,  # Pass quad_card to get name
+            reconnected  # Pass reconnected flag for re-emit after device comes back online
         )
     
     def _process_quad_alarm_state(self, alarm_key: str, current_condition: bool,
@@ -1162,7 +1172,8 @@ class AlarmWorker:
                                    current_alarm_type: str,
                                    high_threshold: float, low_threshold: float,
                                    high_op: str, low_op: str,
-                                   quad_card: dict = None):
+                                   quad_card: dict = None,
+                                   reconnected: bool = False):
         """Process quad alarm state with stability timers"""
         
         now = time.time()
@@ -1439,6 +1450,31 @@ class AlarmWorker:
             if alarm_key in self._alarm_since:
                 del self._alarm_since[alarm_key]
                 self.log("DEBUG", f"Quad {quad_id} {column}: Reset timer (stable state: condition={current_condition}, active={previous_active})")
+            
+            # Re-emit INCOMING event after device reconnect so frontend restores alarm visual
+            if reconnected and current_condition and previous_active:
+                alarm_type = self._alarm_types.get(alarm_key, current_alarm_type or "High")
+                self.log("INFO", f"🔄 Quad {quad_id} {column}: Device reconnected - re-emitting INCOMING alarm event (type={alarm_type})")
+                try:
+                    event_data = {
+                        "quad_id": quad_id,
+                        "column": column,
+                        "alarm_type": alarm_type,
+                        "status": "INCOMING",
+                        "tag1_value": tag1_value,
+                        "tag2_value": tag2_value,
+                        "threshold": threshold,
+                        "operator": operator,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    self.data_queue.put({"type": "quad_alarm_event", "data": event_data})
+                    try:
+                        sio.emit('quad_alarm_event', event_data)
+                    except Exception:
+                        pass
+                    self.log("INFO", f"✅ Re-emitted quad alarm INCOMING after reconnect")
+                except Exception as e:
+                    self.log("ERROR", f"Failed to re-emit quad alarm after reconnect: {e}")
     
     def _send_quad_notification(self, alarm_key: str, alarm_name: str,
                                 value: float, threshold: float, operator: str,

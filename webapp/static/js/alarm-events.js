@@ -82,7 +82,8 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
         tbody.innerHTML = "";
 
         if (data.items.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No alarm events.</td></tr>`;
+          const colCount = (window.ALARM_EVENTS_CONFIG && window.ALARM_EVENTS_CONFIG.isAdmin) ? 5 : 4;
+          tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center text-muted py-4">No alarm events.</td></tr>`;
         } else {
           data.items.forEach(e => {
             const checked = selectedIds.has(String(e.id)) ? "checked" : "";
@@ -102,11 +103,12 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
             const row = document.createElement("tr");
             row.className = rowClass; // 👈 Nền của cả hàng
 
+            const isAdmin = window.ALARM_EVENTS_CONFIG && window.ALARM_EVENTS_CONFIG.isAdmin;
+            const checkboxTd = isAdmin
+              ? `<td><input type="checkbox" name="ids" value="${e.id}" ${checked} onchange="toggleSelect(this.value,this.checked)"></td>`
+              : '';
             row.innerHTML = `
-            <td>
-              <input type="checkbox" name="ids" value="${e.id}" ${checked}
-                     onchange="toggleSelect(this.value,this.checked)">
-            </td>
+            ${checkboxTd}
             <td>${escapeHtml(e.ts || "")}</td>
             <td>${escapeHtml(e.name || "")}</td>
             <td class="text-center">${escapeHtml(String(e.value ?? ""))}</td>

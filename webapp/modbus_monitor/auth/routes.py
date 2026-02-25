@@ -14,6 +14,7 @@ def login():
         password = request.form.get("password")
         user = db.get_user_by_username(username)
         if user and check_password_hash(user["password_hash"], password):
+            session.clear()  # Clear old session data to prevent role confusion
             session["user_id"] = user["id"]
             session["username"] = user["username"]
             session["role"] = user["role"]
@@ -23,8 +24,8 @@ def login():
     return render_template("auth/login.html", error=error)
 @auth_bp.route("/logout")
 def logout():
-    # Handle logout logic here
-    return render_template("auth/login.html")
+    session.clear()  # Clear ALL session data to prevent role confusion
+    return redirect(url_for("auth_bp.login"))
 
 @auth_bp.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
@@ -86,10 +87,13 @@ def delete_user(username):
 
 @auth_bp.route("/user-management/add", methods=["GET", "POST"])
 def add_user():
+    # Only admin can add users
+    if session.get("role") != "admin":
+        return redirect(url_for("auth_bp.user_management"))
     if request.method == "POST":
         data = {
             "username": request.form.get("username"),
-            "password_hash": request.form.get("password_hash"),  # Hash password before saving
+            "password_hash": generate_password_hash(request.form.get("password_hash")),  # Hash password before saving
             "role": request.form.get("role"),
         }
         db.add_user_row(data)
