@@ -219,10 +219,10 @@
   </div>
 </div>
 <!-- Export libraries (ExcelJS for styling, FileSaver to save) -->
-<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/js/exceljs.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/js/FileSaver.min.js') }}"></script>
 <!-- Optional: keep SheetJS for CSV path only -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/js/xlsx.full.min.js') }}"></script>
 <!-- Pass Jinja2 variables to external JS via config object -->
 <script>
   window.REPORTS_CONFIG = {

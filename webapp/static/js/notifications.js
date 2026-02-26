@@ -394,7 +394,7 @@ window.NotificationSystem = {
 document.addEventListener('DOMContentLoaded', () => {
   NotificationSystem.init();
   // Listen for real-time alarm events via Socket.IO
-  if (typeof socket !== 'undefined') {
+  if (typeof socket !== 'undefined' && socket !== null) {
     socket.on('alarm_event', function (data) {
       console.log('Received alarm_event via Socket.IO:', data);
       const alarmId = data.id || data.alarm_event_id;

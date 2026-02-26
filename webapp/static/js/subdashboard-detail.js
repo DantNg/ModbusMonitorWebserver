@@ -24,7 +24,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     const subdashApp = {
       changeGroup: function (groupId) {
         // Leave the previous socket room before switching group
-        if (typeof socket !== 'undefined') {
+        if (typeof socket !== 'undefined' && socket !== null) {
           socket.emit('leave', { room: `subdashboard_${currentSubdashId}` });
         }
 
@@ -131,7 +131,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         });
 
         // Send write command via Socket.IO
-        if (typeof socket !== 'undefined' && socket.connected) {
+        if (typeof socket !== 'undefined' && socket !== null && socket.connected) {
           // Prepare write command payload
           const writeCommand = {
             tag_id: parseInt(tagId),
@@ -1952,7 +1952,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   }
 
   // Real-time socket listener for modbus updates (immediate connection)
-  if (typeof socket !== 'undefined') {
+  if (typeof socket !== 'undefined' && socket !== null) {
     socket.on("modbus_update", function (data) {
       if (!data) return;
 
