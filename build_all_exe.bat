@@ -189,14 +189,9 @@ if %ERRORLEVEL% equ 0 (
 echo.
 echo [INFO] Copying additional files to release...
 
-if exist "web_config.txt" copy /Y "web_config.txt" "release\web_config.txt" >nul 2>&1
 if exist "config" xcopy /Y /E /I "config" "release\config" >nul 2>&1
 if exist "version_info.txt" copy /Y "version_info.txt" "release\version_info.txt" >nul 2>&1
 
-:: Copy startup/stop scripts
-for %%f in (start_all_services.bat stop_all_services.bat restart_all_services.bat) do (
-    if exist "%%f" copy /Y "%%f" "release\%%f" >nul 2>&1
-)
 
 :: ============================================================================
 :: Build Summary
