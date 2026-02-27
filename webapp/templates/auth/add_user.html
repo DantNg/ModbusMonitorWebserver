@@ -12,13 +12,8 @@
       <label for="password" class="form-label">Password</label>
       <input type="password" class="form-control" id="password" name="password_hash" required>
     </div>
-    <div class="mb-3">
-      <label for="role" class="form-label">Role</label>
-      <select class="form-select" id="role" name="role">
-        <option value="user">User</option>
-        <option value="admin">Admin</option>
-      </select>
-    </div>
+    <!-- Role is always 'user' - only one admin account allowed -->
+    <input type="hidden" name="role" value="user">
     <button type="submit" class="btn btn-success">Add User</button>
   </form>
 </div>

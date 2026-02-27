@@ -60,7 +60,7 @@ def edit_user(username):
     if request.method == "POST":
         data = {
             "username": request.form.get("username"),
-            "role": request.form.get("role"),
+            "role": user["role"],  # Preserve existing role - only one admin allowed
         }
         password = request.form.get("password")
         if password:  # If a new password is provided, hash it and include it in the update
@@ -99,7 +99,7 @@ def add_user():
         data = {
             "username": request.form.get("username"),
             "password_hash": generate_password_hash(request.form.get("password_hash")),  # Hash password before saving
-            "role": request.form.get("role"),
+            "role": "user",  # Only one admin allowed, new accounts are always 'user'
         }
         db.add_user_row(data)
         return redirect(url_for("auth_bp.user_management"))

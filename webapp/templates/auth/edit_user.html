@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set page_title = "Edit 1111User" %}
+{% set page_title = "Edit User" %}
 {% block content %}
 <div class="container py-5">
   <h1 class="mb-4">Edit User</h1>
@@ -8,15 +8,8 @@
       <label for="username" class="form-label">Username</label>
       <input type="text" class="form-control" id="username" name="username" value="{{ user['username'] }}" required>
     </div>
-    <div class="mb-3">
-      {% if user['role'] == 'admin' %}
-      <label for="role" class="form-label">Role</label>
-      <select class="form-select" id="role" name="role" >
-        <option value="user" {% if user['role'] == 'user' %}selected{% endif %}>User</option>
-        <option value="admin" {% if user['role'] == 'admin' %}selected{% endif %}>Admin</option>
-      </select>
-      {% endif %}
-    </div>
+    <!-- Role cannot be changed - only one admin allowed -->
+    <input type="hidden" name="role" value="{{ user['role'] }}">
     <div class="mb-3">
       <label for="password" class="form-label">New Password (leave blank to keep current password)</label>
       <input type="password" class="form-control" id="password" name="password">

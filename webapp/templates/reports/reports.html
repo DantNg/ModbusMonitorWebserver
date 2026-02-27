@@ -133,29 +133,40 @@
           <!-- Comparison pairs container -->
           <div id="comparisonPairsContainer"></div>
           
-          <!-- Add pair button -->
+          {% if session.get('role') == 'admin' %}
+          <!-- Add pair button - admin only -->
           <div class="mb-3">
             <button type="button" class="btn btn-sm btn-outline-primary" onclick="addComparisonPair()">
               <i class="bi bi-plus-circle"></i> Add Comparison Pair
             </button>
           </div>
+          {% endif %}
           
           <!-- Action buttons -->
           <div class="d-flex gap-2 align-items-center mb-3">
             <button type="button" class="btn btn-sm btn-success" onclick="applyComparison()">
               <i class="bi bi-check-circle"></i> Apply
             </button>
+            {% if session.get('role') == 'admin' %}
             <button type="button" class="btn btn-sm btn-secondary" onclick="clearComparison()">
               <i class="bi bi-x-circle"></i> Clear All
             </button>
+            {% endif %}
             <small class="text-muted ms-3" id="comparisonStatus">No conditions</small>
           </div>
           
+          {% if session.get('role') == 'admin' %}
           <div class="alert alert-info alert-sm mb-0 small">
             <i class="bi bi-info-circle"></i> 
             <strong>Guide:</strong> Select <strong>Main Tag</strong> to highlight, then select up to 2 <strong>tags to compare</strong>. 
             When condition is met (e.g., Tag5 = Tag3), <strong>Main Tag cell (Tag5)</strong> will be highlighted. Configuration is saved automatically.
           </div>
+          {% else %}
+          <div class="alert alert-secondary alert-sm mb-0 small">
+            <i class="bi bi-info-circle"></i> 
+            Comparison config is managed by Admin. You can only apply the existing configuration.
+          </div>
+          {% endif %}
       </div>
     </div>
   </form>
@@ -230,7 +241,8 @@
     currentLoggerName: '{{ current_logger_name|replace(" ","_") }}',
     saveComparisonUrl: '{{ url_for("reports_bp.save_comparison_config") }}',
     loadComparisonUrl: '{{ url_for("reports_bp.load_comparison_config") }}',
-    deleteComparisonUrl: '{{ url_for("reports_bp.delete_comparison_config") }}'
+    deleteComparisonUrl: '{{ url_for("reports_bp.delete_comparison_config") }}',
+    userRole: '{{ session.get("role", "user") }}'
   };
 </script>
 <script src="{{ url_for('static', filename='js/reports.js') }}"></script>

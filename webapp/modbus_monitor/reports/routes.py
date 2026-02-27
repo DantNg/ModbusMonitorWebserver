@@ -188,11 +188,15 @@ def clear_logger_report_data(logger_id: int):
 
 @reports_bp.post("/api/comparison-config/save")
 def save_comparison_config():
-    """Save user's comparison configuration to database"""
+    """Save user's comparison configuration to database - admin only"""
     try:
         user_id = session.get("user_id")
         if not user_id:
             return jsonify({"success": False, "error": "User not logged in"}), 401
+        
+        # Only admin can save comparison config
+        if session.get("role") != "admin":
+            return jsonify({"success": False, "error": "Only admin can modify comparison config"}), 403
         
         data = request.get_json()
         if not data or "config" not in data:
@@ -218,7 +222,8 @@ def save_comparison_config():
 
 @reports_bp.get("/api/comparison-config/load")
 def load_comparison_config():
-    """Load user's comparison configuration from database"""
+    """Load comparison configuration from database.
+    User role always loads admin's config."""
     try:
         user_id = session.get("user_id")
         if not user_id:
@@ -227,10 +232,13 @@ def load_comparison_config():
         # Lấy logger_id từ query parameter (mặc định là 'all')
         logger_id = request.args.get("logger_id", "all")
         
-        config_json = db.get_user_comparison_config(user_id, logger_id)
+        config_json = None
         
-        # Fallback: nếu user hiện tại không có config, thử load từ admin users
-        if not config_json and session.get("role") != "admin":
+        if session.get("role") == "admin":
+            # Admin loads their own config
+            config_json = db.get_user_comparison_config(user_id, logger_id)
+        else:
+            # User role always loads admin's comparison config
             admin_users = [u for u in db.list_users() if u.get("role") == "admin"]
             for admin_user in admin_users:
                 config_json = db.get_user_comparison_config(admin_user["id"], logger_id)
@@ -251,11 +259,15 @@ def load_comparison_config():
 
 @reports_bp.delete("/api/comparison-config/delete")
 def delete_comparison_config():
-    """Delete user's comparison configuration from database"""
+    """Delete comparison configuration from database - admin only"""
     try:
         user_id = session.get("user_id")
         if not user_id:
             return jsonify({"success": False, "error": "User not logged in"}), 401
+        
+        # Only admin can delete comparison config
+        if session.get("role") != "admin":
+            return jsonify({"success": False, "error": "Only admin can modify comparison config"}), 403
         
         # Lấy logger_id từ query parameter (mặc định là 'all')
         logger_id = request.args.get("logger_id", "all")

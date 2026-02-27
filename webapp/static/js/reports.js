@@ -409,12 +409,15 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
       .map(th => th.textContent.trim())
       .filter(t => t.toLowerCase() !== 'timestamp');
 
-    container.innerHTML = comparisonPairs.map((pair, index) => `
+    container.innerHTML = comparisonPairs.map((pair, index) => {
+      const isAdmin = REPORTS_CONFIG.userRole === 'admin';
+      const disabledAttr = isAdmin ? '' : 'disabled';
+      return `
       <div class="card mb-3 shadow-sm" style="border-left: 4px solid #2196F3;">
         <div class="card-body p-3">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <strong class="text-primary">Condition ${index + 1}</strong>
-            ${comparisonPairs.length > 1 ? `
+            ${isAdmin && comparisonPairs.length > 1 ? `
               <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeComparisonPair(${pair.id})">
                 <i class="bi bi-trash"></i>
               </button>
@@ -430,7 +433,7 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
           <div class="row g-2 mb-3">
             <div class="col-md-9">
               <label class="form-label small mb-1"><strong>Main Tag (will be highlighted)</strong></label>
-              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'primaryTag', this.value); renderComparisonPairs();">
+              <select class="form-select form-select-sm" ${disabledAttr} onchange="updatePairData(${pair.id}, 'primaryTag', this.value); renderComparisonPairs();">
                 <option value="">-- Select tag --</option>
                 ${allTags.map(t => `<option value="${t}" ${pair.primaryTag === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
               </select>
@@ -438,7 +441,7 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
             <div class="col-md-3">
               <label class="form-label small mb-1"><strong>Highlight Color</strong></label>
               <input type="color" class="form-control form-control-sm form-control-color w-100" 
-                     value="${pair.color || pair.color1 || '#ffeb3b'}" 
+                     value="${pair.color || pair.color1 || '#ffeb3b'}" ${disabledAttr}
                      onchange="updatePairData(${pair.id}, 'color', this.value); renderComparisonPairs();">
             </div>
           </div>
@@ -446,14 +449,14 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
           <div class="row g-2 mb-2 align-items-end">
             <div class="col-md-6">
               <label class="form-label small mb-1">Compare Tag 1</label>
-              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'compareTag1', this.value); renderComparisonPairs();">
+              <select class="form-select form-select-sm" ${disabledAttr} onchange="updatePairData(${pair.id}, 'compareTag1', this.value); renderComparisonPairs();">
                 <option value="">-- Not selected --</option>
                 ${allTags.map(t => `<option value="${t}" ${pair.compareTag1 === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
               </select>
             </div>
             <div class="col-md-3">
               <label class="form-label small mb-1">Condition</label>
-              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'condition1', this.value); renderComparisonPairs();">
+              <select class="form-select form-select-sm" ${disabledAttr} onchange="updatePairData(${pair.id}, 'condition1', this.value); renderComparisonPairs();">
                 <option value="eq" ${pair.condition1 === 'eq' ? 'selected' : ''}>=</option>
                 <option value="ne" ${pair.condition1 === 'ne' ? 'selected' : ''}>≠</option>
                 <option value="gt" ${pair.condition1 === 'gt' ? 'selected' : ''}>&gt;</option>
@@ -472,14 +475,14 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
           <div class="row g-2 align-items-end">
             <div class="col-md-6">
               <label class="form-label small mb-1">Compare Tag 2 (optional)</label>
-              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'compareTag2', this.value); renderComparisonPairs();">
+              <select class="form-select form-select-sm" ${disabledAttr} onchange="updatePairData(${pair.id}, 'compareTag2', this.value); renderComparisonPairs();">
                 <option value="">-- Not selected --</option>
                 ${allTags.map(t => `<option value="${t}" ${pair.compareTag2 === t ? 'selected' : ''}>${t.toUpperCase()}</option>`).join('')}
               </select>
             </div>
             <div class="col-md-3">
               <label class="form-label small mb-1">Condition</label>
-              <select class="form-select form-select-sm" onchange="updatePairData(${pair.id}, 'condition2', this.value); renderComparisonPairs();">
+              <select class="form-select form-select-sm" ${disabledAttr} onchange="updatePairData(${pair.id}, 'condition2', this.value); renderComparisonPairs();">
                 <option value="eq" ${pair.condition2 === 'eq' ? 'selected' : ''}>=</option>
                 <option value="ne" ${pair.condition2 === 'ne' ? 'selected' : ''}>≠</option>
                 <option value="gt" ${pair.condition2 === 'gt' ? 'selected' : ''}>&gt;</option>
@@ -496,7 +499,7 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
           </div>
         </div>
       </div>
-    `).join('');
+    `}).join('');
   }
 
   function updatePairData(id, field, value) {
@@ -508,6 +511,9 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
   }
 
   function saveComparisonConfig() {
+    // Only admin can save comparison config
+    if (REPORTS_CONFIG.userRole !== 'admin') return;
+    
     // Save to database via API
     fetch(REPORTS_CONFIG.saveComparisonUrl, {
       method: 'POST',
