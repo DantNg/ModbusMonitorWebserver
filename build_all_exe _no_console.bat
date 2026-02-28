@@ -77,7 +77,7 @@ echo [1/4] Building: modbus_monitor_webserver.exe
 echo ============================================================
 echo.
 
-pyinstaller --noconfirm --onefile --console ^
+pyinstaller --noconfirm --onefile --noconsole ^
     %HIDDEN_IMPORTS% ^
     --hidden-import=sqlalchemy ^
     --hidden-import=eventlet ^
