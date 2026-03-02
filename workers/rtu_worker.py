@@ -14,6 +14,7 @@ import time
 import struct
 import inspect
 import threading
+import queue
 from datetime import datetime
 
 # PATHS
@@ -123,9 +124,20 @@ class RTUWorker:
         for tg in self.tags:
             self.device_tags.setdefault(tg.device_id, []).append(tg)
 
-        # Socket.IO
-        self.sio = socketio.Client(reconnection=True) if SIO_AVAILABLE else None
+        # Socket.IO - tự quản lý reconnection
+        self.sio = None
         self.sio_connected = False
+        self._sio_lock = threading.Lock()          # Lock bảo vệ thao tác SIO
+        self._sio_last_ok = 0.0                    # Thời điểm emit thành công gần nhất
+        self._sio_reconnect_after = 0.0            # Thời điểm cho phép reconnect tiếp
+        self._sio_reconnect_backoff = 5            # Giây chờ giữa 2 lần reconnect
+        self._sio_stale_sec = 60                   # Nếu > 60s không emit ok → coi là stale
+        self._sio_consecutive_fails = 0            # Đếm số lần emit thất bại liên tiếp
+        self._sio_max_fails_before_recreate = 5    # Sau N lần fail → tạo mới SIO client
+
+        # Emission queue: poll thread -> queue -> emission thread
+        self._emit_queue = queue.Queue(maxsize=500)
+        self._emit_thread = None
 
         # Modbus
         self.client = None
@@ -185,16 +197,15 @@ class RTUWorker:
                 self._update_device_status(dev, ok=False, latency_ms=None, err="pymodbus not available")
 
         if SIO_AVAILABLE:
-            try:
-                self._setup_socketio_handlers()
-                self.sio.connect(self.webapp_url, wait=True)
-                self.sio_connected = True
-                if self.debug: print("✅ Socket.IO connected")
-            except Exception as e:
-                print(f"⚠️  Socket.IO connect failed: {e}")
-                self.sio_connected = False
+            self._create_sio_client()
+            self._connect_sio()
 
         self.is_running = True
+
+        # Khởi tạo emission thread
+        self._emit_thread = threading.Thread(target=self._emission_loop, daemon=True)
+        self._emit_thread.start()
+
         self.thread = threading.Thread(target=self._loop, daemon=True)
         self.thread.start()
         return True
@@ -209,10 +220,29 @@ class RTUWorker:
             if self.client: self.client.close()
         except Exception:
             pass
+
+        # Dừng emission thread
         try:
-            if self.sio and self.sio_connected: self.sio.disconnect()
+            self._emit_queue.put_nowait(None)  # Poison pill
         except Exception:
             pass
+        if self._emit_thread and self._emit_thread.is_alive():
+            try:
+                self._emit_thread.join(timeout=3)
+            except Exception:
+                pass
+
+        # Socket.IO - dừng an toàn
+        with self._sio_lock:
+            try:
+                if self.sio:
+                    if getattr(self.sio, 'connected', False):
+                        self.sio.disconnect()
+                    self.sio = None
+            except Exception:
+                pass
+            self.sio_connected = False
+
         for dev in self.devices:
             self._update_device_status(dev, ok=False, latency_ms=None, err="worker stopped")
         print("🛑 RTUWorker stopped")
@@ -690,38 +720,136 @@ class RTUWorker:
         except Exception:
             pass
 
-    # ---- emit Socket.IO
-    def _ensure_sio(self):
-        if not SIO_AVAILABLE: return False
+    # ------------- Socket.IO client lifecycle (thread-safe) -------------
+    def _create_sio_client(self):
+        """Tạo mới hoàn toàn Socket.IO client."""
+        try:
+            if self.sio:
+                try:
+                    self.sio.disconnect()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        self.sio = socketio.Client(
+            reconnection=False,           # Tự quản lý reconnection
+            logger=False,
+            engineio_logger=False,
+        )
+        self.sio_connected = False
+        self._sio_consecutive_fails = 0
+        self._setup_socketio_handlers()
+        if self.debug:
+            print("🔧 Created new Socket.IO client")
 
-        # Nếu đã kết nối và còn sống
+    def _connect_sio(self):
+        """Kết nối Socket.IO. Trả True nếu thành công."""
+        try:
+            if self.sio and not getattr(self.sio, 'connected', False):
+                self.sio.connect(self.webapp_url, wait=True, wait_timeout=10)
+                self.sio_connected = True
+                self._sio_last_ok = time.time()
+                self._sio_consecutive_fails = 0
+                if self.debug:
+                    print("✅ Socket.IO connected")
+                return True
+            elif self.sio and self.sio.connected:
+                self.sio_connected = True
+                return True
+        except Exception as e:
+            print(f"⚠️  Socket.IO connect failed: {e}")
+            self.sio_connected = False
+        return False
+
+    def _ensure_sio(self):
+        """Thread-safe: kiểm tra & reconnect Socket.IO nếu cần."""
+        if not SIO_AVAILABLE:
+            return False
+
+        # Fast path: kết nối còn sống và không bị stale
         if self.sio and self.sio_connected:
             try:
                 if self.sio.connected:
-                    return True
+                    # Kiểm tra stale
+                    if self._sio_last_ok > 0 and (time.time() - self._sio_last_ok) > self._sio_stale_sec:
+                        if self.debug:
+                            print(f"⚠️  Socket.IO stale ({time.time() - self._sio_last_ok:.0f}s without success), forcing reconnect")
+                    else:
+                        return True
                 else:
                     self.sio_connected = False
-            except:
+            except Exception:
                 self.sio_connected = False
 
-        # Thử (re)connect
-        try:
-            if self.sio and hasattr(self.sio, 'connected') and self.sio.connected:
-                try:
-                    self.sio.disconnect()
-                except:
-                    pass
-            if not self.sio:
-                self.sio = socketio.Client(reconnection=True)
-            self.sio.connect(self.webapp_url, wait=True)
-            self.sio_connected = True
-            return True
-        except Exception as e:
-            print(f"⚠️  Socket.IO reconnect failed: {e}")
-            self.sio_connected = False
+        # Kiểm tra cooldown
+        now = time.time()
+        if now < self._sio_reconnect_after:
             return False
 
+        # Slow path: reconnect với lock
+        acquired = self._sio_lock.acquire(blocking=False)
+        if not acquired:
+            return self.sio_connected
+
+        try:
+            if self.sio and self.sio_connected and getattr(self.sio, 'connected', False):
+                return True
+
+            if self._sio_consecutive_fails >= self._sio_max_fails_before_recreate:
+                if self.debug:
+                    print(f"🔄 Recreating Socket.IO client after {self._sio_consecutive_fails} consecutive failures")
+                self._create_sio_client()
+            else:
+                try:
+                    if self.sio and getattr(self.sio, 'connected', False):
+                        self.sio.disconnect()
+                except Exception:
+                    pass
+                self.sio_connected = False
+                if not self.sio:
+                    self._create_sio_client()
+
+            ok = self._connect_sio()
+            if not ok:
+                self._sio_consecutive_fails += 1
+                backoff = min(self._sio_reconnect_backoff * (2 ** min(self._sio_consecutive_fails - 1, 5)), 120)
+                self._sio_reconnect_after = time.time() + backoff
+                if self.debug:
+                    print(f"⏳ Socket.IO reconnect failed (attempt {self._sio_consecutive_fails}), next retry in {backoff}s")
+            return ok
+        finally:
+            self._sio_lock.release()
+
+    # ------------- Emission queue -------------
+    def _emission_loop(self):
+        """Thread riêng xử lý emission queue → Socket.IO."""
+        while self.is_running:
+            try:
+                payload = self._emit_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+            except Exception:
+                continue
+
+            if payload is None:  # Poison pill
+                break
+
+            if self._ensure_sio():
+                try:
+                    self.sio.emit("modbus_update", payload)
+                    self._sio_last_ok = time.time()
+                    self._sio_consecutive_fails = 0
+                    if self.debug:
+                        dev_name = payload.get('device_name', '?')
+                        n_tags = len(payload.get('tags', []))
+                        print(f"   📡 Emitted {n_tags} tags for {dev_name}")
+                except Exception as e:
+                    print(f"⚠️ emit failed: {e}")
+                    self.sio_connected = False
+                    self._sio_consecutive_fails += 1
+
     def _emit_modbus_update(self, device, tag_rows):
+        """Đẩy payload vào emission queue (non-blocking)."""
         payload = {
             "device_id": f"dev{device.id}",
             "device_name": device.name,
@@ -732,13 +860,14 @@ class RTUWorker:
             "tags": tag_rows,
             "ts": now_hms(),
         }
-        if self._ensure_sio():
+        try:
+            self._emit_queue.put_nowait(payload)
+        except queue.Full:
             try:
-                self.sio.emit("modbus_update", payload)
-                if self.debug:
-                    print(f"   📡 Emitted {len(tag_rows)} tags for {device.name}")
-            except Exception as e:
-                print(f"⚠️ emit failed: {e}")
-                self.sio_connected = False
-        elif self.debug:
-            print("⚠️  Socket.IO unavailable; payload not sent")
+                self._emit_queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._emit_queue.put_nowait(payload)
+            except Exception:
+                pass
