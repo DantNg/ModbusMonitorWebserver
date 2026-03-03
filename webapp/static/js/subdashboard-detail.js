@@ -792,6 +792,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         .then(response => response.json())
         .then(data => {
           if (data.success) {
+            // ★ Xóa cache layout cũ vì tags đã thay đổi
+            try { localStorage.removeItem(QUAD_CACHE_PREFIX + quadId); } catch(e) {}
             Swal.fire({
               title: 'Success!',
               text: 'Quad tags updated successfully',
@@ -864,6 +866,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             .then(response => response.json())
             .then(data => {
               if (data.success) {
+                // ★ Xóa cache layout vì card đã bị xóa
+                try { localStorage.removeItem(QUAD_CACHE_PREFIX + quadId); } catch(e) {}
                 Swal.fire({
                   title: 'Deleted!',
                   text: 'Quad card has been deleted.',
@@ -982,6 +986,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
               timer: 1500,
               showConfirmButton: false
             }).then(() => {
+              // ★ Xóa cache layout vì title đã thay đổi
+              try { localStorage.removeItem(QUAD_CACHE_PREFIX + quadId); } catch(e) {}
               // Reload to ensure all clients see the change
               location.reload();
             });
@@ -1289,20 +1295,97 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     });
   }
 
+  // ===== Quad Tag Layout Cache =====
+  // Lưu layout HTML đã build vào localStorage, lần load sau inject trực tiếp → không flash
+  const QUAD_CACHE_PREFIX = `quad_layout_${currentSubdashId}_`;
+
+  function saveQuadGridCache(quadId, gridEl) {
+    try {
+      localStorage.setItem(QUAD_CACHE_PREFIX + quadId, gridEl.innerHTML);
+    } catch (e) { /* quota exceeded – bỏ qua */ }
+  }
+
+  function loadQuadGridCache(quadId) {
+    try {
+      return localStorage.getItem(QUAD_CACHE_PREFIX + quadId);
+    } catch (e) { return null; }
+  }
+
+  // Lưu giá trị mới nhất của từng quad tag vào cache riêng (cập nhật bởi socket)
+  const QUAD_VALUES_KEY = `quad_values_${currentSubdashId}`;
+  let _quadValuesCache = {};
+  try {
+    _quadValuesCache = JSON.parse(localStorage.getItem(QUAD_VALUES_KEY)) || {};
+  } catch (e) { _quadValuesCache = {}; }
+
+  function updateQuadValueCache(tagId, value) {
+    _quadValuesCache[tagId] = value;
+    try {
+      localStorage.setItem(QUAD_VALUES_KEY, JSON.stringify(_quadValuesCache));
+    } catch (e) { /* ignore */ }
+  }
+
   // Fix quad tag layout by restructuring HTML using template structure
   function fixQuadTagLayout() {
     console.log('🔧 Starting fixQuadTagLayout...');
     
     document.querySelectorAll('.quad-tag-card').forEach((card, cardIndex) => {
-      console.log(`Processing quad card ${cardIndex + 1}`);
+      const cardId = card.dataset.quadId || `quad-${cardIndex + 1}`;
       
-      // Only scan inside card-body to avoid picking up header gear and misplacing write buttons
+      // ★ Thử dùng cache trước – inject HTML đã build sẵn, skip parse/rebuild
+      const cachedHTML = loadQuadGridCache(cardId);
       const body = card.querySelector('.card-body') || card;
       const items = body.querySelectorAll('.quad-tag-item');
-      console.log(`Found ${items.length} quad-tag-items`);
+      
+      // Xây fingerprint từ tag IDs hiện tại để detect config thay đổi
+      const currentTagIds = Array.from(items).map(it => it.getAttribute('data-tag-id')).join(',');
+      
+      if (cachedHTML && items.length >= 4) {
+        // Kiểm tra fingerprint: tất cả tag IDs hiện tại đều phải có trong cache
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = cachedHTML;
+        const cachedTagIds = Array.from(tempDiv.querySelectorAll('.quad-tag-item'))
+          .map(it => it.getAttribute('data-tag-id')).sort().join(',');
+        const sortedCurrentIds = currentTagIds.split(',').sort().join(',');
+        
+        if (cachedTagIds === sortedCurrentIds) {
+          console.log(`⚡ Using cached layout for quad card ${cardId}`);
+          let grid = card.querySelector('.quad-tag-grid');
+          if (!grid) {
+            grid = document.createElement('div');
+            grid.className = 'quad-tag-grid';
+            const cardBody = card.querySelector('.card-body');
+            if (cardBody) {
+              cardBody.innerHTML = '';
+              cardBody.appendChild(grid);
+            }
+          } else {
+            grid.innerHTML = '';
+          }
+          grid.innerHTML = cachedHTML;
+          
+          // Xóa items gốc để tránh duplicate IDs
+          items.forEach(item => item.remove());
+          
+          // Áp dụng giá trị mới nhất từ value cache (nếu có)
+          Object.keys(_quadValuesCache).forEach(tagId => {
+            const el = grid.querySelector(`[id$="-${tagId}"]`);
+            if (el) el.textContent = _quadValuesCache[tagId];
+          });
+          
+          // Cập nhật thời gian
+          grid.querySelectorAll('.quad-update-time').forEach(el => {
+            el.textContent = `Last updated: ${formatTime24h(new Date())}`;
+          });
+          
+          return; // Xong card này, skip rebuild
+        }
+      }
+      
+      // ★ Không có cache hoặc config đã thay đổi → rebuild bình thường
+      console.log(`Processing quad card ${cardIndex + 1} (full rebuild)`);
       
       if (items.length >= 4) {
-        const cardId = card.dataset.quadId || `quad-${cardIndex + 1}`;
         // Get the grid container
         let grid = card.querySelector('.quad-tag-grid');
         if (!grid) {
@@ -1343,8 +1426,11 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           const unitElement = item.querySelector('small, .text-muted');
           const nameElement = item.querySelector('.quad-tag-name');
           
-          // Extract current value and unit
-          const value = valElement ? valElement.textContent.trim() : '0';
+          // Extract current value and unit — ưu tiên value cache nếu có
+          let value = valElement ? valElement.textContent.trim() : '0';
+          if (_quadValuesCache[tagId] !== undefined) {
+            value = _quadValuesCache[tagId];
+          }
           const unit = unitElement ? unitElement.textContent.trim() : 'Kwh';
           const name = nameElement ? nameElement.textContent.trim() : `Tag ${i + 1}`;
           
@@ -1435,6 +1521,9 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         // Add sub-cards to grid
         grid.appendChild(subCard1);
         grid.appendChild(subCard2);
+        
+        // ★ Lưu layout HTML vào cache cho lần load sau
+        saveQuadGridCache(cardId, grid);
         
         // Update card header title from database
         const cardTitle = cardTitleFromDB;
@@ -2089,12 +2178,16 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           }
         });
 
-        // 4) Apply value changes (batch)
-        pending.forEach(({ valEl, newVal }) => {
+        // 4) Apply value changes (batch) + cập nhật cache
+        pending.forEach(({ valEl, newVal, tag }) => {
           valEl.textContent = newVal;
           // clear inactive styling if present
           valEl.style.opacity = '';
           valEl.style.color = '';
+          // ★ Cập nhật value cache cho lần load sau
+          if (tag && tag.id) {
+            updateQuadValueCache(String(tag.id), newVal);
+          }
         });
       }
     });
