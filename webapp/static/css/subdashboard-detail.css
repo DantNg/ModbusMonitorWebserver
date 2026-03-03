@@ -58,6 +58,8 @@
 /* Quad Tag Card Styles - Dashboard Style */
 .quad-tag-card {
   border-radius: 14px !important;
+  /* Ẩn ban đầu để tránh flash layout cũ trước khi JS rebuild */
+  visibility: hidden;
   /* Allow dropdown menus to overflow card bounds */
   overflow: visible !important;
   position: relative !important;

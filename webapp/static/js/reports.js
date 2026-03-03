@@ -306,12 +306,30 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
     }
   }
 
-  // Toggle custom date range visibility
+  // Toggle custom date range visibility and set default dates
   function toggleCustomRange() {
     const select = document.getElementById('timeFilterSelect');
     const customRange = document.getElementById('customDateRange');
     if (select.value === 'custom') {
       customRange.classList.remove('d-none');
+      // Set default dates if empty (format dd/mm/yyyy HH:mm)
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const todayStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} 00:00`;
+      const tomorrowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const tomorrowStr = `${pad(tomorrowDate.getDate())}/${pad(tomorrowDate.getMonth() + 1)}/${tomorrowDate.getFullYear()} 00:00`;
+
+      const fromDate = document.getElementById('fromDatePicker');
+      const toDate = document.getElementById('toDatePicker');
+
+      if (fromDate && !fromDate.value) {
+        fromDate.value = todayStr;
+        if (fromDate._flatpickr) fromDate._flatpickr.setDate(todayStr, true);
+      }
+      if (toDate && !toDate.value) {
+        toDate.value = tomorrowStr;
+        if (toDate._flatpickr) toDate._flatpickr.setDate(tomorrowStr, true);
+      }
     } else {
       customRange.classList.add('d-none');
     }

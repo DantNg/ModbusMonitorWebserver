@@ -1492,24 +1492,25 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DOM loaded, starting quad layout fix...');
 
-    // Thực hiện ngay khi DOM sẵn sàng để tránh nháy xám
-    requestAnimationFrame(function() {
-      fixQuadTagLayout();
+    // Chạy fixQuadTagLayout ngay lập tức (KHÔNG dùng requestAnimationFrame)
+    // để hoàn thành trước first paint, tránh nháy layout cũ → mới
+    fixQuadTagLayout();
 
-      // Keep original values without K/M formatting
-      document.querySelectorAll('[id^="quad-tag-val-"]').forEach(element => {
-        // Values already loaded from server, no need to reformat
-        // Just log for debugging
-        console.log(`Quad tag ${element.id}: ${element.textContent}`);
-      });
-
-      // Áp dụng trạng thái alarm sau khi layout đã dựng xong
-      requestAnimationFrame(function() {
-        applyActiveQuadAlarms();
-      });
-
-      console.log('✨ Quad layout initialization completed');
+    // Keep original values without K/M formatting
+    document.querySelectorAll('[id^="quad-tag-val-"]').forEach(element => {
+      // Values already loaded from server, no need to reformat
+      console.log(`Quad tag ${element.id}: ${element.textContent}`);
     });
+
+    // Hiện quad cards sau khi layout đã rebuild xong
+    document.querySelectorAll('.quad-tag-card').forEach(card => {
+      card.style.visibility = 'visible';
+    });
+
+    // Áp dụng trạng thái alarm sau khi layout đã dựng xong
+    applyActiveQuadAlarms();
+
+    console.log('✨ Quad layout initialization completed');
   });
 
   // Apply active quad alarm states on page load
