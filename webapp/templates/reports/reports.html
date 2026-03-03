@@ -39,7 +39,7 @@
         <div style="min-width: 160px; flex: 1 1 160px;">
           <label class="small text-muted mb-1">Time Filter</label>
           <select class="form-select form-select-sm" name="time_filter" id="timeFilterSelect"
-            onchange="toggleCustomRange(); this.form.submit();">
+            onchange="toggleCustomRange(); if(this.value !== 'custom') this.form.submit();">
             <option value="all" {{ 'selected' if time_filter=='all' else '' }}>All Time</option>
             <option value="today" {{ 'selected' if time_filter=='today' else '' }}>Today</option>
             <option value="yesterday" {{ 'selected' if time_filter=='yesterday' else '' }}>Yesterday</option>

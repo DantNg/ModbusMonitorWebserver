@@ -64,8 +64,8 @@ def reports():
         current_logger_id=current_logger_id,
         current_logger_name=current_logger_name,
         time_filter=time_filter,
-        from_dt=from_dt.strftime("%Y-%m-%dT%H:%M") if time_filter == "custom" else "",
-        to_dt=to_dt.strftime("%Y-%m-%dT%H:%M") if time_filter == "custom" else "",
+        from_dt=from_dt.strftime("%d/%m/%Y %H:%M") if time_filter == "custom" else "",
+        to_dt=to_dt.strftime("%d/%m/%Y %H:%M") if time_filter == "custom" else "",
         columns=columns,
         items=[]  # No initial data, will be loaded via API
     )
