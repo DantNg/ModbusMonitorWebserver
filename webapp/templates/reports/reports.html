@@ -117,13 +117,15 @@
 
       <!-- Custom Date Range (shown when custom is selected) -->
       <div class="d-flex gap-2 align-items-end mb-3 {% if time_filter != 'custom' %}d-none{% endif %}" id="customDateRange">
-        <div style="min-width: 180px;">
+        <div style="min-width: 200px;">
           <label class="small text-muted mb-1">From Date:</label>
-          <input type="datetime-local" class="form-control form-control-sm" name="from" value="{{ from_dt|default('', true) }}">
+          <input type="text" class="form-control form-control-sm flatpickr-input" id="fromDatePicker" name="from" 
+                 value="{{ from_dt|default('', true) }}" placeholder="dd/mm/yyyy HH:mm" autocomplete="off">
         </div>
-        <div style="min-width: 180px;">
+        <div style="min-width: 200px;">
           <label class="small text-muted mb-1">To Date:</label>
-          <input type="datetime-local" class="form-control form-control-sm" name="to" value="{{ to_dt|default('', true) }}">
+          <input type="text" class="form-control form-control-sm flatpickr-input" id="toDatePicker" name="to" 
+                 value="{{ to_dt|default('', true) }}" placeholder="dd/mm/yyyy HH:mm" autocomplete="off">
         </div>
         <button type="submit" class="btn btn-success btn-sm">Apply</button>
       </div>
@@ -229,6 +231,27 @@
     <div>Tip: Use Export → open with Excel</div>
   </div>
 </div>
+<!-- Flatpickr date picker (dd/mm/yyyy format) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/css/flatpickr.min.css') }}">
+<script src="{{ url_for('static', filename='vendor/js/flatpickr.min.js') }}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Cấu hình chung cho flatpickr: dd/mm/yyyy HH:mm
+    const fpConfig = {
+      enableTime: true,
+      time_24hr: true,
+      dateFormat: 'd/m/Y H:i',
+      allowInput: true,
+      locale: { firstDayOfWeek: 1 }
+    };
+    if (document.getElementById('fromDatePicker')) {
+      flatpickr('#fromDatePicker', fpConfig);
+    }
+    if (document.getElementById('toDatePicker')) {
+      flatpickr('#toDatePicker', fpConfig);
+    }
+  });
+</script>
 <!-- Export libraries (ExcelJS for styling, FileSaver to save) -->
 <script src="{{ url_for('static', filename='vendor/js/exceljs.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/js/FileSaver.min.js') }}"></script>

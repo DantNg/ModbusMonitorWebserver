@@ -402,16 +402,25 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
       const customDateRange = document.getElementById('customDateRange');
       if (e.target.value === 'custom') {
         customDateRange.style.display = 'block';
-        // Set default dates if empty
+        // Set default dates if empty (format dd/mm/yyyy HH:mm)
         const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 16);
-        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString().slice(0, 16);
+        const pad = (n) => String(n).padStart(2, '0');
+        const todayStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} 00:00`;
+        const tomorrowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const tomorrowStr = `${pad(tomorrowDate.getDate())}/${pad(tomorrowDate.getMonth() + 1)}/${tomorrowDate.getFullYear()} 00:00`;
 
         const fromDate = document.getElementById('fromDate');
         const toDate = document.getElementById('toDate');
 
-        if (!fromDate.value) fromDate.value = today;
-        if (!toDate.value) toDate.value = tomorrow;
+        if (!fromDate.value) {
+          fromDate.value = todayStr;
+          // Update flatpickr instance if available
+          if (fromDate._flatpickr) fromDate._flatpickr.setDate(todayStr, true);
+        }
+        if (!toDate.value) {
+          toDate.value = tomorrowStr;
+          if (toDate._flatpickr) toDate._flatpickr.setDate(tomorrowStr, true);
+        }
       } else {
         customDateRange.style.display = 'none';
         // Auto-apply for non-custom selections

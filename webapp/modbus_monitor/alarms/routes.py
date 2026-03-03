@@ -14,6 +14,35 @@ from modbus_monitor.database.db import (
 from flask import jsonify
 from datetime import datetime
 from modbus_monitor.database.db import safe_datetime_now
+
+def _parse_alarm_dt(s):
+    """Parse datetime string - hỗ trợ nhiều format:
+    - dd/mm/yyyy HH:MM (flatpickr)
+    - YYYY-MM-DDTHH:MM (datetime-local cũ)
+    - YYYY-MM-DD HH:MM
+    """
+    if not s:
+        return None
+    s = s.strip()
+    formats = [
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y %H:%M:%S",
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d %H:%M:%S",
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    # Fallback: fromisoformat
+    try:
+        return datetime.fromisoformat(s)
+    except Exception:
+        return None
+
 # /alarms/events/<id>/delete
 @alarms_bp.route("/alarms/events/<int:eid>/delete", methods=["POST"])
 def delete_alarm_event(eid):
@@ -71,8 +100,10 @@ def alarm_events():
         end_date = now
     elif time_filter == 'custom' and from_date and to_date:
         try:
-            start_date = datetime.fromisoformat(from_date)
-            end_date = datetime.fromisoformat(to_date)
+            start_date = _parse_alarm_dt(from_date)
+            end_date = _parse_alarm_dt(to_date)
+            if not start_date or not end_date:
+                raise ValueError("Cannot parse date")
         except ValueError:
             flash("Invalid date format", "error")
             start_date = end_date = None
@@ -192,8 +223,8 @@ def alarm_report():
         end_date = now
     elif time_filter == 'custom' and from_date and to_date:
         try:
-            start_date = datetime.fromisoformat(from_date)
-            end_date = datetime.fromisoformat(to_date)
+            start_date = _parse_alarm_dt(from_date)
+            end_date = _parse_alarm_dt(to_date)
         except ValueError:
             start_date = end_date = None
 
@@ -303,8 +334,8 @@ def api_alarm_events():
         end_date = now
     elif time_filter == 'custom' and from_date and to_date:
         try:
-            start_date = datetime.fromisoformat(from_date)
-            end_date = datetime.fromisoformat(to_date)
+            start_date = _parse_alarm_dt(from_date)
+            end_date = _parse_alarm_dt(to_date)
         except ValueError:
             start_date = end_date = None
 

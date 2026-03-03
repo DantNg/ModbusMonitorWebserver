@@ -139,13 +139,29 @@ def get_reports_data():
 
 
 def _parse_dt(s):
-    """nhận 'YYYY-MM-DDTHH:MM' -> datetime hoặc None"""
-    if not s: 
+    """Parse datetime string - hỗ trợ nhiều format:
+    - dd/mm/yyyy HH:MM (flatpickr format)
+    - YYYY-MM-DDTHH:MM (datetime-local format cũ)
+    - YYYY-MM-DD HH:MM
+    """
+    if not s:
         return None
-    try:
-        return datetime.strptime(s, "%Y-%m-%dT%H:%M")
-    except Exception:
-        return None
+    s = s.strip()
+    # Thử từng format theo thứ tự ưu tiên
+    formats = [
+        "%d/%m/%Y %H:%M",    # dd/mm/yyyy HH:MM (flatpickr)
+        "%d/%m/%Y %H:%M:%S", # dd/mm/yyyy HH:MM:SS
+        "%Y-%m-%dT%H:%M",    # ISO datetime-local (cũ)
+        "%Y-%m-%dT%H:%M:%S", # ISO với giây
+        "%Y-%m-%d %H:%M",    # YYYY-MM-DD HH:MM
+        "%Y-%m-%d %H:%M:%S", # YYYY-MM-DD HH:MM:SS
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
 # Giữ tương thích: /data-loggers -> redirect sang /reports
 @reports_bp.route("/data-loggers", endpoint="data_loggers")
 def data_loggers_alias():
