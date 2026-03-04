@@ -173,7 +173,7 @@
 <script>
   window.ALARM_EVENTS_CONFIG = {
     timeFilter: '{{ time_filter|default("") }}',
-    isAdmin: "{{ 'true' if session.get('role') == 'admin' else 'false' }}"
+    isAdmin: {{ 'true' if session.get('role') == 'admin' else 'false' }}
   };
 </script>
 <script src="{{ url_for('static', filename='js/alarm-events.js') }}"></script>
