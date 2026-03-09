@@ -53,3 +53,4 @@ config/SMTP_config.json
 /release/*
 *.spec
 *.exe
+/new_requirement/*

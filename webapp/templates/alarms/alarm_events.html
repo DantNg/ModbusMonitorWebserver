@@ -77,12 +77,12 @@
     <!-- Custom Date Range (shown when custom is selected) -->
     <div id="customDateRange" class="d-flex gap-2 align-items-center mb-1" style="display: none !important;">
       <label class="small text-muted mb-0">From:</label>
-      <input type="text" class="form-control form-control-sm flatpickr-input" id="fromDate" value="{{ from_date or '' }}"
-        style="width: 200px;" placeholder="dd/mm/yyyy HH:mm" autocomplete="off">
+      <input type="datetime-local" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}"
+        style="width: 180px;">
       <span class="text-muted">→</span>
       <label class="small text-muted mb-0">To:</label>
-      <input type="text" class="form-control form-control-sm flatpickr-input" id="toDate" value="{{ to_date or '' }}"
-        style="width: 200px;" placeholder="dd/mm/yyyy HH:mm" autocomplete="off">
+      <input type="datetime-local" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}"
+        style="width: 180px;">
       <button type="button" class="btn btn-success btn-sm" onclick="applyTimeFilter()">Apply</button>
     </div>
   </div>
@@ -146,26 +146,6 @@
 </div>
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/alarm-events.css') }}">
-<!-- Flatpickr date picker (dd/mm/yyyy format) -->
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/css/flatpickr.min.css') }}">
-<script src="{{ url_for('static', filename='vendor/js/flatpickr.min.js') }}"></script>
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const fpConfig = {
-      enableTime: true,
-      time_24hr: true,
-      dateFormat: 'd/m/Y H:i',
-      allowInput: true,
-      locale: { firstDayOfWeek: 1 }
-    };
-    if (document.getElementById('fromDate')) {
-      flatpickr('#fromDate', fpConfig);
-    }
-    if (document.getElementById('toDate')) {
-      flatpickr('#toDate', fpConfig);
-    }
-  });
-</script>
 <script src="{{ url_for('static', filename='vendor/js/xlsx.full.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/js/exceljs.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/js/FileSaver.min.js') }}"></script>
@@ -173,7 +153,7 @@
 <script>
   window.ALARM_EVENTS_CONFIG = {
     timeFilter: '{{ time_filter|default("") }}',
-    isAdmin: {{ 'true' if session.get('role') == 'admin' else 'false' }}
+    isAdmin: "{{ 'true' if session.get('role') == 'admin' else 'false' }}"
   };
 </script>
 <script src="{{ url_for('static', filename='js/alarm-events.js') }}"></script>
