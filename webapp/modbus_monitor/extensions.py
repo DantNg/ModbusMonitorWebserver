@@ -3,7 +3,14 @@ from engineio.async_drivers import eventlet
 from flask_socketio import SocketIO, join_room, leave_room, emit
 
 # Initialize SocketIO (without app)
-socketio = SocketIO(async_mode="eventlet",cors_allowed_origins="*")
+# ping_timeout=60s / ping_interval=25s: cho phép client tạm ngưng (background tab)
+# mà không bị server đóng kết nối quá sớm (default chỉ 20s timeout)
+socketio = SocketIO(
+    async_mode="eventlet",
+    cors_allowed_origins="*",
+    ping_timeout=60,
+    ping_interval=25,
+)
 
 @socketio.on('join')
 def on_join(data):

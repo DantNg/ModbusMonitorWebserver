@@ -2349,34 +2349,84 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
 
     // Handle reconnection - rejoin room
     socket.on('connect', function () {
+      console.log('[Subdash] Socket connected, joining room subdashboard_' + currentSubdashId);
       socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
       socketConnected = false; // Reset flag to redetect updates
+
+      // Restart polling check: if no socket data within 5s after connect, start polling
+      _startPollingFallbackCheck();
     });
 
     socket.on('disconnect', function () {
+      console.warn('[Subdash] Socket disconnected');
       socketConnected = false;
+      // Start polling immediately on disconnect to keep UI alive
+      _ensurePolling();
     });
 
+    // Listen for global reconnect event (from visibilitychange / heartbeat in base.html)
+    window.addEventListener('socket_reconnected', function () {
+      console.log('[Subdash] Global reconnect event, rejoining room subdashboard_' + currentSubdashId);
+      socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
+      socketConnected = false;
+      _startPollingFallbackCheck();
+    });
+
+    // Update global heartbeat timestamp whenever we receive modbus data
+    socket.on('modbus_update', function () {
+      if (typeof _lastSocketDataTime !== 'undefined') {
+        _lastSocketDataTime = Date.now();
+      }
+    });
 
   } else {
     console.warn('Socket not available, falling back to polling only');
   }
 
+  // ---- Polling fallback helpers ----
+  function _ensurePolling() {
+    if (!pollingInterval) {
+      console.warn('[Subdash] Starting polling fallback');
+      pollingInterval = setInterval(function () {
+        if (window.App && window.App.refreshTags) {
+          window.App.refreshTags();
+        }
+      }, 2000);
+    }
+  }
+
+  function _stopPolling() {
+    if (pollingInterval) {
+      console.log('[Subdash] Stopping polling fallback (socket active)');
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+  }
+
+  function _startPollingFallbackCheck() {
+    // Wait 5s, then check if socket is delivering data; if not, start polling
+    setTimeout(function () {
+      if (socketConnected) {
+        _stopPolling();
+      } else {
+        console.warn('[Subdash] No socket data after 5s, enabling polling');
+        _ensurePolling();
+      }
+    }, 5000);
+  }
+
   // Polling fallback - check after DOM is ready
   document.addEventListener('DOMContentLoaded', function () {
-    // Check if we're receiving socket updates
-    setTimeout(function () {
-      if (!socketConnected) {
-        console.warn('Socket.IO not receiving updates after 2s, falling back to polling');
-        pollingInterval = setInterval(function () {
-          if (window.App && window.App.refreshTags) {
-            window.App.refreshTags();
-          }
-        }, 2000);
+    _startPollingFallbackCheck();
+
+    // Periodic check: switch between socket and polling as needed
+    setInterval(function () {
+      if (socketConnected) {
+        _stopPolling();
       } else {
-        console.log('Socket.IO updates detected, no polling needed');
+        _ensurePolling();
       }
-    }, 2000);
+    }, 15000); // Re-evaluate every 15 seconds
   });
 
   // Cleanup on page unload to prevent memory leaks

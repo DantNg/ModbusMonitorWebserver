@@ -236,11 +236,103 @@
   <script src="{{ url_for('static', filename='vendor/js/bootstrap.bundle.min.js') }}"></script>
   <script src="{{ url_for('static', filename='vendor/js/socket.io.min.js') }}"></script>
   <script>
-    // Safe socket initialization - graceful fallback when offline or socket.io unavailable
+    // Safe socket initialization with robust reconnection for long-running sessions
     var socket = null;
+    // Global flag: last time we received any Socket.IO data from server
+    var _lastSocketDataTime = Date.now();
+    // Heartbeat interval ID
+    var _heartbeatIntervalId = null;
+
     try {
       if (typeof io !== 'undefined') {
-        socket = io();
+        socket = io({
+          // Reconnection settings - critical for long-running sessions (days)
+          reconnection: true,
+          reconnectionAttempts: Infinity,   // Never give up reconnecting
+          reconnectionDelay: 1000,          // Start with 1s delay
+          reconnectionDelayMax: 30000,      // Max 30s between retries
+          randomizationFactor: 0.3,         // Slight jitter to avoid thundering herd
+          timeout: 20000,                   // Connection timeout 20s
+          // Prefer WebSocket, fallback to polling if needed
+          transports: ['websocket', 'polling'],
+          upgrade: true
+        });
+
+        // Track connection state globally
+        socket.on('connect', function () {
+          console.log('[Socket.IO] Connected, sid:', socket.id);
+          _lastSocketDataTime = Date.now();
+        });
+
+        socket.on('disconnect', function (reason) {
+          console.warn('[Socket.IO] Disconnected, reason:', reason);
+          // If server disconnected us, force reconnect immediately
+          if (reason === 'io server disconnect') {
+            socket.connect();
+          }
+        });
+
+        socket.on('reconnect', function (attemptNumber) {
+          console.log('[Socket.IO] Reconnected after', attemptNumber, 'attempts');
+          _lastSocketDataTime = Date.now();
+          // Dispatch custom event so page-specific scripts can rejoin rooms
+          window.dispatchEvent(new CustomEvent('socket_reconnected'));
+        });
+
+        socket.on('reconnect_attempt', function (attemptNumber) {
+          console.log('[Socket.IO] Reconnect attempt #' + attemptNumber);
+        });
+
+        socket.on('reconnect_error', function (error) {
+          console.warn('[Socket.IO] Reconnect error:', error.message || error);
+        });
+
+        // ---- Visibility Change Handler ----
+        // When user returns to tab after it was in background (especially multi-day sessions),
+        // browser may have killed the WebSocket. Force reconnect + rejoin rooms.
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible' && socket) {
+            var timeSinceLastData = Date.now() - _lastSocketDataTime;
+            console.log('[Socket.IO] Tab visible again, time since last data:', Math.round(timeSinceLastData / 1000) + 's');
+
+            if (!socket.connected) {
+              console.log('[Socket.IO] Socket disconnected while tab was hidden, reconnecting...');
+              socket.connect();
+            } else if (timeSinceLastData > 60000) {
+              // Connected but no data for 60s+ → connection may be stale/zombie
+              console.log('[Socket.IO] Connection may be stale, forcing reconnect...');
+              socket.disconnect();
+              setTimeout(function () { socket.connect(); }, 500);
+            }
+
+            // Always fire reconnected event so pages rejoin rooms
+            setTimeout(function () {
+              if (socket.connected) {
+                window.dispatchEvent(new CustomEvent('socket_reconnected'));
+              }
+            }, 1500);
+          }
+        });
+
+        // ---- Global Heartbeat Check ----
+        // Periodically check if we're still receiving data; if not, force reconnect
+        _heartbeatIntervalId = setInterval(function () {
+          if (!socket) return;
+          var timeSinceLastData = Date.now() - _lastSocketDataTime;
+
+          // If connected but no data for 120s, connection might be zombie
+          if (socket.connected && timeSinceLastData > 120000) {
+            console.warn('[Socket.IO] Heartbeat: no data for ' + Math.round(timeSinceLastData / 1000) + 's, forcing reconnect');
+            socket.disconnect();
+            setTimeout(function () { socket.connect(); }, 500);
+          }
+          // If not connected, ensure reconnection is happening
+          else if (!socket.connected) {
+            console.warn('[Socket.IO] Heartbeat: not connected, attempting reconnect');
+            socket.connect();
+          }
+        }, 30000); // Check every 30 seconds
+
       } else {
         console.warn('[Socket.IO] io is not defined - running in offline mode');
       }
