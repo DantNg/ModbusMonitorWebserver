@@ -875,3 +875,11 @@ def rename_quad_card_title(sid, quad_id):
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.get("/demo-qtag6")
+def demo_qtag6():
+    """Demo page for Qtag 6 Tag layout (CRS-3B).
+    Displays mockup UI with simulated realtime data for review before integration.
+    """
+    return render_template("subdashboards/demo_qtag6.html")

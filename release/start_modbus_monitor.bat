@@ -30,14 +30,14 @@ if exist "%SMTP_CONFIG_PATH%" (
 	echo [%date% %time%] WARNING: %SMTP_CONFIG_PATH% not found. Using exe dir fallbacks.>>"%LOG%"
 )
 
-REM Start WebApp (main.exe)
-if exist "main.exe" (
-	echo Starting webapp: main.exe
-	echo [%date% %time%] Starting: main.exe>>"%LOG%"
-	start "webapp" "%SCRIPT_DIR%main.exe"
+REM Start WebApp (modbus_monitor_webserver.exe)
+if exist "modbus_monitor_webserver.exe" (
+	echo Starting webapp: modbus_monitor_webserver.exe
+	echo [%date% %time%] Starting: modbus_monitor_webserver.exe>>"%LOG%"
+	start "webapp" "%SCRIPT_DIR%modbus_monitor_webserver.exe"
 ) else (
-	echo main.exe not found in %SCRIPT_DIR%
-	echo [%date% %time%] Skip main.exe (not found)>>"%LOG%"
+	echo modbus_monitor_webserver.exe not found in %SCRIPT_DIR%
+	echo [%date% %time%] Skip modbus_monitor_webserver.exe (not found)>>"%LOG%"
 )
 echo Waiting 5 seconds to ensure system services are ready...
 echo [%date% %time%] Waiting 5 seconds before launching services...>>"%LOG%"

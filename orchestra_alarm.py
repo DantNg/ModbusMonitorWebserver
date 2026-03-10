@@ -14,6 +14,10 @@ from multiprocessing import Queue, Manager, Process
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'webapp'))
 
+# Centralized logging — tự tạo folder logs/, hoạt động cả khi build EXE
+from shared.app_logger import get_logger, log_exception, log_startup
+logger = get_logger("orchestra_alarm")
+
 from workers.alarm_worker import AlarmConfig, create_alarm_worker_process
 
 class AlarmWorkerLauncher:
@@ -27,12 +31,12 @@ class AlarmWorkerLauncher:
         self.shared_state = Manager().dict()
         self.running = False
         
-        print("🚀 Alarm Worker Launcher initialized")
+        logger.info("Alarm Worker Launcher initialized")
         
     def start_alarm_worker(self):
         """Start the alarm worker process"""
         if self.alarm_process and self.alarm_process.is_alive():
-            print("⚠️ Alarm worker already running")
+            logger.warning("Alarm worker already running")
             return
         
         # Create alarm config - enable notifications in worker since all logic is there now
@@ -42,7 +46,7 @@ class AlarmWorkerLauncher:
             database_timeout=5.0
         )
         
-        print("📋 Creating alarm worker process...")
+        logger.info("Creating alarm worker process...")
         self.alarm_process = create_alarm_worker_process(
             config=config,
             data_queue=self.data_queue,
@@ -51,19 +55,19 @@ class AlarmWorkerLauncher:
             shared_state=self.shared_state
         )
         
-        print("🚀 Starting alarm worker process...")
+        logger.info("Starting alarm worker process...")
         self.alarm_process.start()
         self.running = True
         
-        print(f"✅ Alarm worker started (PID: {self.alarm_process.pid})")
+        logger.info("Alarm worker started (PID: %s)", self.alarm_process.pid)
         
     def stop_alarm_worker(self):
         """Stop the alarm worker process"""
         if not self.alarm_process or not self.alarm_process.is_alive():
-            print("⚠️ Alarm worker not running")
+            logger.warning("Alarm worker not running")
             return
         
-        print("🛑 Stopping alarm worker...")
+        logger.info("Stopping alarm worker...")
         
         # Send stop command
         try:
@@ -76,16 +80,16 @@ class AlarmWorkerLauncher:
         
         # Force terminate if needed
         if self.alarm_process.is_alive():
-            print("⚡ Force terminating alarm worker...")
+            logger.warning("Force terminating alarm worker...")
             self.alarm_process.terminate()
             self.alarm_process.join(timeout=2)
         
         if self.alarm_process.is_alive():
-            print("💀 Killing alarm worker...")
+            logger.warning("Killing alarm worker...")
             self.alarm_process.kill()
         
         self.running = False
-        print("✅ Alarm worker stopped")
+        logger.info("Alarm worker stopped")
         
     def get_worker_status(self):
         """Get alarm worker status"""
@@ -119,13 +123,15 @@ class AlarmWorkerLauncher:
                 level = log_entry.get('level', 'INFO')
                 message = log_entry.get('message', '')
                 
-                print(f"[{timestamp}] [{worker_id}] {level}: {message}")
+                # Ghi vào file log tập trung thay vì chỉ print
+                log_level = getattr(logger, level.lower(), logger.info)
+                log_level("[%s] %s", worker_id, message)
         except:
             pass  # Queue empty
             
     def run_main_loop(self):
         """Main monitoring loop"""
-        print("🔄 Starting main monitoring loop...")
+        logger.info("Starting main monitoring loop...")
         
         try:
             while self.running:
@@ -134,23 +140,22 @@ class AlarmWorkerLauncher:
                 
                 # Check if worker is still alive
                 if self.alarm_process and not self.alarm_process.is_alive():
-                    print("💀 Alarm worker process died unexpectedly")
                     exit_code = self.alarm_process.exitcode
-                    print(f"Exit code: {exit_code}")
+                    logger.error("Alarm worker process died unexpectedly (exit code: %s)", exit_code)
                     break
                 
                 time.sleep(1)  # Check every second
                 
         except KeyboardInterrupt:
-            print("\n🛑 Interrupted by user")
+            logger.info("Interrupted by user")
         except Exception as e:
-            print(f"❌ Error in main loop: {e}")
+            log_exception("orchestra_alarm", e, "Error in main loop")
         finally:
             self.stop_alarm_worker()
 
 def signal_handler(signum, frame):
     """Handle shutdown signals"""
-    print(f"\n📡 Received signal {signum}")
+    logger.info("Received signal %s", signum)
     # The main loop will handle cleanup
     
 def main():
@@ -159,8 +164,8 @@ def main():
     from utils.single_instance import ensure_single_instance
     _instance_lock = ensure_single_instance("orchestra_alarm")
 
-    print("🚨 Modbus Monitor - Alarm Worker Service")
-    print("=" * 50)
+    # Log system info at startup (EXE-safe)
+    log_startup("orchestra_alarm", "Modbus Monitor - Alarm Worker Service")
     
     # Setup signal handlers
     signal.signal(signal.SIGINT, signal_handler)
@@ -173,10 +178,10 @@ def main():
         launcher.start_alarm_worker()
         launcher.run_main_loop()
     except Exception as e:
-        print(f"❌ Fatal error: {e}")
+        log_exception("orchestra_alarm", e, "Fatal error")
     finally:
         launcher.stop_alarm_worker()
-        print("👋 Alarm worker service shutdown complete")
+        logger.info("Alarm worker service shutdown complete")
 
 if __name__ == "__main__":
     # Ensure proper multiprocessing setup on Windows

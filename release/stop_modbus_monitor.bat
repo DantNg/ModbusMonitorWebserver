@@ -6,7 +6,7 @@ echo   Modbus Monitor - Stop All Services
 echo ==============================================
 
 REM Stop WebApp and workers by executable name
-for %%P in (main.exe orchestra_modbus.exe orchestra_datalogger.exe orchestra_alarm.exe) do (
+for %%P in (modbus_monitor_webserver.exe orchestra_modbus.exe orchestra_datalogger.exe orchestra_alarm.exe) do (
   echo Stopping %%P ...
   taskkill /IM %%P /F /T >nul 2>&1
   if errorlevel 1 (

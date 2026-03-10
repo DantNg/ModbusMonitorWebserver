@@ -17,6 +17,10 @@ import signal
 import time
 from types import SimpleNamespace
 from threading import Event
+
+# Centralized logging — tự tạo folder logs/, hoạt động cả khi build EXE
+from shared.app_logger import get_logger, log_exception, log_startup
+logger = get_logger("orchestra_modbus")
 # ---------------- Import worker classes (nằm trong thư mục workers) ----------------
 TCPWorker = None
 RTUWorker = None
@@ -24,23 +28,23 @@ RTUWorker = None
 # Ưu tiên bản đặt tên "modbus_*_worker"
 try:
     from workers.modbus_tcp_worker import ModbusTCPWorker as TCPWorker
-    print("✅ Loaded TCP worker from workers.modbus_tcp_worker.ModbusTCPWorker")
+    logger.info("Loaded TCP worker from workers.modbus_tcp_worker.ModbusTCPWorker")
 except Exception as e:
     try:
         from workers.tcp_worker import TCPWorker as TCPWorker
-        print("✅ Loaded TCP worker from workers.tcp_worker.TCPWorker")
+        logger.info("Loaded TCP worker from workers.tcp_worker.TCPWorker")
     except Exception as e2:
-        print(f"⚠️ Không tải được TCP worker: {e} / {e2}")
+        logger.warning("Cannot load TCP worker: %s / %s", e, e2)
 
 try:
     from workers.modbus_rtu_worker import ModbusRTUWorker as RTUWorker
-    print("✅ Loaded RTU worker from workers.modbus_rtu_worker.ModbusRTUWorker")
+    logger.info("Loaded RTU worker from workers.modbus_rtu_worker.ModbusRTUWorker")
 except Exception as e:
     try:
         from workers.rtu_worker import RTUWorker as RTUWorker
-        print("✅ Loaded RTU worker from workers.rtu_worker.RTUWorker")
+        logger.info("Loaded RTU worker from workers.rtu_worker.RTUWorker")
     except Exception as e2:
-        print(f"⚠️ Không tải được RTU worker: {e} / {e2}")
+        logger.warning("Cannot load RTU worker: %s / %s", e, e2)
 
 # ---------------- Import DB module at webapp/modbus_monitor/database/db.py ----------------
 # Ưu tiên import theo đường dẫn đầy đủ để PyInstaller bắt được package khi build
@@ -55,7 +59,7 @@ try:
     except Exception:
         # Khi chạy trong thư mục webapp
         from modbus_monitor.database import db as db
-    print("✅ Successfully imported DB module")
+    logger.info("Successfully imported DB module")
 except Exception as e:
     # Nếu đang chạy dưới dạng EXE, thử thêm exe_dir/webapp vào sys.path
     try:
@@ -65,25 +69,25 @@ except Exception as e:
             if os.path.isdir(wa_dir) and wa_dir not in sys.path:
                 sys.path.insert(0, wa_dir)
                 from modbus_monitor.database import db as db
-                print("✅ Imported DB module after sys.path adjustment")
+                logger.info("Imported DB module after sys.path adjustment")
                 e = None
     except Exception:
         pass
     if e is not None:
-        print(f"❌ Không import được DB module webapp.modbus_monitor.database.db: {e}")
+        logger.critical("Cannot import DB module webapp.modbus_monitor.database.db: %s", e)
         raise
 
 # ---------------- Import worker classes (nằm cạnh orchestra) ----------------
 try:
     from workers.tcp_worker import TCPWorker
 except Exception as e:
-    print(f"⚠️ Không tải được TCPWorker: {e}")
+    logger.warning("Cannot load TCPWorker: %s", e)
     TCPWorker = None
 
 try:
     from workers.rtu_worker import RTUWorker
 except Exception as e:
-    print(f"⚠️ Không tải được RTUWorker: {e}")
+    logger.warning("Cannot load RTUWorker: %s", e)
     RTUWorker = None
 
 
@@ -136,7 +140,7 @@ class ModbusOrchestrator:
 
     def _start_tcp_worker(self, cfg: dict):
         if TCPWorker is None:
-            print("❌ TCPWorker chưa khả dụng, bỏ qua worker TCP")
+            logger.error("TCPWorker not available, skipping TCP worker")
             return
 
         devices_ns = [_ns_device(d) for d in cfg.get("devices", [])]
@@ -162,13 +166,13 @@ class ModbusOrchestrator:
         ok = worker.start()
         if ok:
             self.workers[cfg["worker_id"]] = worker
-            print(f"🚀 TCP worker '{cfg['worker_id']}' started ({host}:{port})")
+            logger.info("TCP worker '%s' started (%s:%s)", cfg['worker_id'], host, port)
         else:
-            print(f"❌ Không khởi động được TCP worker '{cfg['worker_id']}'")
+            logger.error("Failed to start TCP worker '%s'", cfg['worker_id'])
 
     def _start_rtu_worker(self, cfg: dict):
         if RTUWorker is None:
-            print("❌ RTUWorker chưa khả dụng, bỏ qua worker RTU")
+            logger.error("RTUWorker not available, skipping RTU worker")
             return
 
         devices_ns = [_ns_device(d) for d in cfg.get("devices", [])]
@@ -189,58 +193,67 @@ class ModbusOrchestrator:
         ok = worker.start()
         if ok:
             self.workers[cfg["worker_id"]] = worker
-            print(f"🚀 RTU worker '{cfg['worker_id']}' started ({serial_port} @ {baudrate})")
+            logger.info("RTU worker '%s' started (%s @ %s)", cfg['worker_id'], serial_port, baudrate)
         else:
-            print(f"❌ Không khởi động được RTU worker '{cfg['worker_id']}'")
+            logger.error("Failed to start RTU worker '%s'", cfg['worker_id'])
 
     def start_autostart_workers(self):
-        print("🔎 Đang tải cấu hình worker auto-start từ DB ...")
-        # Hàm này bạn đã implement trong webapp/modbus_monitor/database/db.py
-        worker_rows = db.get_auto_start_workers()
-        print(f"📋 Tìm thấy {len(worker_rows)} worker auto-start")
+        logger.info("Loading auto-start worker configs from DB ...")
+        try:
+            worker_rows = db.get_auto_start_workers()
+        except Exception as e:
+            log_exception("orchestra_modbus", e, "Failed to load auto-start workers from DB")
+            return
+        logger.info("Found %d auto-start workers", len(worker_rows))
 
         for cfg in worker_rows:
             wid = cfg["worker_id"]
-            print(f"🔍 Processing worker: {wid}")
+            logger.debug("Processing worker: %s", wid)
             
             if not cfg.get("enabled", True):
-                print(f"⏭️ Worker '{wid}' bị disable")
+                logger.debug("Worker '%s' disabled, skipping", wid)
                 continue
                 
             if not cfg.get("auto_start", True):
-                print(f"⏭️ Worker '{wid}' không auto-start")
+                logger.debug("Worker '%s' auto_start=False, skipping", wid)
                 continue
                 
             if wid in self.workers:
-                print(f"⏭️ Worker '{wid}' đã chạy")
+                logger.debug("Worker '%s' already running, skipping", wid)
                 continue
                 
             wtype = (cfg.get("worker_type") or "").lower()
-            print(f"🚀 Starting worker '{wid}' type '{wtype}'")
+            logger.info("Starting worker '%s' type '%s'", wid, wtype)
             
-            if wtype == "tcp":
-                self._start_tcp_worker(cfg)
-            elif wtype == "rtu":
-                self._start_rtu_worker(cfg)
-            else:
-                print(f"⚠️ Worker '{wid}' có worker_type không hỗ trợ: {cfg.get('worker_type')}")
+            try:
+                if wtype == "tcp":
+                    self._start_tcp_worker(cfg)
+                elif wtype == "rtu":
+                    self._start_rtu_worker(cfg)
+                else:
+                    logger.warning("Worker '%s' unsupported worker_type: %s", wid, cfg.get('worker_type'))
+            except Exception as e:
+                log_exception("orchestra_modbus", e, f"Error starting worker '{wid}'")
         
-        print(f"📊 Total workers running: {len(self.workers)}")
+        logger.info("Total workers running: %d", len(self.workers))
         for worker_id, worker in self.workers.items():
-            print(f"   - {worker_id}: {'running' if worker and hasattr(worker, 'is_running') and worker.is_running else 'stopped'}")
+            status = 'running' if worker and hasattr(worker, 'is_running') and worker.is_running else 'stopped'
+            logger.info("   - %s: %s", worker_id, status)
 
     def stop_all(self):
-        print("🛑 Dừng tất cả workers ...")
+        logger.info("Stopping all workers ...")
         for wid, w in list(self.workers.items()):
             try:
                 w.stop()
+                logger.info("Worker '%s' stopped", wid)
             except Exception as e:
-                print(f"⚠️ Lỗi dừng worker {wid}: {e}")
+                log_exception("orchestra_modbus", e, f"Error stopping worker {wid}")
         self.workers.clear()
+        logger.info("All workers stopped and cleared")
 
     def run(self, refresh_sec: int = 15):
         def _sig_handler(signum, frame):
-            print(f"\n🚦 Nhận tín hiệu {signum}, đang dừng ...")
+            logger.info("Received signal %s, shutting down ...", signum)
             self.stop_event.set()
 
         signal.signal(signal.SIGINT, _sig_handler)
@@ -248,7 +261,7 @@ class ModbusOrchestrator:
 
         # Start lần đầu
         self.start_autostart_workers()
-        print(f"🔁 Hot-reload {'ON' if refresh_sec > 0 else 'OFF'} (chu kỳ {refresh_sec}s)")
+        logger.info("Hot-reload %s (interval %ds)", 'ON' if refresh_sec > 0 else 'OFF', refresh_sec)
 
         try:
             while not self.stop_event.is_set():
@@ -267,6 +280,9 @@ def main():
     from utils.single_instance import ensure_single_instance
     _instance_lock = ensure_single_instance("orchestra_modbus")
 
+    # Log system info at startup (EXE-safe)
+    log_startup("orchestra_modbus", "Modbus Workers Orchestrator")
+
     parser = argparse.ArgumentParser(description="Modbus Workers Orchestrator")
     parser.add_argument("--webapp-url", default="http://127.0.0.1:5000",
                         help="URL webapp (Socket.IO) để workers TCP emit realtime")
@@ -274,8 +290,12 @@ def main():
                         help="Chu kỳ (giây) đọc lại DB để auto-start worker mới; 0 = tắt")
     args = parser.parse_args()
 
-    orch = ModbusOrchestrator(webapp_url=args.webapp_url)
-    orch.run(refresh_sec=args.refresh_sec)
+    try:
+        orch = ModbusOrchestrator(webapp_url=args.webapp_url)
+        orch.run(refresh_sec=args.refresh_sec)
+    except Exception as e:
+        log_exception("orchestra_modbus", e, "Fatal error in orchestra_modbus")
+        raise
 
 
 if __name__ == "__main__":

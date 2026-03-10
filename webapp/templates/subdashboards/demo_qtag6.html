@@ -1,0 +1,953 @@
+{% extends "base.html" %}
+{% set page_title = "Demo Qtag 6 Tag" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/subdashboard-detail.css') }}">
+<style>
+  /* ========== Qtag6 Specific Styles ========== */
+
+  /* Qtag6 card uses wider layout to fit 6 tags + LOW/HIGH */
+  .qtag6-card {
+    border-radius: 14px !important;
+    overflow: visible !important;
+    position: relative !important;
+    transition: box-shadow 0.3s ease;
+  }
+
+  .qtag6-card:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  .qtag6-card .card-header {
+    min-height: 52px !important;
+    padding: 12px 16px !important;
+    border-radius: 14px 14px 0 0 !important;
+  }
+
+  .qtag6-card .card-body {
+    padding: 10px !important;
+  }
+
+  /* Grid layout: 2 columns (left/right sub-cards) */
+  .qtag6-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+    padding: 8px !important;
+  }
+
+  @media (max-width: 768px) {
+    .qtag6-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  /* Sub-card for each column (left / right) */
+  .qtag6-sub-card {
+    padding: 0 !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .qtag6-sub-card:hover {
+    transform: scale(1.01);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Sub-card header with gradient */
+  .qtag6-sub-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 10px 14px !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+  }
+
+  .qtag6-sub-head.qtag6-left-head {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  }
+
+  .qtag6-sub-head.qtag6-right-head {
+    background: linear-gradient(135deg, #06b6d4 0%, #14b8a6 100%) !important;
+  }
+
+  .qtag6-sub-title {
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    opacity: 0.95;
+  }
+
+  /* Tag rows inside sub-card */
+  .qtag6-tag-rows {
+    padding: 14px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Individual tag item (PV / SV row) */
+  .qtag6-tag-item {
+    background: #f8fafc !important;
+    border-radius: 8px !important;
+    padding: 12px 14px !important;
+    display: grid !important;
+    grid-template-columns: auto 1fr !important;
+    align-items: center !important;
+    gap: 12px !important;
+    border: 1px solid #e5e7eb !important;
+    transition: all 0.3s ease;
+  }
+
+  .qtag6-tag-item:hover {
+    background: #eef2ff !important;
+    transform: translateX(2px);
+  }
+
+  /* PV label styling */
+  .qtag6-tag-label {
+    padding: 4px 10px !important;
+    border-radius: 4px !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    min-width: 50px !important;
+    text-align: center !important;
+    color: #fff !important;
+  }
+
+  .qtag6-tag-label.label-pv {
+    background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%) !important;
+  }
+
+  .qtag6-tag-label.label-sv {
+    background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%) !important;
+  }
+
+  /* Value + unit row */
+  .qtag6-value-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+
+  .qtag6-tag-value {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: #111827 !important;
+    line-height: 1 !important;
+    flex: 1 1 auto !important;
+    text-align: center !important;
+  }
+
+  .qtag6-tag-unit {
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    color: #4b5563 !important;
+    text-transform: uppercase !important;
+    white-space: nowrap;
+  }
+
+  .qtag6-tag-name {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-align: center;
+    margin-top: 2px;
+  }
+
+  /* ========== LOW / HIGH Indicator Section ========== */
+  .qtag6-lowhigh-section {
+    margin-top: 4px;
+    padding: 8px 12px;
+    background: #f1f5f9;
+    border-radius: 6px;
+    border: 1px dashed #cbd5e1;
+  }
+
+  .qtag6-lowhigh-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .qtag6-lowhigh-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .qtag6-lowhigh-item.low-item {
+    color: #dc2626;
+  }
+
+  .qtag6-lowhigh-item.high-item {
+    color: #16a34a;
+  }
+
+  .qtag6-lowhigh-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .qtag6-lowhigh-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .qtag6-lowhigh-value {
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: 'Consolas', 'Courier New', monospace;
+  }
+
+  .qtag6-lowhigh-divider {
+    width: 1px;
+    height: 24px;
+    background: #cbd5e1;
+  }
+
+  /* SV block with LOW/HIGH integrated */
+  .qtag6-sv-block {
+    background: #f0f9ff !important;
+    border: 1px solid #bae6fd !important;
+    border-radius: 10px !important;
+    padding: 12px !important;
+  }
+
+  .qtag6-sv-block .qtag6-tag-item {
+    background: transparent !important;
+    border: none !important;
+    padding: 4px 0 !important;
+  }
+
+  .qtag6-sv-block .qtag6-tag-item:hover {
+    background: transparent !important;
+    transform: none !important;
+  }
+
+  /* Update time at bottom of sub-card */
+  .qtag6-update-time {
+    padding: 6px 14px 10px;
+    font-size: 0.75rem;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ========== Badge for card_type ========== */
+  .qtag6-type-badge {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* ========== Dark Theme ========== */
+  [data-bs-theme="dark"] .qtag6-sub-card {
+    background: #1f2937 !important;
+    border-color: #2d3748 !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-tag-item {
+    background: #111827 !important;
+    border-color: #1f2937 !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-tag-item:hover {
+    background: #1e293b !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-tag-value {
+    color: #e5e7eb !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-tag-unit,
+  [data-bs-theme="dark"] .qtag6-update-time,
+  [data-bs-theme="dark"] .qtag6-tag-name {
+    color: #9ca3af !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-lowhigh-section {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  [data-bs-theme="dark"] .qtag6-sv-block {
+    background: #0f172a !important;
+    border-color: #1e3a5f !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-lowhigh-divider {
+    background: #475569;
+  }
+
+  /* ========== Alarm states for Qtag6 ========== */
+  .qtag6-sub-card.qtag6-alarm-high {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+    border: 2px solid #dc2626 !important;
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.4) !important;
+    animation: pulse-red 2s ease-in-out infinite;
+  }
+
+  .qtag6-sub-card.qtag6-alarm-low {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+    border: 2px solid #f59e0b !important;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4) !important;
+    animation: pulse-yellow 2s ease-in-out infinite;
+  }
+
+  [data-bs-theme="dark"] .qtag6-sub-card.qtag6-alarm-high {
+    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-sub-card.qtag6-alarm-low {
+    background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+  }
+
+  /* ========== Demo Page Styles ========== */
+  .demo-header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: white;
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+  }
+
+  .demo-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 1.4rem;
+  }
+
+  .demo-header p {
+    margin: 0;
+    opacity: 0.85;
+    font-size: 0.9rem;
+  }
+
+  .demo-section {
+    margin-bottom: 32px;
+  }
+
+  .demo-section h3 {
+    font-size: 1.1rem;
+    color: #2563eb;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #dbeafe;
+  }
+
+  .demo-controls {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  .demo-compare-table {
+    margin-top: 24px;
+  }
+
+  .demo-compare-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+
+  .demo-compare-table th {
+    background: #2563eb;
+    color: white;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  .demo-compare-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+  }
+
+  .demo-compare-table tr:nth-child(even) td {
+    background: #f9fafb;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Demo Header -->
+<div class="demo-header">
+  <h2><i class="bi bi-grid-3x3-gap me-2"></i>Demo Qtag 6 Tag Card</h2>
+  <p>Giao diện mới cho Qtag 6 Tag — Mở rộng từ Qtag 4 Tag, thêm LOW/HIGH cho mỗi SV. Theo yêu cầu CRS-3B (RS-3.4 → RS-3.7)</p>
+</div>
+
+<!-- Demo Controls -->
+<div class="demo-controls">
+  <div class="row g-3 align-items-center">
+    <div class="col-auto">
+      <button class="btn btn-sm btn-primary" onclick="demoSimulateRealtime()">
+        <i class="bi bi-play-circle me-1"></i>Simulate Realtime
+      </button>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-danger" onclick="demoStopSimulation()">
+        <i class="bi bi-stop-circle me-1"></i>Stop
+      </button>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-warning" onclick="demoTriggerAlarmHigh()">
+        <i class="bi bi-exclamation-triangle me-1"></i>Demo Alarm HIGH
+      </button>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-info" onclick="demoTriggerAlarmLow()">
+        <i class="bi bi-exclamation-triangle me-1"></i>Demo Alarm LOW
+      </button>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-success" onclick="demoClearAlarms()">
+        <i class="bi bi-check-circle me-1"></i>Clear Alarms
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DEMO 1: Qtag6 with Tag-based LOW/HIGH ========== -->
+<div class="demo-section">
+  <h3><i class="bi bi-1-circle-fill me-2"></i>Qtag 6 Tag — LOW/HIGH từ Tag (Realtime)</h3>
+  <p class="text-muted small mb-3">Mỗi SV hiển thị thêm LOW/HIGH lấy giá trị từ Tag Modbus. Giá trị cập nhật realtime qua Socket.IO.</p>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-8 col-xl-7">
+      <!-- Qtag6 Card -->
+      <div class="card h-100 shadow-soft qtag6-card" id="demo-qtag6-1" data-card-type="quad6">
+        <!-- Card Header -->
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2" style="border-radius: 14px 14px 0 0;">
+          <div class="d-flex align-items-center gap-2">
+            <span class="quad-status-indicator status-online" title="Device Online">
+              <i class="bi bi-circle-fill"></i>
+            </span>
+            <span class="fw-semibold">AHU-01 Environment Control</span>
+            <span class="qtag6-type-badge">QTAG6</span>
+          </div>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-gear"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item"><i class="bi bi-pencil-square me-2"></i>Rename Card</button></li>
+              <li><button class="dropdown-item"><i class="bi bi-sliders me-2"></i>Set Compare Conditions</button></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><button class="dropdown-item"><i class="bi bi-pencil me-2"></i>Edit Tags (6 tags)</button></li>
+              <li><button class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Card Body with 2-column Grid -->
+        <div class="card-body">
+          <div class="qtag6-grid">
+            <!-- ===== LEFT COLUMN: Temperature ===== -->
+            <div class="qtag6-sub-card" id="demo-qtag6-1-left" data-column="left">
+              <div class="qtag6-sub-head qtag6-left-head">
+                <div class="qtag6-sub-title">Temperature</div>
+              </div>
+              <div class="qtag6-tag-rows">
+                <!-- PV (Tag 1) -->
+                <div class="qtag6-tag-item" data-tag-id="101" data-role="pv">
+                  <div class="qtag6-tag-label label-pv">PV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-tag-value" id="qtag6-val-101">24.50</div>
+                    <div class="qtag6-tag-unit">°C</div>
+                  </div>
+                  <div class="qtag6-tag-name">Supply Air Temp</div>
+                </div>
+
+                <!-- SV Block (Tag 3 + LOW/HIGH) -->
+                <div class="qtag6-sv-block">
+                  <!-- SV (Tag 3) -->
+                  <div class="qtag6-tag-item" data-tag-id="103" data-role="sv">
+                    <div class="qtag6-tag-label label-sv">SV</div>
+                    <div class="qtag6-value-row">
+                      <div class="qtag6-tag-value" id="qtag6-val-103">25.00</div>
+                      <div class="qtag6-tag-unit">°C</div>
+                    </div>
+                    <div class="qtag6-tag-name">Setpoint Temp</div>
+                  </div>
+
+                  <!-- LOW / HIGH indicators -->
+                  <div class="qtag6-lowhigh-section">
+                    <div class="qtag6-lowhigh-row">
+                      <!-- LOW (Tag 5) -->
+                      <div class="qtag6-lowhigh-item low-item">
+                        <span class="qtag6-lowhigh-icon">▼</span>
+                        <span class="qtag6-lowhigh-label">LOW</span>
+                        <span class="qtag6-lowhigh-value" id="qtag6-val-105" data-tag-id="105" data-source="tag">18.00</span>
+                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">°C</span>
+                      </div>
+                      <div class="qtag6-lowhigh-divider"></div>
+                      <!-- HIGH (from Tag) -->
+                      <div class="qtag6-lowhigh-item high-item">
+                        <span class="qtag6-lowhigh-icon">▲</span>
+                        <span class="qtag6-lowhigh-label">HIGH</span>
+                        <span class="qtag6-lowhigh-value" id="qtag6-high-left-1" data-source="tag" data-tag-id="107">30.00</span>
+                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">°C</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="qtag6-update-time" id="qtag6-time-left-1">
+                <i class="bi bi-clock"></i> Last updated: --:--:--
+              </div>
+            </div>
+
+            <!-- ===== RIGHT COLUMN: Humidity ===== -->
+            <div class="qtag6-sub-card" id="demo-qtag6-1-right" data-column="right">
+              <div class="qtag6-sub-head qtag6-right-head">
+                <div class="qtag6-sub-title">Humidity</div>
+              </div>
+              <div class="qtag6-tag-rows">
+                <!-- PV (Tag 2) -->
+                <div class="qtag6-tag-item" data-tag-id="102" data-role="pv">
+                  <div class="qtag6-tag-label label-pv">PV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-tag-value" id="qtag6-val-102">55.20</div>
+                    <div class="qtag6-tag-unit">%RH</div>
+                  </div>
+                  <div class="qtag6-tag-name">Supply Air Humidity</div>
+                </div>
+
+                <!-- SV Block (Tag 4 + LOW/HIGH) -->
+                <div class="qtag6-sv-block">
+                  <div class="qtag6-tag-item" data-tag-id="104" data-role="sv">
+                    <div class="qtag6-tag-label label-sv">SV</div>
+                    <div class="qtag6-value-row">
+                      <div class="qtag6-tag-value" id="qtag6-val-104">50.00</div>
+                      <div class="qtag6-tag-unit">%RH</div>
+                    </div>
+                    <div class="qtag6-tag-name">Setpoint Humidity</div>
+                  </div>
+
+                  <!-- LOW / HIGH indicators -->
+                  <div class="qtag6-lowhigh-section">
+                    <div class="qtag6-lowhigh-row">
+                      <!-- LOW (Tag 6) -->
+                      <div class="qtag6-lowhigh-item low-item">
+                        <span class="qtag6-lowhigh-icon">▼</span>
+                        <span class="qtag6-lowhigh-label">LOW</span>
+                        <span class="qtag6-lowhigh-value" id="qtag6-val-106" data-tag-id="106" data-source="tag">35.00</span>
+                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">%RH</span>
+                      </div>
+                      <div class="qtag6-lowhigh-divider"></div>
+                      <!-- HIGH (from Tag) -->
+                      <div class="qtag6-lowhigh-item high-item">
+                        <span class="qtag6-lowhigh-icon">▲</span>
+                        <span class="qtag6-lowhigh-label">HIGH</span>
+                        <span class="qtag6-lowhigh-value" id="qtag6-high-right-1" data-source="tag" data-tag-id="108">70.00</span>
+                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">%RH</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="qtag6-update-time" id="qtag6-time-right-1">
+                <i class="bi bi-clock"></i> Last updated: --:--:--
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DEMO 2: Qtag6 with Fixed LOW/HIGH ========== -->
+<div class="demo-section">
+  <h3><i class="bi bi-2-circle-fill me-2"></i>Qtag 6 Tag — LOW/HIGH từ giá trị cố định (Fixed)</h3>
+  <p class="text-muted small mb-3">LOW/HIGH sử dụng giá trị cố định do admin nhập (không phải tag Modbus). Không thay đổi theo thời gian.</p>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-8 col-xl-7">
+      <div class="card h-100 shadow-soft qtag6-card" id="demo-qtag6-2" data-card-type="quad6">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2" style="border-radius: 14px 14px 0 0;">
+          <div class="d-flex align-items-center gap-2">
+            <span class="quad-status-indicator status-online" title="Device Online">
+              <i class="bi bi-circle-fill"></i>
+            </span>
+            <span class="fw-semibold">Chiller Unit #2 — Pressure Monitor</span>
+            <span class="qtag6-type-badge">QTAG6</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="qtag6-grid">
+            <!-- LEFT: Suction Pressure -->
+            <div class="qtag6-sub-card" id="demo-qtag6-2-left" data-column="left">
+              <div class="qtag6-sub-head qtag6-left-head">
+                <div class="qtag6-sub-title">Suction Pressure</div>
+              </div>
+              <div class="qtag6-tag-rows">
+                <div class="qtag6-tag-item" data-tag-id="201" data-role="pv">
+                  <div class="qtag6-tag-label label-pv">PV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-tag-value" id="qtag6-val-201">4.80</div>
+                    <div class="qtag6-tag-unit">Bar</div>
+                  </div>
+                  <div class="qtag6-tag-name">Suction Press. Actual</div>
+                </div>
+
+                <div class="qtag6-sv-block">
+                  <div class="qtag6-tag-item" data-tag-id="203" data-role="sv">
+                    <div class="qtag6-tag-label label-sv">SV</div>
+                    <div class="qtag6-value-row">
+                      <div class="qtag6-tag-value" id="qtag6-val-203">5.00</div>
+                      <div class="qtag6-tag-unit">Bar</div>
+                    </div>
+                    <div class="qtag6-tag-name">Suction Press. Setpoint</div>
+                  </div>
+
+                  <div class="qtag6-lowhigh-section">
+                    <div class="qtag6-lowhigh-row">
+                      <div class="qtag6-lowhigh-item low-item">
+                        <span class="qtag6-lowhigh-icon">▼</span>
+                        <span class="qtag6-lowhigh-label">LOW</span>
+                        <span class="qtag6-lowhigh-value" data-source="fixed">2.50</span>
+                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">Bar</span>
+                        <span class="badge bg-secondary" style="font-size: 0.6rem;">Fixed</span>
+                      </div>
+                      <div class="qtag6-lowhigh-divider"></div>
+                      <div class="qtag6-lowhigh-item high-item">
+                        <span class="qtag6-lowhigh-icon">▲</span>
+                        <span class="qtag6-lowhigh-label">HIGH</span>
+                        <span class="qtag6-lowhigh-value" data-source="fixed">7.50</span>
+                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">Bar</span>
+                        <span class="badge bg-secondary" style="font-size: 0.6rem;">Fixed</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="qtag6-update-time">
+                <i class="bi bi-clock"></i> Last updated: --:--:--
+              </div>
+            </div>
+
+            <!-- RIGHT: Discharge Pressure -->
+            <div class="qtag6-sub-card" id="demo-qtag6-2-right" data-column="right">
+              <div class="qtag6-sub-head qtag6-right-head">
+                <div class="qtag6-sub-title">Discharge Pressure</div>
+              </div>
+              <div class="qtag6-tag-rows">
+                <div class="qtag6-tag-item" data-tag-id="202" data-role="pv">
+                  <div class="qtag6-tag-label label-pv">PV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-tag-value" id="qtag6-val-202">12.30</div>
+                    <div class="qtag6-tag-unit">Bar</div>
+                  </div>
+                  <div class="qtag6-tag-name">Discharge Press. Actual</div>
+                </div>
+
+                <div class="qtag6-sv-block">
+                  <div class="qtag6-tag-item" data-tag-id="204" data-role="sv">
+                    <div class="qtag6-tag-label label-sv">SV</div>
+                    <div class="qtag6-value-row">
+                      <div class="qtag6-tag-value" id="qtag6-val-204">12.00</div>
+                      <div class="qtag6-tag-unit">Bar</div>
+                    </div>
+                    <div class="qtag6-tag-name">Discharge Press. Setpoint</div>
+                  </div>
+
+                  <div class="qtag6-lowhigh-section">
+                    <div class="qtag6-lowhigh-row">
+                      <div class="qtag6-lowhigh-item low-item">
+                        <span class="qtag6-lowhigh-icon">▼</span>
+                        <span class="qtag6-lowhigh-label">LOW</span>
+                        <span class="qtag6-lowhigh-value" data-source="fixed">8.00</span>
+                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">Bar</span>
+                        <span class="badge bg-secondary" style="font-size: 0.6rem;">Fixed</span>
+                      </div>
+                      <div class="qtag6-lowhigh-divider"></div>
+                      <div class="qtag6-lowhigh-item high-item">
+                        <span class="qtag6-lowhigh-icon">▲</span>
+                        <span class="qtag6-lowhigh-label">HIGH</span>
+                        <span class="qtag6-lowhigh-value" data-source="fixed">16.00</span>
+                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">Bar</span>
+                        <span class="badge bg-secondary" style="font-size: 0.6rem;">Fixed</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="qtag6-update-time">
+                <i class="bi bi-clock"></i> Last updated: --:--:--
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DEMO 3: Qtag6 without LOW/HIGH ========== -->
+<div class="demo-section">
+  <h3><i class="bi bi-3-circle-fill me-2"></i>Qtag 6 Tag — Không hiển thị LOW/HIGH</h3>
+  <p class="text-muted small mb-3">Khi admin không cấu hình LOW/HIGH, card hiển thị giống Qtag4 nhưng dùng layout mới.</p>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-8 col-xl-7">
+      <div class="card h-100 shadow-soft qtag6-card" id="demo-qtag6-3" data-card-type="quad6">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2" style="border-radius: 14px 14px 0 0;">
+          <div class="d-flex align-items-center gap-2">
+            <span class="quad-status-indicator status-offline" title="Device Offline">
+              <i class="bi bi-circle-fill"></i>
+            </span>
+            <span class="fw-semibold">FCU-03 Basic Monitor</span>
+            <span class="qtag6-type-badge">QTAG6</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="qtag6-grid">
+            <!-- LEFT -->
+            <div class="qtag6-sub-card" data-column="left">
+              <div class="qtag6-sub-head qtag6-left-head">
+                <div class="qtag6-sub-title">Zone Temperature</div>
+              </div>
+              <div class="qtag6-tag-rows">
+                <div class="qtag6-tag-item" data-tag-id="301" data-role="pv">
+                  <div class="qtag6-tag-label label-pv">PV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-tag-value" id="qtag6-val-301">0.00</div>
+                    <div class="qtag6-tag-unit">°C</div>
+                  </div>
+                  <div class="qtag6-tag-name">Zone Temp</div>
+                </div>
+                <div class="qtag6-tag-item" data-tag-id="303" data-role="sv">
+                  <div class="qtag6-tag-label label-sv">SV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-tag-value" id="qtag6-val-303">0.00</div>
+                    <div class="qtag6-tag-unit">°C</div>
+                  </div>
+                  <div class="qtag6-tag-name">Zone Setpoint</div>
+                </div>
+              </div>
+              <div class="qtag6-update-time">
+                <i class="bi bi-clock"></i> Device Offline
+              </div>
+            </div>
+
+            <!-- RIGHT -->
+            <div class="qtag6-sub-card" data-column="right">
+              <div class="qtag6-sub-head qtag6-right-head">
+                <div class="qtag6-sub-title">Fan Speed</div>
+              </div>
+              <div class="qtag6-tag-rows">
+                <div class="qtag6-tag-item" data-tag-id="302" data-role="pv">
+                  <div class="qtag6-tag-label label-pv">PV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-tag-value" id="qtag6-val-302">0.00</div>
+                    <div class="qtag6-tag-unit">RPM</div>
+                  </div>
+                  <div class="qtag6-tag-name">Fan Speed Actual</div>
+                </div>
+                <div class="qtag6-tag-item" data-tag-id="304" data-role="sv">
+                  <div class="qtag6-tag-label label-sv">SV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-tag-value" id="qtag6-val-304">0.00</div>
+                    <div class="qtag6-tag-unit">RPM</div>
+                  </div>
+                  <div class="qtag6-tag-name">Fan Speed Setpoint</div>
+                </div>
+              </div>
+              <div class="qtag6-update-time">
+                <i class="bi bi-clock"></i> Device Offline
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Comparison Table ========== -->
+<div class="demo-compare-table">
+  <h3><i class="bi bi-table me-2"></i>So sánh Qtag4 vs Qtag6</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Thuộc tính</th>
+        <th>Qtag 4 Tag (hiện tại)</th>
+        <th>Qtag 6 Tag (mới)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Số Tag</strong></td>
+        <td>4 tags (PV left, PV right, SV left, SV right)</td>
+        <td>6 tags (+ tag5 LOW/HIGH left, tag6 LOW/HIGH right)</td>
+      </tr>
+      <tr>
+        <td><strong>LOW/HIGH</strong></td>
+        <td>Không có</td>
+        <td>Mỗi SV có LOW + HIGH (chọn Tag hoặc Fixed value)</td>
+      </tr>
+      <tr>
+        <td><strong>DB Schema</strong></td>
+        <td>tag1_id → tag4_id</td>
+        <td>tag1_id → tag6_id + low/high config columns</td>
+      </tr>
+      <tr>
+        <td><strong>Layout</strong></td>
+        <td>2 sub-cards (PV + SV mỗi bên)</td>
+        <td>2 sub-cards (PV + SV block có LOW/HIGH mỗi bên)</td>
+      </tr>
+      <tr>
+        <td><strong>card_type</strong></td>
+        <td>quad4 (default)</td>
+        <td>quad6</td>
+      </tr>
+      <tr>
+        <td><strong>Alarm</strong></td>
+        <td>So sánh PV vs SV</td>
+        <td>So sánh PV vs SV + check LOW/HIGH thresholds</td>
+      </tr>
+      <tr>
+        <td><strong>Backward Compatible</strong></td>
+        <td>—</td>
+        <td>✅ Qtag4 cũ vẫn hoạt động bình thường, tag5/tag6 nullable</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ========== Realtime Simulation for Demo ==========
+  let simulationInterval = null;
+
+  function formatTime24h(date) {
+    const h = date.getHours().toString().padStart(2, '0');
+    const m = date.getMinutes().toString().padStart(2, '0');
+    const s = date.getSeconds().toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }
+
+  // Generate random fluctuation around a base value
+  function fluctuate(base, range) {
+    return (base + (Math.random() - 0.5) * range).toFixed(2);
+  }
+
+  function demoSimulateRealtime() {
+    if (simulationInterval) clearInterval(simulationInterval);
+
+    console.log('[Demo] Starting realtime simulation...');
+
+    simulationInterval = setInterval(function () {
+      const now = formatTime24h(new Date());
+
+      // Demo 1: Temperature & Humidity (tag-based LOW/HIGH)
+      updateValue('qtag6-val-101', fluctuate(24.5, 2));    // PV left: Supply Air Temp
+      updateValue('qtag6-val-102', fluctuate(55.2, 5));    // PV right: Humidity
+      updateValue('qtag6-val-103', fluctuate(25.0, 0.5));  // SV left: Temp setpoint
+      updateValue('qtag6-val-104', fluctuate(50.0, 1));    // SV right: Humidity setpoint
+      updateValue('qtag6-val-105', fluctuate(18.0, 0.3));  // LOW left (tag): Low temp limit
+      updateValue('qtag6-val-106', fluctuate(35.0, 0.5));  // LOW right (tag)
+      updateValue('qtag6-high-left-1', fluctuate(30.0, 0.3));  // HIGH left (tag)
+      updateValue('qtag6-high-right-1', fluctuate(70.0, 0.5)); // HIGH right (tag)
+
+      // Demo 2: Pressure (fixed LOW/HIGH — no change needed for fixed values)
+      updateValue('qtag6-val-201', fluctuate(4.8, 0.5));   // Suction PV
+      updateValue('qtag6-val-202', fluctuate(12.3, 1.0));   // Discharge PV
+      updateValue('qtag6-val-203', fluctuate(5.0, 0.2));   // Suction SV
+      updateValue('qtag6-val-204', fluctuate(12.0, 0.3));   // Discharge SV
+
+      // Update timestamps
+      document.querySelectorAll('.qtag6-update-time').forEach(function (el) {
+        el.innerHTML = '<i class="bi bi-clock"></i> Last updated: ' + now;
+      });
+
+      // Update demo 1 status to online
+      document.querySelectorAll('#demo-qtag6-1 .quad-status-indicator').forEach(function (el) {
+        el.className = 'quad-status-indicator status-online';
+      });
+
+    }, 1000);
+  }
+
+  function demoStopSimulation() {
+    if (simulationInterval) {
+      clearInterval(simulationInterval);
+      simulationInterval = null;
+      console.log('[Demo] Simulation stopped');
+    }
+  }
+
+  function updateValue(elementId, newValue) {
+    const el = document.getElementById(elementId);
+    if (el) {
+      const oldValue = el.textContent;
+      el.textContent = newValue;
+
+      // Flash animation on value change
+      if (oldValue !== newValue) {
+        el.style.transition = 'color 0.2s ease';
+        el.style.color = '#2563eb';
+        setTimeout(function () {
+          el.style.color = '';
+        }, 300);
+      }
+    }
+  }
+
+  // ========== Alarm Demo ==========
+  function demoTriggerAlarmHigh() {
+    const leftCard = document.getElementById('demo-qtag6-1-left');
+    if (leftCard) {
+      leftCard.classList.remove('qtag6-alarm-low');
+      leftCard.classList.add('qtag6-alarm-high');
+    }
+    console.log('[Demo] HIGH alarm triggered on left column');
+  }
+
+  function demoTriggerAlarmLow() {
+    const rightCard = document.getElementById('demo-qtag6-1-right');
+    if (rightCard) {
+      rightCard.classList.remove('qtag6-alarm-high');
+      rightCard.classList.add('qtag6-alarm-low');
+    }
+    console.log('[Demo] LOW alarm triggered on right column');
+  }
+
+  function demoClearAlarms() {
+    document.querySelectorAll('.qtag6-sub-card').forEach(function (el) {
+      el.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
+    });
+    console.log('[Demo] All alarms cleared');
+  }
+
+  // Auto-start simulation on page load
+  document.addEventListener('DOMContentLoaded', function () {
+    demoSimulateRealtime();
+  });
+</script>
+{% endblock %}

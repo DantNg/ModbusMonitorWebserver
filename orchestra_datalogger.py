@@ -18,6 +18,9 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 sys.path.insert(0, os.path.join(current_dir, 'webapp'))
 
+# Centralized logging — tự tạo folder logs/, hoạt động cả khi build EXE
+from shared.app_logger import get_logger as _get_app_logger, log_exception, log_startup
+
 # Import components
 try:
     from workers.logger_worker import create_logger_worker_process
@@ -56,12 +59,8 @@ class OrchestraDatalogger:
             'start_time': time.time()
         }
         
-        # Setup logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger("orchestra_datalogger")
+        # Use centralized logger (writes to logs/orchestra_datalogger.log)
+        self.logger = _get_app_logger("orchestra_datalogger")
         
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -396,6 +395,9 @@ def main():
     # --- Single Instance Check ---
     from utils.single_instance import ensure_single_instance
     _instance_lock = ensure_single_instance("orchestra_datalogger")
+
+    # Log system info at startup (EXE-safe)
+    log_startup("orchestra_datalogger", "Orchestra Datalogger - Manage multiple datalogger workers")
 
     import argparse
     

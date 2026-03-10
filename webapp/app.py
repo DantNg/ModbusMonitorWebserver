@@ -25,27 +25,11 @@ from modbus_monitor.database import db
 app = create_app()
 
 # --------------------------------------------------
-# Logging configuration (file logging for crashes/errors)
+# Logging configuration — use centralized app_logger
+# Auto-creates logs/ folder, works with both Python & EXE (PyInstaller)
 # --------------------------------------------------
-LOG_DIR = os.path.join(project_root, 'logs')
-os.makedirs(LOG_DIR, exist_ok=True)
-LOG_FILE = os.path.join(LOG_DIR, 'webapp_errors.log')
-
-logger = logging.getLogger('webapp')
-if not logger.handlers:  # Avoid duplicate handlers on autoreload
-    logger.setLevel(logging.INFO)
-    file_handler = RotatingFileHandler(LOG_FILE, maxBytes=1_000_000, backupCount=5, encoding='utf-8')
-    file_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    # Console handler to preserve existing stdout behavior
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-
-logger.info('Webapp logger initialized. Log file: %s', LOG_FILE)
+from shared.app_logger import get_logger as _get_app_logger, log_exception
+logger = _get_app_logger("webapp", log_filename="webapp_errors.log")
 
 # ProcessManager disabled in webapp-only mode
 process_manager = None

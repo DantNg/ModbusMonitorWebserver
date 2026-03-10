@@ -17,44 +17,13 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
 	sys.path.insert(0, PROJECT_ROOT)
 
+# Use centralized app_logger (auto-creates logs/ folder, works with EXE)
+from shared.app_logger import get_logger as _get_app_logger, log_exception, log_startup
+
 # Setup logging for the main server process
 def setup_main_logging():
-	"""Setup logging for the main server process"""
-	# Create logs directory
-	logs_dir = os.path.join(PROJECT_ROOT, 'logs')
-	os.makedirs(logs_dir, exist_ok=True)
-	
-	# Create main logger
-	main_logger = logging.getLogger('modbus_webserver_main')
-	main_logger.setLevel(logging.INFO)
-	
-	# Avoid duplicate handlers
-	if main_logger.handlers:
-		return main_logger
-	
-	# File handler with rotation
-	log_file = os.path.join(logs_dir, 'webserver_main.log')
-	file_handler = RotatingFileHandler(
-		log_file, maxBytes=1024*1024, backupCount=5, encoding='utf-8'
-	)
-	file_handler.setLevel(logging.INFO)
-	
-	# Console handler
-	console_handler = logging.StreamHandler(sys.stdout)
-	console_handler.setLevel(logging.INFO)
-	
-	# Formatter
-	formatter = logging.Formatter(
-		'%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-		datefmt='%Y-%m-%d %H:%M:%S'
-	)
-	file_handler.setFormatter(formatter)
-	console_handler.setFormatter(formatter)
-	
-	main_logger.addHandler(file_handler)
-	main_logger.addHandler(console_handler)
-	
-	return main_logger
+	"""Setup logging for the main server process using centralized app_logger"""
+	return _get_app_logger("modbus_webserver_main")
 
 try:
 	# Setup logging first
