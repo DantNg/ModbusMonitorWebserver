@@ -1534,6 +1534,40 @@ class AlarmWorker:
             self._last_notification[hash(alarm_key)] = {}
         self._last_notification[hash(alarm_key)][notification_type] = time.time()
     
+    def _restore_quad_alarm_states(self):
+        """Restore persisted quad alarm states from database on startup.
+        
+        This ensures that if the app restarts while an alarm was active,
+        the in-memory _alarm_states and _alarm_types reflect the DB truth.
+        Without this, the worker would treat everything as inactive and
+        never emit OUTGOING events to clear the frontend alarm display.
+        """
+        if not self.db_available:
+            return
+        
+        try:
+            active_alarms = self.db.get_active_quad_alarms()
+            if not active_alarms:
+                self.log("INFO", "No persisted quad alarm states to restore")
+                return
+            
+            restored = 0
+            for alarm in active_alarms:
+                quad_id = alarm.get("quad_id")
+                column = alarm.get("column")
+                alarm_type = alarm.get("alarm_type", "High")
+                
+                if quad_id is not None and column:
+                    alarm_key = f"quad_{quad_id}_{column}"
+                    self._alarm_states[alarm_key] = True
+                    self._alarm_types[alarm_key] = alarm_type
+                    restored += 1
+                    self.log("DEBUG", f"Restored quad alarm state: {alarm_key} type={alarm_type}")
+            
+            self.log("INFO", f"✅ Restored {restored} persisted quad alarm state(s) from database")
+        except Exception as e:
+            self.log("ERROR", f"Failed to restore quad alarm states from database: {e}")
+
     def _alarm_loop(self):
         """Main alarm evaluation loop"""
         self.log("INFO", "Starting alarm evaluation loop")
@@ -1652,6 +1686,9 @@ class AlarmWorker:
             self.sms_sender_thread.start()
         
         try:
+            # Restore persisted quad alarm states from database before starting loop
+            self._restore_quad_alarm_states()
+            
             # Start alarm evaluation loop
             self._alarm_loop()
             
