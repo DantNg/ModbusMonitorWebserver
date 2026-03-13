@@ -31,6 +31,9 @@ app = create_app()
 from shared.app_logger import get_logger as _get_app_logger, log_exception
 logger = _get_app_logger("webapp", log_filename="webapp_errors.log")
 
+# Log absolute static folder path for diagnostics
+logger.info("Static folder: %s (exists=%s)", app.static_folder, os.path.isdir(app.static_folder or ''))
+
 # ProcessManager disabled in webapp-only mode
 process_manager = None
 data_queue_thread = None

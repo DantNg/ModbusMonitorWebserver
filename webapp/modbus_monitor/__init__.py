@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from .dashboard import dashboard_bp
 from .alarms import alarms_bp
 from .devices import devices_bp
@@ -16,12 +16,29 @@ import json
 
 
 def create_app():
-    app = Flask(__name__, template_folder="../templates", static_folder="../static")
+    # Use absolute paths for template_folder and static_folder.
+    # Relative paths can break after extended uptime (10+ days) when
+    # eventlet/PyInstaller alters the working directory or temp paths.
+    _pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    _webapp_dir = os.path.dirname(_pkg_dir)
+    _abs_template = os.path.join(_webapp_dir, 'templates')
+    _abs_static = os.path.join(_webapp_dir, 'static')
+
+    app = Flask(
+        __name__,
+        template_folder=_abs_template,
+        static_folder=_abs_static,
+    )
     init_engine()
     create_schema()
 
+    # Cache static files in browser for 1 hour (3600s).
+    # Reduces load on eventlet file serving and prevents
+    # "static not found" errors caused by file descriptor exhaustion.
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600
+
     # Get project root directory for config path
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    current_dir = _pkg_dir
     project_root = os.path.dirname(os.path.dirname(current_dir))
 
     # Robust resolution of SMTP_config.json for both source and PyInstaller EXE
@@ -167,6 +184,34 @@ def create_app():
     app.register_blueprint(subdash_bp)
     app.register_blueprint(datalogger_bp)
     socketio.init_app(app)
+
+    # ----- Static file robustness for long uptime (10+ days) -----
+    # Add explicit Cache-Control headers for static assets so browsers
+    # cache CSS/JS/images locally and don't re-request each page load.
+    # Also add error recovery: if static file serving fails, log and
+    # return a useful error instead of crashing the request context.
+    @app.after_request
+    def add_static_cache_headers(response):
+        """Add long-lived cache headers for static assets."""
+        if request.path.startswith('/static/'):
+            # Cache static files for 1 hour in browser, allow revalidation
+            response.headers['Cache-Control'] = 'public, max-age=3600, stale-while-revalidate=86400'
+        return response
+
+    @app.errorhandler(500)
+    def handle_500(e):
+        """Catch static file serving errors gracefully."""
+        if request.path.startswith('/static/'):
+            # Log the error for diagnostics
+            print(f'⚠️ Static file error: {request.path} — {e}')
+            # Return a specific message instead of a full crash page
+            from flask import make_response
+            resp = make_response(f'/* Static file temporarily unavailable: {request.path} */', 503)
+            resp.headers['Retry-After'] = '5'
+            resp.headers['Content-Type'] = 'text/plain'
+            return resp
+        # For non-static 500s, use default behavior
+        return e
 
     # Inject globals to all templates
     @app.context_processor
