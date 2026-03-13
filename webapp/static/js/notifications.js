@@ -25,8 +25,15 @@ window.NotificationSystem = {
       if (response.ok) {
         const serverNotifications = await response.json();
         console.log('[Notifications] Loaded from server:', serverNotifications?.length ?? 0);
-        // Preserve local transient notifications (no serverId)
-        const localTransient = this.notifications.filter(n => !n.serverId);
+        // Preserve RECENT local transient notifications (no serverId, < 30s old).
+        // Older transient notifications are dropped because the server sync
+        // will provide the authoritative version (avoids stale duplicates).
+        const now = Date.now();
+        const localTransient = this.notifications.filter(n => {
+          if (n.serverId) return false;
+          const age = now - new Date(n.timestamp || 0).getTime();
+          return age < 30000; // keep only last 30 seconds
+        });
 
         // Reset cache to mirror server truth
         this.notifications = [];
@@ -324,14 +331,28 @@ window.NotificationSystem = {
     try {
       const saved = localStorage.getItem('alarmNotifications');
       if (saved) {
-        this.notifications = JSON.parse(saved);
+        let parsed = JSON.parse(saved);
         // Convert timestamp strings back to Date objects
-        this.notifications.forEach(n => {
+        parsed.forEach(n => {
           if (typeof n.timestamp === 'string') {
             n.timestamp = new Date(n.timestamp);
           }
           if (typeof n.read === 'undefined') n.read = false;
-          // Rebuild keys using normalized scheme (ignore serverId)
+        });
+
+        // Purge stale transient (client-side) notifications older than 60s.
+        // These were created by socket handlers and should have been replaced
+        // by server-synced versions via loadServerNotifications().
+        const now = Date.now();
+        parsed = parsed.filter(n => {
+          if (n.serverId) return true; // keep server notifications
+          const age = now - new Date(n.timestamp || 0).getTime();
+          return age < 60000; // discard transient > 60s
+        });
+
+        this.notifications = parsed;
+        // Rebuild seenKeys
+        this.notifications.forEach(n => {
           const createdAt = n.timestamp instanceof Date ? n.timestamp : new Date(n.timestamp);
           const sec = Math.floor(createdAt.getTime() / 1000);
           const keyParts = [
