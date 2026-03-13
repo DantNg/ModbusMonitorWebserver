@@ -398,6 +398,23 @@ def debug_subdashboards():
         "cache_info": "Check server logs for cache details"
     })
 
+@subdash_bp.get("/<int:sid>/api/active_quad_alarms")
+def api_active_quad_alarms(sid):
+    """API endpoint to fetch current active quad alarms for a subdashboard.
+    Used by client-side JS to periodically re-sync alarm visual state."""
+    try:
+        active_alarms = []
+        if hasattr(db, "get_active_quad_alarms_by_subdash"):
+            active_alarms = db.get_active_quad_alarms_by_subdash(sid)
+        # Serialize datetime objects for JSON
+        for alarm in active_alarms:
+            if 'triggered_at' in alarm and alarm['triggered_at'] is not None:
+                alarm['triggered_at'] = alarm['triggered_at'].isoformat()
+        return jsonify({"success": True, "alarms": active_alarms})
+    except Exception as e:
+        print(f"⚠️ Error fetching active quad alarms: {e}")
+        return jsonify({"success": False, "alarms": [], "error": str(e)}), 500
+
 @subdash_bp.get("/api/tags")
 def api_tags_for_subdash():
     print("API request for subdashboard tags")

@@ -7,6 +7,32 @@
 const currentSubdashId = window.SUBDASH_CONFIG.subdashId;
 const currentGroup = window.SUBDASH_CONFIG.currentGroup;
 
+// Auto-refresh page at 3:00 AM daily to keep UI fresh after long uptime
+(function scheduleAutoRefreshAt3AM() {
+  function msUntil3AM() {
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(3, 0, 0, 0);
+    // If 3 AM already passed today, schedule for tomorrow
+    if (target <= now) {
+      target.setDate(target.getDate() + 1);
+    }
+    return target - now;
+  }
+
+  let refreshTimer = setTimeout(function doRefresh() {
+    // console.log('[AutoRefresh] 3:00 AM reached — reloading page');
+    window.location.reload();
+  }, msUntil3AM());
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', function () {
+    clearTimeout(refreshTimer);
+  });
+
+  // console.log(`[AutoRefresh] Scheduled page reload in ${Math.round(msUntil3AM() / 60000)} minutes (at 3:00 AM)`);
+})();
+
   // Set subdashboard ID as data attribute for use in quad_conditions.js
   document.addEventListener('DOMContentLoaded', function() {
     document.body.setAttribute('data-subdash-id', currentSubdashId);
@@ -1672,6 +1698,62 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     console.log('🎯 applyActiveQuadAlarms completed');
   }
 
+  /**
+   * Fetch active quad alarms from server API and apply CSS classes.
+   * Called on socket reconnect and periodically to keep alarm visual state in sync.
+   * This prevents alarm colors from being lost after long uptime / socket reconnections.
+   */
+  function fetchAndApplyQuadAlarms() {
+    const subdashId = currentSubdashId;
+    if (!subdashId) return;
+
+    fetch(`/subdash/${subdashId}/api/active_quad_alarms`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success || !Array.isArray(data.alarms)) return;
+
+        // Build a set of currently active alarms from server
+        // Format: "quadId-column" -> alarmType
+        const serverAlarms = new Map();
+        data.alarms.forEach(alarm => {
+          const key = `${alarm.quad_id}-${alarm.column}`;
+          serverAlarms.set(key, alarm.alarm_type);
+        });
+
+        // Get all quad sub-cards and sync their alarm state
+        document.querySelectorAll('.quad-sub-card').forEach(subCard => {
+          const quadId = subCard.getAttribute('data-quad-id');
+          const column = subCard.getAttribute('data-column');
+          if (!quadId || !column) return;
+
+          const key = `${quadId}-${column}`;
+          const activeAlarmType = serverAlarms.get(key);
+
+          // Remove existing alarm classes
+          subCard.classList.remove('quad-alarm-high', 'quad-alarm-low');
+
+          // Re-apply if alarm is still active on server
+          if (activeAlarmType === 'High') {
+            subCard.classList.add('quad-alarm-high');
+          } else if (activeAlarmType === 'Low') {
+            subCard.classList.add('quad-alarm-low');
+          }
+        });
+
+        console.log(`[QuadAlarmSync] Synced ${data.alarms.length} active alarms from server`);
+      })
+      .catch(err => {
+        console.warn('[QuadAlarmSync] Failed to fetch active quad alarms:', err);
+      });
+  }
+
+  // Expose for external use
+  window.fetchAndApplyQuadAlarms = fetchAndApplyQuadAlarms;
+
+  // Periodic alarm state sync every 30 seconds to keep colors in sync
+  // This prevents alarm colors from being lost during long uptime
+  const _quadAlarmSyncInterval = setInterval(fetchAndApplyQuadAlarms, 30000);
+
   // Check if tag supports write operations
   function canWriteTag(functionCode) {
     const fc = getFunctionCodeInt(functionCode);
@@ -1929,14 +2011,18 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     });
   }
 
-  // Gỡ trạng thái alarm trên mọi quad sub-card chứa tag này
+  // Gỡ trạng thái alarm trên mọi quad sub-card chứa tag này.
+  // Thay vì xóa ngay, gọi server để kiểm tra alarm còn active không.
+  // Nếu alarm vẫn active trên server thì giữ nguyên CSS class.
   function clearQuadAlarmByTag(tagId) {
-    document.querySelectorAll(`.quad-tag-item[data-tag-id="${tagId}"]`).forEach(item => {
-      const subCard = item.closest('.quad-sub-card');
-      if (subCard) {
-        subCard.classList.remove('quad-alarm-high', 'quad-alarm-low');
-      }
-    });
+    // Debounce: schedule a server re-sync instead of immediately clearing.
+    // This prevents momentary disconnections from wiping alarm colors.
+    if (window._clearAlarmSyncTimer) {
+      clearTimeout(window._clearAlarmSyncTimer);
+    }
+    window._clearAlarmSyncTimer = setTimeout(() => {
+      fetchAndApplyQuadAlarms();
+    }, 2000); // Wait 2s then sync from server to get accurate state
   }
 
   // Mark tag as inactive (no ts update for 30s)
@@ -2296,6 +2382,16 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         // Gỡ class cảnh báo
         subCard.classList.remove('quad-alarm-high', 'quad-alarm-low');
 
+        // Extract card/group names for outgoing notification
+        const outCardHeader = quadCard.querySelector('.quad-card-title, .quad-card-header-title');
+        const outCardTitle = outCardHeader ? outCardHeader.textContent.trim() : `Quad ${quadId}`;
+        const outSubCardTitle = subCard.querySelector('.quad-sub-card-title');
+        const outGroupName = outSubCardTitle ? outSubCardTitle.textContent.trim() : (column === 'left' ? 'Group A' : 'Group B');
+        const outTag1Val = data.tag1_value !== null && data.tag1_value !== undefined ? parseFloat(data.tag1_value).toFixed(1) : 'N/A';
+        const outTag2Val = data.tag2_value !== null && data.tag2_value !== undefined ? parseFloat(data.tag2_value).toFixed(1) : 'N/A';
+        const outOperator = data.operator || '>';
+        const outThreshold = data.threshold !== null && data.threshold !== undefined ? parseFloat(data.threshold).toFixed(1) : 'N/A';
+
         // Hiển thị thông báo clear (nếu NotificationSystem sẵn có)
         if (typeof NotificationSystem !== 'undefined') {
           NotificationSystem.addNotification({
@@ -2303,16 +2399,14 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             serverId: undefined,
             alarmId: `quad-${quadId}-${column}`,
             tagId: null,
-            title: `🚨 ${cardTitle} - ${groupName}`,
-            message: `${alarmType} alarm: PV=${tag1Val}, SV=${tag2Val} (${operator} ${threshold})`,
+            title: `✅ ${outCardTitle} - ${outGroupName}`,
+            message: `${alarmType} alarm cleared: PV=${outTag1Val}, SV=${outTag2Val} (${outOperator} ${outThreshold})`,
             level: 'Info', 
             timestamp: new Date(),
             status: 'Cleared',
             read: false
           });
         }
-        
-        
       }
     });
 
@@ -2353,6 +2447,10 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
       socketConnected = false; // Reset flag to redetect updates
 
+      // Re-sync quad alarm colors from server after reconnection.
+      // Alarm events may have been missed while socket was disconnected.
+      setTimeout(fetchAndApplyQuadAlarms, 1500);
+
       // Restart polling check: if no socket data within 5s after connect, start polling
       _startPollingFallbackCheck();
     });
@@ -2370,6 +2468,9 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
       socketConnected = false;
       _startPollingFallbackCheck();
+
+      // Re-sync quad alarm colors from server after global reconnect
+      setTimeout(fetchAndApplyQuadAlarms, 1500);
     });
 
     // Update global heartbeat timestamp whenever we receive modbus data
@@ -2433,6 +2534,11 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   window.addEventListener('beforeunload', function () {
     if (pollingInterval) {
       clearInterval(pollingInterval);
+    }
+
+    // Clear quad alarm sync interval
+    if (typeof _quadAlarmSyncInterval !== 'undefined') {
+      clearInterval(_quadAlarmSyncInterval);
     }
 
     // Clear all tag timers
