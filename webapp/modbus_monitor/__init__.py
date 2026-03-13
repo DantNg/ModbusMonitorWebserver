@@ -19,8 +19,19 @@ def create_app():
     # Use absolute paths for template_folder and static_folder.
     # Relative paths can break after extended uptime (10+ days) when
     # eventlet/PyInstaller alters the working directory or temp paths.
-    _pkg_dir = os.path.dirname(os.path.abspath(__file__))
-    _webapp_dir = os.path.dirname(_pkg_dir)
+    #
+    # PyInstaller EXE: __file__ resolves inside _MEIPASS temp dir which
+    # already contains the bundled webapp/ tree, so the same logic works.
+    # We also add a fallback: if _MEIPASS exists, prefer that base path.
+    _meipass = getattr(sys, '_MEIPASS', None)
+    if _meipass:
+        # Running as PyInstaller EXE – webapp/ is bundled under _MEIPASS
+        _webapp_dir = os.path.join(_meipass, 'webapp')
+    else:
+        # Running from source
+        _pkg_dir = os.path.dirname(os.path.abspath(__file__))
+        _webapp_dir = os.path.dirname(_pkg_dir)
+
     _abs_template = os.path.join(_webapp_dir, 'templates')
     _abs_static = os.path.join(_webapp_dir, 'static')
 
@@ -38,7 +49,7 @@ def create_app():
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 3600
 
     # Get project root directory for config path
-    current_dir = _pkg_dir
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(current_dir))
 
     # Robust resolution of SMTP_config.json for both source and PyInstaller EXE
