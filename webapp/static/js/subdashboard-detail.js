@@ -1750,9 +1750,9 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   // Expose for external use
   window.fetchAndApplyQuadAlarms = fetchAndApplyQuadAlarms;
 
-  // Periodic alarm state sync every 30 seconds to keep colors in sync
-  // This prevents alarm colors from being lost during long uptime
-  const _quadAlarmSyncInterval = setInterval(fetchAndApplyQuadAlarms, 30000);
+  // Periodic alarm state sync every 10 seconds to keep colors in sync
+  // Reduced from 30s to 10s to minimize delay when socket.io events are missed
+  const _quadAlarmSyncInterval = setInterval(fetchAndApplyQuadAlarms, 10000);
 
   // Check if tag supports write operations
   function canWriteTag(functionCode) {
@@ -2360,8 +2360,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           console.warn('Native notifications unavailable (permission denied or insecure context); using bell list only.');
         }
         
-        // Bell list notification is handled automatically by notifications.js
-        // via loadServerNotifications() from DB – no need to add here (avoids duplicates).
+        // Bell notification is handled instantly by notifications.js via quad_alarm_event socket listener
         
         console.log(`✅ Quad alarm notification shown: ${cardTitle} - ${groupName} (${alarmType})`);
         
@@ -2379,8 +2378,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         const outOperator = data.operator || '>';
         const outThreshold = data.threshold !== null && data.threshold !== undefined ? parseFloat(data.threshold).toFixed(1) : 'N/A';
 
-        // Bell list notification is handled automatically by notifications.js
-        // via loadServerNotifications() from DB – no need to add here (avoids duplicates).
+        // Bell notification is handled instantly by notifications.js via quad_alarm_event socket listener
+
         console.log(`✅ Quad alarm cleared: ${outCardTitle} - ${outGroupName} (${alarmType})`);
       }
     });

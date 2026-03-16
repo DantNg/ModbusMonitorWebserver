@@ -407,7 +407,7 @@ window.NotificationSystem = {
     if (this._interval) return;
     this._interval = setInterval(() => {
       this.loadServerNotifications();
-    }, 15000); // every 15 seconds
+    }, 10000); // every 10 seconds (reduced from 15s for faster sync)
   }
 };
 
@@ -442,7 +442,79 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Quad alarm notifications are now handled directly in detail.html
-    // This avoids duplicate notifications and allows proper group name display
+    // Listen for quad alarm events - update bell INSTANTLY without HTTP roundtrip
+    socket.on('quad_alarm_event', function (data) {
+      console.log('[Notifications] Received quad_alarm_event via Socket.IO:', data);
+      const status = data.status; // 'INCOMING' or 'OUTGOING'
+      const quadId = data.quad_id;
+      const column = data.column;
+      const alarmType = data.alarm_type; // 'High' or 'Low'
+      const ts = data.timestamp || new Date().toISOString();
+      const dt = new Date(ts);
+
+      // Drop stale events older than 120s
+      const ageSec = Math.floor((Date.now() - dt.getTime()) / 1000);
+      if (ageSec > 120) {
+        console.log('[Notifications] Skip stale quad alarm (>', ageSec, 's)');
+        return;
+      }
+
+      // Build display values
+      const tag1Val = data.tag1_value !== null && data.tag1_value !== undefined
+        ? parseFloat(data.tag1_value).toFixed(1) : 'N/A';
+      const tag2Val = data.tag2_value !== null && data.tag2_value !== undefined
+        ? parseFloat(data.tag2_value).toFixed(1) : 'N/A';
+      const threshold = data.threshold !== null && data.threshold !== undefined
+        ? parseFloat(data.threshold).toFixed(1) : 'N/A';
+      const operator = data.operator || '>';
+      const columnLabel = column === 'left' ? 'Left' : 'Right';
+
+      // Try to get actual card title from DOM if on detail page, else use data from backend
+      let cardTitle = `Quad #${quadId}`;
+      const quadCardEl = document.querySelector(`.quad-tag-card[data-quad-id="${quadId}"]`);
+      if (quadCardEl) {
+        const headerEl = quadCardEl.querySelector('.quad-card-header-title, .quad-card-title');
+        if (headerEl && headerEl.textContent.trim()) {
+          cardTitle = headerEl.textContent.trim();
+        }
+        // Try to get column group name from sub-card
+        const subCard = quadCardEl.querySelector(`.quad-sub-card[data-column="${column}"]`);
+        if (subCard) {
+          const subTitle = subCard.querySelector('.quad-sub-card-title');
+          if (subTitle && subTitle.textContent.trim()) {
+            cardTitle += ' - ' + subTitle.textContent.trim();
+          }
+        }
+      }
+
+      if (status === 'INCOMING') {
+        NotificationSystem.addNotification({
+          id: Date.now() + Math.random(),
+          title: `\u{1F6A8} Quad Alarm: ${alarmType} Threshold`,
+          message: `${cardTitle} - PV: ${tag1Val} | SV: ${tag2Val} | ${operator} ${threshold}`,
+          level: alarmType === 'High' ? 'Critical' : 'Warning',
+          timestamp: dt,
+          read: false
+        });
+      } else if (status === 'OUTGOING') {
+        NotificationSystem.addNotification({
+          id: Date.now() + Math.random(),
+          title: `\u2705 Quad Alarm Cleared: ${alarmType}`,
+          message: `${cardTitle} - PV: ${tag1Val} | SV: ${tag2Val} | ${operator} ${threshold}`,
+          level: 'Low',
+          timestamp: dt,
+          read: false
+        });
+      }
+
+      // Also schedule a server sync shortly after to align serverId/dedup
+      // This replaces the old approach in subdashboard-detail.js
+      if (NotificationSystem._quadSyncTimer) {
+        clearTimeout(NotificationSystem._quadSyncTimer);
+      }
+      NotificationSystem._quadSyncTimer = setTimeout(() => {
+        NotificationSystem.loadServerNotifications();
+      }, 3000);
+    });
   }
 });
