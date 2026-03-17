@@ -1104,8 +1104,9 @@ class AlarmWorker:
                     
                     # ── EMIT SOCKET EVENT FIRST for instant UI update ──
                     try:
+                        dashboard_title = (rule.get("dashboard_name") or device_name or rule_name)
                         data = {
-                            "title": f"Alarm Triggered: {rule_name}",
+                            "title": dashboard_title,
                             "message": f"Alarm cleared: {rule.get('operator', '>')} {threshold_val}",
                             "level": alarm_level,
                             "tag_id": tag_id,

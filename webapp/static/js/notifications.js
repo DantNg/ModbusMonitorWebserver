@@ -64,16 +64,12 @@ window.NotificationSystem = {
         });
 
         sorted.forEach(notification => {
-          // Skip OUTGOING (cleared) alarm notifications — not shown in bell
-          if (notification.event_type === 'OUTGOING') {
-            return;
-          }
 
           const createdAt = notification.created_at ? new Date(notification.created_at) : new Date();
 
-          // Skip server notifications already delivered instantly via socket
-          // (prevents duplicate bell entries — socket version has richer PV/SV detail)
-          if (this._wasDeliveredViaSocket(createdAt)) {
+          // Skip server duplicates only for INCOMING events delivered via socket.
+          // OUTGOING should still be accepted from server for persistence.
+          if (notification.event_type !== 'OUTGOING' && this._wasDeliveredViaSocket(createdAt)) {
             return;
           }
 
@@ -125,8 +121,13 @@ window.NotificationSystem = {
         const clearBtn = document.getElementById('clearAllNotifications');
         if (clearBtn) {
           clearBtn.onclick = async () => {
-            await this.clearOnServer();
-            this.clearAll();
+            const ok = await this.clearOnServer();
+            if (ok) {
+              this.clearAll();
+            } else {
+              // Keep UI consistent with server state when clear request fails
+              this.loadServerNotifications();
+            }
           };
         }
       }, 100);
@@ -136,8 +137,13 @@ window.NotificationSystem = {
     const clearBtnInit = document.getElementById('clearAllNotifications');
     if (clearBtnInit) {
       clearBtnInit.onclick = async () => {
-        await this.clearOnServer();
-        this.clearAll();
+        const ok = await this.clearOnServer();
+        if (ok) {
+          this.clearAll();
+        } else {
+          // Keep UI consistent with server state when clear request fails
+          this.loadServerNotifications();
+        }
       };
     }
 
@@ -150,19 +156,32 @@ window.NotificationSystem = {
   // Clear everything on UI
   clearAll() {
     this.notifications = [];
-    this.saveNotifications();
+    this.seenKeys.clear();
+    this._socketEventSecs.clear();
+    try {
+      localStorage.removeItem('alarmNotifications');
+    } catch (e) {
+      // Fallback to normal save path if remove fails
+      this.saveNotifications();
+    }
     this.updateUI();
   },
 
   // Tell server to dismiss all notifications for this user
   async clearOnServer() {
     try {
-      await fetch('/api/notifications/clear', {
+      const response = await fetch('/api/notifications/clear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
+      if (!response.ok) {
+        console.error('Failed to clear notifications on server. Status:', response.status);
+        return false;
+      }
+      return true;
     } catch (e) {
       console.error('Error clearing notifications on server:', e);
+      return false;
     }
   },
 
@@ -181,11 +200,13 @@ window.NotificationSystem = {
     // Build a stable fingerprint for dedup (favor seconds precision) independent of serverId
     const createdAt = notification.timestamp instanceof Date ? notification.timestamp : new Date(notification.timestamp);
     const sec = Math.floor(createdAt.getTime() / 1000);
+    const entityId = notification.tagId || notification.alarmId || '';
+    const state = (notification.status || notification.event_type || '').toString().trim().toLowerCase();
     const keyParts = [
-      notification.alarmId || '',           // prefer alarm/event identity
-      notification.tagId || '',             // fallback to tag identity
-      sec,                                  // tolerate ms drift
-      (notification.message || '').toString().trim().toLowerCase() // stable content
+      entityId,
+      sec,
+      (notification.message || '').toString().trim().toLowerCase(),
+      state
     ];
     const key = keyParts.join('|');
     notification._key = key;
@@ -447,11 +468,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof socket !== 'undefined' && socket !== null) {
     socket.on('alarm_event', function (data) {
       console.log('Received alarm_event via Socket.IO:', data);
-      // Skip OUTGOING (cleared) alarm notifications entirely — not shown in bell
-      if (data.status === 'OUTGOING' || data.event_type === 'OUTGOING') {
-        console.log('[Notifications] Skip OUTGOING alarm_event (cleared):', data);
-        return;
-      }
       const alarmId = data.id || data.alarm_event_id;
       const tagId = data.tag_id;
       const ts = data.created_at || data.ts || new Date().toISOString();
@@ -462,6 +478,25 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[Notifications] Skip stale socket alarm (>', ageSec, 's):', data);
         return;
       }
+
+      // Show clear notification from socket (server API filters OUTGOING).
+      if (data.status === 'OUTGOING' || data.event_type === 'OUTGOING') {
+        NotificationSystem.addNotification({
+          id: Date.now() + Math.random(),
+          serverId: undefined,
+          alarmId,
+          tagId,
+          title: data.title || 'Alarm Cleared',
+          message: data.message || 'Alarm condition cleared',
+          level: data.level || 'Low',
+          timestamp: dt,
+          status: 'OUTGOING',
+          read: false
+        });
+        console.log('[Notifications] Added OUTGOING alarm_event to bell:', data);
+        return;
+      }
+
       // Track this event's timestamp to suppress duplicate server notification
       NotificationSystem._trackSocketEvent(ts);
       NotificationSystem.addNotification({
@@ -507,30 +542,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Try to get actual card title from DOM if on detail page, else use data from backend
       let cardTitle = `Quad #${quadId}`;
+      let columnTitle = columnLabel;
       const quadCardEl = document.querySelector(`.quad-tag-card[data-quad-id="${quadId}"]`);
       if (quadCardEl) {
         const headerEl = quadCardEl.querySelector('.quad-card-header-title, .quad-card-title');
         if (headerEl && headerEl.textContent.trim()) {
           cardTitle = headerEl.textContent.trim();
         }
-        // Try to get column group name from sub-card
-        const subCard = quadCardEl.querySelector(`.quad-sub-card[data-column="${column}"]`);
-        if (subCard) {
-          const subTitle = subCard.querySelector('.quad-sub-card-title');
-          if (subTitle && subTitle.textContent.trim()) {
-            cardTitle += ' - ' + subTitle.textContent.trim();
+        const subCardEl = quadCardEl.querySelector(`.quad-sub-card[data-column="${column}"]`);
+        if (subCardEl) {
+          const subTitleEl = subCardEl.querySelector('.quad-sub-card-title');
+          if (subTitleEl && subTitleEl.textContent.trim()) {
+            columnTitle = subTitleEl.textContent.trim();
           }
         }
       }
 
-      // Avoid duplicate bell entries: do not add quad notifications from socket.
-      // We keep only the server-synced entry (single source of truth).
+      // Avoid duplicate bell entries for INCOMING: keep server-synced entry as source of truth.
+      // OUTGOING is filtered by server API, so we show it directly from socket.
       if (status === 'INCOMING') {
         console.log('[Notifications] INCOMING quad_alarm_event received; waiting for server sync:', data);
         // Pull server notifications soon so user does not need to wait for the 10s interval.
         setTimeout(() => NotificationSystem.loadServerNotifications(), 400);
       } else {
-        console.log('[Notifications] Skip OUTGOING quad_alarm_event (cleared):', data);
+        // NotificationSystem.addNotification({
+        //   id: Date.now() + Math.random(),
+        //   serverId: undefined,
+        //   tagId: data.tag_id || null,
+        //   title: columnTitle,
+        //   message: `${cardTitle} - ${columnTitle} - Alarm cleared ${operator} ${threshold}`,
+        //   level: 'Low',
+        //   timestamp: dt,
+        //   status: 'OUTGOING',
+        //   read: false
+        // });
+        console.log('[Notifications] Added OUTGOING quad_alarm_event to bell:', data);
       }
     });
   }
