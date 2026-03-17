@@ -10,6 +10,23 @@ window.NotificationSystem = {
   maxNotifications: 50,
   // Track unique keys to aggressively deduplicate across sources
   seenKeys: new Set(),
+  // Track timestamp-seconds of notifications delivered via socket to suppress server duplicates
+  _socketEventSecs: new Map(),
+
+  _trackSocketEvent(timestamp) {
+    const sec = Math.floor(new Date(timestamp).getTime() / 1000);
+    this._socketEventSecs.set(sec, Date.now());
+    // Cleanup entries older than 60s
+    const cutoff = Date.now() - 60000;
+    for (const [k, v] of this._socketEventSecs) {
+      if (v < cutoff) this._socketEventSecs.delete(k);
+    }
+  },
+
+  _wasDeliveredViaSocket(timestamp) {
+    const sec = Math.floor(new Date(timestamp).getTime() / 1000);
+    return this._socketEventSecs.has(sec);
+  },
 
   init() {
     this.loadNotifications();
@@ -32,7 +49,7 @@ window.NotificationSystem = {
         const localTransient = this.notifications.filter(n => {
           if (n.serverId) return false;
           const age = now - new Date(n.timestamp || 0).getTime();
-          return age < 30000; // keep only last 30 seconds
+          return age < 60000; // keep last 60 seconds (matches socket suppression window)
         });
 
         // Reset cache to mirror server truth
@@ -47,7 +64,19 @@ window.NotificationSystem = {
         });
 
         sorted.forEach(notification => {
+          // Skip OUTGOING (cleared) alarm notifications — not shown in bell
+          if (notification.event_type === 'OUTGOING') {
+            return;
+          }
+
           const createdAt = notification.created_at ? new Date(notification.created_at) : new Date();
+
+          // Skip server notifications already delivered instantly via socket
+          // (prevents duplicate bell entries — socket version has richer PV/SV detail)
+          if (this._wasDeliveredViaSocket(createdAt)) {
+            return;
+          }
+
           const alarmId = notification.alarm_event_id;
           const tagId = notification.tag_id;
 
@@ -418,6 +447,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof socket !== 'undefined' && socket !== null) {
     socket.on('alarm_event', function (data) {
       console.log('Received alarm_event via Socket.IO:', data);
+      // Skip OUTGOING (cleared) alarm notifications entirely — not shown in bell
+      if (data.status === 'OUTGOING' || data.event_type === 'OUTGOING') {
+        console.log('[Notifications] Skip OUTGOING alarm_event (cleared):', data);
+        return;
+      }
       const alarmId = data.id || data.alarm_event_id;
       const tagId = data.tag_id;
       const ts = data.created_at || data.ts || new Date().toISOString();
@@ -428,6 +462,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[Notifications] Skip stale socket alarm (>', ageSec, 's):', data);
         return;
       }
+      // Track this event's timestamp to suppress duplicate server notification
+      NotificationSystem._trackSocketEvent(ts);
       NotificationSystem.addNotification({
         id: Date.now() + Math.random(),
         serverId: undefined,
@@ -487,34 +523,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Avoid duplicate bell entries: do not add quad notifications from socket.
+      // We keep only the server-synced entry (single source of truth).
       if (status === 'INCOMING') {
-        NotificationSystem.addNotification({
-          id: Date.now() + Math.random(),
-          title: `\u{1F6A8} Quad Alarm: ${alarmType} Threshold`,
-          message: `${cardTitle} - PV: ${tag1Val} | SV: ${tag2Val} | ${operator} ${threshold}`,
-          level: alarmType === 'High' ? 'Critical' : 'Warning',
-          timestamp: dt,
-          read: false
-        });
-      } else if (status === 'OUTGOING') {
-        NotificationSystem.addNotification({
-          id: Date.now() + Math.random(),
-          title: `\u2705 Quad Alarm Cleared: ${alarmType}`,
-          message: `${cardTitle} - PV: ${tag1Val} | SV: ${tag2Val} | ${operator} ${threshold}`,
-          level: 'Low',
-          timestamp: dt,
-          read: false
-        });
+        console.log('[Notifications] INCOMING quad_alarm_event received; waiting for server sync:', data);
+        // Pull server notifications soon so user does not need to wait for the 10s interval.
+        setTimeout(() => NotificationSystem.loadServerNotifications(), 400);
+      } else {
+        console.log('[Notifications] Skip OUTGOING quad_alarm_event (cleared):', data);
       }
-
-      // Also schedule a server sync shortly after to align serverId/dedup
-      // This replaces the old approach in subdashboard-detail.js
-      if (NotificationSystem._quadSyncTimer) {
-        clearTimeout(NotificationSystem._quadSyncTimer);
-      }
-      NotificationSystem._quadSyncTimer = setTimeout(() => {
-        NotificationSystem.loadServerNotifications();
-      }, 3000);
     });
   }
 });

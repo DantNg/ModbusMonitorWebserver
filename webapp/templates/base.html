@@ -342,7 +342,7 @@
   </script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   <script src="{{ url_for('static', filename='js/base-ui.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/notifications.js', v=config.get('ASSET_VERSION', 1)) }}"></script>
 
   {% block scripts %}{% endblock %}
 </body>

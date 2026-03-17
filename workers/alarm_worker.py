@@ -70,11 +70,19 @@ class SocketIOManager:
     Manages the Socket.IO client connection with automatic reconnection.
     Solves the issue where after long uptime (~1 day), the connection drops
     silently and alarm events are never delivered to the browser.
+    
+    IMPORTANT: Always connects via 127.0.0.1 (localhost) since the alarm worker
+    and Flask server run on the SAME machine. Using the LAN IP (e.g., 192.168.x.x)
+    causes frequent ConnectTimeoutError when the network adapter sleeps or
+    firewall blocks the connection.
     """
+
+    # Default server URL — localhost is reliable since both processes run on same machine
+    DEFAULT_SERVER_URL = 'http://127.0.0.1:5000'
 
     def __init__(self, reconnect_interval=30):
         self._sio = None
-        self._server_url = None
+        self._server_url = self.DEFAULT_SERVER_URL
         self._connected = False
         self._lock = threading.Lock()
         self._reconnect_interval = reconnect_interval  # seconds between health checks
@@ -99,8 +107,8 @@ class SocketIOManager:
 
     def _on_connect(self):
         self._connected = True
-        logger.info("[SocketIOManager] Connected to server")
-        print("✅ [SocketIOManager] Socket.IO connected")
+        logger.info("[SocketIOManager] Connected to server: %s", self._server_url)
+        print(f"✅ [SocketIOManager] Socket.IO connected to {self._server_url}")
 
     def _on_disconnect(self):
         self._connected = False
@@ -112,12 +120,15 @@ class SocketIOManager:
         logger.warning(f"[SocketIOManager] Connection error: {data}")
 
     def connect(self, server_url=None):
-        """Connect to the Socket.IO server."""
+        """Connect to the Socket.IO server.
+        
+        Always prefers 127.0.0.1 for reliability. Falls back to provided URL
+        only if explicitly specified.
+        """
         if server_url:
             self._server_url = server_url
         if not self._server_url:
-            ip = get_local_ip()
-            self._server_url = f'http://{ip}:5000'
+            self._server_url = self.DEFAULT_SERVER_URL
 
         try:
             now = time.time()
@@ -141,7 +152,7 @@ class SocketIOManager:
     def ensure_connected(self):
         """
         Check connection health and reconnect if needed.
-        Call this periodically from the alarm loop.
+        Call this periodically from the alarm loop (runs in background thread).
         """
         with self._lock:
             try:
@@ -153,7 +164,7 @@ class SocketIOManager:
 
             # Connection lost - attempt reconnect
             self._connected = False
-            logger.warning("[SocketIOManager] Connection lost, attempting reconnect...")
+            logger.warning("[SocketIOManager] Connection lost, attempting reconnect to %s ...", self._server_url)
             try:
                 # Disconnect cleanly first to reset internal state
                 try:
@@ -197,9 +208,11 @@ class SocketIOManager:
 
 
 # Global socket.io manager instance (initialized per-process)
+# Uses 127.0.0.1 by default — alarm worker and Flask server always run on the same machine.
+# The initial connect may fail if Flask server hasn't started yet; the health check 
+# in _alarm_loop will retry automatically every 10 seconds.
 sio_manager = SocketIOManager()
-server_ip = get_local_ip()
-sio_manager.connect(f'http://{server_ip}:5000')
+sio_manager.connect()  # Connects to http://127.0.0.1:5000
 
 # Backward-compatible alias: code that calls sio.emit() will use the manager
 sio = sio_manager
@@ -301,6 +314,11 @@ class AlarmWorker:
         self._quad_card_cache_ttl = 30.0  # Quad card info changes rarely
         
         self._tag_value_cache: Dict[int, Optional[float]] = {}  # Per-cycle tag value cache
+        
+        # Cache for quad-managed tag IDs (to skip regular alarms for these tags)
+        self._quad_managed_tag_ids: set = set()
+        self._quad_managed_tag_ids_ts = 0.0
+        self._quad_managed_tag_ids_ttl = 10.0  # Refresh every 10 seconds
         
         
     def _load_notification_config(self):
@@ -736,7 +754,7 @@ class AlarmWorker:
                 return
             
             # Create notification message using the standard format
-            subject = f"🚨 ALARM TRIGGERED: {rule_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {rule_name}"
+            subject = f"ALARM TRIGGERED: {rule_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {rule_name}"
             body = self.create_alarm_email_body(
                 device_name=device_name,
                 alarm_name=rule_name,
@@ -1140,6 +1158,53 @@ class AlarmWorker:
         except Exception as e:
             self.log("ERROR", f"Failed to process alarm rule {rule.get('id', 'unknown')}: {e}")
     
+    def _get_quad_managed_tag_ids(self) -> set:
+        """Get all tag IDs that are managed by quad cards with active alarm conditions.
+        Regular alarm rules should skip these tags to avoid duplicate notifications."""
+        now = time.time()
+        if (now - self._quad_managed_tag_ids_ts) < self._quad_managed_tag_ids_ttl:
+            return self._quad_managed_tag_ids
+        
+        tag_ids = set()
+        try:
+            if not self.db_available:
+                return tag_ids
+            
+            # Get active quad conditions
+            conditions = self.db.get_all_active_quad_conditions()
+            if not conditions:
+                self._quad_managed_tag_ids = tag_ids
+                self._quad_managed_tag_ids_ts = now
+                return tag_ids
+            
+            # Collect all tag IDs from quad cards that have active conditions
+            for condition in conditions:
+                quad_id = condition.get("quad_card_id")
+                if not quad_id:
+                    continue
+                
+                # Use cached quad card data
+                cached = self._quad_card_cache.get(quad_id)
+                if cached and (now - cached['ts']) < self._quad_card_cache_ttl:
+                    quad_card = cached['data']
+                else:
+                    quad_card = self.db.get_quad_card_by_id(quad_id)
+                    self._quad_card_cache[quad_id] = {'data': quad_card, 'ts': now}
+                
+                if quad_card:
+                    for key in ('tag1_id', 'tag2_id', 'tag3_id', 'tag4_id'):
+                        tid = quad_card.get(key)
+                        if tid:
+                            tag_ids.add(int(tid))
+            
+            self._quad_managed_tag_ids = tag_ids
+            self._quad_managed_tag_ids_ts = now
+            
+        except Exception as e:
+            self.log("ERROR", f"Failed to get quad managed tag IDs: {e}")
+        
+        return self._quad_managed_tag_ids
+
     def _evaluate_quad_conditions(self):
         """Evaluate all active quad tag conditions (cached with TTL to reduce DB queries)"""
         if not self.db_available:
@@ -1398,6 +1463,7 @@ class AlarmWorker:
                     "column": column,
                     "alarm_type": stored_alarm_type,
                     "status": "OUTGOING",
+                    "tag_id": tag1_id,
                     "tag1_value": tag1_value,
                     "tag2_value": tag2_value,
                     "threshold": threshold,
@@ -1468,6 +1534,7 @@ class AlarmWorker:
                     "column": column,
                     "alarm_type": alarm_type,
                     "status": "INCOMING",
+                    "tag_id": triggered_tag_id,
                     "tag1_value": tag1_value,
                     "tag2_value": tag2_value,
                     "threshold": threshold,
@@ -1552,6 +1619,7 @@ class AlarmWorker:
                     "column": column,
                     "alarm_type": alarm_type,
                     "status": "OUTGOING",
+                    "tag_id": tag1_id,
                     "tag1_value": tag1_value,
                     "tag2_value": tag2_value,
                     "threshold": stored_threshold,
@@ -1649,7 +1717,7 @@ class AlarmWorker:
             return
         
         # Create message
-        subject = f"🚨 ALARM: {alarm_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {alarm_name}"
+        subject = f"ALARM: {alarm_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {alarm_name}"
         body = self.create_alarm_email_body(
             device_name="Quad Tag Card",
             alarm_name=alarm_name,
@@ -1765,12 +1833,18 @@ class AlarmWorker:
                 # Load current alarm rules
                 alarm_rules = self._load_alarm_rules()
                 
+                # Get tag IDs managed by quad alarms to avoid duplicate notifications
+                quad_managed_tags = self._get_quad_managed_tag_ids()
+                
                 if alarm_rules:
                     # self.log("DEBUG", f"Evaluating {len(alarm_rules)} alarm rules")
                     
-                    # Process each enabled alarm rule
+                    # Process each enabled alarm rule (skip tags already covered by quad alarms)
                     for rule in alarm_rules:
                         if rule.get("enabled", True):
+                            tag_id = rule.get("tag_id") or rule.get("target")
+                            if tag_id and int(tag_id) in quad_managed_tags:
+                                continue  # Skip - this tag is managed by quad alarm system
                             self._process_alarm_rule(rule)
                 
                 # Evaluate quad tag conditions

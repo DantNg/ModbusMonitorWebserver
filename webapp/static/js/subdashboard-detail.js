@@ -509,10 +509,6 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       });
     }
 
-    // Request notification permission on page load (only when secure context)
-    function canUseNativeNotifications() {
-      return typeof Notification !== 'undefined' && window.isSecureContext && Notification.permission === 'granted';
-    }
 
     if (typeof Notification !== 'undefined' && window.isSecureContext && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {
@@ -2333,11 +2329,11 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         const operator = data.operator || '>';
         
         // Create detailed notification message
-        const alarmTitle = `🚨 Quad Alarm: ${alarmType} Threshold`;
+        const alarmTitle = `🚨Quad Alarm: ${alarmType} Threshold`;
         const alarmBody = `${cardTitle} - ${groupName}\nPV: ${tag1Val} | SV: ${tag2Val}\nCondition: ${operator} ${threshold}`;
         
         // Show browser notification when allowed; otherwise fallback to bell list only
-        if (canUseNativeNotifications()) {
+        if (typeof Notification !== 'undefined' && window.isSecureContext && Notification.permission === 'granted') {
           const notification = new Notification(alarmTitle, {
             body: alarmBody,
             icon: '/static/favicon.ico',
