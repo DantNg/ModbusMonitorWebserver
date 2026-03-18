@@ -18,7 +18,36 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
       // Show row if search is empty or found in text
       row.style.display = (!search || text.includes(search)) ? '' : 'none';
     });
+    updateAlarmRowCount();
   };
+
+  function getAlarmSearchQuery() {
+    return (document.getElementById('alarmSearchInput')?.value || '').trim();
+  }
+
+  function reapplyAlarmSearch() {
+    App.filterTable('#tbl', getAlarmSearchQuery());
+  }
+
+  function updateAlarmRowCount() {
+    const countDiv = document.getElementById('rowCount');
+    if (!countDiv) return;
+
+    const activeSearch = getAlarmSearchQuery();
+    const visibleRows = document.querySelectorAll('#tbl tbody tr:not([style*="display: none"])');
+    const dataRows = Array.from(visibleRows).filter(row => !row.querySelector('td[colspan]'));
+
+    if (activeSearch) {
+      countDiv.textContent = `Showing ${dataRows.length} filtered rows on page ${currentPage}/${totalPages} (from ${totalRows} total rows)`;
+      return;
+    }
+
+    const startRow = (currentPage - 1) * pageSize + 1;
+    const endRow = Math.min(currentPage * pageSize, totalRows);
+    countDiv.textContent = totalRows > 0
+      ? `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`
+      : 'Showing 0 rows';
+  }
 
   // ===== Pagination Variables =====
   let currentPage = 1;
@@ -121,6 +150,7 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
 
         // Update pagination UI
         updatePaginationUI();
+        reapplyAlarmSearch();
 
         // 🔒 Bảo vệ chống XSS
         function escapeHtml(s) {
@@ -207,24 +237,27 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     paginationContainer.innerHTML = html;
 
     // Update row count display
-    const countDiv = document.getElementById('rowCount');
-    if (countDiv) {
-      const startRow = (currentPage - 1) * pageSize + 1;
-      const endRow = Math.min(currentPage * pageSize, totalRows);
-      countDiv.textContent = totalRows > 0
-        ? `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`
-        : 'Showing 0 rows';
-    }
+    updateAlarmRowCount();
   }
 
   function fetchAlarmEvents() {
+    // Do not auto-refresh while the user is actively filtering the current page.
+    // Otherwise the API render will keep replacing the filtered DOM every few seconds.
+    if (getAlarmSearchQuery()) {
+      return;
+    }
+
+    // Skip background refresh when tab is hidden to reduce noisy API calls.
+    if (document.hidden) {
+      return;
+    }
+
     // Use loadPage instead
     loadPage(currentPage);
   }
 
-  // Initial load and auto-refresh
+  // Initial load only. New data is fetched on manual page refresh.
   loadPage(1);
-  setInterval(fetchAlarmEvents, 3000);
 
   // Confirm and populate IDs before delete
   function confirmDelete(event) {
@@ -279,7 +312,24 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     }
     const res = await fetch(apiUrl.toString());
     const data = await res.json();
-    if (!data.items?.length) {
+    let exportItems = data.items || [];
+    if (q) {
+      const qLower = q.toLowerCase();
+      exportItems = exportItems.filter(e => {
+        const text = [
+          e.code || "",
+          e.incoming_date || "",
+          e.incoming_value ?? "",
+          e.outgoing_date || "",
+          e.outgoing_value ?? "",
+          e.operator || "",
+          e.threshold ?? ""
+        ].join(' ').toLowerCase();
+        return text.includes(qLower);
+      });
+    }
+
+    if (!exportItems.length) {
       alert("Không có dữ liệu alarm để xuất!");
       return;
     }
@@ -354,7 +404,7 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
       };
     });
 
-    data.items.forEach(e => {
+    exportItems.forEach(e => {
       const row = sheet.addRow([
         e.code || "", e.incoming_date || "", normalizeNumber(e.incoming_value),
         e.outgoing_date || "", normalizeNumber(e.outgoing_value), e.operator || "", normalizeNumber(e.threshold)

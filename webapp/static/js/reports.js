@@ -167,6 +167,7 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
         
         // Update pagination UI
         updatePaginationUI();
+        reapplyReportsSearch();
         
         // Apply comparison if active
         if (comparisonPairs.length > 0) {
@@ -299,11 +300,24 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
   function updateRowCount() {
     const countDiv = document.querySelector('.card-footer div');
     if (countDiv) {
+      const activeSearch = (document.getElementById('q')?.value || '').trim();
       const visibleCount = document.querySelectorAll('#tbl tbody tr:not([style*="display: none"])').length;
       const startRow = (currentPage - 1) * pageSize + 1;
       const endRow = Math.min(currentPage * pageSize, totalRows);
-      countDiv.textContent = `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`;
+      if (activeSearch) {
+        countDiv.textContent = `Showing ${visibleCount} filtered rows on page ${currentPage}/${totalPages} (from ${startRow}-${endRow} of ${totalRows} rows)`;
+      } else {
+        countDiv.textContent = `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`;
+      }
     }
+  }
+
+  function getReportsSearchQuery() {
+    return (document.getElementById('q')?.value || '').trim();
+  }
+
+  function reapplyReportsSearch() {
+    filterRows(getReportsSearchQuery());
   }
 
   // Toggle custom date range visibility and set default dates
@@ -790,6 +804,17 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
       return;
     }
 
+    const activeSearch = getReportsSearchQuery().toLowerCase();
+    if (activeSearch) {
+      allData = allData.filter(row => {
+        const rowText = originalColumns.map(col => {
+          const value = row[col] !== undefined ? row[col] : row[col.toLowerCase()];
+          return value !== null && value !== undefined ? String(value) : '';
+        }).join(' ').toLowerCase();
+        return rowText.includes(activeSearch);
+      });
+    }
+
     // Build body rows from fetched data
     const bodyRows = allData.map(row => {
       return originalColumns.map(col => {
@@ -798,6 +823,12 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
         return value !== null && value !== undefined ? String(value) : '';
       });
     });
+
+    if (!bodyRows.length) {
+      alert('No data matches the current search filter for export');
+      if (loadingIndicator) loadingIndicator.classList.remove('active');
+      return;
+    }
 
     if (kind === 'xlsx') {
       // Use ExcelJS to allow styling header row (yellow fill)
