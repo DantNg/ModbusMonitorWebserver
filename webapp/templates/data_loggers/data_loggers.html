@@ -73,6 +73,21 @@
     .map(td => (td.textContent || '').trim())
     .filter(Boolean);
 
+  function getSearchTokens(value) {
+    return (value || '')
+      .toLowerCase()
+      .split(/[\s,;]+/)
+      .map(token => token.trim())
+      .filter(Boolean);
+  }
+
+  function matchesLoggerName(name, value) {
+    const nameText = (name || '').toLowerCase();
+    const tokens = getSearchTokens(value);
+    if (!tokens.length) return true;
+    return tokens.some(token => nameText.includes(token));
+  }
+
   function hideSuggestions() {
     if (!suggestBox) return;
     suggestBox.style.display = 'none';
@@ -81,8 +96,7 @@
 
   function showSuggestions(query) {
     if (!suggestBox) return;
-    const q = (query || '').trim().toLowerCase();
-    const matches = loggerNames.filter(name => name.toLowerCase().includes(q)).slice(0, 30);
+    const matches = loggerNames.filter(name => matchesLoggerName(name, query)).slice(0, 30);
 
     if (!matches.length) {
       hideSuggestions();
@@ -105,14 +119,14 @@
   }
 
   function filterByName() {
-    const q = (input.value || '').trim().toLowerCase();
+    const q = input.value || '';
     const rows = table.querySelectorAll('tbody tr');
 
     rows.forEach((row) => {
       if (row.querySelector('td[colspan]')) return; // keep empty-state row intact
       const nameCell = row.querySelector('td:nth-child(2)');
-      const nameText = (nameCell?.textContent || '').trim().toLowerCase();
-      row.style.display = (!q || nameText.includes(q)) ? '' : 'none';
+      const nameText = (nameCell?.textContent || '').trim();
+      row.style.display = matchesLoggerName(nameText, q) ? '' : 'none';
     });
 
     showSuggestions(input.value);
