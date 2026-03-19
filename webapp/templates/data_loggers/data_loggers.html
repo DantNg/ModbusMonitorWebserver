@@ -62,12 +62,17 @@
   </div>
 </div>
 <script>
-// Search by datalogger name (Name column only)
+// Search by datalogger name (Name column only) — supports Vietnamese diacritics-insensitive search
 (function () {
   const input = document.getElementById('loggerNameSearch');
   const table = document.getElementById('tbl');
   const suggestBox = document.getElementById('loggerNameSuggest');
   if (!input || !table) return;
+
+  // Remove Vietnamese diacritics for accent-insensitive matching
+  function removeDiacritics(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+  }
 
   const loggerNames = Array.from(table.querySelectorAll('tbody tr td:nth-child(2)'))
     .map(td => (td.textContent || '').trim())
@@ -83,9 +88,13 @@
 
   function matchesLoggerName(name, value) {
     const nameText = (name || '').toLowerCase();
+    const nameNoDiacritics = removeDiacritics(nameText);
     const tokens = getSearchTokens(value);
     if (!tokens.length) return true;
-    return tokens.some(token => nameText.includes(token));
+    return tokens.some(token => {
+      const tokenNoDiacritics = removeDiacritics(token);
+      return nameText.includes(token) || nameNoDiacritics.includes(tokenNoDiacritics);
+    });
   }
 
   function hideSuggestions() {
