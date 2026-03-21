@@ -271,8 +271,40 @@
     const suggest = document.getElementById('loggerSuggestList');
     if (!form || !input || !select || !suggest) return;
 
+    // Vietnamese diacritics map for accent-insensitive search
+    const _vnMap = {
+      'à':'a','á':'a','ả':'a','ã':'a','ạ':'a',
+      'ă':'a','ằ':'a','ắ':'a','ẳ':'a','ẵ':'a','ặ':'a',
+      'â':'a','ầ':'a','ấ':'a','ẩ':'a','ẫ':'a','ậ':'a',
+      'è':'e','é':'e','ẻ':'e','ẽ':'e','ẹ':'e',
+      'ê':'e','ề':'e','ế':'e','ể':'e','ễ':'e','ệ':'e',
+      'ì':'i','í':'i','ỉ':'i','ĩ':'i','ị':'i',
+      'ò':'o','ó':'o','ỏ':'o','õ':'o','ọ':'o',
+      'ô':'o','ồ':'o','ố':'o','ổ':'o','ỗ':'o','ộ':'o',
+      'ơ':'o','ờ':'o','ớ':'o','ở':'o','ỡ':'o','ợ':'o',
+      'ù':'u','ú':'u','ủ':'u','ũ':'u','ụ':'u',
+      'ư':'u','ừ':'u','ứ':'u','ử':'u','ữ':'u','ự':'u',
+      'ỳ':'y','ý':'y','ỷ':'y','ỹ':'y','ỵ':'y',
+      'đ':'d'
+    };
+    function removeDiacritics(str) {
+      return str.replace(/./g, ch => _vnMap[ch] || ch);
+    }
+
     const normalize = (s) => (s || '').trim().toLowerCase();
-    const options = Array.from(select.options).map(opt => ({ id: opt.value, name: (opt.textContent || '').trim() }));
+    const normalizeNoDiacritics = (s) => removeDiacritics(normalize(s));
+    const options = Array.from(select.options).map(opt => ({
+      id: opt.value,
+      name: (opt.textContent || '').trim(),
+      nameNorm: normalize((opt.textContent || '').trim()),
+      nameAscii: normalizeNoDiacritics((opt.textContent || '').trim())
+    }));
+
+    function matchesQuery(opt, q) {
+      if (!q) return true;
+      const qAscii = normalizeNoDiacritics(q);
+      return opt.nameNorm.includes(q) || opt.nameAscii.includes(qAscii);
+    }
 
     function hideSuggestions() {
       suggest.style.display = 'none';
@@ -281,7 +313,7 @@
 
     function showSuggestions(query) {
       const q = normalize(query);
-      const matched = options.filter(opt => !q || normalize(opt.name).includes(q)).slice(0, 20);
+      const matched = options.filter(opt => matchesQuery(opt, q)).slice(0, 20);
 
       if (!matched.length) {
         hideSuggestions();
@@ -306,12 +338,14 @@
 
     function findLoggerIdByName(name) {
       const q = normalize(name);
+      const qAscii = normalizeNoDiacritics(name);
       if (!q) return null;
-      let matched = options.find(opt => normalize(opt.name) === q);
-      if (matched) return matched.value;
-
-      matched = options.find(opt => normalize(opt.name).startsWith(q));
-      if (matched) return matched.value;
+      // Exact match first (with or without diacritics)
+      let matched = options.find(opt => opt.nameNorm === q || opt.nameAscii === qAscii);
+      if (matched) return matched.id;
+      // Starts-with match
+      matched = options.find(opt => opt.nameNorm.startsWith(q) || opt.nameAscii.startsWith(qAscii));
+      if (matched) return matched.id;
 
       return null;
     }
