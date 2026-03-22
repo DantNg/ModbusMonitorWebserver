@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% set page_title = "Alarm Events" %}
 {% block content %}
-<div class="card border-0 shadow-soft mb-2" style="margin-top: -1rem;">
-  <div class="card-body" style="padding: 0.75rem 1rem;">
+<div class="card border-0 shadow-soft mb-2" style="margin-top: -1rem; overflow: visible;">
+  <div class="card-body" style="padding: 0.75rem 1rem; overflow: visible;">
     <!-- Main toolbar row -->
     <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
       <!-- Time Filter - Always visible -->
@@ -44,12 +44,29 @@
       </div>
     </div>
 
+    <!-- Alarm Name Autocomplete Search - Always visible -->
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-1" style="overflow: visible;">
+      <label class="fw-semibold text-muted mb-0 small" for="alarmNameInput">Alarm:</label>
+      <div class="position-relative" style="min-width: 250px; flex: 1 1 250px;" id="alarmNameWrapper">
+        <input id="alarmNameInput" class="form-control form-control-sm" 
+               placeholder="Type alarm name to filter..."
+               autocomplete="off">
+        <ul id="alarmNameSuggestions" class="alarm-suggestions-list"></ul>
+      </div>
+      {% if request.args.get('alarm_name') %}
+      <span class="badge bg-primary d-flex align-items-center gap-1">
+        {{ request.args.get('alarm_name') }}
+        <a href="#" class="text-white text-decoration-none" onclick="clearAlarmNameFilter(); return false;" title="Clear filter">&times;</a>
+      </span>
+      {% endif %}
+    </div>
+
     <!-- Collapsible filters section - hidden by default -->
     <div class="collapse" id="alarmFilters">
       <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
         <!-- Search Box -->
         <div class="position-relative" style="min-width:200px; flex: 1 1 200px;">
-          <input id="alarmSearchInput" class="form-control form-control-sm ps-4" placeholder="  Search…"
+          <input id="alarmSearchInput" class="form-control form-control-sm ps-4" placeholder="  Search in page…"
             oninput="App.filterTable('#tbl', this.value)">
         </div>
 
@@ -152,7 +169,8 @@
 <script>
   window.ALARM_EVENTS_CONFIG = {
     timeFilter: '{{ time_filter|default("") }}',
-    isAdmin: {{ 'true' if session.get('role') == 'admin' else 'false' }}
+    isAdmin: '{{ "true" if session.get("role") == "admin" else "false" }}' === 'true',
+    alarmName: '{{ request.args.get("alarm_name", "")|e }}'
   };
 </script>
 <script src="{{ url_for('static', filename='js/alarm-events.js') }}"></script>

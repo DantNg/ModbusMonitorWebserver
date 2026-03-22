@@ -78,6 +78,9 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     });
   }
 
+  // Current alarm name filter (from URL or user selection)
+  let activeAlarmName = ALARM_EVENTS_CONFIG.alarmName || '';
+
   // Load alarm events by page
   async function loadPage(page) {
     if (isLoading) return;
@@ -96,6 +99,11 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     if (tf === 'custom') {
       if (fd) apiUrl.searchParams.set('from_date', fd);
       if (td) apiUrl.searchParams.set('to_date', td);
+    }
+
+    // Add alarm name filter if active
+    if (activeAlarmName) {
+      apiUrl.searchParams.set('alarm_name', activeAlarmName);
     }
 
     // Add pagination params
@@ -652,3 +660,200 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     btn.addEventListener('pointerdown', () => { btn.style.transform = 'scale(0.96)'; });
     btn.addEventListener('pointerup', () => { btn.style.transform = 'scale(1)'; });
   });
+
+  // ===== Alarm Name Autocomplete & Filter =====
+  (function initAlarmNameAutocomplete() {
+    const input = document.getElementById('alarmNameInput');
+    const suggestionsList = document.getElementById('alarmNameSuggestions');
+    if (!input || !suggestionsList) return;
+
+    let allAlarmNames = [];
+    let fetchedNames = false;
+    let debounceTimer = null;
+
+    // Set initial value from URL param if present
+    if (activeAlarmName) {
+      input.value = activeAlarmName;
+    }
+
+    // Fetch alarm names from API (cached after first call)
+    async function fetchAlarmNames() {
+      if (fetchedNames) return allAlarmNames;
+      try {
+        console.log('[AlarmAutocomplete] Fetching alarm names from API...');
+        const res = await fetch('/alarms/api/alarm-names');
+        const data = await res.json();
+        console.log('[AlarmAutocomplete] API response:', data);
+        if (data.success && data.names) {
+          allAlarmNames = data.names;
+          fetchedNames = true;
+          console.log('[AlarmAutocomplete] Loaded', allAlarmNames.length, 'alarm names');
+        } else {
+          console.warn('[AlarmAutocomplete] API returned unexpected format:', data);
+        }
+      } catch (err) {
+        console.error('[AlarmAutocomplete] Error fetching alarm names:', err);
+      }
+      return allAlarmNames;
+    }
+
+    // Show filtered suggestions (empty query = show all names)
+    function showSuggestions(query) {
+      suggestionsList.innerHTML = '';
+
+      if (allAlarmNames.length === 0) {
+        console.log('[AlarmAutocomplete] No alarm names available to show');
+        suggestionsList.style.display = 'none';
+        return;
+      }
+
+      let filtered;
+      if (!query) {
+        // Show all names when field is focused with no query
+        filtered = allAlarmNames;
+      } else {
+        const lowerQuery = _rmDiacritics(query.toLowerCase());
+        filtered = allAlarmNames.filter(name => 
+          _rmDiacritics(name.toLowerCase()).includes(lowerQuery)
+        );
+      }
+
+      if (filtered.length === 0) {
+        suggestionsList.style.display = 'none';
+        return;
+      }
+
+      console.log('[AlarmAutocomplete] Showing', filtered.length, 'suggestions');
+      filtered.forEach(name => {
+        const li = document.createElement('li');
+        li.className = 'alarm-suggestion-item';
+        li.textContent = name;
+        li.addEventListener('click', () => selectAlarmName(name));
+        suggestionsList.appendChild(li);
+      });
+
+      suggestionsList.style.display = 'block';
+    }
+
+    // Select an alarm name and trigger filter
+    function selectAlarmName(name) {
+      input.value = name;
+      suggestionsList.style.display = 'none';
+      activeAlarmName = name;
+      // Reset to page 1 and reload with filter
+      currentPage = 1;
+      selectedIds.clear();
+      loadPage(1);
+      // Update URL to reflect filter (without page reload)
+      updateUrlAlarmName(name);
+      // Show active filter badge
+      updateActiveFilterBadge(name);
+    }
+
+    // Update URL search params without full page reload
+    function updateUrlAlarmName(name) {
+      const url = new URL(window.location);
+      if (name) {
+        url.searchParams.set('alarm_name', name);
+      } else {
+        url.searchParams.delete('alarm_name');
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+
+    // Update or create the active filter badge
+    function updateActiveFilterBadge(name) {
+      const wrapper = document.getElementById('alarmNameWrapper');
+      if (!wrapper) return;
+      
+      // Remove existing badge if any
+      const existingBadge = wrapper.parentElement.querySelector('.alarm-name-badge');
+      if (existingBadge) existingBadge.remove();
+
+      if (!name) return;
+
+      const badge = document.createElement('span');
+      badge.className = 'badge bg-primary d-flex align-items-center gap-1 alarm-name-badge';
+      badge.innerHTML = `${escapeHtmlStr(name)} <a href="#" class="text-white text-decoration-none" title="Clear filter">&times;</a>`;
+      badge.querySelector('a').addEventListener('click', (e) => {
+        e.preventDefault();
+        clearAlarmNameFilter();
+      });
+      wrapper.parentElement.appendChild(badge);
+    }
+
+    function escapeHtmlStr(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // Input event with debounce
+    input.addEventListener('input', async function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        await fetchAlarmNames();
+        showSuggestions(this.value.trim());
+      }, 200);
+    });
+
+    // Show suggestions on focus (show all if empty, filtered if has value)
+    input.addEventListener('focus', async function() {
+      await fetchAlarmNames();
+      showSuggestions(this.value.trim());
+    });
+
+    // Handle Enter key to select first match or apply current input
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const firstItem = suggestionsList.querySelector('.alarm-suggestion-item');
+        if (firstItem) {
+          selectAlarmName(firstItem.textContent);
+        } else if (this.value.trim()) {
+          // Apply exact match if typed manually
+          selectAlarmName(this.value.trim());
+        }
+      } else if (e.key === 'Escape') {
+        suggestionsList.style.display = 'none';
+      }
+    });
+
+    // Close suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!input.contains(e.target) && !suggestionsList.contains(e.target)) {
+        suggestionsList.style.display = 'none';
+      }
+    });
+
+    // Pre-fetch names on page load
+    fetchAlarmNames();
+  })();
+
+  // Clear alarm name filter globally
+  function clearAlarmNameFilter() {
+    activeAlarmName = '';
+    const input = document.getElementById('alarmNameInput');
+    if (input) input.value = '';
+    
+    // Remove badge
+    const badges = document.querySelectorAll('.alarm-name-badge');
+    badges.forEach(b => b.remove());
+    
+    // Also remove server-rendered badge
+    const wrapper = document.getElementById('alarmNameWrapper');
+    if (wrapper) {
+      const parentBadges = wrapper.parentElement.querySelectorAll('.badge.bg-primary');
+      parentBadges.forEach(b => {
+        if (b.textContent.includes('×')) b.remove();
+      });
+    }
+    
+    // Update URL and reload
+    const url = new URL(window.location);
+    url.searchParams.delete('alarm_name');
+    window.history.replaceState({}, '', url.toString());
+    
+    currentPage = 1;
+    selectedIds.clear();
+    loadPage(1);
+  }

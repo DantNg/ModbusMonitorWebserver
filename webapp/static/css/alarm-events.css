@@ -76,3 +76,57 @@
     width: 100%;
   }
 }
+
+/* ===== Alarm Name Autocomplete Suggestions ===== */
+#alarmNameWrapper {
+  position: relative;
+}
+
+.alarm-suggestions-list {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  max-height: 250px;
+  overflow-y: auto;
+  background: var(--bs-body-bg, #fff);
+  color: var(--bs-body-color, #212529);
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-top: none;
+  border-radius: 0 0 0.375rem 0.375rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.alarm-suggestion-item {
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--bs-border-color-translucent, rgba(0,0,0,0.05));
+  transition: background-color 0.15s ease;
+}
+
+.alarm-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.alarm-suggestion-item:hover {
+  background-color: var(--bs-primary-bg-subtle, #cfe2ff);
+  color: var(--bs-primary-text-emphasis, #052c65);
+}
+
+/* Badge for active alarm name filter */
+.alarm-name-badge {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.alarm-name-badge a {
+  font-size: 1rem;
+  line-height: 1;
+  margin-left: 2px;
+}
