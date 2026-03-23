@@ -7,7 +7,7 @@
     <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
       <!-- Time Filter - Always visible -->
       <div class="d-flex gap-2 align-items-center" style="flex: 1 1 auto; min-width: 200px;">
-        <label class="fw-semibold text-muted mb-0 small" for="timeFilterSelect">Time:</label>
+        <label class="fw-semibold text-muted mb-0 small" style="width: 55px; flex-shrink: 0;" for="timeFilterSelect">Time:</label>
         <select class="form-select form-select-sm" id="timeFilterSelect" style="width: auto; min-width: 140px;">
           <option value="all" {{ 'selected' if time_filter=='all' or not time_filter else '' }}>All Time</option>
           <option value="today" {{ 'selected' if time_filter=='today' else '' }}>Today</option>
@@ -46,10 +46,10 @@
 
     <!-- Alarm Name Autocomplete Search - Always visible -->
     <div class="d-flex flex-wrap gap-2 align-items-center mb-1" style="overflow: visible;">
-      <label class="fw-semibold text-muted mb-0 small" for="alarmNameInput">Alarm:</label>
+      <label class="fw-semibold text-muted mb-0 small" for="alarmNameInput" style="width: 55px; flex-shrink: 0;">Alarm:</label>
       <div class="position-relative" style="min-width: 250px; flex: 1 1 250px;" id="alarmNameWrapper">
         <input id="alarmNameInput" class="form-control form-control-sm" 
-               placeholder="Type alarm name to filter..."
+               placeholder="Type alarm name to view..."
                autocomplete="off">
         <ul id="alarmNameSuggestions" class="alarm-suggestions-list"></ul>
       </div>
@@ -65,8 +65,9 @@
     <div class="collapse" id="alarmFilters">
       <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
         <!-- Search Box -->
-        <div class="position-relative" style="min-width:200px; flex: 1 1 200px;">
-          <input id="alarmSearchInput" class="form-control form-control-sm ps-4" placeholder="  Search in page…"
+        <label class="fw-semibold text-muted mb-0 small" for="alarmSearchInput" style="width: 55px; flex-shrink: 0;">Search:</label>
+        <div class="position-relative" style="min-width: 250px; flex: 1 1 250px;">
+          <input id="alarmSearchInput" class="form-control form-control-sm" placeholder="Search in page"
             oninput="App.filterTable('#tbl', this.value)">
         </div>
 
@@ -93,12 +94,12 @@
     <!-- Custom Date Range (shown when custom is selected) -->
     <div id="customDateRange" class="d-flex gap-2 align-items-center mb-1" style="display: none !important;">
       <label class="small text-muted mb-0">From:</label>
-      <input type="datetime-local" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}"
-        style="width: 180px;">
+      <input type="text" class="form-control form-control-sm" id="fromDate" value="{{ from_date or '' }}"
+        style="width: 180px;" placeholder="dd/mm/yyyy HH:mm" autocomplete="off">
       <span class="text-muted">→</span>
       <label class="small text-muted mb-0">To:</label>
-      <input type="datetime-local" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}"
-        style="width: 180px;">
+      <input type="text" class="form-control form-control-sm" id="toDate" value="{{ to_date or '' }}"
+        style="width: 180px;" placeholder="dd/mm/yyyy HH:mm" autocomplete="off">
       <button type="button" class="btn btn-success btn-sm" onclick="applyTimeFilter()">Apply</button>
     </div>
   </div>
@@ -162,6 +163,27 @@
 </div>
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/alarm-events.css') }}">
+<!-- Flatpickr date picker (dd/mm/yyyy format) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/css/flatpickr.min.css') }}">
+<script src="{{ url_for('static', filename='vendor/js/flatpickr.min.js') }}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof flatpickr === 'undefined') return;
+    var fpConfig = {
+      enableTime: true,
+      time_24hr: true,
+      dateFormat: 'd/m/Y H:i',
+      allowInput: true,
+      locale: { firstDayOfWeek: 1 }
+    };
+    if (document.getElementById('fromDate')) {
+      flatpickr('#fromDate', fpConfig);
+    }
+    if (document.getElementById('toDate')) {
+      flatpickr('#toDate', fpConfig);
+    }
+  });
+</script>
 <script src="{{ url_for('static', filename='vendor/js/xlsx.full.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/js/exceljs.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/js/FileSaver.min.js') }}"></script>
@@ -173,5 +195,5 @@
     alarmName: '{{ request.args.get("alarm_name", "")|e }}'
   };
 </script>
-<script src="{{ url_for('static', filename='js/alarm-events.js') }}"></script>
+<script src="{{ url_for('static', filename='js/alarm-events.js') }}?v={{ range(10000,99999)|random }}"></script>
 {% endblock %}

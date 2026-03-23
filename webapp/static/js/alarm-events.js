@@ -323,6 +323,15 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     if (q) {
       apiUrl.searchParams.set('q', q);
     }
+    // Add alarm name filter if active — read from multiple sources for reliability
+    const exportAlarmName = activeAlarmName
+      || (new URLSearchParams(window.location.search)).get('alarm_name')
+      || (document.getElementById('alarmNameInput')?.value || '').trim()
+      || '';
+    console.log('[export] activeAlarmName:', activeAlarmName, '| URL alarm_name:', (new URLSearchParams(window.location.search)).get('alarm_name'), '| input:', document.getElementById('alarmNameInput')?.value, '| final:', exportAlarmName);
+    if (exportAlarmName) {
+      apiUrl.searchParams.set('alarm_name', exportAlarmName);
+    }
     const res = await fetch(apiUrl.toString());
     const data = await res.json();
     let exportItems = data.items || [];
@@ -477,7 +486,6 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
 
         if (!fromDate.value) {
           fromDate.value = todayStr;
-          // Update flatpickr instance if available
           if (fromDate._flatpickr) fromDate._flatpickr.setDate(todayStr, true);
         }
         if (!toDate.value) {
@@ -533,8 +541,15 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
         return;
       }
 
-      // Validate date range
-      if (new Date(fromDate) > new Date(toDate)) {
+      // Validate date range - parse d/m/yyyy HH:mm format (day/month can be 1 or 2 digits)
+      function parseDdMmYyyy(str) {
+        const parts = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+        if (!parts) return null;
+        return new Date(parts[3], parts[2] - 1, parts[1], parts[4], parts[5]);
+      }
+      const fromParsed = parseDdMmYyyy(fromDate);
+      const toParsed = parseDdMmYyyy(toDate);
+      if (fromParsed && toParsed && fromParsed > toParsed) {
         alert('From date must be before to date');
         return;
       }

@@ -1079,7 +1079,7 @@ def get_active_quad_alarms_by_subdash(subdash_id: int):
         return []
  
     
-def list_alarm_report():
+def list_alarm_report(alarm_name=None):
     """Ghép INCOMING với OUTGOING + rule info để làm báo cáo alarm."""
     print("Generating alarm report...")
     items = []
@@ -1127,6 +1127,10 @@ def list_alarm_report():
             alarm_events.c.threshold.label("th"),
         ).where(alarm_events.c.event_type == "INCOMING")
 
+        # Filter by alarm name at SQL level if specified
+        if alarm_name:
+            q_in = q_in.where(alarm_events.c.name == alarm_name)
+
         incoming_rows = con.execute(q_in).mappings().all()
         for inc in incoming_rows:
             q_out = select(
@@ -1159,7 +1163,7 @@ def list_alarm_report():
     print(f"Generated {len(items)} alarm report items.")
     return items
 
-def list_alarm_report_by_date_range(start_date, end_date):
+def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
     """Generate alarm report but only for INCOMING events within the given date range.
     OUTGOING is matched as the first event after INCOMING (may be outside range)."""
     print(f"Generating alarm report for range: {start_date} -> {end_date}")
@@ -1212,6 +1216,10 @@ def list_alarm_report_by_date_range(start_date, end_date):
                 alarm_events.c.ts <= end_date,
             )
         )
+
+        # Filter by alarm name at SQL level if specified
+        if alarm_name:
+            q_in = q_in.where(alarm_events.c.name == alarm_name)
 
         incoming_rows = con.execute(q_in).mappings().all()
         for inc in incoming_rows:

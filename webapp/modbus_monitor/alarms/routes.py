@@ -204,6 +204,7 @@ def alarm_report():
     from_date = request.args.get('from_date', '')
     to_date = request.args.get('to_date', '')
     q = (request.args.get('q', '') or '').strip().lower()
+    alarm_name = (request.args.get('alarm_name', '') or '').strip()
 
     now = safe_datetime_now()
     start_date = None
@@ -229,10 +230,15 @@ def alarm_report():
         except ValueError:
             start_date = end_date = None
 
+    effective_alarm = alarm_name or None
+    print(f"[alarm-report] time_filter={time_filter}, alarm_name='{alarm_name}', effective='{effective_alarm}', start={start_date}, end={end_date}")
+
     if start_date and end_date:
-        items = list_alarm_report_by_date_range(start_date, end_date)
+        items = list_alarm_report_by_date_range(start_date, end_date, alarm_name=effective_alarm)
     else:
-        items = list_alarm_report()
+        items = list_alarm_report(alarm_name=effective_alarm)
+
+    print(f"[alarm-report] Got {len(items)} items after DB query")
 
     # Optional search filter from UI (matches visible-table filtering semantics loosely)
     if q:
