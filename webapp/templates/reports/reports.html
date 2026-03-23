@@ -197,7 +197,7 @@
   <i class="bi bi-arrow-down fs-5"></i>
 </button>
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css') }}?v=2">
 
 <!-- Table -->
 <div class="card border-0 shadow-soft reports-card">
@@ -402,6 +402,6 @@
     userRole: '{{ session.get("role", "user") }}'
   };
 </script>
-<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+<script src="{{ url_for('static', filename='js/reports.js') }}?v=2"></script>
 
 {% endblock %}

@@ -242,30 +242,37 @@ def load_comparison_config():
     User role always loads admin's config."""
     try:
         user_id = session.get("user_id")
+        role = session.get("role", "user")
         if not user_id:
             return jsonify({"success": False, "error": "User not logged in"}), 401
         
         # Lấy logger_id từ query parameter (mặc định là 'all')
         logger_id = request.args.get("logger_id", "all")
+        print(f"[comparison-load] user_id={user_id}, role={role}, logger_id={logger_id}")
         
         config_json = None
         
-        if session.get("role") == "admin":
+        if role == "admin":
             # Admin loads their own config
             config_json = db.get_user_comparison_config(user_id, logger_id)
+            print(f"[comparison-load] Admin config found: {config_json is not None}")
         else:
             # User role always loads admin's comparison config
             admin_users = [u for u in db.list_users() if u.get("role") == "admin"]
+            print(f"[comparison-load] Found {len(admin_users)} admin users")
             for admin_user in admin_users:
                 config_json = db.get_user_comparison_config(admin_user["id"], logger_id)
+                print(f"[comparison-load] Checking admin id={admin_user['id']}, logger={logger_id}, found={config_json is not None}")
                 if config_json:
                     break
         
         if config_json:
             import json
             config = json.loads(config_json)
+            print(f"[comparison-load] Returning {len(config)} comparison pairs")
             return jsonify({"success": True, "config": config})
         else:
+            print(f"[comparison-load] No config found, returning empty")
             return jsonify({"success": True, "config": []})
             
     except Exception as e:
