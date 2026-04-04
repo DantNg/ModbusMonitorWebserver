@@ -6,7 +6,6 @@
 <style>
   /* ========== Qtag6 Specific Styles ========== */
 
-  /* Qtag6 card uses wider layout to fit 6 tags + LOW/HIGH */
   .qtag6-card {
     border-radius: 14px !important;
     overflow: visible !important;
@@ -92,25 +91,25 @@
     gap: 10px;
   }
 
-  /* Individual tag item (PV / SV row) */
+  /* Individual tag item row — dark background like screenshot */
   .qtag6-tag-item {
-    background: #f8fafc !important;
+    background: #1a1f2e !important;
     border-radius: 8px !important;
     padding: 12px 14px !important;
     display: grid !important;
     grid-template-columns: auto 1fr !important;
     align-items: center !important;
     gap: 12px !important;
-    border: 1px solid #e5e7eb !important;
+    border: 1px solid #2d3748 !important;
     transition: all 0.3s ease;
   }
 
   .qtag6-tag-item:hover {
-    background: #eef2ff !important;
+    background: #242b3d !important;
     transform: translateX(2px);
   }
 
-  /* PV label styling */
+  /* Label styling */
   .qtag6-tag-label {
     padding: 4px 10px !important;
     border-radius: 4px !important;
@@ -126,7 +125,7 @@
   }
 
   .qtag6-tag-label.label-sv {
-    background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%) !important;
+    background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%) !important;
   }
 
   /* Value + unit row */
@@ -140,7 +139,7 @@
   .qtag6-tag-value {
     font-size: 1.75rem !important;
     font-weight: 700 !important;
-    color: #111827 !important;
+    color: #f9a8d4 !important;
     line-height: 1 !important;
     flex: 1 1 auto !important;
     text-align: center !important;
@@ -149,7 +148,7 @@
   .qtag6-tag-unit {
     font-size: 0.875rem !important;
     font-weight: 500 !important;
-    color: #4b5563 !important;
+    color: #9ca3af !important;
     text-transform: uppercase !important;
     white-space: nowrap;
   }
@@ -161,79 +160,50 @@
     margin-top: 2px;
   }
 
-  /* ========== LOW / HIGH Indicator Section ========== */
-  .qtag6-lowhigh-section {
-    margin-top: 4px;
-    padding: 8px 12px;
-    background: #f1f5f9;
-    border-radius: 6px;
-    border: 1px dashed #cbd5e1;
+  /* SV inline row: label SV + LOW value + separator + HIGH value + unit */
+  .qtag6-sv-inline {
+    display: flex !important;
+    align-items: baseline !important;
+    justify-content: center !important;
+    gap: 14px !important;
+    flex: 1 1 auto !important;
   }
 
-  .qtag6-lowhigh-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
+  .qtag6-sv-low {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: #38bdf8 !important;
+    line-height: 1 !important;
   }
 
-  .qtag6-lowhigh-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
+  .qtag6-arrow-low {
+    font-size: 1.1rem !important;
+    font-weight: 900 !important;
+    color: #38bdf8 !important;
+    margin-right: 2px !important;
+    -webkit-text-stroke: 0.5px currentColor;
   }
 
-  .qtag6-lowhigh-item.low-item {
-    color: #dc2626;
+  .qtag6-sv-separator {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: #6b7280 !important;
+    line-height: 1 !important;
   }
 
-  .qtag6-lowhigh-item.high-item {
-    color: #16a34a;
+  .qtag6-sv-high {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: #fb923c !important;
+    line-height: 1 !important;
   }
 
-  .qtag6-lowhigh-icon {
-    font-size: 1.1rem;
-    line-height: 1;
-  }
-
-  .qtag6-lowhigh-label {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .qtag6-lowhigh-value {
-    font-size: 1rem;
-    font-weight: 700;
-    font-family: 'Consolas', 'Courier New', monospace;
-  }
-
-  .qtag6-lowhigh-divider {
-    width: 1px;
-    height: 24px;
-    background: #cbd5e1;
-  }
-
-  /* SV block with LOW/HIGH integrated */
-  .qtag6-sv-block {
-    background: #f0f9ff !important;
-    border: 1px solid #bae6fd !important;
-    border-radius: 10px !important;
-    padding: 12px !important;
-  }
-
-  .qtag6-sv-block .qtag6-tag-item {
-    background: transparent !important;
-    border: none !important;
-    padding: 4px 0 !important;
-  }
-
-  .qtag6-sv-block .qtag6-tag-item:hover {
-    background: transparent !important;
-    transform: none !important;
+  .qtag6-arrow-high {
+    font-size: 1.1rem !important;
+    font-weight: 900 !important;
+    color: #fb923c !important;
+    margin-right: 2px !important;
+    -webkit-text-stroke: 0.5px currentColor;
   }
 
   /* Update time at bottom of sub-card */
@@ -246,7 +216,7 @@
     gap: 4px;
   }
 
-  /* ========== Badge for card_type ========== */
+  /* Badge for card_type */
   .qtag6-type-badge {
     font-size: 0.65rem;
     padding: 2px 8px;
@@ -255,45 +225,6 @@
     color: #fff;
     font-weight: 600;
     letter-spacing: 0.5px;
-  }
-
-  /* ========== Dark Theme ========== */
-  [data-bs-theme="dark"] .qtag6-sub-card {
-    background: #1f2937 !important;
-    border-color: #2d3748 !important;
-  }
-
-  [data-bs-theme="dark"] .qtag6-tag-item {
-    background: #111827 !important;
-    border-color: #1f2937 !important;
-  }
-
-  [data-bs-theme="dark"] .qtag6-tag-item:hover {
-    background: #1e293b !important;
-  }
-
-  [data-bs-theme="dark"] .qtag6-tag-value {
-    color: #e5e7eb !important;
-  }
-
-  [data-bs-theme="dark"] .qtag6-tag-unit,
-  [data-bs-theme="dark"] .qtag6-update-time,
-  [data-bs-theme="dark"] .qtag6-tag-name {
-    color: #9ca3af !important;
-  }
-
-  [data-bs-theme="dark"] .qtag6-lowhigh-section {
-    background: #1e293b;
-    border-color: #334155;
-  }
-
-  [data-bs-theme="dark"] .qtag6-sv-block {
-    background: #0f172a !important;
-    border-color: #1e3a5f !important;
-  }
-
-  [data-bs-theme="dark"] .qtag6-lowhigh-divider {
-    background: #475569;
   }
 
   /* ========== Alarm states for Qtag6 ========== */
@@ -311,11 +242,360 @@
     animation: pulse-yellow 2s ease-in-out infinite;
   }
 
+  @keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.4) !important; }
+    50% { box-shadow: 0 0 35px rgba(220, 38, 38, 0.7) !important; }
+  }
+
+  @keyframes pulse-yellow {
+    0%, 100% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.4) !important; }
+    50% { box-shadow: 0 0 35px rgba(245, 158, 11, 0.7) !important; }
+  }
+
+  /* ========== Dark Theme ========== */
+  [data-bs-theme="dark"] .qtag6-sub-card {
+    background: #1f2937 !important;
+    border-color: #2d3748 !important;
+  }
+
+  /* dark theme: tag-item already dark by default, minimal overrides */
+  [data-bs-theme="dark"] .qtag6-tag-item {
+    background: #0f1420 !important;
+    border-color: #1f2937 !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-tag-item:hover {
+    background: #1a2030 !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-sv-low {
+    color: #7dd3fc !important;
+  }
+
+  [data-bs-theme="dark"] .qtag6-sv-high {
+    color: #fdba74 !important;
+  }
+
   [data-bs-theme="dark"] .qtag6-sub-card.qtag6-alarm-high {
     background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
   }
 
   [data-bs-theme="dark"] .qtag6-sub-card.qtag6-alarm-low {
+    background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+  }
+
+  /* ========== Qtag Single Specific Styles ========== */
+
+  .qtag-single-card {
+    border-radius: 14px !important;
+    overflow: visible !important;
+    position: relative !important;
+    transition: box-shadow 0.3s ease;
+  }
+
+  .qtag-single-card:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  /* Sub-card is the entire card for single */
+  .qtag-single-sub-card {
+    padding: 0 !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 14px !important;
+    background: #fff !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    max-width: 420px;
+  }
+
+  .qtag-single-sub-card:hover {
+    transform: scale(1.01);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Sub-card header = card header (gradient with status + gear) */
+  .qtag-single-sub-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 10px 14px !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+    border-radius: 14px 14px 0 0 !important;
+    min-height: 48px !important;
+  }
+
+  .qtag-single-sub-head .dropdown .btn {
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    font-size: 0.8rem !important;
+    padding: 2px 6px !important;
+  }
+
+  .qtag-single-sub-head .dropdown .btn:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+  }
+
+  .qtag-single-sub-title {
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    opacity: 0.95;
+  }
+
+  /* SV inline row for single3 (HIGH/LOW) */
+  .qtag-single-sv-inline {
+    display: flex !important;
+    align-items: baseline !important;
+    justify-content: center !important;
+    gap: 14px !important;
+    flex: 1 1 auto !important;
+  }
+
+  .qtag-single-sv-low {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: #38bdf8 !important;
+    line-height: 1 !important;
+  }
+
+  .qtag-single-sv-high {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: #fb923c !important;
+    line-height: 1 !important;
+  }
+
+  .qtag-single-sv-separator {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: #6b7280 !important;
+    line-height: 1 !important;
+  }
+
+  .qtag-single-arrow-low {
+    font-size: 1.1rem !important;
+    font-weight: 900 !important;
+    color: #38bdf8 !important;
+    margin-right: 2px !important;
+    -webkit-text-stroke: 0.5px currentColor;
+  }
+
+  .qtag-single-arrow-high {
+    font-size: 1.1rem !important;
+    font-weight: 900 !important;
+    color: #fb923c !important;
+    margin-right: 2px !important;
+    -webkit-text-stroke: 0.5px currentColor;
+  }
+
+  /* Tag rows inside single sub-card */
+  .qtag-single-tag-rows {
+    padding: 14px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    /* Ensure consistent card height across all single types (PV Only, Single, Single3) */
+    min-height: 138px;
+  }
+
+  /* PV Only: tag-item fills entire tag-rows area, centered */
+  .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-tag-rows {
+    padding: 0 !important;
+    gap: 0;
+  }
+
+  .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-tag-item {
+    flex: 1;
+    border-radius: 0 !important;
+    border: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    position: relative !important;
+  }
+
+  /* Top row: description (left) + unit (right) */
+  .qtag-pvonly-top-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    padding: 10px 16px 0 16px !important;
+  }
+
+  .qtag-pvonly-description {
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
+    color: #9ca3af !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  .qtag-pvonly-unit {
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    color: #9ca3af !important;
+    text-transform: uppercase !important;
+  }
+
+  /* PV value centered and large */
+  .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-value-row {
+    justify-content: center !important;
+    flex: 1;
+    width: 100%;
+  }
+
+  .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-tag-value {
+    font-size: 2.6rem !important;
+    text-align: center !important;
+  }
+
+  /* Hide the old inline unit for pvonly (now in top-row) */
+  .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-tag-unit {
+    display: none !important;
+  }
+
+  /* Tag item row — dark background */
+  .qtag-single-tag-item {
+    background: #1a1f2e !important;
+    border-radius: 8px !important;
+    padding: 12px 14px !important;
+    display: grid !important;
+    grid-template-columns: auto 1fr !important;
+    align-items: center !important;
+    gap: 12px !important;
+    border: 1px solid #2d3748 !important;
+    transition: all 0.3s ease;
+  }
+
+  .qtag-single-tag-item:hover {
+    background: #242b3d !important;
+    transform: translateX(2px);
+  }
+
+  /* Label styling */
+  .qtag-single-tag-label {
+    padding: 4px 10px !important;
+    border-radius: 4px !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    min-width: 50px !important;
+    text-align: center !important;
+    color: #fff !important;
+  }
+
+  .qtag-single-tag-label.label-pv {
+    background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%) !important;
+  }
+
+  .qtag-single-tag-label.label-sv {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  }
+
+  /* Value + unit row */
+  .qtag-single-value-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+
+  .qtag-single-tag-value {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: #f9a8d4 !important;
+    line-height: 1 !important;
+    flex: 1 1 auto !important;
+    text-align: center !important;
+  }
+
+  .qtag-single-tag-value.sv-value {
+    color: #38bdf8 !important;
+  }
+
+  .qtag-single-tag-unit {
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    color: #9ca3af !important;
+    text-transform: uppercase !important;
+    white-space: nowrap;
+  }
+
+  /* Update time */
+  .qtag-single-update-time {
+    padding: 6px 14px 10px;
+    font-size: 0.75rem;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Badge for card_type */
+  .qtag-single-type-badge {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* ========== Alarm states for Qtag Single ========== */
+  .qtag-single-sub-card.qtag-single-alarm-high {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+    border: 2px solid #dc2626 !important;
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.4) !important;
+    animation: pulse-red 2s ease-in-out infinite;
+  }
+
+  .qtag-single-sub-card.qtag-single-alarm-low {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+    border: 2px solid #f59e0b !important;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4) !important;
+    animation: pulse-yellow 2s ease-in-out infinite;
+  }
+
+  /* ========== Dark Theme for Qtag Single ========== */
+  [data-bs-theme="dark"] .qtag-single-sub-card {
+    background: #1f2937 !important;
+    border-color: #2d3748 !important;
+  }
+
+  [data-bs-theme="dark"] .qtag-single-tag-item {
+    background: #0f1420 !important;
+    border-color: #1f2937 !important;
+  }
+
+  [data-bs-theme="dark"] .qtag-single-tag-item:hover {
+    background: #1a2030 !important;
+  }
+
+  [data-bs-theme="dark"] .qtag-single-tag-value.sv-value {
+    color: #7dd3fc !important;
+  }
+
+  [data-bs-theme="dark"] .qtag-single-sv-low {
+    color: #7dd3fc !important;
+  }
+
+  [data-bs-theme="dark"] .qtag-single-sv-high {
+    color: #fdba74 !important;
+  }
+
+  [data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high {
+    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
+  }
+
+  [data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low {
     background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
   }
 
@@ -386,14 +666,26 @@
   .demo-compare-table tr:nth-child(even) td {
     background: #f9fafb;
   }
+
+  /* Tag mapping badge */
+  .tag-map-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: #e5e7eb;
+    color: #4b5563;
+    font-weight: 600;
+    margin-left: 4px;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <!-- Demo Header -->
 <div class="demo-header">
-  <h2><i class="bi bi-grid-3x3-gap me-2"></i>Demo Qtag 6 Tag Card</h2>
-  <p>Giao diện mới cho Qtag 6 Tag — Mở rộng từ Qtag 4 Tag, thêm LOW/HIGH cho mỗi SV. Theo yêu cầu CRS-3B (RS-3.4 → RS-3.7)</p>
+  <h2><i class="bi bi-grid-3x3-gap me-2"></i>Demo Qtag Cards</h2>
+  <p>Demo các loại Qtag Card: <strong>Qtag 6</strong> (2 cột, 6 tags), <strong>Qtag Single</strong> (1 cột, 2 tags), <strong>Qtag Single3</strong> (1 cột, 3 tags), <strong>Qtag PV Only</strong> (1 tag).</p>
 </div>
 
 <!-- Demo Controls -->
@@ -427,10 +719,13 @@
   </div>
 </div>
 
-<!-- ========== DEMO 1: Qtag6 with Tag-based LOW/HIGH ========== -->
+<!-- ========== DEMO 1: Qtag6 Standard (6 tags from Modbus) ========== -->
 <div class="demo-section">
-  <h3><i class="bi bi-1-circle-fill me-2"></i>Qtag 6 Tag — LOW/HIGH từ Tag (Realtime)</h3>
-  <p class="text-muted small mb-3">Mỗi SV hiển thị thêm LOW/HIGH lấy giá trị từ Tag Modbus. Giá trị cập nhật realtime qua Socket.IO.</p>
+  <h3><i class="bi bi-1-circle-fill me-2"></i>Qtag 6 Tag — 6 Tags realtime từ Modbus</h3>
+  <p class="text-muted small mb-3">
+    Mỗi cột gồm: <strong>PV</strong> (1 tag) + <strong>SV</strong> (HIGH 1 tag + LOW 1 tag).
+    Tổng 6 tags, cập nhật realtime qua Socket.IO.
+  </p>
 
   <div class="row g-4">
     <div class="col-12 col-lg-8 col-xl-7">
@@ -477,36 +772,16 @@
                   </div>
                 </div>
 
-                <!-- SV Block (Tag 3 + LOW/HIGH) -->
-                <div class="qtag6-sv-block">
-                  <!-- SV (Tag 3) -->
-                  <div class="qtag6-tag-item" data-tag-id="103" data-role="sv">
-                    <div class="qtag6-tag-label label-sv">SV</div>
-                    <div class="qtag6-value-row">
-                      <div class="qtag6-tag-value" id="qtag6-val-103">25.00</div>
-                      <div class="qtag6-tag-unit">°C</div>
+                <!-- SV row: LOW (Tag 5) - HIGH (Tag 3) on one line -->
+                <div class="qtag6-tag-item" data-role="sv">
+                  <div class="qtag6-tag-label label-sv">SV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-sv-inline">
+                      <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-val-105" data-tag-id="105">18.00</span>
+                      <span class="qtag6-sv-separator">-</span>
+                      <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-val-103" data-tag-id="103">30.00</span>
                     </div>
-                  </div>
-
-                  <!-- LOW / HIGH indicators -->
-                  <div class="qtag6-lowhigh-section">
-                    <div class="qtag6-lowhigh-row">
-                      <!-- LOW (Tag 5) -->
-                      <div class="qtag6-lowhigh-item low-item">
-                        <span class="qtag6-lowhigh-icon">▼</span>
-                        <span class="qtag6-lowhigh-label">LOW</span>
-                        <span class="qtag6-lowhigh-value" id="qtag6-val-105" data-tag-id="105" data-source="tag">18.00</span>
-                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">°C</span>
-                      </div>
-                      <div class="qtag6-lowhigh-divider"></div>
-                      <!-- HIGH (from Tag) -->
-                      <div class="qtag6-lowhigh-item high-item">
-                        <span class="qtag6-lowhigh-icon">▲</span>
-                        <span class="qtag6-lowhigh-label">HIGH</span>
-                        <span class="qtag6-lowhigh-value" id="qtag6-high-left-1" data-source="tag" data-tag-id="107">30.00</span>
-                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">°C</span>
-                      </div>
-                    </div>
+                    <div class="qtag6-tag-unit">°C</div>
                   </div>
                 </div>
               </div>
@@ -530,35 +805,16 @@
                   </div>
                 </div>
 
-                <!-- SV Block (Tag 4 + LOW/HIGH) -->
-                <div class="qtag6-sv-block">
-                  <div class="qtag6-tag-item" data-tag-id="104" data-role="sv">
-                    <div class="qtag6-tag-label label-sv">SV</div>
-                    <div class="qtag6-value-row">
-                      <div class="qtag6-tag-value" id="qtag6-val-104">50.00</div>
-                      <div class="qtag6-tag-unit">%RH</div>
+                <!-- SV row: LOW (Tag 6) - HIGH (Tag 4) on one line -->
+                <div class="qtag6-tag-item" data-role="sv">
+                  <div class="qtag6-tag-label label-sv">SV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-sv-inline">
+                      <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-val-106" data-tag-id="106">35.00</span>
+                      <span class="qtag6-sv-separator">-</span>
+                      <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-val-104" data-tag-id="104">70.00</span>
                     </div>
-                  </div>
-
-                  <!-- LOW / HIGH indicators -->
-                  <div class="qtag6-lowhigh-section">
-                    <div class="qtag6-lowhigh-row">
-                      <!-- LOW (Tag 6) -->
-                      <div class="qtag6-lowhigh-item low-item">
-                        <span class="qtag6-lowhigh-icon">▼</span>
-                        <span class="qtag6-lowhigh-label">LOW</span>
-                        <span class="qtag6-lowhigh-value" id="qtag6-val-106" data-tag-id="106" data-source="tag">35.00</span>
-                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">%RH</span>
-                      </div>
-                      <div class="qtag6-lowhigh-divider"></div>
-                      <!-- HIGH (from Tag) -->
-                      <div class="qtag6-lowhigh-item high-item">
-                        <span class="qtag6-lowhigh-icon">▲</span>
-                        <span class="qtag6-lowhigh-label">HIGH</span>
-                        <span class="qtag6-lowhigh-value" id="qtag6-high-right-1" data-source="tag" data-tag-id="108">70.00</span>
-                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">%RH</span>
-                      </div>
-                    </div>
+                    <div class="qtag6-tag-unit">%RH</div>
                   </div>
                 </div>
               </div>
@@ -570,20 +826,49 @@
         </div>
       </div>
     </div>
+
+    <!-- Tag Mapping Info -->
+    <div class="col-12 col-lg-4 col-xl-5">
+      <div class="card border-0 shadow-soft h-100">
+        <div class="card-header bg-light fw-semibold small">
+          <i class="bi bi-diagram-3 me-1"></i> Tag Mapping — AHU-01
+        </div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <thead>
+              <tr class="text-muted">
+                <th>Slot</th>
+                <th>Role</th>
+                <th>Tag ID</th>
+                <th>Mô tả</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="tag-map-badge">tag1</span></td><td>PV Left</td><td>101</td><td>Supply Air Temp</td></tr>
+              <tr><td><span class="tag-map-badge">tag2</span></td><td>PV Right</td><td>102</td><td>Humidity</td></tr>
+              <tr><td><span class="tag-map-badge">tag3</span></td><td>HIGH Left</td><td>103</td><td>Temp High Limit</td></tr>
+              <tr><td><span class="tag-map-badge">tag4</span></td><td>HIGH Right</td><td>104</td><td>Humidity High Limit</td></tr>
+              <tr><td><span class="tag-map-badge">tag5</span></td><td>LOW Left</td><td>105</td><td>Temp Low Limit</td></tr>
+              <tr><td><span class="tag-map-badge">tag6</span></td><td>LOW Right</td><td>106</td><td>Humidity Low Limit</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- ========== DEMO 2: Qtag6 with Fixed LOW/HIGH ========== -->
+<!-- ========== DEMO 2: Qtag6 Offline ========== -->
 <div class="demo-section">
-  <h3><i class="bi bi-2-circle-fill me-2"></i>Qtag 6 Tag — LOW/HIGH từ giá trị cố định (Fixed)</h3>
-  <p class="text-muted small mb-3">LOW/HIGH sử dụng giá trị cố định do admin nhập (không phải tag Modbus). Không thay đổi theo thời gian.</p>
+  <h3><i class="bi bi-2-circle-fill me-2"></i>Qtag 6 Tag — Device Offline</h3>
+  <p class="text-muted small mb-3">Hiển thị khi thiết bị mất kết nối. Giá trị hiển thị "---".</p>
 
   <div class="row g-4">
     <div class="col-12 col-lg-8 col-xl-7">
       <div class="card h-100 shadow-soft qtag6-card" id="demo-qtag6-2" data-card-type="quad6">
         <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2" style="border-radius: 14px 14px 0 0;">
           <div class="d-flex align-items-center gap-2">
-            <span class="quad-status-indicator status-online" title="Device Online">
+            <span class="quad-status-indicator status-offline" title="Device Offline">
               <i class="bi bi-circle-fill"></i>
             </span>
             <span class="fw-semibold">Chiller Unit #2 — Pressure Monitor</span>
@@ -594,7 +879,7 @@
         <div class="card-body">
           <div class="qtag6-grid">
             <!-- LEFT: Suction Pressure -->
-            <div class="qtag6-sub-card" id="demo-qtag6-2-left" data-column="left">
+            <div class="qtag6-sub-card" data-column="left">
               <div class="qtag6-sub-head qtag6-left-head">
                 <div class="qtag6-sub-title">Suction Pressure</div>
               </div>
@@ -602,48 +887,29 @@
                 <div class="qtag6-tag-item" data-tag-id="201" data-role="pv">
                   <div class="qtag6-tag-label label-pv">PV</div>
                   <div class="qtag6-value-row">
-                    <div class="qtag6-tag-value" id="qtag6-val-201">4.80</div>
+                    <div class="qtag6-tag-value" style="color: #9ca3af !important;">---</div>
                     <div class="qtag6-tag-unit">Bar</div>
                   </div>
                 </div>
-
-                <div class="qtag6-sv-block">
-                  <div class="qtag6-tag-item" data-tag-id="203" data-role="sv">
-                    <div class="qtag6-tag-label label-sv">SV</div>
-                    <div class="qtag6-value-row">
-                      <div class="qtag6-tag-value" id="qtag6-val-203">5.00</div>
-                      <div class="qtag6-tag-unit">Bar</div>
+                <div class="qtag6-tag-item" data-role="sv">
+                  <div class="qtag6-tag-label label-sv">SV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-sv-inline">
+                      <span class="qtag6-sv-low" style="color: #9ca3af !important;">---</span>
+                      <span class="qtag6-sv-separator">-</span>
+                      <span class="qtag6-sv-high" style="color: #9ca3af !important;">---</span>
                     </div>
-                  </div>
-
-                  <div class="qtag6-lowhigh-section">
-                    <div class="qtag6-lowhigh-row">
-                      <div class="qtag6-lowhigh-item low-item">
-                        <span class="qtag6-lowhigh-icon">▼</span>
-                        <span class="qtag6-lowhigh-label">LOW</span>
-                        <span class="qtag6-lowhigh-value" data-source="fixed">2.50</span>
-                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">Bar</span>
-                        <span class="badge bg-secondary" style="font-size: 0.6rem;">Fixed</span>
-                      </div>
-                      <div class="qtag6-lowhigh-divider"></div>
-                      <div class="qtag6-lowhigh-item high-item">
-                        <span class="qtag6-lowhigh-icon">▲</span>
-                        <span class="qtag6-lowhigh-label">HIGH</span>
-                        <span class="qtag6-lowhigh-value" data-source="fixed">7.50</span>
-                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">Bar</span>
-                        <span class="badge bg-secondary" style="font-size: 0.6rem;">Fixed</span>
-                      </div>
-                    </div>
+                    <div class="qtag6-tag-unit">Bar</div>
                   </div>
                 </div>
               </div>
               <div class="qtag6-update-time">
-                <i class="bi bi-clock"></i> Last updated: --:--:--
+                <i class="bi bi-clock"></i> Device Offline
               </div>
             </div>
 
             <!-- RIGHT: Discharge Pressure -->
-            <div class="qtag6-sub-card" id="demo-qtag6-2-right" data-column="right">
+            <div class="qtag6-sub-card" data-column="right">
               <div class="qtag6-sub-head qtag6-right-head">
                 <div class="qtag6-sub-title">Discharge Pressure</div>
               </div>
@@ -651,43 +917,24 @@
                 <div class="qtag6-tag-item" data-tag-id="202" data-role="pv">
                   <div class="qtag6-tag-label label-pv">PV</div>
                   <div class="qtag6-value-row">
-                    <div class="qtag6-tag-value" id="qtag6-val-202">12.30</div>
+                    <div class="qtag6-tag-value" style="color: #9ca3af !important;">---</div>
                     <div class="qtag6-tag-unit">Bar</div>
                   </div>
                 </div>
-
-                <div class="qtag6-sv-block">
-                  <div class="qtag6-tag-item" data-tag-id="204" data-role="sv">
-                    <div class="qtag6-tag-label label-sv">SV</div>
-                    <div class="qtag6-value-row">
-                      <div class="qtag6-tag-value" id="qtag6-val-204">12.00</div>
-                      <div class="qtag6-tag-unit">Bar</div>
+                <div class="qtag6-tag-item" data-role="sv">
+                  <div class="qtag6-tag-label label-sv">SV</div>
+                  <div class="qtag6-value-row">
+                    <div class="qtag6-sv-inline">
+                      <span class="qtag6-sv-low" style="color: #9ca3af !important;">---</span>
+                      <span class="qtag6-sv-separator">-</span>
+                      <span class="qtag6-sv-high" style="color: #9ca3af !important;">---</span>
                     </div>
-                  </div>
-
-                  <div class="qtag6-lowhigh-section">
-                    <div class="qtag6-lowhigh-row">
-                      <div class="qtag6-lowhigh-item low-item">
-                        <span class="qtag6-lowhigh-icon">▼</span>
-                        <span class="qtag6-lowhigh-label">LOW</span>
-                        <span class="qtag6-lowhigh-value" data-source="fixed">8.00</span>
-                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">Bar</span>
-                        <span class="badge bg-secondary" style="font-size: 0.6rem;">Fixed</span>
-                      </div>
-                      <div class="qtag6-lowhigh-divider"></div>
-                      <div class="qtag6-lowhigh-item high-item">
-                        <span class="qtag6-lowhigh-icon">▲</span>
-                        <span class="qtag6-lowhigh-label">HIGH</span>
-                        <span class="qtag6-lowhigh-value" data-source="fixed">16.00</span>
-                        <span class="qtag6-tag-unit" style="font-size: 0.7rem;">Bar</span>
-                        <span class="badge bg-secondary" style="font-size: 0.6rem;">Fixed</span>
-                      </div>
-                    </div>
+                    <div class="qtag6-tag-unit">Bar</div>
                   </div>
                 </div>
               </div>
               <div class="qtag6-update-time">
-                <i class="bi bi-clock"></i> Last updated: --:--:--
+                <i class="bi bi-clock"></i> Device Offline
               </div>
             </div>
           </div>
@@ -697,80 +944,371 @@
   </div>
 </div>
 
-<!-- ========== DEMO 3: Qtag6 without LOW/HIGH ========== -->
+<!-- ========== DEMO 3: Qtag Single — Online (PV + SV) ========== -->
 <div class="demo-section">
-  <h3><i class="bi bi-3-circle-fill me-2"></i>Qtag 6 Tag — Không hiển thị LOW/HIGH</h3>
-  <p class="text-muted small mb-3">Khi admin không cấu hình LOW/HIGH, card hiển thị giống Qtag4 nhưng dùng layout mới.</p>
+  <h3><i class="bi bi-3-circle-fill me-2"></i>Qtag Single — 1 Cột PV + SV</h3>
+  <p class="text-muted small mb-3">
+    Chỉ có <strong>1 cột</strong> gồm: <strong>PV</strong> (1 tag) + <strong>SV</strong> (1 tag).
+    Tổng 2 tags, phù hợp cho thiết bị đơn lẻ. Header cột chính là header card.
+  </p>
 
   <div class="row g-4">
-    <div class="col-12 col-lg-8 col-xl-7">
-      <div class="card h-100 shadow-soft qtag6-card" id="demo-qtag6-3" data-card-type="quad6">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2" style="border-radius: 14px 14px 0 0;">
+    <div class="col-12 col-lg-6 col-xl-5">
+      <!-- Qtag Single Card — header gộp vào sub-head -->
+      <div class="qtag-single-sub-card" id="demo-qtag-single-1-col" data-card-type="single">
+        <div class="qtag-single-sub-head">
+          <div class="d-flex align-items-center gap-2">
+            <span class="quad-status-indicator status-online" title="Device Online">
+              <i class="bi bi-circle-fill"></i>
+            </span>
+            <span class="qtag-single-sub-title">Temperature</span>
+            <span class="qtag-single-type-badge">SINGLE</span>
+          </div>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-gear"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item"><i class="bi bi-pencil-square me-2"></i>Rename Card</button></li>
+              <li><button class="dropdown-item"><i class="bi bi-sliders me-2"></i>Set Compare Conditions</button></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><button class="dropdown-item"><i class="bi bi-pencil me-2"></i>Edit Tags (2 tags)</button></li>
+              <li><button class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
+            </ul>
+          </div>
+        </div>
+        <div class="qtag-single-tag-rows">
+          <!-- PV (Tag 1) -->
+          <div class="qtag-single-tag-item" data-tag-id="301" data-role="pv">
+            <div class="qtag-single-tag-label label-pv">PV</div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-tag-value" id="qtag-single-val-301">25.30</div>
+              <div class="qtag-single-tag-unit">°C</div>
+            </div>
+          </div>
+
+          <!-- SV (Tag 2) -->
+          <div class="qtag-single-tag-item" data-tag-id="302" data-role="sv">
+            <div class="qtag-single-tag-label label-sv">SV</div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-tag-value sv-value" id="qtag-single-val-302">26.00</div>
+              <div class="qtag-single-tag-unit">°C</div>
+            </div>
+          </div>
+        </div>
+        <div class="qtag-single-update-time" id="qtag-single-time-1">
+          <i class="bi bi-clock"></i> Last updated: --:--:--
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Mapping Info -->
+    <div class="col-12 col-lg-4 col-xl-4">
+      <div class="card border-0 shadow-soft h-100">
+        <div class="card-header bg-light fw-semibold small">
+          <i class="bi bi-diagram-3 me-1"></i> Tag Mapping — Temperature
+        </div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <thead>
+              <tr class="text-muted">
+                <th>Slot</th>
+                <th>Role</th>
+                <th>Tag ID</th>
+                <th>Mô tả</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="tag-map-badge">tag1</span></td><td>PV</td><td>301</td><td>Room Temperature</td></tr>
+              <tr><td><span class="tag-map-badge">tag2</span></td><td>SV</td><td>302</td><td>Setpoint</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DEMO 4: Qtag Single — Offline ========== -->
+<div class="demo-section">
+  <h3><i class="bi bi-4-circle-fill me-2"></i>Qtag Single — Device Offline</h3>
+  <p class="text-muted small mb-3">Hiển thị khi thiết bị mất kết nối. Giá trị hiển thị "---".</p>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-6 col-xl-5">
+      <div class="qtag-single-sub-card" data-card-type="single">
+        <div class="qtag-single-sub-head">
           <div class="d-flex align-items-center gap-2">
             <span class="quad-status-indicator status-offline" title="Device Offline">
               <i class="bi bi-circle-fill"></i>
             </span>
-            <span class="fw-semibold">FCU-03 Basic Monitor</span>
-            <span class="qtag6-type-badge">QTAG6</span>
+            <span class="qtag-single-sub-title">Pressure</span>
+            <span class="qtag-single-type-badge">SINGLE</span>
           </div>
         </div>
-
-        <div class="card-body">
-          <div class="qtag6-grid">
-            <!-- LEFT -->
-            <div class="qtag6-sub-card" data-column="left">
-              <div class="qtag6-sub-head qtag6-left-head">
-                <div class="qtag6-sub-title">Zone Temperature</div>
-              </div>
-              <div class="qtag6-tag-rows">
-                <div class="qtag6-tag-item" data-tag-id="301" data-role="pv">
-                  <div class="qtag6-tag-label label-pv">PV</div>
-                  <div class="qtag6-value-row">
-                    <div class="qtag6-tag-value" id="qtag6-val-301">0.00</div>
-                    <div class="qtag6-tag-unit">°C</div>
-                  </div>
-                  <div class="qtag6-tag-name">Zone Temp</div>
-                </div>
-                <div class="qtag6-tag-item" data-tag-id="303" data-role="sv">
-                  <div class="qtag6-tag-label label-sv">SV</div>
-                  <div class="qtag6-value-row">
-                    <div class="qtag6-tag-value" id="qtag6-val-303">0.00</div>
-                    <div class="qtag6-tag-unit">°C</div>
-                  </div>
-                </div>
-              </div>
-              <div class="qtag6-update-time">
-                <i class="bi bi-clock"></i> Device Offline
-              </div>
-            </div>
-
-            <!-- RIGHT -->
-            <div class="qtag6-sub-card" data-column="right">
-              <div class="qtag6-sub-head qtag6-right-head">
-                <div class="qtag6-sub-title">Fan Speed</div>
-              </div>
-              <div class="qtag6-tag-rows">
-                <div class="qtag6-tag-item" data-tag-id="302" data-role="pv">
-                  <div class="qtag6-tag-label label-pv">PV</div>
-                  <div class="qtag6-value-row">
-                    <div class="qtag6-tag-value" id="qtag6-val-302">0.00</div>
-                    <div class="qtag6-tag-unit">RPM</div>
-                  </div>
-                  <div class="qtag6-tag-name">Fan Speed Actual</div>
-                </div>
-                <div class="qtag6-tag-item" data-tag-id="304" data-role="sv">
-                  <div class="qtag6-tag-label label-sv">SV</div>
-                  <div class="qtag6-value-row">
-                    <div class="qtag6-tag-value" id="qtag6-val-304">0.00</div>
-                    <div class="qtag6-tag-unit">RPM</div>
-                  </div>
-                </div>
-              </div>
-              <div class="qtag6-update-time">
-                <i class="bi bi-clock"></i> Device Offline
-              </div>
+        <div class="qtag-single-tag-rows">
+          <div class="qtag-single-tag-item" data-tag-id="401" data-role="pv">
+            <div class="qtag-single-tag-label label-pv">PV</div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-tag-value" style="color: #9ca3af !important;">---</div>
+              <div class="qtag-single-tag-unit">Bar</div>
             </div>
           </div>
+          <div class="qtag-single-tag-item" data-tag-id="402" data-role="sv">
+            <div class="qtag-single-tag-label label-sv">SV</div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-tag-value" style="color: #9ca3af !important;">---</div>
+              <div class="qtag-single-tag-unit">Bar</div>
+            </div>
+          </div>
+        </div>
+        <div class="qtag-single-update-time">
+          <i class="bi bi-clock"></i> Device Offline
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DEMO 5: Qtag Single3 — PV + SV (HIGH/LOW) Online ========== -->
+<div class="demo-section">
+  <h3><i class="bi bi-5-circle-fill me-2"></i>Qtag Single3 — 1 Cột PV + SV (HIGH/LOW)</h3>
+  <p class="text-muted small mb-3">
+    1 cột như Single nhưng SV có <strong>HIGH</strong> và <strong>LOW</strong> (giống Qtag6).
+    Tổng 3 tags: PV + HIGH + LOW. Phù hợp khi cần ngưỡng trên/dưới cho 1 sensor.
+  </p>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-6 col-xl-5">
+      <div class="qtag-single-sub-card" id="demo-qtag-single3-1-col" data-card-type="single3">
+        <div class="qtag-single-sub-head">
+          <div class="d-flex align-items-center gap-2">
+            <span class="quad-status-indicator status-online" title="Device Online">
+              <i class="bi bi-circle-fill"></i>
+            </span>
+            <span class="qtag-single-sub-title">Chiller Supply Temp</span>
+            <span class="qtag-single-type-badge">SINGLE3</span>
+          </div>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-gear"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item"><i class="bi bi-pencil-square me-2"></i>Rename Card</button></li>
+              <li><button class="dropdown-item"><i class="bi bi-sliders me-2"></i>Set Compare Conditions</button></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><button class="dropdown-item"><i class="bi bi-pencil me-2"></i>Edit Tags (3 tags)</button></li>
+              <li><button class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
+            </ul>
+          </div>
+        </div>
+        <div class="qtag-single-tag-rows">
+          <!-- PV (Tag 1) -->
+          <div class="qtag-single-tag-item" data-tag-id="501" data-role="pv">
+            <div class="qtag-single-tag-label label-pv">PV</div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-tag-value" id="qtag-single3-val-501">7.20</div>
+              <div class="qtag-single-tag-unit">°C</div>
+            </div>
+          </div>
+
+          <!-- SV row: LOW (Tag 3) - HIGH (Tag 2) on one line -->
+          <div class="qtag-single-tag-item" data-role="sv">
+            <div class="qtag-single-tag-label label-sv">SV</div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-sv-inline">
+                <i class="bi bi-arrow-down qtag-single-arrow-low"></i><span class="qtag-single-sv-low" id="qtag-single3-val-503" data-tag-id="503">5.00</span>
+                <span class="qtag-single-sv-separator">-</span>
+                <i class="bi bi-arrow-up qtag-single-arrow-high"></i><span class="qtag-single-sv-high" id="qtag-single3-val-502" data-tag-id="502">12.00</span>
+              </div>
+              <div class="qtag-single-tag-unit">°C</div>
+            </div>
+          </div>
+        </div>
+        <div class="qtag-single-update-time" id="qtag-single3-time-1">
+          <i class="bi bi-clock"></i> Last updated: --:--:--
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Mapping Info -->
+    <div class="col-12 col-lg-4 col-xl-4">
+      <div class="card border-0 shadow-soft h-100">
+        <div class="card-header bg-light fw-semibold small">
+          <i class="bi bi-diagram-3 me-1"></i> Tag Mapping — Chiller Supply Temp
+        </div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <thead>
+              <tr class="text-muted">
+                <th>Slot</th>
+                <th>Role</th>
+                <th>Tag ID</th>
+                <th>Mô tả</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="tag-map-badge">tag1</span></td><td>PV</td><td>501</td><td>Supply Temperature</td></tr>
+              <tr><td><span class="tag-map-badge">tag2</span></td><td>HIGH</td><td>502</td><td>Temp High Limit</td></tr>
+              <tr><td><span class="tag-map-badge">tag3</span></td><td>LOW</td><td>503</td><td>Temp Low Limit</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DEMO 6: Qtag Single3 — Offline ========== -->
+<div class="demo-section">
+  <h3><i class="bi bi-6-circle-fill me-2"></i>Qtag Single3 — Device Offline</h3>
+  <p class="text-muted small mb-3">Hiển thị khi thiết bị mất kết nối. Giá trị hiển thị "---".</p>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-6 col-xl-5">
+      <div class="qtag-single-sub-card" data-card-type="single3">
+        <div class="qtag-single-sub-head">
+          <div class="d-flex align-items-center gap-2">
+            <span class="quad-status-indicator status-offline" title="Device Offline">
+              <i class="bi bi-circle-fill"></i>
+            </span>
+            <span class="qtag-single-sub-title">AHU Return Temp</span>
+            <span class="qtag-single-type-badge">SINGLE3</span>
+          </div>
+        </div>
+        <div class="qtag-single-tag-rows">
+          <div class="qtag-single-tag-item" data-tag-id="601" data-role="pv">
+            <div class="qtag-single-tag-label label-pv">PV</div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-tag-value" style="color: #9ca3af !important;">---</div>
+              <div class="qtag-single-tag-unit">°C</div>
+            </div>
+          </div>
+          <div class="qtag-single-tag-item" data-role="sv">
+            <div class="qtag-single-tag-label label-sv">SV</div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-sv-inline">
+                <i class="bi bi-arrow-down qtag-single-arrow-low"></i><span class="qtag-single-sv-low" style="color: #9ca3af !important;">---</span>
+                <span class="qtag-single-sv-separator">-</span>
+                <i class="bi bi-arrow-up qtag-single-arrow-high"></i><span class="qtag-single-sv-high" style="color: #9ca3af !important;">---</span>
+              </div>
+              <div class="qtag-single-tag-unit">°C</div>
+            </div>
+          </div>
+        </div>
+        <div class="qtag-single-update-time">
+          <i class="bi bi-clock"></i> Device Offline
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DEMO 7: Qtag PV Only — Online ========== -->
+<div class="demo-section">
+  <h3><i class="bi bi-7-circle-fill me-2"></i>Qtag PV Only — Chỉ hiển thị PV</h3>
+  <p class="text-muted small mb-3">
+    Chỉ có <strong>1 tag PV</strong>, không có SV. Đơn giản nhất, dùng cho sensor chỉ cần hiển thị giá trị đo.
+  </p>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-6 col-xl-5">
+      <div class="qtag-single-sub-card" id="demo-qtag-pvonly-1-col" data-card-type="pvonly">
+        <div class="qtag-single-sub-head">
+          <div class="d-flex align-items-center gap-2">
+            <span class="quad-status-indicator status-online" title="Device Online">
+              <i class="bi bi-circle-fill"></i>
+            </span>
+            <span class="qtag-single-sub-title">Water Flow Meter</span>
+            <span class="qtag-single-type-badge">PV ONLY</span>
+          </div>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-gear"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item"><i class="bi bi-pencil-square me-2"></i>Rename Card</button></li>
+              <li><button class="dropdown-item"><i class="bi bi-sliders me-2"></i>Set Compare Conditions</button></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><button class="dropdown-item"><i class="bi bi-pencil me-2"></i>Edit Tags (1 tag)</button></li>
+              <li><button class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
+            </ul>
+          </div>
+        </div>
+        <div class="qtag-single-tag-rows">
+          <!-- PV (Tag 1) -->
+          <div class="qtag-single-tag-item" data-tag-id="701" data-role="pv">
+            <div class="qtag-pvonly-top-row">
+              <span class="qtag-pvonly-description">Water Flow Rate</span>
+              <span class="qtag-pvonly-unit">m³/h</span>
+            </div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-tag-value" id="qtag-pvonly-val-701">12.85</div>
+            </div>
+          </div>
+        </div>
+        <div class="qtag-single-update-time" id="qtag-pvonly-time-1">
+          <i class="bi bi-clock"></i> Last updated: --:--:--
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Mapping Info -->
+    <div class="col-12 col-lg-4 col-xl-4">
+      <div class="card border-0 shadow-soft h-100">
+        <div class="card-header bg-light fw-semibold small">
+          <i class="bi bi-diagram-3 me-1"></i> Tag Mapping — Water Flow
+        </div>
+        <div class="card-body small">
+          <table class="table table-sm table-borderless mb-0">
+            <thead>
+              <tr class="text-muted">
+                <th>Slot</th>
+                <th>Role</th>
+                <th>Tag ID</th>
+                <th>Mô tả</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="tag-map-badge">tag1</span></td><td>PV</td><td>701</td><td>Water Flow Rate</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DEMO 8: Qtag PV Only — Offline ========== -->
+<div class="demo-section">
+  <h3><i class="bi bi-8-circle-fill me-2"></i>Qtag PV Only — Device Offline</h3>
+  <p class="text-muted small mb-3">Hiển thị khi thiết bị mất kết nối. Giá trị hiển thị "---".</p>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-6 col-xl-5">
+      <div class="qtag-single-sub-card" data-card-type="pvonly">
+        <div class="qtag-single-sub-head">
+          <div class="d-flex align-items-center gap-2">
+            <span class="quad-status-indicator status-offline" title="Device Offline">
+              <i class="bi bi-circle-fill"></i>
+            </span>
+            <span class="qtag-single-sub-title">Voltage Sensor</span>
+            <span class="qtag-single-type-badge">PV ONLY</span>
+          </div>
+        </div>
+        <div class="qtag-single-tag-rows">
+          <div class="qtag-single-tag-item" data-tag-id="801" data-role="pv">
+            <div class="qtag-pvonly-top-row">
+              <span class="qtag-pvonly-description">Voltage Reading</span>
+              <span class="qtag-pvonly-unit">V</span>
+            </div>
+            <div class="qtag-single-value-row">
+              <div class="qtag-single-tag-value" style="color: #9ca3af !important;">---</div>
+            </div>
+          </div>
+        </div>
+        <div class="qtag-single-update-time">
+          <i class="bi bi-clock"></i> Device Offline
         </div>
       </div>
     </div>
@@ -779,50 +1317,74 @@
 
 <!-- ========== Comparison Table ========== -->
 <div class="demo-compare-table">
-  <h3><i class="bi bi-table me-2"></i>So sánh Qtag4 vs Qtag6</h3>
+  <h3><i class="bi bi-table me-2"></i>So sánh các loại Qtag Card</h3>
   <table>
     <thead>
       <tr>
         <th>Thuộc tính</th>
-        <th>Qtag 4 Tag (hiện tại)</th>
-        <th>Qtag 6 Tag (mới)</th>
+        <th>PV Only (1 tag)</th>
+        <th>Single (2 tags)</th>
+        <th>Single3 (3 tags)</th>
+        <th>Quad4 (4 tags)</th>
+        <th>Quad6 (6 tags)</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td><strong>Số Tag</strong></td>
-        <td>4 tags (PV left, PV right, SV left, SV right)</td>
-        <td>6 tags (+ tag5 LOW/HIGH left, tag6 LOW/HIGH right)</td>
+        <td>1: PV</td>
+        <td>2: PV, SV</td>
+        <td>3: PV, HIGH, LOW</td>
+        <td>4: PV×2, SV×2</td>
+        <td>6: PV×2, HIGH×2, LOW×2</td>
       </tr>
       <tr>
-        <td><strong>LOW/HIGH</strong></td>
-        <td>Không có</td>
-        <td>Mỗi SV có LOW + HIGH (chọn Tag hoặc Fixed value)</td>
+        <td><strong>Số cột</strong></td>
+        <td>1 cột</td>
+        <td>1 cột</td>
+        <td>1 cột</td>
+        <td>2 cột</td>
+        <td>2 cột</td>
       </tr>
       <tr>
-        <td><strong>DB Schema</strong></td>
-        <td>tag1_id → tag4_id</td>
-        <td>tag1_id → tag6_id + low/high config columns</td>
+        <td><strong>Layout mỗi cột</strong></td>
+        <td>PV only</td>
+        <td>PV + SV</td>
+        <td>PV + SV (↓LOW - ↑HIGH)</td>
+        <td>PV + SV</td>
+        <td>PV + SV (↓LOW - ↑HIGH)</td>
       </tr>
       <tr>
-        <td><strong>Layout</strong></td>
-        <td>2 sub-cards (PV + SV mỗi bên)</td>
-        <td>2 sub-cards (PV + SV block có LOW/HIGH mỗi bên)</td>
+        <td><strong>Tag Mapping</strong></td>
+        <td>tag1=PV</td>
+        <td>tag1=PV, tag2=SV</td>
+        <td>tag1=PV, tag2=HIGH, tag3=LOW</td>
+        <td>tag1-2=PV, tag3-4=SV</td>
+        <td>tag1-2=PV, tag3-4=HIGH, tag5-6=LOW</td>
       </tr>
       <tr>
         <td><strong>card_type</strong></td>
-        <td>quad4 (default)</td>
+        <td>pvonly</td>
+        <td>single</td>
+        <td>single3</td>
+        <td>quad4</td>
         <td>quad6</td>
       </tr>
       <tr>
-        <td><strong>Alarm</strong></td>
-        <td>So sánh PV vs SV</td>
-        <td>So sánh PV vs SV + check LOW/HIGH thresholds</td>
+        <td><strong>Alarm Logic</strong></td>
+        <td>Không có</td>
+        <td>PV vs SV</td>
+        <td>PV vs HIGH, PV vs LOW</td>
+        <td>PV vs SV</td>
+        <td>PV vs HIGH, PV vs LOW</td>
       </tr>
       <tr>
-        <td><strong>Backward Compatible</strong></td>
-        <td>—</td>
-        <td>✅ Qtag4 cũ vẫn hoạt động bình thường, tag5/tag6 nullable</td>
+        <td><strong>Use Case</strong></td>
+        <td>Hiển thị giá trị đo</td>
+        <td>1 sensor đơn giản</td>
+        <td>1 sensor + ngưỡng HIGH/LOW</td>
+        <td>2 sensor cùng nhóm</td>
+        <td>2 sensor + ngưỡng HIGH/LOW</td>
       </tr>
     </tbody>
   </table>
@@ -839,47 +1401,53 @@
     const h = date.getHours().toString().padStart(2, '0');
     const m = date.getMinutes().toString().padStart(2, '0');
     const s = date.getSeconds().toString().padStart(2, '0');
-    return `${h}:${m}:${s}`;
+    return h + ':' + m + ':' + s;
   }
 
-  // Generate random fluctuation around a base value
   function fluctuate(base, range) {
     return (base + (Math.random() - 0.5) * range).toFixed(2);
   }
 
   function demoSimulateRealtime() {
     if (simulationInterval) clearInterval(simulationInterval);
-
-    console.log('[Demo] Starting realtime simulation...');
+    console.log('[Demo] Starting realtime simulation (6 tags + single)...');
 
     simulationInterval = setInterval(function () {
-      const now = formatTime24h(new Date());
+      var now = formatTime24h(new Date());
 
-      // Demo 1: Temperature & Humidity (tag-based LOW/HIGH)
-      updateValue('qtag6-val-101', fluctuate(24.5, 2));    // PV left: Supply Air Temp
-      updateValue('qtag6-val-102', fluctuate(55.2, 5));    // PV right: Humidity
-      updateValue('qtag6-val-103', fluctuate(25.0, 0.5));  // SV left: Temp setpoint
-      updateValue('qtag6-val-104', fluctuate(50.0, 1));    // SV right: Humidity setpoint
-      updateValue('qtag6-val-105', fluctuate(18.0, 0.3));  // LOW left (tag): Low temp limit
-      updateValue('qtag6-val-106', fluctuate(35.0, 0.5));  // LOW right (tag)
-      updateValue('qtag6-high-left-1', fluctuate(30.0, 0.3));  // HIGH left (tag)
-      updateValue('qtag6-high-right-1', fluctuate(70.0, 0.5)); // HIGH right (tag)
+      // Demo 1: AHU-01 — 6 tags total
+      updateValue('qtag6-val-101', fluctuate(24.5, 2));    // tag1: PV Left (Temperature)
+      updateValue('qtag6-val-102', fluctuate(55.2, 5));    // tag2: PV Right (Humidity)
+      updateValue('qtag6-val-103', fluctuate(30.0, 0.3));  // tag3: HIGH Left (Temp High)
+      updateValue('qtag6-val-104', fluctuate(70.0, 0.5));  // tag4: HIGH Right (Humidity High)
+      updateValue('qtag6-val-105', fluctuate(18.0, 0.3));  // tag5: LOW Left (Temp Low)
+      updateValue('qtag6-val-106', fluctuate(35.0, 0.5));  // tag6: LOW Right (Humidity Low)
 
-      // Demo 2: Pressure (fixed LOW/HIGH — no change needed for fixed values)
-      updateValue('qtag6-val-201', fluctuate(4.8, 0.5));   // Suction PV
-      updateValue('qtag6-val-202', fluctuate(12.3, 1.0));   // Discharge PV
-      updateValue('qtag6-val-203', fluctuate(5.0, 0.2));   // Suction SV
-      updateValue('qtag6-val-204', fluctuate(12.0, 0.3));   // Discharge SV
+      // Demo 3: Qtag Single — 2 tags
+      updateValue('qtag-single-val-301', fluctuate(25.3, 1.5));  // PV: Room Temp
+      updateValue('qtag-single-val-302', fluctuate(26.0, 0.2));  // SV: Setpoint
 
-      // Update timestamps
-      document.querySelectorAll('.qtag6-update-time').forEach(function (el) {
-        el.innerHTML = '<i class="bi bi-clock"></i> Last updated: ' + now;
-      });
+      // Demo 5: Qtag Single3 — 3 tags (PV + HIGH + LOW)
+      updateValue('qtag-single3-val-501', fluctuate(7.2, 1.0));   // PV: Chiller Supply Temp
+      updateValue('qtag-single3-val-502', fluctuate(12.0, 0.3));  // HIGH: Temp High Limit
+      updateValue('qtag-single3-val-503', fluctuate(5.0, 0.2));   // LOW: Temp Low Limit
 
-      // Update demo 1 status to online
-      document.querySelectorAll('#demo-qtag6-1 .quad-status-indicator').forEach(function (el) {
-        el.className = 'quad-status-indicator status-online';
-      });
+      // Demo 7: Qtag PV Only — 1 tag
+      updateValue('qtag-pvonly-val-701', fluctuate(12.85, 2.0));   // PV: Water Flow Rate
+
+      // Update timestamps for demo 1
+      var timeLeft = document.getElementById('qtag6-time-left-1');
+      var timeRight = document.getElementById('qtag6-time-right-1');
+      if (timeLeft) timeLeft.innerHTML = '<i class="bi bi-clock"></i> Last updated: ' + now;
+      if (timeRight) timeRight.innerHTML = '<i class="bi bi-clock"></i> Last updated: ' + now;
+
+      // Update timestamp for single demos
+      var timeSingle = document.getElementById('qtag-single-time-1');
+      if (timeSingle) timeSingle.innerHTML = '<i class="bi bi-clock"></i> Last updated: ' + now;
+      var timeSingle3 = document.getElementById('qtag-single3-time-1');
+      if (timeSingle3) timeSingle3.innerHTML = '<i class="bi bi-clock"></i> Last updated: ' + now;
+      var timePvonly = document.getElementById('qtag-pvonly-time-1');
+      if (timePvonly) timePvonly.innerHTML = '<i class="bi bi-clock"></i> Last updated: ' + now;
 
     }, 1000);
   }
@@ -893,25 +1461,20 @@
   }
 
   function updateValue(elementId, newValue) {
-    const el = document.getElementById(elementId);
-    if (el) {
-      const oldValue = el.textContent;
-      el.textContent = newValue;
-
-      // Flash animation on value change
-      if (oldValue !== newValue) {
-        el.style.transition = 'color 0.2s ease';
-        el.style.color = '#2563eb';
-        setTimeout(function () {
-          el.style.color = '';
-        }, 300);
-      }
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    var oldValue = el.textContent;
+    el.textContent = newValue;
+    if (oldValue !== newValue) {
+      el.style.transition = 'color 0.2s ease';
+      el.style.color = '#2563eb';
+      setTimeout(function () { el.style.color = ''; }, 300);
     }
   }
 
   // ========== Alarm Demo ==========
   function demoTriggerAlarmHigh() {
-    const leftCard = document.getElementById('demo-qtag6-1-left');
+    var leftCard = document.getElementById('demo-qtag6-1-left');
     if (leftCard) {
       leftCard.classList.remove('qtag6-alarm-low');
       leftCard.classList.add('qtag6-alarm-high');
@@ -920,7 +1483,7 @@
   }
 
   function demoTriggerAlarmLow() {
-    const rightCard = document.getElementById('demo-qtag6-1-right');
+    var rightCard = document.getElementById('demo-qtag6-1-right');
     if (rightCard) {
       rightCard.classList.remove('qtag6-alarm-high');
       rightCard.classList.add('qtag6-alarm-low');
@@ -931,6 +1494,9 @@
   function demoClearAlarms() {
     document.querySelectorAll('.qtag6-sub-card').forEach(function (el) {
       el.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
+    });
+    document.querySelectorAll('.qtag-single-sub-card').forEach(function (el) {
+      el.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
     });
     console.log('[Demo] All alarms cleared');
   }
