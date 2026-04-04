@@ -167,11 +167,10 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
         
         // Update pagination UI
         updatePaginationUI();
+        reapplyReportsSearch();
         
-        // Apply comparison if active
-        if (comparisonPairs.length > 0) {
-          setTimeout(() => applyComparison(), 100);
-        }
+        // Always apply comparison after data loads (for all user roles)
+        setTimeout(() => applyComparison(), 100);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -299,11 +298,24 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
   function updateRowCount() {
     const countDiv = document.querySelector('.card-footer div');
     if (countDiv) {
+      const activeSearch = (document.getElementById('q')?.value || '').trim();
       const visibleCount = document.querySelectorAll('#tbl tbody tr:not([style*="display: none"])').length;
       const startRow = (currentPage - 1) * pageSize + 1;
       const endRow = Math.min(currentPage * pageSize, totalRows);
-      countDiv.textContent = `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`;
+      if (activeSearch) {
+        countDiv.textContent = `Showing ${visibleCount} filtered rows on page ${currentPage}/${totalPages} (from ${startRow}-${endRow} of ${totalRows} rows)`;
+      } else {
+        countDiv.textContent = `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`;
+      }
     }
+  }
+
+  function getReportsSearchQuery() {
+    return (document.getElementById('q')?.value || '').trim();
+  }
+
+  function reapplyReportsSearch() {
+    filterRows(getReportsSearchQuery());
   }
 
   // Toggle custom date range visibility and set default dates
@@ -556,17 +568,25 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
 
   function loadComparisonConfig() {
     // Load from database via API
-    return fetch(REPORTS_CONFIG.loadComparisonUrl + '?logger_id=' + encodeURIComponent(currentLoggerId))
-      .then(response => response.json())
+    const url = REPORTS_CONFIG.loadComparisonUrl + '?logger_id=' + encodeURIComponent(currentLoggerId);
+    console.log('[comparison] Loading config from:', url, 'role:', REPORTS_CONFIG.userRole);
+    return fetch(url)
+      .then(response => {
+        console.log('[comparison] API response status:', response.status);
+        return response.json();
+      })
       .then(data => {
-        if (data.success && data.config) {
+        console.log('[comparison] API response data:', JSON.stringify(data).substring(0, 500));
+        if (data.success && data.config && Array.isArray(data.config) && data.config.length > 0) {
           comparisonPairs = data.config;
+          console.log('[comparison] Loaded', comparisonPairs.length, 'pairs, primaryTags:', comparisonPairs.map(p => p.primaryTag));
         } else {
           comparisonPairs = [];
+          console.log('[comparison] No config found or empty config');
         }
       })
       .catch(error => {
-        console.error('Error loading comparison config:', error);
+        console.error('[comparison] Error loading config:', error);
         comparisonPairs = [];
       });
   }
@@ -578,6 +598,8 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
     });
 
     const headers = Array.from(document.querySelectorAll('#tbl thead th'));
+    const rowCount = document.querySelectorAll('#tbl tbody tr').length;
+    console.log('[comparison] Applying comparison:', comparisonPairs.length, 'pairs,', rowCount, 'rows, headers:', headers.map(h => h.textContent.trim()));
     let totalMatches = 0;
     let appliedConditions = 0;
 
@@ -616,6 +638,7 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
     });
 
     // Update status
+    console.log('[comparison] Result: totalMatches=', totalMatches, ', appliedConditions=', appliedConditions);
     const statusEl = document.getElementById('comparisonStatus');
     if (appliedConditions > 0) {
       statusEl.innerHTML = `<span class="badge bg-success">${totalMatches} cells matched</span> from ${appliedConditions} comparison conditions`;
@@ -697,9 +720,7 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
   const originalFilterRows = filterRows;
   filterRows = function(q) {
     originalFilterRows(q);
-    if (comparisonPairs.length > 0) {
-      setTimeout(() => applyComparison(), 50);
-    }
+    setTimeout(() => applyComparison(), 50);
   };
 
 
@@ -790,6 +811,17 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
       return;
     }
 
+    const activeSearch = getReportsSearchQuery().toLowerCase();
+    if (activeSearch) {
+      allData = allData.filter(row => {
+        const rowText = originalColumns.map(col => {
+          const value = row[col] !== undefined ? row[col] : row[col.toLowerCase()];
+          return value !== null && value !== undefined ? String(value) : '';
+        }).join(' ').toLowerCase();
+        return rowText.includes(activeSearch);
+      });
+    }
+
     // Build body rows from fetched data
     const bodyRows = allData.map(row => {
       return originalColumns.map(col => {
@@ -798,6 +830,12 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
         return value !== null && value !== undefined ? String(value) : '';
       });
     });
+
+    if (!bodyRows.length) {
+      alert('No data matches the current search filter for export');
+      if (loadingIndicator) loadingIndicator.classList.remove('active');
+      return;
+    }
 
     if (kind === 'xlsx') {
       // Use ExcelJS to allow styling header row (yellow fill)

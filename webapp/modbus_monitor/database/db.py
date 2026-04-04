@@ -874,17 +874,37 @@ def insert_alarm_event(ts, name, level, target, value, note="", event_type="INCO
     return inserted_id
 
 # ----------- ALARM EVENTS (history) -----------
-def list_alarm_events(offset: int = 0, limit: int = None):
+def get_distinct_alarm_names():
+    """Return distinct alarm names from alarm_events table for autocomplete."""
+    with init_engine().connect() as con:
+        query = select(alarm_events.c.name).distinct().where(
+            alarm_events.c.name.isnot(None)
+        ).order_by(alarm_events.c.name.asc())
+        rows = con.execute(query).all()
+        return [r[0] for r in rows if r[0]]
+
+def list_alarm_events(offset: int = 0, limit: int = None, alarm_name: str = None):
     """Return all alarm events with pagination, oldest first (ascending by timestamp).
+    Optional alarm_name filter to search by exact alarm name.
     Returns: (items, total_count)
     """
     with init_engine().connect() as con:
+        # Base filter conditions
+        conditions = []
+        if alarm_name:
+            conditions.append(alarm_events.c.name == alarm_name)
+        
         # Get total count first
-        count_result = con.execute(select(func.count()).select_from(alarm_events)).scalar()
+        count_q = select(func.count()).select_from(alarm_events)
+        for cond in conditions:
+            count_q = count_q.where(cond)
+        count_result = con.execute(count_q).scalar()
         total_count = count_result or 0
         
         # Build query with pagination
         query = select(alarm_events).order_by(alarm_events.c.ts.asc())
+        for cond in conditions:
+            query = query.where(cond)
         if offset > 0:
             query = query.offset(offset)
         if limit is not None:
@@ -893,26 +913,31 @@ def list_alarm_events(offset: int = 0, limit: int = None):
         rows = con.execute(query).mappings().all()
         return [dict(r) for r in rows], total_count
 
-def list_alarm_events_by_date_range(start_date, end_date, offset: int = 0, limit: int = None):
+def list_alarm_events_by_date_range(start_date, end_date, offset: int = 0, limit: int = None, alarm_name: str = None):
     """Return alarm events within date range with pagination, oldest first (ascending by timestamp).
+    Optional alarm_name filter to search by exact alarm name.
     Returns: (items, total_count)
     """
     with init_engine().connect() as con:
-        # Get total count first
-        count_query = select(func.count()).select_from(alarm_events).where(
-            alarm_events.c.ts >= start_date
-        ).where(
+        # Build filter conditions
+        conditions = [
+            alarm_events.c.ts >= start_date,
             alarm_events.c.ts <= end_date
-        )
+        ]
+        if alarm_name:
+            conditions.append(alarm_events.c.name == alarm_name)
+        
+        # Get total count first
+        count_query = select(func.count()).select_from(alarm_events)
+        for cond in conditions:
+            count_query = count_query.where(cond)
         count_result = con.execute(count_query).scalar()
         total_count = count_result or 0
         
         # Build query with pagination
-        query = select(alarm_events).where(
-            alarm_events.c.ts >= start_date
-        ).where(
-            alarm_events.c.ts <= end_date
-        ).order_by(alarm_events.c.ts.asc())
+        query = select(alarm_events).order_by(alarm_events.c.ts.asc())
+        for cond in conditions:
+            query = query.where(cond)
         
         if offset > 0:
             query = query.offset(offset)
@@ -1054,7 +1079,7 @@ def get_active_quad_alarms_by_subdash(subdash_id: int):
         return []
  
     
-def list_alarm_report():
+def list_alarm_report(alarm_name=None):
     """Ghép INCOMING với OUTGOING + rule info để làm báo cáo alarm."""
     print("Generating alarm report...")
     items = []
@@ -1102,6 +1127,10 @@ def list_alarm_report():
             alarm_events.c.threshold.label("th"),
         ).where(alarm_events.c.event_type == "INCOMING")
 
+        # Filter by alarm name at SQL level if specified
+        if alarm_name:
+            q_in = q_in.where(alarm_events.c.name == alarm_name)
+
         incoming_rows = con.execute(q_in).mappings().all()
         for inc in incoming_rows:
             q_out = select(
@@ -1134,7 +1163,7 @@ def list_alarm_report():
     print(f"Generated {len(items)} alarm report items.")
     return items
 
-def list_alarm_report_by_date_range(start_date, end_date):
+def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
     """Generate alarm report but only for INCOMING events within the given date range.
     OUTGOING is matched as the first event after INCOMING (may be outside range)."""
     print(f"Generating alarm report for range: {start_date} -> {end_date}")
@@ -1187,6 +1216,10 @@ def list_alarm_report_by_date_range(start_date, end_date):
                 alarm_events.c.ts <= end_date,
             )
         )
+
+        # Filter by alarm name at SQL level if specified
+        if alarm_name:
+            q_in = q_in.where(alarm_events.c.name == alarm_name)
 
         incoming_rows = con.execute(q_in).mappings().all()
         for inc in incoming_rows:

@@ -6,19 +6,53 @@
 // Read configuration passed from Jinja2 template
 const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
 
+  // Vietnamese diacritics map for accent-insensitive search
+  const _vnAlarmMap={'à':'a','á':'a','ả':'a','ã':'a','ạ':'a','ă':'a','ằ':'a','ắ':'a','ẳ':'a','ẵ':'a','ặ':'a','â':'a','ầ':'a','ấ':'a','ẩ':'a','ẫ':'a','ậ':'a','è':'e','é':'e','ẻ':'e','ẽ':'e','ẹ':'e','ê':'e','ề':'e','ế':'e','ể':'e','ễ':'e','ệ':'e','ì':'i','í':'i','ỉ':'i','ĩ':'i','ị':'i','ò':'o','ó':'o','ỏ':'o','õ':'o','ọ':'o','ô':'o','ồ':'o','ố':'o','ổ':'o','ỗ':'o','ộ':'o','ơ':'o','ờ':'o','ớ':'o','ở':'o','ỡ':'o','ợ':'o','ù':'u','ú':'u','ủ':'u','ũ':'u','ụ':'u','ư':'u','ừ':'u','ứ':'u','ử':'u','ữ':'u','ự':'u','ỳ':'y','ý':'y','ỷ':'y','ỹ':'y','ỵ':'y','đ':'d'};
+  function _rmDiacritics(s){return s.replace(/./g,ch=>_vnAlarmMap[ch]||ch);}
+
   window.App = window.App || {};
   App.filterTable = function (tableSelector, keyword) {
     const table = document.querySelector(tableSelector);
     if (!table) return;
     const rows = table.querySelectorAll('tbody tr');
     const search = keyword.trim().toLowerCase();
+    const searchAscii = _rmDiacritics(search);
     rows.forEach(row => {
       // Combine all cell text in the row
       const text = Array.from(row.cells).map(td => td.textContent.toLowerCase()).join(' ');
-      // Show row if search is empty or found in text
-      row.style.display = (!search || text.includes(search)) ? '' : 'none';
+      // Show row if search is empty or found in text (with or without diacritics)
+      row.style.display = (!search || text.includes(search) || _rmDiacritics(text).includes(searchAscii)) ? '' : 'none';
     });
+    updateAlarmRowCount();
   };
+
+  function getAlarmSearchQuery() {
+    return (document.getElementById('alarmSearchInput')?.value || '').trim();
+  }
+
+  function reapplyAlarmSearch() {
+    App.filterTable('#tbl', getAlarmSearchQuery());
+  }
+
+  function updateAlarmRowCount() {
+    const countDiv = document.getElementById('rowCount');
+    if (!countDiv) return;
+
+    const activeSearch = getAlarmSearchQuery();
+    const visibleRows = document.querySelectorAll('#tbl tbody tr:not([style*="display: none"])');
+    const dataRows = Array.from(visibleRows).filter(row => !row.querySelector('td[colspan]'));
+
+    if (activeSearch) {
+      countDiv.textContent = `Showing ${dataRows.length} filtered rows on page ${currentPage}/${totalPages} (from ${totalRows} total rows)`;
+      return;
+    }
+
+    const startRow = (currentPage - 1) * pageSize + 1;
+    const endRow = Math.min(currentPage * pageSize, totalRows);
+    countDiv.textContent = totalRows > 0
+      ? `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`
+      : 'Showing 0 rows';
+  }
 
   // ===== Pagination Variables =====
   let currentPage = 1;
@@ -44,6 +78,9 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     });
   }
 
+  // Current alarm name filter (from URL or user selection)
+  let activeAlarmName = ALARM_EVENTS_CONFIG.alarmName || '';
+
   // Load alarm events by page
   async function loadPage(page) {
     if (isLoading) return;
@@ -62,6 +99,11 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     if (tf === 'custom') {
       if (fd) apiUrl.searchParams.set('from_date', fd);
       if (td) apiUrl.searchParams.set('to_date', td);
+    }
+
+    // Add alarm name filter if active
+    if (activeAlarmName) {
+      apiUrl.searchParams.set('alarm_name', activeAlarmName);
     }
 
     // Add pagination params
@@ -121,6 +163,7 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
 
         // Update pagination UI
         updatePaginationUI();
+        reapplyAlarmSearch();
 
         // 🔒 Bảo vệ chống XSS
         function escapeHtml(s) {
@@ -207,24 +250,27 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     paginationContainer.innerHTML = html;
 
     // Update row count display
-    const countDiv = document.getElementById('rowCount');
-    if (countDiv) {
-      const startRow = (currentPage - 1) * pageSize + 1;
-      const endRow = Math.min(currentPage * pageSize, totalRows);
-      countDiv.textContent = totalRows > 0
-        ? `Showing ${startRow}-${endRow} of ${totalRows} rows (Page ${currentPage}/${totalPages})`
-        : 'Showing 0 rows';
-    }
+    updateAlarmRowCount();
   }
 
   function fetchAlarmEvents() {
+    // Do not auto-refresh while the user is actively filtering the current page.
+    // Otherwise the API render will keep replacing the filtered DOM every few seconds.
+    if (getAlarmSearchQuery()) {
+      return;
+    }
+
+    // Skip background refresh when tab is hidden to reduce noisy API calls.
+    if (document.hidden) {
+      return;
+    }
+
     // Use loadPage instead
     loadPage(currentPage);
   }
 
-  // Initial load and auto-refresh
+  // Initial load only. New data is fetched on manual page refresh.
   loadPage(1);
-  setInterval(fetchAlarmEvents, 3000);
 
   // Confirm and populate IDs before delete
   function confirmDelete(event) {
@@ -277,9 +323,35 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     if (q) {
       apiUrl.searchParams.set('q', q);
     }
+    // Add alarm name filter if active — read from multiple sources for reliability
+    const exportAlarmName = activeAlarmName
+      || (new URLSearchParams(window.location.search)).get('alarm_name')
+      || (document.getElementById('alarmNameInput')?.value || '').trim()
+      || '';
+    console.log('[export] activeAlarmName:', activeAlarmName, '| URL alarm_name:', (new URLSearchParams(window.location.search)).get('alarm_name'), '| input:', document.getElementById('alarmNameInput')?.value, '| final:', exportAlarmName);
+    if (exportAlarmName) {
+      apiUrl.searchParams.set('alarm_name', exportAlarmName);
+    }
     const res = await fetch(apiUrl.toString());
     const data = await res.json();
-    if (!data.items?.length) {
+    let exportItems = data.items || [];
+    if (q) {
+      const qLower = q.toLowerCase();
+      exportItems = exportItems.filter(e => {
+        const text = [
+          e.code || "",
+          e.incoming_date || "",
+          e.incoming_value ?? "",
+          e.outgoing_date || "",
+          e.outgoing_value ?? "",
+          e.operator || "",
+          e.threshold ?? ""
+        ].join(' ').toLowerCase();
+        return text.includes(qLower);
+      });
+    }
+
+    if (!exportItems.length) {
       alert("Không có dữ liệu alarm để xuất!");
       return;
     }
@@ -354,7 +426,7 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
       };
     });
 
-    data.items.forEach(e => {
+    exportItems.forEach(e => {
       const row = sheet.addRow([
         e.code || "", e.incoming_date || "", normalizeNumber(e.incoming_value),
         e.outgoing_date || "", normalizeNumber(e.outgoing_value), e.operator || "", normalizeNumber(e.threshold)
@@ -414,7 +486,6 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
 
         if (!fromDate.value) {
           fromDate.value = todayStr;
-          // Update flatpickr instance if available
           if (fromDate._flatpickr) fromDate._flatpickr.setDate(todayStr, true);
         }
         if (!toDate.value) {
@@ -470,8 +541,15 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
         return;
       }
 
-      // Validate date range
-      if (new Date(fromDate) > new Date(toDate)) {
+      // Validate date range - parse d/m/yyyy HH:mm format (day/month can be 1 or 2 digits)
+      function parseDdMmYyyy(str) {
+        const parts = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+        if (!parts) return null;
+        return new Date(parts[3], parts[2] - 1, parts[1], parts[4], parts[5]);
+      }
+      const fromParsed = parseDdMmYyyy(fromDate);
+      const toParsed = parseDdMmYyyy(toDate);
+      if (fromParsed && toParsed && fromParsed > toParsed) {
         alert('From date must be before to date');
         return;
       }
@@ -597,3 +675,200 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     btn.addEventListener('pointerdown', () => { btn.style.transform = 'scale(0.96)'; });
     btn.addEventListener('pointerup', () => { btn.style.transform = 'scale(1)'; });
   });
+
+  // ===== Alarm Name Autocomplete & Filter =====
+  (function initAlarmNameAutocomplete() {
+    const input = document.getElementById('alarmNameInput');
+    const suggestionsList = document.getElementById('alarmNameSuggestions');
+    if (!input || !suggestionsList) return;
+
+    let allAlarmNames = [];
+    let fetchedNames = false;
+    let debounceTimer = null;
+
+    // Set initial value from URL param if present
+    if (activeAlarmName) {
+      input.value = activeAlarmName;
+    }
+
+    // Fetch alarm names from API (cached after first call)
+    async function fetchAlarmNames() {
+      if (fetchedNames) return allAlarmNames;
+      try {
+        console.log('[AlarmAutocomplete] Fetching alarm names from API...');
+        const res = await fetch('/alarms/api/alarm-names');
+        const data = await res.json();
+        console.log('[AlarmAutocomplete] API response:', data);
+        if (data.success && data.names) {
+          allAlarmNames = data.names;
+          fetchedNames = true;
+          console.log('[AlarmAutocomplete] Loaded', allAlarmNames.length, 'alarm names');
+        } else {
+          console.warn('[AlarmAutocomplete] API returned unexpected format:', data);
+        }
+      } catch (err) {
+        console.error('[AlarmAutocomplete] Error fetching alarm names:', err);
+      }
+      return allAlarmNames;
+    }
+
+    // Show filtered suggestions (empty query = show all names)
+    function showSuggestions(query) {
+      suggestionsList.innerHTML = '';
+
+      if (allAlarmNames.length === 0) {
+        console.log('[AlarmAutocomplete] No alarm names available to show');
+        suggestionsList.style.display = 'none';
+        return;
+      }
+
+      let filtered;
+      if (!query) {
+        // Show all names when field is focused with no query
+        filtered = allAlarmNames;
+      } else {
+        const lowerQuery = _rmDiacritics(query.toLowerCase());
+        filtered = allAlarmNames.filter(name => 
+          _rmDiacritics(name.toLowerCase()).includes(lowerQuery)
+        );
+      }
+
+      if (filtered.length === 0) {
+        suggestionsList.style.display = 'none';
+        return;
+      }
+
+      console.log('[AlarmAutocomplete] Showing', filtered.length, 'suggestions');
+      filtered.forEach(name => {
+        const li = document.createElement('li');
+        li.className = 'alarm-suggestion-item';
+        li.textContent = name;
+        li.addEventListener('click', () => selectAlarmName(name));
+        suggestionsList.appendChild(li);
+      });
+
+      suggestionsList.style.display = 'block';
+    }
+
+    // Select an alarm name and trigger filter
+    function selectAlarmName(name) {
+      input.value = name;
+      suggestionsList.style.display = 'none';
+      activeAlarmName = name;
+      // Reset to page 1 and reload with filter
+      currentPage = 1;
+      selectedIds.clear();
+      loadPage(1);
+      // Update URL to reflect filter (without page reload)
+      updateUrlAlarmName(name);
+      // Show active filter badge
+      updateActiveFilterBadge(name);
+    }
+
+    // Update URL search params without full page reload
+    function updateUrlAlarmName(name) {
+      const url = new URL(window.location);
+      if (name) {
+        url.searchParams.set('alarm_name', name);
+      } else {
+        url.searchParams.delete('alarm_name');
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+
+    // Update or create the active filter badge
+    function updateActiveFilterBadge(name) {
+      const wrapper = document.getElementById('alarmNameWrapper');
+      if (!wrapper) return;
+      
+      // Remove existing badge if any
+      const existingBadge = wrapper.parentElement.querySelector('.alarm-name-badge');
+      if (existingBadge) existingBadge.remove();
+
+      if (!name) return;
+
+      const badge = document.createElement('span');
+      badge.className = 'badge bg-primary d-flex align-items-center gap-1 alarm-name-badge';
+      badge.innerHTML = `${escapeHtmlStr(name)} <a href="#" class="text-white text-decoration-none" title="Clear filter">&times;</a>`;
+      badge.querySelector('a').addEventListener('click', (e) => {
+        e.preventDefault();
+        clearAlarmNameFilter();
+      });
+      wrapper.parentElement.appendChild(badge);
+    }
+
+    function escapeHtmlStr(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // Input event with debounce
+    input.addEventListener('input', async function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        await fetchAlarmNames();
+        showSuggestions(this.value.trim());
+      }, 200);
+    });
+
+    // Show suggestions on focus (show all if empty, filtered if has value)
+    input.addEventListener('focus', async function() {
+      await fetchAlarmNames();
+      showSuggestions(this.value.trim());
+    });
+
+    // Handle Enter key to select first match or apply current input
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const firstItem = suggestionsList.querySelector('.alarm-suggestion-item');
+        if (firstItem) {
+          selectAlarmName(firstItem.textContent);
+        } else if (this.value.trim()) {
+          // Apply exact match if typed manually
+          selectAlarmName(this.value.trim());
+        }
+      } else if (e.key === 'Escape') {
+        suggestionsList.style.display = 'none';
+      }
+    });
+
+    // Close suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!input.contains(e.target) && !suggestionsList.contains(e.target)) {
+        suggestionsList.style.display = 'none';
+      }
+    });
+
+    // Pre-fetch names on page load
+    fetchAlarmNames();
+  })();
+
+  // Clear alarm name filter globally
+  function clearAlarmNameFilter() {
+    activeAlarmName = '';
+    const input = document.getElementById('alarmNameInput');
+    if (input) input.value = '';
+    
+    // Remove badge
+    const badges = document.querySelectorAll('.alarm-name-badge');
+    badges.forEach(b => b.remove());
+    
+    // Also remove server-rendered badge
+    const wrapper = document.getElementById('alarmNameWrapper');
+    if (wrapper) {
+      const parentBadges = wrapper.parentElement.querySelectorAll('.badge.bg-primary');
+      parentBadges.forEach(b => {
+        if (b.textContent.includes('×')) b.remove();
+      });
+    }
+    
+    // Update URL and reload
+    const url = new URL(window.location);
+    url.searchParams.delete('alarm_name');
+    window.history.replaceState({}, '', url.toString());
+    
+    currentPage = 1;
+    selectedIds.clear();
+    loadPage(1);
+  }

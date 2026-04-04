@@ -10,6 +10,23 @@ window.NotificationSystem = {
   maxNotifications: 50,
   // Track unique keys to aggressively deduplicate across sources
   seenKeys: new Set(),
+  // Track timestamp-seconds of notifications delivered via socket to suppress server duplicates
+  _socketEventSecs: new Map(),
+
+  _trackSocketEvent(timestamp) {
+    const sec = Math.floor(new Date(timestamp).getTime() / 1000);
+    this._socketEventSecs.set(sec, Date.now());
+    // Cleanup entries older than 60s
+    const cutoff = Date.now() - 60000;
+    for (const [k, v] of this._socketEventSecs) {
+      if (v < cutoff) this._socketEventSecs.delete(k);
+    }
+  },
+
+  _wasDeliveredViaSocket(timestamp) {
+    const sec = Math.floor(new Date(timestamp).getTime() / 1000);
+    return this._socketEventSecs.has(sec);
+  },
 
   init() {
     this.loadNotifications();
@@ -25,8 +42,15 @@ window.NotificationSystem = {
       if (response.ok) {
         const serverNotifications = await response.json();
         console.log('[Notifications] Loaded from server:', serverNotifications?.length ?? 0);
-        // Preserve local transient notifications (no serverId)
-        const localTransient = this.notifications.filter(n => !n.serverId);
+        // Preserve RECENT local transient notifications (no serverId, < 30s old).
+        // Older transient notifications are dropped because the server sync
+        // will provide the authoritative version (avoids stale duplicates).
+        const now = Date.now();
+        const localTransient = this.notifications.filter(n => {
+          if (n.serverId) return false;
+          const age = now - new Date(n.timestamp || 0).getTime();
+          return age < 60000; // keep last 60 seconds (matches socket suppression window)
+        });
 
         // Reset cache to mirror server truth
         this.notifications = [];
@@ -40,7 +64,15 @@ window.NotificationSystem = {
         });
 
         sorted.forEach(notification => {
+
           const createdAt = notification.created_at ? new Date(notification.created_at) : new Date();
+
+          // Skip server duplicates only for INCOMING events delivered via socket.
+          // OUTGOING should still be accepted from server for persistence.
+          if (notification.event_type !== 'OUTGOING' && this._wasDeliveredViaSocket(createdAt)) {
+            return;
+          }
+
           const alarmId = notification.alarm_event_id;
           const tagId = notification.tag_id;
 
@@ -89,8 +121,13 @@ window.NotificationSystem = {
         const clearBtn = document.getElementById('clearAllNotifications');
         if (clearBtn) {
           clearBtn.onclick = async () => {
-            await this.clearOnServer();
-            this.clearAll();
+            const ok = await this.clearOnServer();
+            if (ok) {
+              this.clearAll();
+            } else {
+              // Keep UI consistent with server state when clear request fails
+              this.loadServerNotifications();
+            }
           };
         }
       }, 100);
@@ -100,8 +137,13 @@ window.NotificationSystem = {
     const clearBtnInit = document.getElementById('clearAllNotifications');
     if (clearBtnInit) {
       clearBtnInit.onclick = async () => {
-        await this.clearOnServer();
-        this.clearAll();
+        const ok = await this.clearOnServer();
+        if (ok) {
+          this.clearAll();
+        } else {
+          // Keep UI consistent with server state when clear request fails
+          this.loadServerNotifications();
+        }
       };
     }
 
@@ -114,19 +156,32 @@ window.NotificationSystem = {
   // Clear everything on UI
   clearAll() {
     this.notifications = [];
-    this.saveNotifications();
+    this.seenKeys.clear();
+    this._socketEventSecs.clear();
+    try {
+      localStorage.removeItem('alarmNotifications');
+    } catch (e) {
+      // Fallback to normal save path if remove fails
+      this.saveNotifications();
+    }
     this.updateUI();
   },
 
   // Tell server to dismiss all notifications for this user
   async clearOnServer() {
     try {
-      await fetch('/api/notifications/clear', {
+      const response = await fetch('/api/notifications/clear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
+      if (!response.ok) {
+        console.error('Failed to clear notifications on server. Status:', response.status);
+        return false;
+      }
+      return true;
     } catch (e) {
       console.error('Error clearing notifications on server:', e);
+      return false;
     }
   },
 
@@ -145,11 +200,13 @@ window.NotificationSystem = {
     // Build a stable fingerprint for dedup (favor seconds precision) independent of serverId
     const createdAt = notification.timestamp instanceof Date ? notification.timestamp : new Date(notification.timestamp);
     const sec = Math.floor(createdAt.getTime() / 1000);
+    const entityId = notification.tagId || notification.alarmId || '';
+    const state = (notification.status || notification.event_type || '').toString().trim().toLowerCase();
     const keyParts = [
-      notification.alarmId || '',           // prefer alarm/event identity
-      notification.tagId || '',             // fallback to tag identity
-      sec,                                  // tolerate ms drift
-      (notification.message || '').toString().trim().toLowerCase() // stable content
+      entityId,
+      sec,
+      (notification.message || '').toString().trim().toLowerCase(),
+      state
     ];
     const key = keyParts.join('|');
     notification._key = key;
@@ -324,14 +381,28 @@ window.NotificationSystem = {
     try {
       const saved = localStorage.getItem('alarmNotifications');
       if (saved) {
-        this.notifications = JSON.parse(saved);
+        let parsed = JSON.parse(saved);
         // Convert timestamp strings back to Date objects
-        this.notifications.forEach(n => {
+        parsed.forEach(n => {
           if (typeof n.timestamp === 'string') {
             n.timestamp = new Date(n.timestamp);
           }
           if (typeof n.read === 'undefined') n.read = false;
-          // Rebuild keys using normalized scheme (ignore serverId)
+        });
+
+        // Purge stale transient (client-side) notifications older than 60s.
+        // These were created by socket handlers and should have been replaced
+        // by server-synced versions via loadServerNotifications().
+        const now = Date.now();
+        parsed = parsed.filter(n => {
+          if (n.serverId) return true; // keep server notifications
+          const age = now - new Date(n.timestamp || 0).getTime();
+          return age < 60000; // discard transient > 60s
+        });
+
+        this.notifications = parsed;
+        // Rebuild seenKeys
+        this.notifications.forEach(n => {
           const createdAt = n.timestamp instanceof Date ? n.timestamp : new Date(n.timestamp);
           const sec = Math.floor(createdAt.getTime() / 1000);
           const keyParts = [
@@ -386,7 +457,7 @@ window.NotificationSystem = {
     if (this._interval) return;
     this._interval = setInterval(() => {
       this.loadServerNotifications();
-    }, 15000); // every 15 seconds
+    }, 10000); // every 10 seconds (reduced from 15s for faster sync)
   }
 };
 
@@ -407,6 +478,27 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[Notifications] Skip stale socket alarm (>', ageSec, 's):', data);
         return;
       }
+
+      // Show clear notification from socket (server API filters OUTGOING).
+      if (data.status === 'OUTGOING' || data.event_type === 'OUTGOING') {
+        NotificationSystem.addNotification({
+          id: Date.now() + Math.random(),
+          serverId: undefined,
+          alarmId,
+          tagId,
+          title: data.title || 'Alarm Cleared',
+          message: data.message || 'Alarm condition cleared',
+          level: data.level || 'Low',
+          timestamp: dt,
+          status: 'OUTGOING',
+          read: false
+        });
+        console.log('[Notifications] Added OUTGOING alarm_event to bell:', data);
+        return;
+      }
+
+      // Track this event's timestamp to suppress duplicate server notification
+      NotificationSystem._trackSocketEvent(ts);
       NotificationSystem.addNotification({
         id: Date.now() + Math.random(),
         serverId: undefined,
@@ -421,7 +513,71 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Quad alarm notifications are now handled directly in detail.html
-    // This avoids duplicate notifications and allows proper group name display
+    // Listen for quad alarm events - update bell INSTANTLY without HTTP roundtrip
+    socket.on('quad_alarm_event', function (data) {
+      console.log('[Notifications] Received quad_alarm_event via Socket.IO:', data);
+      const status = data.status; // 'INCOMING' or 'OUTGOING'
+      const quadId = data.quad_id;
+      const column = data.column;
+      const alarmType = data.alarm_type; // 'High' or 'Low'
+      const ts = data.timestamp || new Date().toISOString();
+      const dt = new Date(ts);
+
+      // Drop stale events older than 120s
+      const ageSec = Math.floor((Date.now() - dt.getTime()) / 1000);
+      if (ageSec > 120) {
+        console.log('[Notifications] Skip stale quad alarm (>', ageSec, 's)');
+        return;
+      }
+
+      // Build display values
+      const tag1Val = data.tag1_value !== null && data.tag1_value !== undefined
+        ? parseFloat(data.tag1_value).toFixed(1) : 'N/A';
+      const tag2Val = data.tag2_value !== null && data.tag2_value !== undefined
+        ? parseFloat(data.tag2_value).toFixed(1) : 'N/A';
+      const threshold = data.threshold !== null && data.threshold !== undefined
+        ? parseFloat(data.threshold).toFixed(1) : 'N/A';
+      const operator = data.operator || '>';
+      const columnLabel = column === 'left' ? 'Left' : 'Right';
+
+      // Try to get actual card title from DOM if on detail page, else use data from backend
+      let cardTitle = `Quad #${quadId}`;
+      let columnTitle = columnLabel;
+      const quadCardEl = document.querySelector(`.quad-tag-card[data-quad-id="${quadId}"]`);
+      if (quadCardEl) {
+        const headerEl = quadCardEl.querySelector('.quad-card-header-title, .quad-card-title');
+        if (headerEl && headerEl.textContent.trim()) {
+          cardTitle = headerEl.textContent.trim();
+        }
+        const subCardEl = quadCardEl.querySelector(`.quad-sub-card[data-column="${column}"]`);
+        if (subCardEl) {
+          const subTitleEl = subCardEl.querySelector('.quad-sub-card-title');
+          if (subTitleEl && subTitleEl.textContent.trim()) {
+            columnTitle = subTitleEl.textContent.trim();
+          }
+        }
+      }
+
+      // Avoid duplicate bell entries for INCOMING: keep server-synced entry as source of truth.
+      // OUTGOING is filtered by server API, so we show it directly from socket.
+      if (status === 'INCOMING') {
+        console.log('[Notifications] INCOMING quad_alarm_event received; waiting for server sync:', data);
+        // Pull server notifications soon so user does not need to wait for the 10s interval.
+        setTimeout(() => NotificationSystem.loadServerNotifications(), 400);
+      } else {
+        // NotificationSystem.addNotification({
+        //   id: Date.now() + Math.random(),
+        //   serverId: undefined,
+        //   tagId: data.tag_id || null,
+        //   title: columnTitle,
+        //   message: `${cardTitle} - ${columnTitle} - Alarm cleared ${operator} ${threshold}`,
+        //   level: 'Low',
+        //   timestamp: dt,
+        //   status: 'OUTGOING',
+        //   read: false
+        // });
+        console.log('[Notifications] Added OUTGOING quad_alarm_event to bell:', data);
+      }
+    });
   }
 });

@@ -48,7 +48,8 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'webapp'))
 
 logger = logging.getLogger(__name__)
-sio = socketio.Client()
+
+
 def get_local_ip():
     """Get the local IP address of the current machine."""
     import socket
@@ -63,12 +64,158 @@ def get_local_ip():
         s.close()
     return ip
 
-server_ip = get_local_ip()
-try:
-    sio.connect(f'http://{server_ip}:5000')
-    print(f"✅ Socket.IO connected to http://{server_ip}:5000")
-except Exception as e:
-    print(f"❌ Failed to connect Socket.IO: {e}")
+
+class SocketIOManager:
+    """
+    Manages the Socket.IO client connection with automatic reconnection.
+    Solves the issue where after long uptime (~1 day), the connection drops
+    silently and alarm events are never delivered to the browser.
+    
+    IMPORTANT: Always connects via 127.0.0.1 (localhost) since the alarm worker
+    and Flask server run on the SAME machine. Using the LAN IP (e.g., 192.168.x.x)
+    causes frequent ConnectTimeoutError when the network adapter sleeps or
+    firewall blocks the connection.
+    """
+
+    # Default server URL — localhost is reliable since both processes run on same machine
+    DEFAULT_SERVER_URL = 'http://127.0.0.1:5000'
+
+    def __init__(self, reconnect_interval=30):
+        self._sio = None
+        self._server_url = self.DEFAULT_SERVER_URL
+        self._connected = False
+        self._lock = threading.Lock()
+        self._reconnect_interval = reconnect_interval  # seconds between health checks
+        self._last_connect_attempt = 0
+        self._connect_cooldown = 5  # minimum seconds between connect attempts
+        self._init_client()
+
+    def _init_client(self):
+        """Create a new socketio.Client with reconnection enabled."""
+        self._sio = socketio.Client(
+            reconnection=True,
+            reconnection_attempts=0,  # unlimited
+            reconnection_delay=2,
+            reconnection_delay_max=30,
+            logger=False,
+            engineio_logger=False
+        )
+        # Register event handlers for connection lifecycle
+        self._sio.on('connect', self._on_connect)
+        self._sio.on('disconnect', self._on_disconnect)
+        self._sio.on('connect_error', self._on_connect_error)
+
+    def _on_connect(self):
+        self._connected = True
+        logger.info("[SocketIOManager] Connected to server: %s", self._server_url)
+        print(f"✅ [SocketIOManager] Socket.IO connected to {self._server_url}")
+
+    def _on_disconnect(self):
+        self._connected = False
+        logger.warning("[SocketIOManager] Disconnected from server")
+        print("⚠️ [SocketIOManager] Socket.IO disconnected")
+
+    def _on_connect_error(self, data=None):
+        self._connected = False
+        logger.warning(f"[SocketIOManager] Connection error: {data}")
+
+    def connect(self, server_url=None):
+        """Connect to the Socket.IO server.
+        
+        Always prefers 127.0.0.1 for reliability. Falls back to provided URL
+        only if explicitly specified.
+        """
+        if server_url:
+            self._server_url = server_url
+        if not self._server_url:
+            self._server_url = self.DEFAULT_SERVER_URL
+
+        try:
+            now = time.time()
+            if now - self._last_connect_attempt < self._connect_cooldown:
+                return False
+            self._last_connect_attempt = now
+
+            if self._sio.connected:
+                self._connected = True
+                return True
+
+            self._sio.connect(self._server_url, wait_timeout=3)
+            self._connected = True
+            print(f"✅ Socket.IO connected to {self._server_url}")
+            return True
+        except Exception as e:
+            self._connected = False
+            print(f"❌ Failed to connect Socket.IO to {self._server_url}: {e}")
+            return False
+
+    def ensure_connected(self):
+        """
+        Check connection health and reconnect if needed.
+        Call this periodically from the alarm loop (runs in background thread).
+        """
+        with self._lock:
+            try:
+                if self._sio and self._sio.connected:
+                    self._connected = True
+                    return True
+            except Exception:
+                pass
+
+            # Connection lost - attempt reconnect
+            self._connected = False
+            logger.warning("[SocketIOManager] Connection lost, attempting reconnect to %s ...", self._server_url)
+            try:
+                # Disconnect cleanly first to reset internal state
+                try:
+                    self._sio.disconnect()
+                except Exception:
+                    pass
+                # Re-create client to avoid stale internal state
+                self._init_client()
+                return self.connect()
+            except Exception as e:
+                logger.warning(f"[SocketIOManager] Reconnect failed: {e}")
+                return False
+
+    def emit(self, event, data):
+        """
+        Safely emit an event. Returns True if sent successfully.
+        NON-BLOCKING: Does NOT attempt reconnection here.
+        Reconnection is handled by the periodic health check in _alarm_loop.
+        """
+        try:
+            if self._sio and self._sio.connected:
+                self._sio.emit(event, data)
+                self._connected = True
+                return True
+            else:
+                self._connected = False
+                logger.warning(f"[SocketIOManager] Cannot emit '{event}': not connected (will reconnect on next health check)")
+                return False
+        except Exception as e:
+            self._connected = False
+            logger.warning(f"[SocketIOManager] Emit failed for '{event}': {e}")
+            return False
+
+    @property
+    def connected(self):
+        """Check if currently connected."""
+        try:
+            return self._sio and self._sio.connected
+        except Exception:
+            return False
+
+
+# Global socket.io manager instance (initialized per-process)
+# Uses 127.0.0.1 by default — alarm worker and Flask server always run on the same machine.
+# The initial connect may fail if Flask server hasn't started yet; the health check 
+# in _alarm_loop will retry automatically every 10 seconds.
+sio_manager = SocketIOManager()
+sio_manager.connect()  # Connects to http://127.0.0.1:5000
+
+# Backward-compatible alias: code that calls sio.emit() will use the manager
+sio = sio_manager
     
 @dataclass
 class AlarmConfig:
@@ -153,6 +300,25 @@ class AlarmWorker:
         self._device_status_cache: Dict[int, dict] = {}
         self._device_status_cache_ts = 0.0
         self._tag_device_map: Dict[int, Optional[int]] = {}
+        
+        # Performance caches to reduce DB queries per cycle
+        self._cached_alarm_rules: Optional[List[dict]] = None
+        self._cached_alarm_rules_ts = 0.0
+        self._cached_alarm_rules_ttl = 10.0  # Reload rules from DB every 10 seconds
+        
+        self._cached_quad_conditions: Optional[List[dict]] = None
+        self._cached_quad_conditions_ts = 0.0
+        self._cached_quad_conditions_ttl = 5.0  # Reload quad conditions every 5 seconds
+        
+        self._quad_card_cache: Dict[int, dict] = {}  # quad_id -> {"data": ..., "ts": ...}
+        self._quad_card_cache_ttl = 30.0  # Quad card info changes rarely
+        
+        self._tag_value_cache: Dict[int, Optional[float]] = {}  # Per-cycle tag value cache
+        
+        # Cache for quad-managed tag IDs (to skip regular alarms for these tags)
+        self._quad_managed_tag_ids: set = set()
+        self._quad_managed_tag_ids_ts = 0.0
+        self._quad_managed_tag_ids_ttl = 10.0  # Refresh every 10 seconds
         
         
     def _load_notification_config(self):
@@ -588,7 +754,7 @@ class AlarmWorker:
                 return
             
             # Create notification message using the standard format
-            subject = f"🚨 ALARM TRIGGERED: {rule_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {rule_name}"
+            subject = f"ALARM TRIGGERED: {rule_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {rule_name}"
             body = self.create_alarm_email_body(
                 device_name=device_name,
                 alarm_name=rule_name,
@@ -727,9 +893,14 @@ class AlarmWorker:
             return []
     
     def _load_alarm_rules(self) -> List[dict]:
-        """Load enabled alarm rules from database"""
+        """Load enabled alarm rules from database (cached with TTL to reduce DB queries)"""
         if not self.db_available:
             return []
+        
+        # Return cached rules if still fresh
+        now = time.time()
+        if self._cached_alarm_rules is not None and (now - self._cached_alarm_rules_ts) < self._cached_alarm_rules_ttl:
+            return self._cached_alarm_rules
             
         try:
             rules = self.db.list_alarm_rules()
@@ -754,28 +925,37 @@ class AlarmWorker:
                         
                         enriched_rules.append(rule)
             
+            # Update cache
+            self._cached_alarm_rules = enriched_rules
+            self._cached_alarm_rules_ts = now
             return enriched_rules
             
         except Exception as e:
             self.log("ERROR", f"Failed to load alarm rules: {e}")
-            return []
+            return self._cached_alarm_rules or []
     
     def _get_tag_value(self, tag_id: int) -> Optional[float]:
-        """Get current tag value from tag_latest_values table"""
+        """Get current tag value from tag_latest_values table (per-cycle cache)"""
         if not self.db_available:
             return None
+        
+        # Per-cycle cache: avoid querying same tag multiple times within one alarm loop cycle
+        if tag_id in self._tag_value_cache:
+            return self._tag_value_cache[tag_id]
             
         try:
             result = self.db.get_latest_tag_value(tag_id)
+            value = None
             if result:
                 # get_latest_tag_value returns tuple (value, timestamp)
                 if isinstance(result, tuple) and len(result) >= 1:
-                    return result[0]  # Return value part
+                    value = result[0]  # Return value part
                 elif isinstance(result, dict):
-                    return result.get("value")
+                    value = result.get("value")
                 else:
-                    return result
-            return None
+                    value = result
+            self._tag_value_cache[tag_id] = value
+            return value
         except Exception as e:
             self.log("ERROR", f"Failed to get tag {tag_id} value: {e}")
             return None
@@ -850,16 +1030,34 @@ class AlarmWorker:
                     # Log alarm activation and save to database
                     self.log("WARNING", f"Alarm ACTIVATED: {rule_name} - {tag_name} = {current_value}")
                     
-                    # Save alarm event to database
+                    # Prepare common data
+                    threshold_val = rule.get("threshold", "0")
+                    if "," in str(threshold_val):
+                        threshold_num = float(str(threshold_val).split(",")[0])
+                    else:
+                        threshold_num = float(threshold_val)
+                    ts_now = datetime.now()
+                    
+                    # ── EMIT SOCKET EVENT FIRST for instant UI update ──
+                    try:
+                        data = {
+                            "title": f"Alarm Triggered: {rule_name}",
+                            "message": f"Alarm activated: {rule.get('operator', '>')} {threshold_val}",
+                            "level": alarm_level,
+                            "tag_id": tag_id,
+                            "tag_name": tag_name,
+                            "value": current_value,
+                            "status": "INCOMING",
+                            "created_at": ts_now.isoformat(),
+                            "alarm_event_id": None,  # DB event_id not yet available
+                        }
+                        sio.emit('alarm_event', data)
+                    except Exception as e:
+                        self.log("WARNING", f"Socket emit failed for alarm {rule_name}: {e}")
+                    
+                    # ── THEN save to database (slower, but UI already updated) ──
                     if self.db_available:
                         try:
-                            threshold_val = rule.get("threshold", "0")
-                            if "," in str(threshold_val):
-                                threshold_num = float(str(threshold_val).split(",")[0])
-                            else:
-                                threshold_num = float(threshold_val)
-                                
-                            ts_now = datetime.now()
                             event_id = self.db.insert_alarm_event(
                                 ts=ts_now,
                                 name=rule_name,
@@ -871,18 +1069,6 @@ class AlarmWorker:
                                 operator=rule.get("operator", ">"),
                                 threshold=threshold_num
                             )
-                            data = {
-                                "title": f"Alarm Triggered: {rule_name}",
-                                "message": f"Alarm activated: {rule.get('operator', '>')} {threshold_val}",
-                                "level": alarm_level,
-                                "tag_id": tag_id,
-                                "tag_name": tag_name,
-                                "value": current_value,
-                                "status": "INCOMING",
-                                "created_at": ts_now.isoformat(),
-                                "alarm_event_id": event_id,
-                            }
-                            sio.emit('alarm_event', data)
                         except Exception as e:
                             self.log("ERROR", f"Failed to save alarm event: {e}")
                     
@@ -908,16 +1094,35 @@ class AlarmWorker:
                     # Log alarm deactivation and save to database
                     self.log("INFO", f"Alarm CLEARED: {rule_name} - {tag_name} = {current_value}")
                     
-                    # Save alarm event to database
+                    # Prepare common data
+                    threshold_val = rule.get("threshold", "0")
+                    if "," in str(threshold_val):
+                        threshold_num = float(str(threshold_val).split(",")[0])
+                    else:
+                        threshold_num = float(threshold_val)
+                    ts_now = datetime.now()
+                    
+                    # ── EMIT SOCKET EVENT FIRST for instant UI update ──
+                    try:
+                        dashboard_title = (rule.get("dashboard_name") or device_name or rule_name)
+                        data = {
+                            "title": dashboard_title,
+                            "message": f"Alarm cleared: {rule.get('operator', '>')} {threshold_val}",
+                            "level": alarm_level,
+                            "tag_id": tag_id,
+                            "tag_name": tag_name,
+                            "value": current_value,
+                            "status": "OUTGOING",
+                            "created_at": ts_now.isoformat(),
+                            "alarm_event_id": None,  # DB event_id not yet available
+                        }
+                        sio.emit('alarm_event', data)
+                    except Exception as e:
+                        self.log("WARNING", f"Socket emit failed for alarm clear {rule_name}: {e}")
+                    
+                    # ── THEN save to database (slower, but UI already updated) ──
                     if self.db_available:
                         try:
-                            threshold_val = rule.get("threshold", "0")
-                            if "," in str(threshold_val):
-                                threshold_num = float(str(threshold_val).split(",")[0])
-                            else:
-                                threshold_num = float(threshold_val)
-                                
-                            ts_now = datetime.now()
                             event_id = self.db.insert_alarm_event(
                                 ts=ts_now,
                                 name=rule_name,
@@ -929,18 +1134,6 @@ class AlarmWorker:
                                 operator=rule.get("operator", ">"),
                                 threshold=threshold_num
                             )
-                            data = {
-                                "title": f"Alarm Triggered: {rule_name}",
-                                "message": f"Alarm cleared: {rule.get('operator', '>')} {threshold_val}",
-                                "level": alarm_level,
-                                "tag_id": tag_id,
-                                "tag_name": tag_name,
-                                "value": current_value,
-                                "status": "OUTGOING",
-                                "created_at": ts_now.isoformat(),
-                                "alarm_event_id": event_id,
-                            }
-                            sio.emit('alarm_event', data)
                         except Exception as e:
                             self.log("ERROR", f"Failed to save alarm clear event: {e}")
                     
@@ -966,15 +1159,66 @@ class AlarmWorker:
         except Exception as e:
             self.log("ERROR", f"Failed to process alarm rule {rule.get('id', 'unknown')}: {e}")
     
+    def _get_quad_managed_tag_ids(self) -> set:
+        """Get all tag IDs that are managed by quad cards with active alarm conditions.
+        Regular alarm rules should skip these tags to avoid duplicate notifications."""
+        now = time.time()
+        if (now - self._quad_managed_tag_ids_ts) < self._quad_managed_tag_ids_ttl:
+            return self._quad_managed_tag_ids
+        
+        tag_ids = set()
+        try:
+            if not self.db_available:
+                return tag_ids
+            
+            # Get active quad conditions
+            conditions = self.db.get_all_active_quad_conditions()
+            if not conditions:
+                self._quad_managed_tag_ids = tag_ids
+                self._quad_managed_tag_ids_ts = now
+                return tag_ids
+            
+            # Collect all tag IDs from quad cards that have active conditions
+            for condition in conditions:
+                quad_id = condition.get("quad_card_id")
+                if not quad_id:
+                    continue
+                
+                # Use cached quad card data
+                cached = self._quad_card_cache.get(quad_id)
+                if cached and (now - cached['ts']) < self._quad_card_cache_ttl:
+                    quad_card = cached['data']
+                else:
+                    quad_card = self.db.get_quad_card_by_id(quad_id)
+                    self._quad_card_cache[quad_id] = {'data': quad_card, 'ts': now}
+                
+                if quad_card:
+                    for key in ('tag1_id', 'tag2_id', 'tag3_id', 'tag4_id'):
+                        tid = quad_card.get(key)
+                        if tid:
+                            tag_ids.add(int(tid))
+            
+            self._quad_managed_tag_ids = tag_ids
+            self._quad_managed_tag_ids_ts = now
+            
+        except Exception as e:
+            self.log("ERROR", f"Failed to get quad managed tag IDs: {e}")
+        
+        return self._quad_managed_tag_ids
+
     def _evaluate_quad_conditions(self):
-        """Evaluate all active quad tag conditions"""
+        """Evaluate all active quad tag conditions (cached with TTL to reduce DB queries)"""
         if not self.db_available:
             return
         
         try:
-            # Get all active quad conditions
-            quad_conditions = self.db.get_all_active_quad_conditions()
+            # Cache quad conditions with TTL
+            now = time.time()
+            if self._cached_quad_conditions is None or (now - self._cached_quad_conditions_ts) > self._cached_quad_conditions_ttl:
+                self._cached_quad_conditions = self.db.get_all_active_quad_conditions()
+                self._cached_quad_conditions_ts = now
             
+            quad_conditions = self._cached_quad_conditions
             if not quad_conditions:
                 return
             
@@ -993,9 +1237,16 @@ class AlarmWorker:
         """Process a single quad tag condition"""
         quad_id = condition.get("quad_card_id")
         
-        # Get quad card info to get tag IDs
+        # Get quad card info (cached with TTL since card config changes rarely)
         try:
-            quad_card = self.db.get_quad_card_by_id(quad_id)
+            now = time.time()
+            cached = self._quad_card_cache.get(quad_id)
+            if cached and (now - cached['ts']) < self._quad_card_cache_ttl:
+                quad_card = cached['data']
+            else:
+                quad_card = self.db.get_quad_card_by_id(quad_id)
+                self._quad_card_cache[quad_id] = {'data': quad_card, 'ts': now}
+            
             if not quad_card:
                 return
             
@@ -1213,6 +1464,7 @@ class AlarmWorker:
                     "column": column,
                     "alarm_type": stored_alarm_type,
                     "status": "OUTGOING",
+                    "tag_id": tag1_id,
                     "tag1_value": tag1_value,
                     "tag2_value": tag2_value,
                     "threshold": threshold,
@@ -1275,11 +1527,32 @@ class AlarmWorker:
                 # Store alarm type for OUTGOING event
                 self._alarm_types[alarm_key] = alarm_type
                 
-                # Save alarm event to database (similar to regular alarms)
+                # ── EMIT SOCKET EVENT FIRST for instant UI update ──
+                # Socket emit BEFORE DB writes to eliminate DB latency from UI path
+                ts_now = datetime.now()
+                event_data = {
+                    "quad_id": quad_id,
+                    "column": column,
+                    "alarm_type": alarm_type,
+                    "status": "INCOMING",
+                    "tag_id": triggered_tag_id,
+                    "tag1_value": tag1_value,
+                    "tag2_value": tag2_value,
+                    "threshold": threshold,
+                    "operator": operator,
+                    "timestamp": ts_now.isoformat()
+                }
+                try:
+                    self.log("INFO", f"📡 Emitting quad_alarm_event INCOMING (before DB)")
+                    sio.emit('quad_alarm_event', event_data)
+                    self.data_queue.put({"type": "quad_alarm_event", "data": event_data})
+                    self.log("INFO", f"✅ Socket event emitted instantly")
+                except Exception as e:
+                    self.log("WARNING", f"Socket emit failed: {e}")
+                
+                # ── THEN save to database (slower, but UI already updated) ──
                 if self.db_available:
                     try:
-                        ts_now = datetime.now()
-                        # Set level based on alarm type: High -> High, Low -> Warning
                         alarm_level = "Critical"
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now,
@@ -1307,37 +1580,6 @@ class AlarmWorker:
                         self.log("INFO", f"✅ Saved quad alarm state to database: ID={state_id}")
                     except Exception as e:
                         self.log("ERROR", f"Failed to save quad alarm event to database: {e}")
-                
-                # Emit Socket.IO event for UI update
-                try:
-                    event_data = {
-                        "quad_id": quad_id,
-                        "column": column,
-                        "alarm_type": alarm_type,
-                        "status": "INCOMING",
-                        "tag1_value": tag1_value,
-                        "tag2_value": tag2_value,
-                        "threshold": threshold,
-                        "operator": operator,
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    self.log("INFO", f"📡 Emitting quad_alarm_event: {event_data}")
-                    
-                    # Send event via data_queue to main process for broadcasting
-                    self.data_queue.put({
-                        "type": "quad_alarm_event",
-                        "data": event_data
-                    })
-                    
-                    # Also try direct emit (fallback)
-                    try:
-                        sio.emit('quad_alarm_event', event_data)
-                    except Exception as emit_err:
-                        self.log("WARNING", f"Direct emit failed: {emit_err}")
-                    
-                    self.log("INFO", f"✅ Successfully queued quad_alarm_event")
-                except Exception as e:
-                    self.log("ERROR", f"Failed to emit quad alarm event: {e}")
                 
                 # Send notifications
                 if email or sms:
@@ -1371,13 +1613,31 @@ class AlarmWorker:
                 alarm_name = quad_tag_name
                 self.log("INFO", f"✅ Quad Alarm CLEARED: {alarm_name} ({alarm_type}) - Value: {tag1_value}")
                 
-                # Save alarm clear event to database (similar to regular alarms)
+                # ── EMIT SOCKET EVENT FIRST for instant UI update ──
+                ts_now = datetime.now()
+                event_data = {
+                    "quad_id": quad_id,
+                    "column": column,
+                    "alarm_type": alarm_type,
+                    "status": "OUTGOING",
+                    "tag_id": tag1_id,
+                    "tag1_value": tag1_value,
+                    "tag2_value": tag2_value,
+                    "threshold": stored_threshold,
+                    "operator": stored_operator,
+                    "timestamp": ts_now.isoformat()
+                }
+                try:
+                    self.log("INFO", f"📡 Emitting quad_alarm_event OUTGOING (before DB)")
+                    sio.emit('quad_alarm_event', event_data)
+                    self.data_queue.put({"type": "quad_alarm_event", "data": event_data})
+                except Exception as e:
+                    self.log("WARNING", f"Socket emit failed: {e}")
+                
+                # ── THEN save to database ──
                 if self.db_available:
                     try:
-                        ts_now = datetime.now()
-                        # Use tag1_id as target since it's the primary tag for the column
                         target_tag_id = tag1_id
-                        # Set level based on alarm type: High -> Critical, Low -> Warning
                         alarm_level = "Warning"
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now,
@@ -1397,35 +1657,6 @@ class AlarmWorker:
                         self.log("INFO", f"✅ Deleted quad alarm state from database: {deleted} row(s)")
                     except Exception as e:
                         self.log("ERROR", f"Failed to save quad alarm clear event to database: {e}")
-                
-                # Emit Socket.IO event for UI update
-                try:
-                    event_data = {
-                        "quad_id": quad_id,
-                        "column": column,
-                        "alarm_type": alarm_type,  # Include alarm type for proper CSS class removal
-                        "status": "OUTGOING",
-                        "tag1_value": tag1_value,
-                        "tag2_value": tag2_value,
-                        "threshold": stored_threshold,
-                        "operator": stored_operator,
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    
-                    # Send event via data_queue to main process for broadcasting
-                    self.data_queue.put({
-                        "type": "quad_alarm_event",
-                        "data": event_data
-                    })
-                    
-                    # Also try direct emit (fallback)
-                    try:
-                        sio.emit('quad_alarm_event', event_data)
-                    except Exception as emit_err:
-                        self.log("WARNING", f"Direct emit failed: {emit_err}")
-                        
-                except Exception as e:
-                    self.log("ERROR", f"Failed to emit quad alarm clear event: {e}")
                 
                 # Send clear notifications
                 if email or sms:
@@ -1487,7 +1718,7 @@ class AlarmWorker:
             return
         
         # Create message
-        subject = f"🚨 ALARM: {alarm_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {alarm_name}"
+        subject = f"ALARM: {alarm_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {alarm_name}"
         body = self.create_alarm_email_body(
             device_name="Quad Tag Card",
             alarm_name=alarm_name,
@@ -1571,18 +1802,50 @@ class AlarmWorker:
     def _alarm_loop(self):
         """Main alarm evaluation loop"""
         self.log("INFO", "Starting alarm evaluation loop")
+        _sio_health_check_counter = 0  # Check socket.io health every N cycles
+        _sio_reconnecting = False  # Flag to avoid overlapping reconnect threads
         
         while self.running:
             try:
+                # Clear per-cycle tag value cache at the start of each cycle
+                self._tag_value_cache.clear()
+                
+                # Periodic Socket.IO connection health check (every ~10 cycles = ~10s at 1s interval)
+                # Runs in background thread to avoid blocking alarm evaluation
+                _sio_health_check_counter += 1
+                if _sio_health_check_counter >= 10:
+                    _sio_health_check_counter = 0
+                    if not sio_manager.connected and not _sio_reconnecting:
+                        def _bg_reconnect():
+                            nonlocal _sio_reconnecting
+                            _sio_reconnecting = True
+                            try:
+                                self.log("WARNING", "Socket.IO connection lost, attempting reconnect in background...")
+                                if sio_manager.ensure_connected():
+                                    self.log("INFO", "Socket.IO reconnected successfully")
+                                else:
+                                    self.log("WARNING", "Socket.IO reconnect failed, will retry next health check")
+                            except Exception as e:
+                                self.log("WARNING", f"Socket.IO health check error: {e}")
+                            finally:
+                                _sio_reconnecting = False
+                        threading.Thread(target=_bg_reconnect, daemon=True).start()
+                
                 # Load current alarm rules
                 alarm_rules = self._load_alarm_rules()
+                
+                # Get tag IDs managed by quad alarms to avoid duplicate notifications
+                quad_managed_tags = self._get_quad_managed_tag_ids()
                 
                 if alarm_rules:
                     # self.log("DEBUG", f"Evaluating {len(alarm_rules)} alarm rules")
                     
-                    # Process each enabled alarm rule
+                    # Process each enabled alarm rule (skip tags already covered by quad alarms)
                     for rule in alarm_rules:
                         if rule.get("enabled", True):
+                            tag_id = rule.get("tag_id") or rule.get("target")
+                            if tag_id and int(tag_id) in quad_managed_tags:
+                                continue  # Skip - this tag is managed by quad alarm system
                             self._process_alarm_rule(rule)
                 
                 # Evaluate quad tag conditions
@@ -1602,7 +1865,8 @@ class AlarmWorker:
                         "seq": self.seq,
                         "active_alarms": active_alarms,
                         "total_rules": len(alarm_rules),  # total_rules = len(alarm_rules) as requested
-                        "last_update": time.time()
+                        "last_update": time.time(),
+                        "sio_connected": sio_manager.connected  # Track socket health
                     }
                 
                 # Sleep until next check

@@ -9,7 +9,8 @@ from modbus_monitor.database.db import (
     list_alarm_rules, get_alarm_rule,
     add_alarm_rule_row, update_alarm_rule_row, delete_alarm_rule_row,
     list_alarm_events, list_alarm_events_by_date_range, clear_alarm_events,
-    delete_alarm_event_row
+    delete_alarm_event_row,
+    get_distinct_alarm_names
 )
 from flask import jsonify
 from datetime import datetime
@@ -203,6 +204,7 @@ def alarm_report():
     from_date = request.args.get('from_date', '')
     to_date = request.args.get('to_date', '')
     q = (request.args.get('q', '') or '').strip().lower()
+    alarm_name = (request.args.get('alarm_name', '') or '').strip()
 
     now = safe_datetime_now()
     start_date = None
@@ -228,10 +230,15 @@ def alarm_report():
         except ValueError:
             start_date = end_date = None
 
+    effective_alarm = alarm_name or None
+    print(f"[alarm-report] time_filter={time_filter}, alarm_name='{alarm_name}', effective='{effective_alarm}', start={start_date}, end={end_date}")
+
     if start_date and end_date:
-        items = list_alarm_report_by_date_range(start_date, end_date)
+        items = list_alarm_report_by_date_range(start_date, end_date, alarm_name=effective_alarm)
     else:
-        items = list_alarm_report()
+        items = list_alarm_report(alarm_name=effective_alarm)
+
+    print(f"[alarm-report] Got {len(items)} items after DB query")
 
     # Optional search filter from UI (matches visible-table filtering semantics loosely)
     if q:
@@ -339,18 +346,22 @@ def api_alarm_events():
         except ValueError:
             start_date = end_date = None
 
+    # Alarm name filter
+    alarm_name = (request.args.get('alarm_name', '') or '').strip() or None
+
     try:
         if start_date and end_date:
-            items, total_count = list_alarm_events_by_date_range(start_date, end_date, offset=offset, limit=limit)
+            items, total_count = list_alarm_events_by_date_range(
+                start_date, end_date, offset=offset, limit=limit, alarm_name=alarm_name)
         else:
-            items, total_count = list_alarm_events(offset=offset, limit=limit)
+            items, total_count = list_alarm_events(offset=offset, limit=limit, alarm_name=alarm_name)
 
         # Format datetime
         for e in items:
             if isinstance(e.get("ts"), datetime):
                 e["ts"] = e["ts"].strftime("%d/%m/%Y %H:%M:%S")
         
-        print(f"Alarm Events API: Loaded {len(items)} of {total_count} total (offset={offset}, limit={limit})")
+        print(f"Alarm Events API: Loaded {len(items)} of {total_count} total (offset={offset}, limit={limit}, name={alarm_name})")
         return jsonify({
             "success": True,
             "items": items,
@@ -362,6 +373,18 @@ def api_alarm_events():
     except Exception as e:
         print(f"Error loading alarm events: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@alarms_bp.route("/api/alarm-names")
+def api_alarm_names():
+    """Return distinct alarm names for autocomplete suggestions."""
+    try:
+        names = get_distinct_alarm_names()
+        return jsonify({"success": True, "names": names})
+    except Exception as e:
+        print(f"Error loading alarm names: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 @alarms_bp.route("/api/alarms/events/clear", methods=["POST"])
 def api_clear_alarm_events():

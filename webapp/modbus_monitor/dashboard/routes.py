@@ -146,6 +146,7 @@ def api_notifications():
                 # provide alarm event id and tag id if present to help deduplicate client-side
                 "alarm_event_id": notification.get("alarm_event_id"),
                 "tag_id": notification.get("tag_id"),
+                "event_type": notification.get("event_type", "INCOMING"),
             })
         
         return jsonify(formatted_notifications)

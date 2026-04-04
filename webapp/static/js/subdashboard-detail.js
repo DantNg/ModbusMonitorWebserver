@@ -509,10 +509,6 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       });
     }
 
-    // Request notification permission on page load (only when secure context)
-    function canUseNativeNotifications() {
-      return typeof Notification !== 'undefined' && window.isSecureContext && Notification.permission === 'granted';
-    }
 
     if (typeof Notification !== 'undefined' && window.isSecureContext && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {
@@ -1750,9 +1746,9 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   // Expose for external use
   window.fetchAndApplyQuadAlarms = fetchAndApplyQuadAlarms;
 
-  // Periodic alarm state sync every 30 seconds to keep colors in sync
-  // This prevents alarm colors from being lost during long uptime
-  const _quadAlarmSyncInterval = setInterval(fetchAndApplyQuadAlarms, 30000);
+  // Periodic alarm state sync every 10 seconds to keep colors in sync
+  // Reduced from 30s to 10s to minimize delay when socket.io events are missed
+  const _quadAlarmSyncInterval = setInterval(fetchAndApplyQuadAlarms, 10000);
 
   // Check if tag supports write operations
   function canWriteTag(functionCode) {
@@ -2333,11 +2329,11 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         const operator = data.operator || '>';
         
         // Create detailed notification message
-        const alarmTitle = `🚨 Quad Alarm: ${alarmType} Threshold`;
+        const alarmTitle = `🚨Quad Alarm: ${alarmType} Threshold`;
         const alarmBody = `${cardTitle} - ${groupName}\nPV: ${tag1Val} | SV: ${tag2Val}\nCondition: ${operator} ${threshold}`;
         
         // Show browser notification when allowed; otherwise fallback to bell list only
-        if (canUseNativeNotifications()) {
+        if (typeof Notification !== 'undefined' && window.isSecureContext && Notification.permission === 'granted') {
           const notification = new Notification(alarmTitle, {
             body: alarmBody,
             icon: '/static/favicon.ico',
@@ -2360,21 +2356,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           console.warn('Native notifications unavailable (permission denied or insecure context); using bell list only.');
         }
         
-        // Add to notification bell list with proper color coding
-        if (typeof NotificationSystem !== 'undefined') {
-          NotificationSystem.addNotification({
-            id: Date.now() + Math.random(),
-            serverId: undefined,
-            alarmId: `quad-${quadId}-${column}`,
-            tagId: null,
-            title: `🚨 ${cardTitle} - ${groupName}`,
-            message: `${alarmType} alarm: PV=${tag1Val}, SV=${tag2Val} (${operator} ${threshold})`,
-            level: 'High',
-            timestamp: new Date(),
-            status: 'Active',
-            read: false
-          });
-        }
+        // Bell notification is handled instantly by notifications.js via quad_alarm_event socket listener
         
         console.log(`✅ Quad alarm notification shown: ${cardTitle} - ${groupName} (${alarmType})`);
         
@@ -2392,21 +2374,9 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         const outOperator = data.operator || '>';
         const outThreshold = data.threshold !== null && data.threshold !== undefined ? parseFloat(data.threshold).toFixed(1) : 'N/A';
 
-        // Hiển thị thông báo clear (nếu NotificationSystem sẵn có)
-        if (typeof NotificationSystem !== 'undefined') {
-          NotificationSystem.addNotification({
-            id: Date.now() + Math.random(),
-            serverId: undefined,
-            alarmId: `quad-${quadId}-${column}`,
-            tagId: null,
-            title: `✅ ${outCardTitle} - ${outGroupName}`,
-            message: `${alarmType} alarm cleared: PV=${outTag1Val}, SV=${outTag2Val} (${outOperator} ${outThreshold})`,
-            level: 'Info', 
-            timestamp: new Date(),
-            status: 'Cleared',
-            read: false
-          });
-        }
+        // Bell notification is handled instantly by notifications.js via quad_alarm_event socket listener
+
+        console.log(`✅ Quad alarm cleared: ${outCardTitle} - ${outGroupName} (${alarmType})`);
       }
     });
 

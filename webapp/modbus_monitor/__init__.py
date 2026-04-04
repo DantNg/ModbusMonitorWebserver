@@ -11,6 +11,7 @@ from .database.db import init_engine, create_schema
 import os
 import asyncio
 import logging, sys
+import time
 from .extensions import socketio
 import json
 
@@ -142,6 +143,7 @@ def create_app():
     app.config['APP_FOOTER_NAME'] = footer_name or brand_name or default_brand
     # Backward-compatible alias
     app.config['APP_NAME'] = app.config['APP_BRAND_NAME']
+    app.config['ASSET_VERSION'] = int(time.time())
 
     # Custom Jinja filters
     @app.template_filter('format_value')

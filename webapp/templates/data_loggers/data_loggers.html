@@ -5,7 +5,11 @@
   <div class="card-body d-flex flex-wrap gap-2 justify-content-between align-items-center">
     <div class="position-relative" style="min-width:280px;max-width:360px;width:100%;">
       <span class="position-absolute top-50 translate-middle-y ms-3 opacity-50">🔎</span>
-      <input class="form-control ps-5" placeholder="Search data loggers…" oninput="App.filterTable('#tbl', this.value)">
+      <input id="loggerNameSearch" class="form-control ps-5"
+             placeholder="Search or select datalogger name..." autocomplete="off">
+      <div id="loggerNameSuggest"
+           class="list-group position-absolute w-100 shadow-sm"
+           style="z-index: 1050; top: calc(100% + 4px); max-height: 220px; overflow-y: auto; display: none;"></div>
     </div>
     <div class="d-flex gap-2">
       <button type="button" id="reloadDataloggerBtn" class="btn btn-dark-subtle">Reload</button>
@@ -15,9 +19,9 @@
 </div>
 
 <div class="card border-0 shadow-soft">
-  <div class="table-responsive">
+  <div class="table-responsive" style="max-height:340px; overflow-y:auto;">
     <table id="tbl" class="table table-hover align-middle mb-0">
-      <thead class="table-dark-subtle">
+      <thead class="table-dark-subtle" style="position:sticky; top:0; z-index:2;">
         <tr>
           <th>Active</th>
           <th>Name</th>
@@ -58,6 +62,125 @@
   </div>
 </div>
 <script>
+// Search by datalogger name (Name column only) — supports Vietnamese diacritics-insensitive search
+(function () {
+  const input = document.getElementById('loggerNameSearch');
+  const table = document.getElementById('tbl');
+  const suggestBox = document.getElementById('loggerNameSuggest');
+  if (!input || !table) return;
+
+  // Remove Vietnamese diacritics using explicit character map for reliable matching
+  const _vnMap = {
+    'à':'a','á':'a','ả':'a','ã':'a','ạ':'a',
+    'ă':'a','ằ':'a','ắ':'a','ẳ':'a','ẵ':'a','ặ':'a',
+    'â':'a','ầ':'a','ấ':'a','ẩ':'a','ẫ':'a','ậ':'a',
+    'è':'e','é':'e','ẻ':'e','ẽ':'e','ẹ':'e',
+    'ê':'e','ề':'e','ế':'e','ể':'e','ễ':'e','ệ':'e',
+    'ì':'i','í':'i','ỉ':'i','ĩ':'i','ị':'i',
+    'ò':'o','ó':'o','ỏ':'o','õ':'o','ọ':'o',
+    'ô':'o','ồ':'o','ố':'o','ổ':'o','ỗ':'o','ộ':'o',
+    'ơ':'o','ờ':'o','ớ':'o','ở':'o','ỡ':'o','ợ':'o',
+    'ù':'u','ú':'u','ủ':'u','ũ':'u','ụ':'u',
+    'ư':'u','ừ':'u','ứ':'u','ử':'u','ữ':'u','ự':'u',
+    'ỳ':'y','ý':'y','ỷ':'y','ỹ':'y','ỵ':'y',
+    'đ':'d',
+    'À':'A','Á':'A','Ả':'A','Ã':'A','Ạ':'A',
+    'Ă':'A','Ằ':'A','Ắ':'A','Ẳ':'A','Ẵ':'A','Ặ':'A',
+    'Â':'A','Ầ':'A','Ấ':'A','Ẩ':'A','Ẫ':'A','Ậ':'A',
+    'È':'E','É':'E','Ẻ':'E','Ẽ':'E','Ẹ':'E',
+    'Ê':'E','Ề':'E','Ế':'E','Ể':'E','Ễ':'E','Ệ':'E',
+    'Ì':'I','Í':'I','Ỉ':'I','Ĩ':'I','Ị':'I',
+    'Ò':'O','Ó':'O','Ỏ':'O','Õ':'O','Ọ':'O',
+    'Ô':'O','Ồ':'O','Ố':'O','Ổ':'O','Ỗ':'O','Ộ':'O',
+    'Ơ':'O','Ờ':'O','Ớ':'O','Ở':'O','Ỡ':'O','Ợ':'O',
+    'Ù':'U','Ú':'U','Ủ':'U','Ũ':'U','Ụ':'U',
+    'Ư':'U','Ừ':'U','Ứ':'U','Ử':'U','Ữ':'U','Ự':'U',
+    'Ỳ':'Y','Ý':'Y','Ỷ':'Y','Ỹ':'Y','Ỵ':'Y',
+    'Đ':'D'
+  };
+  function removeDiacritics(str) {
+    return str.replace(/./g, ch => _vnMap[ch] || ch);
+  }
+
+  const loggerNames = Array.from(table.querySelectorAll('tbody tr td:nth-child(2)'))
+    .map(td => (td.textContent || '').trim())
+    .filter(Boolean);
+
+  function getSearchTokens(value) {
+    return (value || '')
+      .toLowerCase()
+      .split(/[\s,;]+/)
+      .map(token => token.trim())
+      .filter(Boolean);
+  }
+
+  function matchesLoggerName(name, value) {
+    const nameText = (name || '').toLowerCase();
+    const nameNoDiacritics = removeDiacritics(nameText);
+    const tokens = getSearchTokens(value);
+    if (!tokens.length) return true;
+    // All tokens must match (AND logic) for precise results
+    return tokens.every(token => {
+      const tokenNoDiacritics = removeDiacritics(token);
+      return nameText.includes(token) || nameNoDiacritics.includes(tokenNoDiacritics);
+    });
+  }
+
+  function hideSuggestions() {
+    if (!suggestBox) return;
+    suggestBox.style.display = 'none';
+    suggestBox.innerHTML = '';
+  }
+
+  function showSuggestions(query) {
+    if (!suggestBox) return;
+    const matches = loggerNames.filter(name => matchesLoggerName(name, query)).slice(0, 30);
+
+    if (!matches.length) {
+      hideSuggestions();
+      return;
+    }
+
+    suggestBox.innerHTML = matches
+      .map(name => `<button type="button" class="list-group-item list-group-item-action">${name}</button>`)
+      .join('');
+    suggestBox.style.display = 'block';
+
+    suggestBox.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        input.value = btn.textContent || '';
+        filterByName();
+        hideSuggestions();
+      });
+    });
+  }
+
+  function filterByName() {
+    const q = input.value || '';
+    const rows = table.querySelectorAll('tbody tr');
+
+    rows.forEach((row) => {
+      if (row.querySelector('td[colspan]')) return; // keep empty-state row intact
+      const nameCell = row.querySelector('td:nth-child(2)');
+      const nameText = (nameCell?.textContent || '').trim();
+      row.style.display = matchesLoggerName(nameText, q) ? '' : 'none';
+    });
+
+    showSuggestions(input.value);
+  }
+
+  input.addEventListener('input', filterByName);
+  input.addEventListener('focus', () => showSuggestions(input.value));
+  input.addEventListener('change', filterByName);
+
+  document.addEventListener('click', (e) => {
+    if (!suggestBox) return;
+    if (e.target === input || suggestBox.contains(e.target)) return;
+    hideSuggestions();
+  });
+})();
+
 // Reload Datalogger worker (orchestra_datalogger.exe)
 (function(){
   const btn = document.getElementById('reloadDataloggerBtn');
