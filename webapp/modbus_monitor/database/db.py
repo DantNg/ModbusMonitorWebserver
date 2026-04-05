@@ -403,6 +403,7 @@ subdash_quad_cards = Table(
     Column("card_title", String(200), nullable=True),  # Tên card
     Column("left_title", String(200), nullable=True),  # Tên cột trái
     Column("right_title", String(200), nullable=True),  # Tên cột phải
+    Column("card_color", String(20), nullable=True),  # Background color (hex)
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -456,11 +457,77 @@ quad_tag_conditions = Table(
 )
 
 
+# ========== Qtag6 Cards (6 tags: 2 columns x 3 tags each) ==========
+subdash_qtag6_cards = Table(
+    "subdash_qtag6_cards", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
+    Column("tag1_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Left PV
+    Column("tag2_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Right PV
+    Column("tag3_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Left SV HIGH
+    Column("tag4_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Right SV HIGH
+    Column("tag5_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Left SV LOW
+    Column("tag6_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Right SV LOW
+    Column("card_title", String(200), nullable=True),
+    Column("left_title", String(200), nullable=True),
+    Column("right_title", String(200), nullable=True),
+    Column("card_color", String(20), nullable=True),  # Background color (hex)
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+# ========== Qtag Single3 Cards (PV + SV HIGH/LOW) ==========
+subdash_qtag_single3_cards = Table(
+    "subdash_qtag_single3_cards", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
+    Column("card_title", String(200), nullable=True),
+    Column("pv_tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("sv_high_type", String(10), nullable=False, default="fixed"),   # 'tag' or 'fixed'
+    Column("sv_high_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
+    Column("sv_high_fixed", Float, nullable=True),
+    Column("sv_low_type", String(10), nullable=False, default="fixed"),    # 'tag' or 'fixed'
+    Column("sv_low_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
+    Column("sv_low_fixed", Float, nullable=True),
+    Column("card_color", String(20), nullable=True),  # Background color (hex)
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+# ========== Qtag PV Only Cards (1 PV tag) ==========
+subdash_qtag_pv_cards = Table(
+    "subdash_qtag_pv_cards", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
+    Column("card_title", String(200), nullable=True),
+    Column("pv_tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("card_color", String(20), nullable=True),  # Background color (hex)
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+
 def create_schema():
     """Tạo bảng nếu chưa có (idempotent)."""
     engine = init_engine()
     _md.create_all(engine)
+    # Migrate: add card_color column to existing tables if missing
+    _migrate_card_color(engine)
     # create_performance_indexes()
+
+
+def _migrate_card_color(engine):
+    """Add card_color column to existing card tables (safe for repeated calls)."""
+    tables = ['subdash_quad_cards', 'subdash_qtag6_cards',
+              'subdash_qtag_single3_cards', 'subdash_qtag_pv_cards']
+    with engine.connect() as con:
+        for tbl in tables:
+            try:
+                con.execute(text(f"SELECT card_color FROM {tbl} LIMIT 1"))
+            except Exception:
+                try:
+                    con.execute(text(f"ALTER TABLE {tbl} ADD COLUMN card_color VARCHAR(20)"))
+                    con.commit()
+                    print(f"[migrate] Added card_color to {tbl}")
+                except Exception as e:
+                    print(f"[migrate] Could not add card_color to {tbl}: {e}")
 
 
 # ---------- CRUD NHANH (dùng trực tiếp trong route/service) ----------
@@ -1077,7 +1144,136 @@ def get_active_quad_alarms_by_subdash(subdash_id: int):
         import traceback
         traceback.print_exc()
         return []
- 
+
+
+def get_active_tag_alarms_for_subdash(subdash_id: int):
+    """Get currently active per-tag alarm states for all tags used in Qtag cards of a subdashboard.
+    
+    A tag alarm is 'active' when the latest alarm_event for that tag is INCOMING.
+    Uses the existing alarm_events table - no new tables needed.
+    
+    Returns list of dicts: [{tag_id, alarm_name, level, value, operator, threshold, triggered_at}, ...]
+    """
+    try:
+        with init_engine().connect() as con:
+            # Step 1: Collect all tag IDs used in qtag6, single3, pv cards for this subdashboard
+            all_tag_ids = set()
+
+            # Qtag6: 6 tags per card
+            qtag6_rows = con.execute(
+                select(subdash_qtag6_cards)
+                .select_from(
+                    subdash_qtag6_cards.join(
+                        subdash_tag_groups,
+                        subdash_qtag6_cards.c.group_id == subdash_tag_groups.c.id
+                    )
+                )
+                .where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).mappings().all()
+            for card in qtag6_rows:
+                for pos in range(1, 7):
+                    tid = card.get(f'tag{pos}_id')
+                    if tid:
+                        all_tag_ids.add(tid)
+
+            # Single3: PV tag + optional SV HIGH/LOW tags
+            single3_rows = con.execute(
+                select(subdash_qtag_single3_cards)
+                .select_from(
+                    subdash_qtag_single3_cards.join(
+                        subdash_tag_groups,
+                        subdash_qtag_single3_cards.c.group_id == subdash_tag_groups.c.id
+                    )
+                )
+                .where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).mappings().all()
+            for card in single3_rows:
+                if card.get('pv_tag_id'):
+                    all_tag_ids.add(card['pv_tag_id'])
+                if card.get('sv_high_tag_id'):
+                    all_tag_ids.add(card['sv_high_tag_id'])
+                if card.get('sv_low_tag_id'):
+                    all_tag_ids.add(card['sv_low_tag_id'])
+
+            # PV Only: 1 PV tag per card
+            pv_rows = con.execute(
+                select(subdash_qtag_pv_cards)
+                .select_from(
+                    subdash_qtag_pv_cards.join(
+                        subdash_tag_groups,
+                        subdash_qtag_pv_cards.c.group_id == subdash_tag_groups.c.id
+                    )
+                )
+                .where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).mappings().all()
+            for card in pv_rows:
+                if card.get('pv_tag_id'):
+                    all_tag_ids.add(card['pv_tag_id'])
+
+            # Also include tags from quad cards (tag1..tag4)
+            quad_rows = con.execute(
+                select(subdash_quad_cards)
+                .select_from(
+                    subdash_quad_cards.join(
+                        subdash_tag_groups,
+                        subdash_quad_cards.c.group_id == subdash_tag_groups.c.id
+                    )
+                )
+                .where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).mappings().all()
+            for card in quad_rows:
+                for pos in range(1, 5):
+                    tid = card.get(f'tag{pos}_id')
+                    if tid:
+                        all_tag_ids.add(tid)
+
+            if not all_tag_ids:
+                return []
+
+            # Step 2: For each tag, find latest alarm_event and check if it's INCOMING
+            # Use a subquery to get the max event ID per tag (latest event)
+            from sqlalchemy import func as sa_func
+            subq = (
+                select(
+                    alarm_events.c.target,
+                    sa_func.max(alarm_events.c.id).label('max_id')
+                )
+                .where(alarm_events.c.target.in_(list(all_tag_ids)))
+                .group_by(alarm_events.c.target)
+                .subquery()
+            )
+
+            # Join back to get full event details, filter only INCOMING
+            rows = con.execute(
+                select(
+                    alarm_events.c.target.label('tag_id'),
+                    alarm_events.c.name.label('alarm_name'),
+                    alarm_events.c.level,
+                    alarm_events.c.value,
+                    alarm_events.c.operator,
+                    alarm_events.c.threshold,
+                    alarm_events.c.ts.label('triggered_at'),
+                    alarm_events.c.event_type
+                )
+                .select_from(
+                    alarm_events.join(
+                        subq,
+                        (alarm_events.c.target == subq.c.target) &
+                        (alarm_events.c.id == subq.c.max_id)
+                    )
+                )
+                .where(alarm_events.c.event_type == 'INCOMING')
+            ).mappings().all()
+
+            result = [dict(r) for r in rows]
+            return result
+
+    except Exception as e:
+        print(f"Error getting active tag alarms for subdash {subdash_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
     
 def list_alarm_report(alarm_name=None):
     """Ghép INCOMING với OUTGOING + rule info để làm báo cáo alarm."""
@@ -2876,6 +3072,309 @@ def update_quad_card_titles(quad_card_id: int, card_title: str = None, left_titl
             return result.rowcount > 0
     except Exception as e:
         print(f"Error updating quad card titles {quad_card_id}: {e}")
+        return False
+
+
+# ========== QTAG6 CARD CRUD OPERATIONS ==========
+
+def add_qtag6_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int,
+                   tag4_id: int, tag5_id: int, tag6_id: int,
+                   card_title: str = None, left_title: str = None, right_title: str = None) -> int:
+    """Add a new qtag6 card (6 tags) to a group."""
+    with init_engine().begin() as con:
+        res = con.execute(
+            insert(subdash_qtag6_cards).values(
+                group_id=group_id,
+                tag1_id=tag1_id, tag2_id=tag2_id,
+                tag3_id=tag3_id, tag4_id=tag4_id,
+                tag5_id=tag5_id, tag6_id=tag6_id,
+                card_title=card_title,
+                left_title=left_title,
+                right_title=right_title
+            )
+        )
+        return res.inserted_primary_key[0]
+
+
+def get_qtag6_cards_for_group(group_id: int):
+    """Get all qtag6 cards for a specific group with tag details."""
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(subdash_qtag6_cards).where(subdash_qtag6_cards.c.group_id == group_id)
+        ).mappings().all()
+
+        result = []
+        for card in rows:
+            card_dict = dict(card)
+            for pos in range(1, 7):
+                tag_id = card_dict[f'tag{pos}_id']
+                tag = con.execute(select(tags).where(tags.c.id == tag_id)).mappings().first()
+                card_dict[f'tag{pos}'] = dict(tag) if tag else None
+                if tag:
+                    last_value, _ = get_latest_tag_value(tag_id)
+                    card_dict[f'tag{pos}']['last_value'] = last_value if last_value is not None else 0
+            result.append(card_dict)
+        return result
+
+
+def get_qtag6_card_by_id(card_id: int):
+    """Get a specific qtag6 card by ID."""
+    with init_engine().connect() as con:
+        row = con.execute(
+            select(subdash_qtag6_cards).where(subdash_qtag6_cards.c.id == card_id)
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def update_qtag6_card(card_id: int, **kwargs) -> bool:
+    """Update a qtag6 card. Pass only fields to update."""
+    try:
+        allowed = {'tag1_id', 'tag2_id', 'tag3_id', 'tag4_id', 'tag5_id', 'tag6_id',
+                    'card_title', 'left_title', 'right_title', 'card_color'}
+        values_dict = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+        if not values_dict:
+            return True
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(subdash_qtag6_cards)
+                .where(subdash_qtag6_cards.c.id == card_id)
+                .values(**values_dict)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating qtag6 card {card_id}: {e}")
+        return False
+
+
+def delete_qtag6_card(card_id: int) -> bool:
+    """Delete a qtag6 card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(subdash_qtag6_cards).where(subdash_qtag6_cards.c.id == card_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting qtag6 card {card_id}: {e}")
+        return False
+
+
+# ========== QTAG SINGLE3 CARD CRUD OPERATIONS ==========
+
+def _resolve_sv_value(con, sv_type: str, tag_id, fixed_value):
+    """Helper: resolve SV value — if type=='tag' return real-time tag value, else return fixed."""
+    if sv_type == 'tag' and tag_id:
+        last_value, _ = get_latest_tag_value(int(tag_id))
+        return last_value if last_value is not None else None
+    elif sv_type == 'fixed' and fixed_value is not None:
+        return float(fixed_value)
+    return None
+
+
+def add_qtag_single3_card(group_id: int, pv_tag_id: int, card_title: str = None,
+                          sv_high_type: str = 'fixed', sv_high_tag_id: int = None,
+                          sv_high_fixed: float = None,
+                          sv_low_type: str = 'fixed', sv_low_tag_id: int = None,
+                          sv_low_fixed: float = None) -> int:
+    """Add a new qtag single3 card (PV + SV HIGH/LOW) to a group."""
+    with init_engine().begin() as con:
+        res = con.execute(
+            insert(subdash_qtag_single3_cards).values(
+                group_id=group_id,
+                card_title=card_title,
+                pv_tag_id=pv_tag_id,
+                sv_high_type=sv_high_type,
+                sv_high_tag_id=sv_high_tag_id,
+                sv_high_fixed=sv_high_fixed,
+                sv_low_type=sv_low_type,
+                sv_low_tag_id=sv_low_tag_id,
+                sv_low_fixed=sv_low_fixed,
+            )
+        )
+        return res.inserted_primary_key[0]
+
+
+def get_qtag_single3_cards_for_group(group_id: int):
+    """Get all qtag single3 cards for a group with resolved values."""
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(subdash_qtag_single3_cards)
+            .where(subdash_qtag_single3_cards.c.group_id == group_id)
+        ).mappings().all()
+
+        result = []
+        for card in rows:
+            cd = dict(card)
+            # Resolve PV tag
+            pv_tag = con.execute(select(tags).where(tags.c.id == cd['pv_tag_id'])).mappings().first()
+            cd['pv_tag'] = dict(pv_tag) if pv_tag else None
+            if pv_tag:
+                last_value, _ = get_latest_tag_value(cd['pv_tag_id'])
+                cd['pv_tag']['last_value'] = last_value if last_value is not None else 0
+
+            # Resolve SV HIGH
+            cd['sv_high_value'] = _resolve_sv_value(con, cd.get('sv_high_type', 'fixed'),
+                                                     cd.get('sv_high_tag_id'), cd.get('sv_high_fixed'))
+            if cd.get('sv_high_type') == 'tag' and cd.get('sv_high_tag_id'):
+                sv_h_tag = con.execute(select(tags).where(tags.c.id == cd['sv_high_tag_id'])).mappings().first()
+                cd['sv_high_tag'] = dict(sv_h_tag) if sv_h_tag else None
+            else:
+                cd['sv_high_tag'] = None
+
+            # Resolve SV LOW
+            cd['sv_low_value'] = _resolve_sv_value(con, cd.get('sv_low_type', 'fixed'),
+                                                    cd.get('sv_low_tag_id'), cd.get('sv_low_fixed'))
+            if cd.get('sv_low_type') == 'tag' and cd.get('sv_low_tag_id'):
+                sv_l_tag = con.execute(select(tags).where(tags.c.id == cd['sv_low_tag_id'])).mappings().first()
+                cd['sv_low_tag'] = dict(sv_l_tag) if sv_l_tag else None
+            else:
+                cd['sv_low_tag'] = None
+
+            result.append(cd)
+        return result
+
+
+def get_qtag_single3_card_by_id(card_id: int):
+    """Get a specific qtag single3 card by ID."""
+    with init_engine().connect() as con:
+        row = con.execute(
+            select(subdash_qtag_single3_cards).where(subdash_qtag_single3_cards.c.id == card_id)
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def update_qtag_single3_card(card_id: int, **kwargs) -> bool:
+    """Update a qtag single3 card."""
+    try:
+        allowed = {'card_title', 'pv_tag_id', 'card_color',
+                    'sv_high_type', 'sv_high_tag_id', 'sv_high_fixed',
+                    'sv_low_type', 'sv_low_tag_id', 'sv_low_fixed'}
+        values_dict = {k: v for k, v in kwargs.items() if k in allowed}
+        if not values_dict:
+            return True
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(subdash_qtag_single3_cards)
+                .where(subdash_qtag_single3_cards.c.id == card_id)
+                .values(**values_dict)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating qtag single3 card {card_id}: {e}")
+        return False
+
+
+def delete_qtag_single3_card(card_id: int) -> bool:
+    """Delete a qtag single3 card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(subdash_qtag_single3_cards).where(subdash_qtag_single3_cards.c.id == card_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting qtag single3 card {card_id}: {e}")
+        return False
+
+
+# ========== QTAG PV ONLY CARD CRUD OPERATIONS ==========
+
+def add_qtag_pv_card(group_id: int, pv_tag_id: int, card_title: str = None) -> int:
+    """Add a new qtag PV only card to a group."""
+    with init_engine().begin() as con:
+        res = con.execute(
+            insert(subdash_qtag_pv_cards).values(
+                group_id=group_id,
+                card_title=card_title,
+                pv_tag_id=pv_tag_id,
+            )
+        )
+        return res.inserted_primary_key[0]
+
+
+def get_qtag_pv_cards_for_group(group_id: int):
+    """Get all qtag PV only cards for a group with tag details."""
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(subdash_qtag_pv_cards).where(subdash_qtag_pv_cards.c.group_id == group_id)
+        ).mappings().all()
+
+        result = []
+        for card in rows:
+            cd = dict(card)
+            pv_tag = con.execute(select(tags).where(tags.c.id == cd['pv_tag_id'])).mappings().first()
+            cd['pv_tag'] = dict(pv_tag) if pv_tag else None
+            if pv_tag:
+                last_value, _ = get_latest_tag_value(cd['pv_tag_id'])
+                cd['pv_tag']['last_value'] = last_value if last_value is not None else 0
+            result.append(cd)
+        return result
+
+
+def get_qtag_pv_card_by_id(card_id: int):
+    """Get a specific qtag PV only card by ID."""
+    with init_engine().connect() as con:
+        row = con.execute(
+            select(subdash_qtag_pv_cards).where(subdash_qtag_pv_cards.c.id == card_id)
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def update_qtag_pv_card(card_id: int, **kwargs) -> bool:
+    """Update a qtag PV only card."""
+    try:
+        allowed = {'card_title', 'pv_tag_id', 'card_color'}
+        values_dict = {k: v for k, v in kwargs.items() if k in allowed}
+        if not values_dict:
+            return True
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(subdash_qtag_pv_cards)
+                .where(subdash_qtag_pv_cards.c.id == card_id)
+                .values(**values_dict)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating qtag PV card {card_id}: {e}")
+        return False
+
+
+def delete_qtag_pv_card(card_id: int) -> bool:
+    """Delete a qtag PV only card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(subdash_qtag_pv_cards).where(subdash_qtag_pv_cards.c.id == card_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting qtag PV card {card_id}: {e}")
+        return False
+
+
+def update_card_color(card_type: str, card_id: int, color: str) -> bool:
+    """Update card_color for any card type. color can be hex like '#ff0000' or None to reset."""
+    import re
+    table_map = {
+        'quad': subdash_quad_cards,
+        'quad6': subdash_qtag6_cards,
+        'single3': subdash_qtag_single3_cards,
+        'pvonly': subdash_qtag_pv_cards,
+    }
+    tbl = table_map.get(card_type)
+    if tbl is None:
+        return False
+    # Validate color format (hex color or None/empty to clear)
+    if color and not re.match(r'^#[0-9a-fA-F]{6}$', color):
+        return False
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(tbl).where(tbl.c.id == card_id).values(card_color=color or None)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating card color for {card_type}/{card_id}: {e}")
         return False
 
 

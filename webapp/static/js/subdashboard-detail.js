@@ -1621,6 +1621,9 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     // Áp dụng trạng thái alarm sau khi layout đã dựng xong
     applyActiveQuadAlarms();
 
+    // Apply per-tag alarm states for Qtag6, Single3, PV Only cards
+    applyActiveTagAlarms();
+
     console.log('✨ Quad layout initialization completed');
   });
 
@@ -1749,6 +1752,288 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   // Periodic alarm state sync every 10 seconds to keep colors in sync
   // Reduced from 30s to 10s to minimize delay when socket.io events are missed
   const _quadAlarmSyncInterval = setInterval(fetchAndApplyQuadAlarms, 10000);
+
+  // ============================================================
+  // ★ PER-TAG ALARM STATE for Qtag6, Single3, PV Only cards
+  // Reuses existing alarm_events / alarm_rules system.
+  // ============================================================
+
+  /**
+   * Determine alarm CSS class based on alarm level from alarm_rules.
+   * Priority: Critical/High → alarm-high, Low/Medium → alarm-low
+   */
+  function getAlarmClassForLevel(level) {
+    if (!level) return 'high';
+    const l = level.toLowerCase();
+    if (l === 'critical' || l === 'high') return 'high';
+    if (l === 'low' || l === 'medium') return 'low';
+    return 'high'; // Default to high for unknown levels
+  }
+
+  /**
+   * Apply alarm visual to a specific tag element and its parent card.
+   * @param {number} tagId - The tag ID
+   * @param {string} alarmClass - 'high' or 'low'
+   * @param {object} alarmInfo - Optional alarm details for tooltip {alarm_name, level, value, operator, threshold}
+   */
+  function applyTagAlarmVisual(tagId, alarmClass, alarmInfo) {
+    // Find all elements displaying this tag across all Qtag card types
+    const tagElements = document.querySelectorAll(
+      `.qtag6-tag-item[data-tag-id="${tagId}"],` +
+      `.qtag-single-tag-item[data-tag-id="${tagId}"]`
+    );
+
+    tagElements.forEach(tagEl => {
+      // Add per-tag alarm indicator
+      tagEl.classList.add('tag-alarm-active', `tag-alarm-${alarmClass}`);
+
+      // Add tooltip with alarm info
+      if (alarmInfo) {
+        const tooltipText = `⚠️ ${alarmInfo.alarm_name || 'Alarm'}\nLevel: ${alarmInfo.level || 'High'}\nValue: ${alarmInfo.value ?? 'N/A'}\nCondition: ${alarmInfo.operator || '>'} ${alarmInfo.threshold ?? 'N/A'}`;
+        tagEl.setAttribute('title', tooltipText);
+      }
+
+      // Find and mark the parent card with highest-severity alarm
+      const card = tagEl.closest('.qtag6-card, .qtag-single-sub-card');
+      if (card) {
+        applyCardAlarmState(card, alarmClass);
+      }
+    });
+  }
+
+  /**
+   * Remove alarm visual from a tag element and update parent card state.
+   * @param {number} tagId - The tag ID
+   */
+  function removeTagAlarmVisual(tagId) {
+    const tagElements = document.querySelectorAll(
+      `.qtag6-tag-item[data-tag-id="${tagId}"],` +
+      `.qtag-single-tag-item[data-tag-id="${tagId}"]`
+    );
+
+    tagElements.forEach(tagEl => {
+      tagEl.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
+      tagEl.removeAttribute('title');
+
+      // Re-evaluate parent card alarm state
+      const card = tagEl.closest('.qtag6-card, .qtag-single-sub-card');
+      if (card) {
+        recalcCardAlarmState(card);
+      }
+    });
+  }
+
+  /**
+   * Apply alarm state to a card based on priority rule.
+   * If card already has higher severity, keep it.
+   * Priority: high > low > none
+   */
+  function applyCardAlarmState(card, newAlarmClass) {
+    // Determine card type and appropriate CSS prefix
+    const isQtag6 = card.classList.contains('qtag6-card');
+    const isSingle = card.classList.contains('qtag-single-sub-card');
+
+    if (isQtag6) {
+      // For Qtag6: alarm goes on sub-cards (left/right columns)
+      // Find which sub-card contains the alarming tag
+      const subCards = card.querySelectorAll('.qtag6-sub-card');
+      subCards.forEach(sub => {
+        const hasAlarmTag = sub.querySelector('.tag-alarm-active');
+        if (hasAlarmTag) {
+          const hasHigh = sub.querySelector('.tag-alarm-high');
+          if (hasHigh) {
+            sub.classList.remove('qtag6-alarm-low');
+            sub.classList.add('qtag6-alarm-high');
+          } else {
+            if (!sub.classList.contains('qtag6-alarm-high')) {
+              sub.classList.add('qtag6-alarm-low');
+            }
+          }
+        }
+      });
+    } else if (isSingle) {
+      // For Single3/PV Only: alarm goes on the card itself
+      const hasHigh = card.querySelector('.tag-alarm-high');
+      if (hasHigh) {
+        card.classList.remove('qtag-single-alarm-low');
+        card.classList.add('qtag-single-alarm-high');
+      } else {
+        if (!card.classList.contains('qtag-single-alarm-high')) {
+          card.classList.add('qtag-single-alarm-low');
+        }
+      }
+    }
+  }
+
+  /**
+   * Recalculate alarm state for a card after a tag alarm is removed.
+   * Checks remaining alarming tags and applies highest severity.
+   */
+  function recalcCardAlarmState(card) {
+    const isQtag6 = card.classList.contains('qtag6-card');
+    const isSingle = card.classList.contains('qtag-single-sub-card');
+
+    if (isQtag6) {
+      card.querySelectorAll('.qtag6-sub-card').forEach(sub => {
+        sub.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
+        const hasHigh = sub.querySelector('.tag-alarm-high');
+        const hasLow = sub.querySelector('.tag-alarm-low');
+        if (hasHigh) {
+          sub.classList.add('qtag6-alarm-high');
+        } else if (hasLow) {
+          sub.classList.add('qtag6-alarm-low');
+        }
+      });
+    } else if (isSingle) {
+      card.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
+      const hasHigh = card.querySelector('.tag-alarm-high');
+      const hasLow = card.querySelector('.tag-alarm-low');
+      if (hasHigh) {
+        card.classList.add('qtag-single-alarm-high');
+      } else if (hasLow) {
+        card.classList.add('qtag-single-alarm-low');
+      }
+    }
+  }
+
+  /**
+   * Apply active tag alarms on page load from embedded data attribute.
+   */
+  function applyActiveTagAlarms() {
+    const dataEl = document.getElementById('tag-alarm-data');
+    let activeAlarms = [];
+    if (dataEl) {
+      try {
+        const dataStr = dataEl.getAttribute('data-active-alarms');
+        activeAlarms = dataStr ? JSON.parse(dataStr) : [];
+      } catch (e) {
+        console.error('Failed to parse active tag alarms:', e);
+        activeAlarms = [];
+      }
+    }
+
+    console.log(`🔔 [TagAlarm] Applying ${activeAlarms.length} active tag alarms on page load`);
+
+    activeAlarms.forEach(alarm => {
+      const tagId = alarm.tag_id;
+      const alarmClass = getAlarmClassForLevel(alarm.level);
+      applyTagAlarmVisual(tagId, alarmClass, alarm);
+    });
+  }
+
+  /**
+   * Fetch active tag alarms from server API and sync visual state.
+   * Similar to fetchAndApplyQuadAlarms but for per-tag alarms.
+   */
+  function fetchAndApplyTagAlarms() {
+    const subdashId = currentSubdashId;
+    if (!subdashId) return;
+
+    fetch(`/subdash/${subdashId}/api/active_tag_alarms`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success || !Array.isArray(data.alarms)) return;
+
+        // Build a set of tag IDs with active alarms
+        const serverAlarmMap = new Map();
+        data.alarms.forEach(alarm => {
+          serverAlarmMap.set(alarm.tag_id, alarm);
+        });
+
+        // Clear all existing tag alarm visuals first
+        document.querySelectorAll('.tag-alarm-active').forEach(el => {
+          el.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
+          el.removeAttribute('title');
+        });
+
+        // Clear card-level alarm classes
+        document.querySelectorAll('.qtag6-sub-card').forEach(el => {
+          el.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
+        });
+        document.querySelectorAll('.qtag-single-sub-card').forEach(el => {
+          el.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
+        });
+
+        // Re-apply from server data
+        data.alarms.forEach(alarm => {
+          const alarmClass = getAlarmClassForLevel(alarm.level);
+          applyTagAlarmVisual(alarm.tag_id, alarmClass, alarm);
+        });
+
+        // After system alarms applied, run Single3 PV vs SV fallback check
+        evaluateSingle3PvSvFallback(serverAlarmMap);
+
+        console.log(`[TagAlarmSync] Synced ${data.alarms.length} active tag alarms from server`);
+      })
+      .catch(err => {
+        console.warn('[TagAlarmSync] Failed to fetch active tag alarms:', err);
+      });
+  }
+
+  /**
+   * Single3 PV vs SV HIGH/LOW fallback comparison.
+   * If PV tag does NOT have a system alarm active, compare PV value with
+   * SV HIGH and SV LOW displayed on the card. If PV > SV HIGH → alarm-high,
+   * if PV < SV LOW → alarm-low.
+   * Priority: system alarm > PV vs SV comparison.
+   */
+  function evaluateSingle3PvSvFallback(systemAlarmMap) {
+    document.querySelectorAll('.qtag-single-sub-card[data-qtag-single3-id]').forEach(card => {
+      const pvTagId = card.getAttribute('data-pv-tag-id');
+      if (!pvTagId) return;
+
+      // Skip if PV tag already has a system alarm active
+      if (systemAlarmMap && systemAlarmMap.has(parseInt(pvTagId))) return;
+
+      // Get PV value
+      const pvEl = card.querySelector('.qtag-single-tag-value');
+      if (!pvEl) return;
+      const pvVal = parseFloat(pvEl.textContent);
+      if (isNaN(pvVal)) return;
+
+      // Get SV HIGH value
+      const svHighEl = card.querySelector('.qtag-single-sv-high');
+      const svHighVal = svHighEl ? parseFloat(svHighEl.textContent) : NaN;
+
+      // Get SV LOW value
+      const svLowEl = card.querySelector('.qtag-single-sv-low');
+      const svLowVal = svLowEl ? parseFloat(svLowEl.textContent) : NaN;
+
+      // Compare PV against SV limits
+      let fallbackAlarm = null;
+      if (!isNaN(svHighVal) && pvVal > svHighVal) {
+        fallbackAlarm = 'high';
+      } else if (!isNaN(svLowVal) && pvVal < svLowVal) {
+        fallbackAlarm = 'low';
+      }
+
+      // Apply or remove fallback alarm visual
+      const pvTagItem = card.querySelector(`.qtag-single-tag-item[data-tag-id="${pvTagId}"]`);
+      if (fallbackAlarm && pvTagItem) {
+        pvTagItem.classList.add('tag-alarm-active', `tag-alarm-${fallbackAlarm}`);
+        const condText = fallbackAlarm === 'high'
+          ? `PV (${pvVal}) > SV HIGH (${svHighVal})`
+          : `PV (${pvVal}) < SV LOW (${svLowVal})`;
+        pvTagItem.setAttribute('title', `⚠️ PV vs SV: ${condText}`);
+
+        // Apply to card
+        if (fallbackAlarm === 'high') {
+          card.classList.remove('qtag-single-alarm-low');
+          card.classList.add('qtag-single-alarm-high');
+        } else {
+          if (!card.classList.contains('qtag-single-alarm-high')) {
+            card.classList.add('qtag-single-alarm-low');
+          }
+        }
+      }
+    });
+  }
+
+  // Expose for external use
+  window.fetchAndApplyTagAlarms = fetchAndApplyTagAlarms;
+
+  // Periodic tag alarm sync alongside quad alarm sync
+  const _tagAlarmSyncInterval = setInterval(fetchAndApplyTagAlarms, 10000);
 
   // Check if tag supports write operations
   function canWriteTag(functionCode) {
@@ -2210,6 +2495,71 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             updateQuadLastUpdated();
           }
 
+          // ✅ Update Qtag6 values - elements with pattern qtag6-val-{cardId}-{tagId}
+          const qtag6ValElements = document.querySelectorAll(`[id^="qtag6-val-"][id$="-${tag.id}"]`);
+          qtag6ValElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+            // Update last updated time for the sub-card
+            const subCard = el.closest('.qtag6-sub-card');
+            if (subCard) {
+              const timeEl = subCard.querySelector('.qtag6-update-time');
+              if (timeEl) {
+                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
+              }
+            }
+          });
+
+          // ✅ Update Qtag Single3 PV values
+          const single3PvElements = document.querySelectorAll(`[id^="qtag-single3-pv-"][id$="-${tag.id}"]`);
+          single3PvElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+            // Update last updated time
+            const card = el.closest('.qtag-single-sub-card');
+            if (card) {
+              const timeEl = card.querySelector('.qtag-single-update-time');
+              if (timeEl) {
+                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
+              }
+            }
+          });
+
+          // ✅ Update Qtag Single3 SV HIGH/LOW (matched by data-tag-id attribute)
+          const single3SvElements = document.querySelectorAll(`.qtag-single-sv-low[data-tag-id="${tag.id}"], .qtag-single-sv-high[data-tag-id="${tag.id}"]`);
+          single3SvElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+          });
+
+          // ✅ Update Qtag PV Only values
+          const pvOnlyElements = document.querySelectorAll(`[id^="qtag-pv-val-"][id$="-${tag.id}"]`);
+          pvOnlyElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+            // Update last updated time
+            const card = el.closest('.qtag-single-sub-card');
+            if (card) {
+              const timeEl = card.querySelector('.qtag-single-update-time');
+              if (timeEl) {
+                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
+              }
+            }
+          });
+
+          // Check if new card types also need timer reset
+          if (qtag6ValElements.length > 0 || single3PvElements.length > 0 || pvOnlyElements.length > 0 || single3SvElements.length > 0) {
+            resetTagTimer(tag.id);
+          }
+
           // Always update timestamp and timer if ts exists
           const tsEl = document.getElementById('tag-ts-' + tag.id);
           if (tsEl && tag.ts) {
@@ -2380,6 +2730,35 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       }
     });
 
+    // Listen for per-tag alarm events (from existing alarm_rules system)
+    // Applies alarm visuals to Qtag6, Single3, PV Only cards
+    socket.on('alarm_event', function (data) {
+      console.log('🔔 Tag alarm event received:', data);
+
+      const tagId = data.tag_id;
+      const status = data.status; // 'INCOMING' or 'OUTGOING'
+      const level = data.level;   // 'Low', 'Medium', 'High', 'Critical'
+
+      if (!tagId) return;
+
+      if (status === 'INCOMING') {
+        const alarmClass = getAlarmClassForLevel(level);
+        applyTagAlarmVisual(tagId, alarmClass, {
+          alarm_name: data.tag_name || data.title,
+          level: level,
+          value: data.value,
+          operator: null,
+          threshold: null
+        });
+
+        console.log(`✅ Tag alarm applied: tag ${tagId} - ${level}`);
+
+      } else if (status === 'OUTGOING') {
+        removeTagAlarmVisual(tagId);
+        console.log(`✅ Tag alarm cleared: tag ${tagId}`);
+      }
+    });
+
 
     // Join subdashboard room for targeted updates
     socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
@@ -2417,9 +2796,10 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       socket.emit('join', { room: `subdashboard_${currentSubdashId}` });
       socketConnected = false; // Reset flag to redetect updates
 
-      // Re-sync quad alarm colors from server after reconnection.
+      // Re-sync alarm colors from server after reconnection.
       // Alarm events may have been missed while socket was disconnected.
       setTimeout(fetchAndApplyQuadAlarms, 1500);
+      setTimeout(fetchAndApplyTagAlarms, 1500);
 
       // Restart polling check: if no socket data within 5s after connect, start polling
       _startPollingFallbackCheck();
@@ -2439,8 +2819,9 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       socketConnected = false;
       _startPollingFallbackCheck();
 
-      // Re-sync quad alarm colors from server after global reconnect
+      // Re-sync alarm colors from server after global reconnect
       setTimeout(fetchAndApplyQuadAlarms, 1500);
+      setTimeout(fetchAndApplyTagAlarms, 1500);
     });
 
     // Update global heartbeat timestamp whenever we receive modbus data
@@ -2474,6 +2855,783 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     }
   }
 
+  // ============================================================
+  // ★ SV Type Toggle for Single3 modals (fixed vs tag)
+  // ============================================================
+  document.addEventListener('change', function (e) {
+    if (!e.target.classList.contains('sv-type-select')) return;
+    const target = e.target.dataset.target; // e.g. 'sv_high', 'sv_low', 'edit_sv_high', 'edit_sv_low'
+    const val = e.target.value;
+    const fixedGroup = document.querySelector(`.${target.replace(/_/g, '-')}-fixed-group`);
+    const tagGroup = document.querySelector(`.${target.replace(/_/g, '-')}-tag-group`);
+    if (fixedGroup && tagGroup) {
+      fixedGroup.style.display = val === 'fixed' ? '' : 'none';
+      tagGroup.style.display = val === 'tag' ? '' : 'none';
+    }
+  });
+
+  // ============================================================
+  // ★ Mutual exclusion: group_id <-> new_group_name in add forms
+  // ============================================================
+  document.querySelectorAll('[name="group_id"]').forEach(sel => {
+    sel.addEventListener('change', function () {
+      if (this.value) {
+        const nameInput = this.closest('form').querySelector('[name="new_group_name"]');
+        if (nameInput) nameInput.value = '';
+      }
+    });
+  });
+  document.querySelectorAll('[name="new_group_name"]').forEach(inp => {
+    inp.addEventListener('input', function () {
+      if (this.value.trim()) {
+        const groupSel = this.closest('form').querySelector('[name="group_id"]');
+        if (groupSel) groupSel.value = '';
+      }
+    });
+  });
+
+  // ============================================================
+  // ★ CRUD: Add Qtag6 Card
+  // ============================================================
+  const addQtag6Form = document.getElementById('addQtag6Form');
+  if (addQtag6Form) {
+    addQtag6Form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const form = e.target;
+      const errorEl = document.getElementById('qtag6-error-message');
+      errorEl.style.display = 'none';
+
+      // Validate all 6 tags
+      for (let i = 1; i <= 6; i++) {
+        if (!form.querySelector(`[name="tag${i}_id"]`).value) {
+          errorEl.textContent = 'Please select all 6 tags';
+          errorEl.style.display = 'block';
+          return;
+        }
+      }
+
+      const groupId = form.querySelector('[name="group_id"]').value;
+      const newGroupName = form.querySelector('[name="new_group_name"]').value.trim();
+      if (!groupId && !newGroupName) {
+        errorEl.textContent = 'Please select a group or enter a new group name';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Adding Qtag6 Card...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(form);
+      fetch(`/subdash/${currentSubdashId}/add_qtag6`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'Qtag6 card added', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to add Qtag6 card', icon: 'error' });
+        }
+      })
+      .catch(err => {
+        Swal.fire({ title: 'Error', text: err.message, icon: 'error' });
+      });
+    });
+  }
+
+  // ============================================================
+  // ★ CRUD: Add Qtag Single3 Card
+  // ============================================================
+  const addSingle3Form = document.getElementById('addQtagSingle3Form');
+  if (addSingle3Form) {
+    addSingle3Form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const form = e.target;
+      const errorEl = document.getElementById('single3-error-message');
+      errorEl.style.display = 'none';
+
+      if (!form.querySelector('[name="pv_tag_id"]').value) {
+        errorEl.textContent = 'Please select a PV tag';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const groupId = form.querySelector('[name="group_id"]').value;
+      const newGroupName = form.querySelector('[name="new_group_name"]').value.trim();
+      if (!groupId && !newGroupName) {
+        errorEl.textContent = 'Please select a group or enter a new group name';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Adding Single3 Card...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(form);
+      fetch(`/subdash/${currentSubdashId}/add_qtag_single3`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'Single3 card added', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to add Single3 card', icon: 'error' });
+        }
+      })
+      .catch(err => {
+        Swal.fire({ title: 'Error', text: err.message, icon: 'error' });
+      });
+    });
+  }
+
+  // ============================================================
+  // ★ CRUD: Add Qtag PV Only Card
+  // ============================================================
+  const addPvForm = document.getElementById('addQtagPvForm');
+  if (addPvForm) {
+    addPvForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const form = e.target;
+      const errorEl = document.getElementById('pv-error-message');
+      errorEl.style.display = 'none';
+
+      if (!form.querySelector('[name="pv_tag_id"]').value) {
+        errorEl.textContent = 'Please select a PV tag';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const groupId = form.querySelector('[name="group_id"]').value;
+      const newGroupName = form.querySelector('[name="new_group_name"]').value.trim();
+      if (!groupId && !newGroupName) {
+        errorEl.textContent = 'Please select a group or enter a new group name';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Adding PV Only Card...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(form);
+      fetch(`/subdash/${currentSubdashId}/add_qtag_pv`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'PV Only card added', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to add PV Only card', icon: 'error' });
+        }
+      })
+      .catch(err => {
+        Swal.fire({ title: 'Error', text: err.message, icon: 'error' });
+      });
+    });
+  }
+
+  // ============================================================
+  // ★ DELETE: Qtag6 Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.delete-qtag6-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+
+    Swal.fire({
+      title: 'Delete Qtag6 Card?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc3545',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Deleting...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/delete_qtag6/${cardId}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Deleted!', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to delete', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  });
+
+  // ============================================================
+  // ★ DELETE: Qtag Single3 Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.delete-qtag-single3-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+
+    Swal.fire({
+      title: 'Delete Single3 Card?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc3545',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Deleting...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/delete_qtag_single3/${cardId}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Deleted!', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to delete', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  });
+
+  // ============================================================
+  // ★ DELETE: Qtag PV Only Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.delete-qtag-pv-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+
+    Swal.fire({
+      title: 'Delete PV Only Card?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc3545',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Deleting...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/delete_qtag_pv/${cardId}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Deleted!', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to delete', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  });
+
+  // ============================================================
+  // ★ RENAME: Qtag6 Card (card title, left title, right title)
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.rename-qtag6-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+    const target = btn.dataset.target || 'card'; // 'card', 'left', 'right'
+    const card = btn.closest('.qtag6-card') || document.querySelector(`.qtag6-card[data-qtag6-id="${cardId}"]`);
+    if (!card) return;
+
+    let titleEl, currentTitle;
+    if (target === 'left') {
+      titleEl = card.querySelector('.qtag6-sub-card[data-column="left"] .qtag6-sub-title');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'Group A';
+    } else if (target === 'right') {
+      titleEl = card.querySelector('.qtag6-sub-card[data-column="right"] .qtag6-sub-title');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'Group B';
+    } else {
+      titleEl = card.querySelector('.fw-semibold');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'Qtag6 Card';
+    }
+
+    Swal.fire({
+      title: 'Đổi tên',
+      input: 'text',
+      inputLabel: 'Tiêu đề mới:',
+      inputValue: currentTitle,
+      showCancelButton: true,
+      confirmButtonText: 'Cập nhật',
+      cancelButtonText: 'Hủy',
+      inputValidator: v => (!v || !v.trim()) ? 'Vui lòng nhập tiêu đề' : null
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Đang cập nhật...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/qtag6/${cardId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: target, title: result.value.trim() })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          if (titleEl) titleEl.textContent = result.value.trim();
+          Swal.fire({ icon: 'success', title: 'Thành công', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+        } else {
+          Swal.fire({ icon: 'error', title: 'Lỗi', text: data.error || 'Không thể cập nhật' });
+        }
+      })
+      .catch(err => Swal.fire({ icon: 'error', title: 'Lỗi', text: err.message }));
+    });
+  });
+
+  // ============================================================
+  // ★ RENAME: Qtag Single3 Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.rename-qtag-single3-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+    const card = btn.closest('.qtag-single-sub-card') || document.querySelector(`.qtag-single-sub-card[data-qtag-single3-id="${cardId}"]`);
+    if (!card) return;
+
+    const titleEl = card.querySelector('.qtag-single-sub-title');
+    const currentTitle = titleEl ? titleEl.textContent.trim() : 'Single3 Card';
+
+    Swal.fire({
+      title: 'Đổi tên',
+      input: 'text',
+      inputLabel: 'Tiêu đề mới:',
+      inputValue: currentTitle,
+      showCancelButton: true,
+      confirmButtonText: 'Cập nhật',
+      cancelButtonText: 'Hủy',
+      inputValidator: v => (!v || !v.trim()) ? 'Vui lòng nhập tiêu đề' : null
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Đang cập nhật...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/qtag_single3/${cardId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: result.value.trim() })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          if (titleEl) titleEl.textContent = result.value.trim();
+          Swal.fire({ icon: 'success', title: 'Thành công', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+        } else {
+          Swal.fire({ icon: 'error', title: 'Lỗi', text: data.error || 'Không thể cập nhật' });
+        }
+      })
+      .catch(err => Swal.fire({ icon: 'error', title: 'Lỗi', text: err.message }));
+    });
+  });
+
+  // ============================================================
+  // ★ RENAME: Qtag PV Only Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.rename-qtag-pv-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+    const card = btn.closest('.qtag-single-sub-card') || document.querySelector(`.qtag-single-sub-card[data-qtag-pv-id="${cardId}"]`);
+    if (!card) return;
+
+    const titleEl = card.querySelector('.qtag-single-sub-title');
+    const currentTitle = titleEl ? titleEl.textContent.trim() : 'PV Only';
+
+    Swal.fire({
+      title: 'Đổi tên',
+      input: 'text',
+      inputLabel: 'Tiêu đề mới:',
+      inputValue: currentTitle,
+      showCancelButton: true,
+      confirmButtonText: 'Cập nhật',
+      cancelButtonText: 'Hủy',
+      inputValidator: v => (!v || !v.trim()) ? 'Vui lòng nhập tiêu đề' : null
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Đang cập nhật...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/qtag_pv/${cardId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: result.value.trim() })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          if (titleEl) titleEl.textContent = result.value.trim();
+          Swal.fire({ icon: 'success', title: 'Thành công', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+        } else {
+          Swal.fire({ icon: 'error', title: 'Lỗi', text: data.error || 'Không thể cập nhật' });
+        }
+      })
+      .catch(err => Swal.fire({ icon: 'error', title: 'Lỗi', text: err.message }));
+    });
+  });
+
+  // ============================================================
+  // ★ EDIT TAGS: Qtag6 - Open modal and populate
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.edit-qtag6-btn');
+    if (!btn) return;
+    e.preventDefault();
+
+    document.getElementById('editQtag6Id').value = btn.dataset.cardId;
+    // Populate left/right titles from card data attributes
+    const card = btn.closest('.qtag6-card');
+    if (card) {
+      document.getElementById('editQtag6LeftTitle').value = card.dataset.leftTitle || '';
+      document.getElementById('editQtag6RightTitle').value = card.dataset.rightTitle || '';
+    }
+    // Set current tag selections
+    for (let i = 1; i <= 6; i++) {
+      const selectEl = document.getElementById(`editQtag6Tag${i}`);
+      if (selectEl) selectEl.value = btn.dataset[`tag${i}Id`] || '';
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('editQtag6Modal'));
+    modal.show();
+  });
+
+  // Edit Qtag6 form submission
+  const editQtag6Form = document.getElementById('editQtag6Form');
+  if (editQtag6Form) {
+    editQtag6Form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const cardId = document.getElementById('editQtag6Id').value;
+      const errorEl = document.getElementById('edit-qtag6-error-message');
+      errorEl.style.display = 'none';
+
+      // Validate all 6 tags selected
+      for (let i = 1; i <= 6; i++) {
+        if (!document.getElementById(`editQtag6Tag${i}`).value) {
+          errorEl.textContent = 'Please select all 6 tags';
+          errorEl.style.display = 'block';
+          return;
+        }
+      }
+
+      Swal.fire({ title: 'Updating Qtag6...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(editQtag6Form);
+      fetch(`/subdash/${currentSubdashId}/update_qtag6/${cardId}`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'Qtag6 updated', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to update', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  }
+
+  // ============================================================
+  // ★ EDIT TAGS: Qtag Single3 - Open modal and populate
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.edit-qtag-single3-btn');
+    if (!btn) return;
+    e.preventDefault();
+
+    document.getElementById('editSingle3Id').value = btn.dataset.cardId;
+    document.getElementById('editSingle3PvTag').value = btn.dataset.pvTagId || '';
+
+    // SV HIGH
+    const svHighType = btn.dataset.svHighType || 'fixed';
+    document.getElementById('editSingle3SvHighType').value = svHighType;
+    if (svHighType === 'tag') {
+      document.querySelector('.edit-sv-high-fixed-group').style.display = 'none';
+      document.querySelector('.edit-sv-high-tag-group').style.display = '';
+      document.getElementById('editSingle3SvHighTag').value = btn.dataset.svHighTagId || '';
+    } else {
+      document.querySelector('.edit-sv-high-fixed-group').style.display = '';
+      document.querySelector('.edit-sv-high-tag-group').style.display = 'none';
+      document.getElementById('editSingle3SvHighFixed').value = btn.dataset.svHighFixed || '';
+    }
+
+    // SV LOW
+    const svLowType = btn.dataset.svLowType || 'fixed';
+    document.getElementById('editSingle3SvLowType').value = svLowType;
+    if (svLowType === 'tag') {
+      document.querySelector('.edit-sv-low-fixed-group').style.display = 'none';
+      document.querySelector('.edit-sv-low-tag-group').style.display = '';
+      document.getElementById('editSingle3SvLowTag').value = btn.dataset.svLowTagId || '';
+    } else {
+      document.querySelector('.edit-sv-low-fixed-group').style.display = '';
+      document.querySelector('.edit-sv-low-tag-group').style.display = 'none';
+      document.getElementById('editSingle3SvLowFixed').value = btn.dataset.svLowFixed || '';
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('editQtagSingle3Modal'));
+    modal.show();
+  });
+
+  // Edit Single3 form submission
+  const editSingle3Form = document.getElementById('editQtagSingle3Form');
+  if (editSingle3Form) {
+    editSingle3Form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const cardId = document.getElementById('editSingle3Id').value;
+      const errorEl = document.getElementById('edit-single3-error-message');
+      errorEl.style.display = 'none';
+
+      if (!document.getElementById('editSingle3PvTag').value) {
+        errorEl.textContent = 'Please select a PV tag';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Updating Single3...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(editSingle3Form);
+      fetch(`/subdash/${currentSubdashId}/update_qtag_single3/${cardId}`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'Single3 updated', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to update', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  }
+
+  // ============================================================
+  // ★ EDIT TAGS: Qtag PV Only - Open modal and populate
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.edit-qtag-pv-btn');
+    if (!btn) return;
+    e.preventDefault();
+
+    document.getElementById('editPvId').value = btn.dataset.cardId;
+    document.getElementById('editPvTag').value = btn.dataset.pvTagId || '';
+
+    const modal = new bootstrap.Modal(document.getElementById('editQtagPvModal'));
+    modal.show();
+  });
+
+  // Edit PV Only form submission
+  const editPvForm = document.getElementById('editQtagPvForm');
+  if (editPvForm) {
+    editPvForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const cardId = document.getElementById('editPvId').value;
+      const errorEl = document.getElementById('edit-pv-error-message');
+      errorEl.style.display = 'none';
+
+      if (!document.getElementById('editPvTag').value) {
+        errorEl.textContent = 'Please select a PV tag';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Updating PV Card...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(editPvForm);
+      fetch(`/subdash/${currentSubdashId}/update_qtag_pv/${cardId}`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'PV card updated', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to update', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  }
+
+  // ============================================================
+  // ★ CHANGE CARD COLOR (all card types: quad, quad6, single3, pvonly)
+  // ============================================================
+  // Helper: determine if a color is dark → return white text, else black
+  function getContrastColor(hexColor) {
+    if (!hexColor) return '';
+    const hex = hexColor.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    // YIQ formula for perceived brightness
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 140 ? '#1a1a1a' : '#ffffff';
+  }
+
+  // Apply color to a card element
+  function applyCardColor(cardEl, color) {
+    if (color) {
+      cardEl.style.setProperty('--qtag-card-bg', color);
+      cardEl.style.setProperty('--qtag-card-text', getContrastColor(color));
+      cardEl.classList.add('qtag-custom-bg');
+    } else {
+      cardEl.style.removeProperty('--qtag-card-bg');
+      cardEl.style.removeProperty('--qtag-card-text');
+      cardEl.classList.remove('qtag-custom-bg');
+    }
+    cardEl.dataset.cardColor = color || '';
+    // Update the dropdown button's data-current-color
+    const colorBtn = cardEl.querySelector('.change-card-color-btn');
+    if (colorBtn) colorBtn.dataset.currentColor = color || '';
+  }
+
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.change-card-color-btn');
+    if (!btn) return;
+    e.preventDefault();
+
+    const cardType = btn.dataset.cardType;
+    const cardId = btn.dataset.cardId;
+    const currentColor = btn.dataset.currentColor || '';
+
+    // Color palette - organized by hue with light to dark shades
+    const colorPalette = [
+      // Row labels and colors: [label, ...shades from light to dark]
+      ['Red',     '#ffcdd2','#ef9a9a','#e57373','#ef5350','#f44336','#e53935','#c62828','#b71c1c'],
+      ['Pink',    '#f8bbd0','#f48fb1','#f06292','#ec407a','#e91e63','#d81b60','#ad1457','#880e4f'],
+      ['Purple',  '#e1bee7','#ce93d8','#ba68c8','#ab47bc','#9c27b0','#8e24aa','#6a1b9a','#4a148c'],
+      ['Indigo',  '#c5cae9','#9fa8da','#7986cb','#5c6bc0','#3f51b5','#3949ab','#283593','#1a237e'],
+      ['Blue',    '#bbdefb','#90caf9','#64b5f6','#42a5f5','#2196f3','#1e88e5','#1565c0','#0d47a1'],
+      ['Cyan',    '#b2ebf2','#80deea','#4dd0e1','#26c6da','#00bcd4','#00acc1','#00838f','#006064'],
+      ['Teal',    '#b2dfdb','#80cbc4','#4db6ac','#26a69a','#009688','#00897b','#00695c','#004d40'],
+      ['Green',   '#c8e6c9','#a5d6a7','#81c784','#66bb6a','#4caf50','#43a047','#2e7d32','#1b5e20'],
+      ['Yellow',  '#fff9c4','#fff59d','#fff176','#ffee58','#ffeb3b','#fdd835','#f9a825','#f57f17'],
+      ['Orange',  '#ffe0b2','#ffcc80','#ffb74d','#ffa726','#ff9800','#fb8c00','#e65100','#bf360c'],
+      ['Brown',   '#d7ccc8','#bcaaa4','#a1887f','#8d6e63','#795548','#6d4c41','#4e342e','#3e2723'],
+      ['Gray',    '#f5f5f5','#e0e0e0','#bdbdbd','#9e9e9e','#757575','#616161','#424242','#212121'],
+    ];
+
+    // Build palette grid HTML
+    let paletteHtml = '<div style="display:grid;grid-template-columns:50px repeat(8,1fr);gap:3px;align-items:center;">';
+    colorPalette.forEach(row => {
+      const label = row[0];
+      paletteHtml += `<span style="font-size:11px;color:#aaa;text-align:right;padding-right:4px;">${label}</span>`;
+      for (let i = 1; i < row.length; i++) {
+        const c = row[i];
+        const isActive = c.toLowerCase() === currentColor.toLowerCase();
+        paletteHtml += `<div class="swal-color-cell" data-color="${c}" title="${c}"
+          style="width:100%;aspect-ratio:1;border-radius:4px;background:${c};cursor:pointer;
+          border:2px solid ${isActive ? '#fff' : 'transparent'};
+          box-shadow:${isActive ? '0 0 0 2px #6366f1' : 'none'};
+          transition:transform .1s,border-color .15s;"></div>`;
+      }
+    });
+    paletteHtml += '</div>';
+
+    Swal.fire({
+      title: 'Change Card Color',
+      width: 480,
+      html: `
+        <div class="text-start">
+          <div class="mb-2 d-flex align-items-center gap-2">
+            <button type="button" id="swal-reset-default" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Default
+            </button>
+            <div class="d-flex align-items-center gap-2 ms-auto">
+              <label style="font-size:12px;color:#aaa;">Custom:</label>
+              <input type="color" id="swal-color-picker" value="${currentColor || '#2196f3'}"
+                style="width:36px;height:30px;border:1px solid #555;border-radius:4px;cursor:pointer;padding:1px;">
+            </div>
+          </div>
+          <div class="mb-3" id="swal-palette">${paletteHtml}</div>
+          <div class="p-3 rounded" id="swal-preview"
+            style="background:${currentColor || '#2a2a2a'};color:${currentColor ? getContrastColor(currentColor) : '#fff'};text-align:center;font-weight:500;">
+            Preview Text
+          </div>
+          <input type="hidden" id="swal-selected-color" value="${currentColor}">
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Save',
+      cancelButtonText: 'Cancel',
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        const preview = popup.querySelector('#swal-preview');
+        const hiddenInput = popup.querySelector('#swal-selected-color');
+        const pickerInput = popup.querySelector('#swal-color-picker');
+        const cells = popup.querySelectorAll('.swal-color-cell');
+        const resetBtn = popup.querySelector('#swal-reset-default');
+
+        function selectColor(color) {
+          hiddenInput.value = color;
+          preview.style.background = color || '#2a2a2a';
+          preview.style.color = color ? getContrastColor(color) : '#fff';
+          // Update cell borders
+          cells.forEach(cell => {
+            const match = cell.dataset.color.toLowerCase() === (color || '').toLowerCase();
+            cell.style.border = match ? '2px solid #fff' : '2px solid transparent';
+            cell.style.boxShadow = match ? '0 0 0 2px #6366f1' : 'none';
+          });
+          if (color) pickerInput.value = color;
+        }
+
+        // Palette cell click
+        cells.forEach(cell => {
+          cell.addEventListener('click', () => selectColor(cell.dataset.color));
+          cell.addEventListener('mouseenter', () => { cell.style.transform = 'scale(1.25)'; cell.style.zIndex = '2'; });
+          cell.addEventListener('mouseleave', () => { cell.style.transform = 'scale(1)'; cell.style.zIndex = ''; });
+        });
+
+        // Custom color picker - live update
+        pickerInput.addEventListener('input', () => selectColor(pickerInput.value));
+
+        // Reset default
+        resetBtn.addEventListener('click', () => {
+          selectColor('');
+          pickerInput.value = '#2196f3';
+        });
+      },
+      preConfirm: () => {
+        return Swal.getPopup().querySelector('#swal-selected-color').value;
+      }
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      const selectedColor = result.value;
+
+      // Save to backend
+      fetch(`/subdash/${currentSubdashId}/update_card_color`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ card_type: cardType, card_id: cardId, color: selectedColor })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          // Find the card element and apply color immediately (no reload)
+          const cardEl = btn.closest('.quad-tag-card, .qtag6-card, .qtag-single-sub-card');
+          if (cardEl) {
+            applyCardColor(cardEl, selectedColor);
+          }
+          Swal.fire({ icon: 'success', title: 'Color saved', timer: 1200, showConfirmButton: false });
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Failed to save color' });
+        }
+      })
+      .catch(err => Swal.fire({ icon: 'error', title: 'Error', text: err.message }));
+    });
+  });
+
   function _startPollingFallbackCheck() {
     // Wait 5s, then check if socket is delivering data; if not, start polling
     setTimeout(function () {
@@ -2498,6 +3656,14 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         _ensurePolling();
       }
     }, 15000); // Re-evaluate every 15 seconds
+
+    // Initialize --qtag-card-text for cards that already have custom color from server
+    document.querySelectorAll('.qtag-custom-bg').forEach(cardEl => {
+      const bg = getComputedStyle(cardEl).getPropertyValue('--qtag-card-bg').trim();
+      if (bg) {
+        cardEl.style.setProperty('--qtag-card-text', getContrastColor(bg));
+      }
+    });
   });
 
   // Cleanup on page unload to prevent memory leaks

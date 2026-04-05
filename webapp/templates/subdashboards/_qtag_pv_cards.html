@@ -1,0 +1,59 @@
+<!-- Qtag PV Only Cards (1 PV tag) -->
+{% if group.qtag_pv_cards %}
+  {% for card in group.qtag_pv_cards %}
+  <div class="col-12 col-lg-6 col-xl-5">
+    <div class="qtag-single-sub-card{% if card.card_color %} qtag-custom-bg{% endif %}"
+         data-qtag-pv-id="{{ card.id }}"
+         data-card-type="pvonly"
+         data-card-color="{{ card.card_color or '' }}"
+         data-card-title="{{ card.card_title or 'PV Only' }}"
+         data-pv-tag-id="{{ card.pv_tag_id }}"
+         {% if card.card_color %}style="--qtag-card-bg: {{ card.card_color }};"{% endif %}>
+      <div class="qtag-single-sub-head">
+        <div class="d-flex align-items-center gap-2">
+          <span class="quad-status-indicator {% if card.pv_tag.device_status == 'disconnected' %}status-offline{% elif card.pv_tag.device_status == 'connected' %}status-online{% else %}status-unknown{% endif %}"
+                id="qtag-pv-status-{{ card.id }}"
+                data-pv-tag-id="{{ card.pv_tag_id }}"
+                data-device-status="{{ card.pv_tag.device_status or 'unknown' }}"
+                title="Device status">
+            <i class="bi bi-circle-fill"></i>
+          </span>
+          <span class="qtag-single-sub-title">{{ card.card_title or 'PV Only' }}</span>
+          <span class="qtag-single-type-badge">PV ONLY</span>
+        </div>
+        {% if session.get('role') == 'admin' %}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-gear"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button class="dropdown-item rename-qtag-pv-btn" data-card-id="{{ card.id }}"><i class="bi bi-pencil-square me-2"></i>Rename Card</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item edit-qtag-pv-btn" data-card-id="{{ card.id }}" data-pv-tag-id="{{ card.pv_tag_id }}">
+              <i class="bi bi-pencil me-2"></i>Edit Tag</button></li>
+            <li><button class="dropdown-item text-danger delete-qtag-pv-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item change-card-color-btn" data-card-id="{{ card.id }}" data-card-type="pvonly" data-current-color="{{ card.card_color or '' }}"><i class="bi bi-palette me-2"></i>Change Color</button></li>
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+      <div class="qtag-single-tag-rows">
+        <!-- PV (Tag 1) -->
+        <div class="qtag-single-tag-item" data-tag-id="{{ card.pv_tag_id }}" data-role="pv">
+          <div class="qtag-pvonly-top-row">
+            <span class="qtag-pvonly-description">{{ card.pv_tag.name or 'Process Value' }}</span>
+            <span class="qtag-pvonly-unit">{{ card.pv_tag.unit or '' }}</span>
+          </div>
+          <div class="qtag-single-value-row">
+            <div class="qtag-single-tag-value" id="qtag-pv-val-{{ card.id }}-{{ card.pv_tag_id }}">{{ card.pv_tag.last_value if card.pv_tag.last_value is not none else '---' }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="qtag-single-update-time" id="qtag-pv-time-{{ card.id }}">
+        <i class="bi bi-clock"></i> Last updated: --:--:--
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}

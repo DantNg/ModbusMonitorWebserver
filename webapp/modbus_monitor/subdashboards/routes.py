@@ -106,6 +106,55 @@ def subdash_detail(sid):
                     if tag_data.get('device_status') == 'disconnected':
                         tag_data['last_value'] = 0
 
+        # ===== Load Qtag6 cards =====
+        g["qtag6_cards"] = db.get_qtag6_cards_for_group(g["id"]) if hasattr(db, "get_qtag6_cards_for_group") else []
+        for qc in g["qtag6_cards"]:
+            for pos in range(1, 7):
+                tag_data = qc.get(f'tag{pos}')
+                if tag_data and isinstance(tag_data, dict):
+                    device_id = tag_data.get('device_id')
+                    if device_id:
+                        status_str, last_seen = _get_device_status(device_id)
+                        tag_data['device_status'] = status_str
+                        tag_data['device_last_seen'] = last_seen
+                    else:
+                        tag_data['device_status'] = 'unknown'
+                        tag_data['device_last_seen'] = None
+                    if tag_data.get('device_status') == 'disconnected':
+                        tag_data['last_value'] = 0
+
+        # ===== Load Qtag Single3 cards =====
+        g["qtag_single3_cards"] = db.get_qtag_single3_cards_for_group(g["id"]) if hasattr(db, "get_qtag_single3_cards_for_group") else []
+        for qc in g["qtag_single3_cards"]:
+            pv_tag = qc.get('pv_tag')
+            if pv_tag and isinstance(pv_tag, dict):
+                device_id = pv_tag.get('device_id')
+                if device_id:
+                    status_str, last_seen = _get_device_status(device_id)
+                    pv_tag['device_status'] = status_str
+                    pv_tag['device_last_seen'] = last_seen
+                else:
+                    pv_tag['device_status'] = 'unknown'
+                    pv_tag['device_last_seen'] = None
+                if pv_tag.get('device_status') == 'disconnected':
+                    pv_tag['last_value'] = 0
+
+        # ===== Load Qtag PV Only cards =====
+        g["qtag_pv_cards"] = db.get_qtag_pv_cards_for_group(g["id"]) if hasattr(db, "get_qtag_pv_cards_for_group") else []
+        for qc in g["qtag_pv_cards"]:
+            pv_tag = qc.get('pv_tag')
+            if pv_tag and isinstance(pv_tag, dict):
+                device_id = pv_tag.get('device_id')
+                if device_id:
+                    status_str, last_seen = _get_device_status(device_id)
+                    pv_tag['device_status'] = status_str
+                    pv_tag['device_last_seen'] = last_seen
+                else:
+                    pv_tag['device_status'] = 'unknown'
+                    pv_tag['device_last_seen'] = None
+                if pv_tag.get('device_status') == 'disconnected':
+                    pv_tag['last_value'] = 0
+
     # Get active quad alarms for this subdashboard
     active_quad_alarms = []
     if hasattr(db, "get_active_quad_alarms_by_subdash"):
@@ -115,6 +164,22 @@ def subdash_detail(sid):
         except Exception as e:
             print(f"⚠️ Could not load active quad alarms: {e}")
 
+    # Get active per-tag alarms for all Qtag cards in this subdashboard
+    active_tag_alarms = []
+    if hasattr(db, "get_active_tag_alarms_for_subdash"):
+        try:
+            active_tag_alarms = db.get_active_tag_alarms_for_subdash(sid)
+            # Serialize datetime for JSON embedding in template
+            for alarm in active_tag_alarms:
+                if 'triggered_at' in alarm and alarm['triggered_at'] is not None:
+                    try:
+                        alarm['triggered_at'] = alarm['triggered_at'].isoformat()
+                    except Exception:
+                        alarm['triggered_at'] = str(alarm['triggered_at'])
+            print(f"🔔 Found {len(active_tag_alarms)} active tag alarms for subdashboard {sid}")
+        except Exception as e:
+            print(f"⚠️ Could not load active tag alarms: {e}")
+
     current_group = request.args.get('group', '__all__')
 
     response = make_response(render_template(
@@ -123,7 +188,8 @@ def subdash_detail(sid):
         all_tags=all_tags,
         groups=groups,
         current_group=current_group,
-        active_quad_alarms=active_quad_alarms
+        active_quad_alarms=active_quad_alarms,
+        active_tag_alarms=active_tag_alarms
     ))
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['Pragma'] = 'no-cache'
@@ -413,6 +479,25 @@ def api_active_quad_alarms(sid):
         return jsonify({"success": True, "alarms": active_alarms})
     except Exception as e:
         print(f"⚠️ Error fetching active quad alarms: {e}")
+        return jsonify({"success": False, "alarms": [], "error": str(e)}), 500
+
+@subdash_bp.get("/<int:sid>/api/active_tag_alarms")
+def api_active_tag_alarms(sid):
+    """API endpoint to fetch current active per-tag alarms for all Qtag cards in a subdashboard.
+    Reuses existing alarm_events table - returns tags whose latest alarm event is INCOMING."""
+    try:
+        active_alarms = []
+        if hasattr(db, "get_active_tag_alarms_for_subdash"):
+            active_alarms = db.get_active_tag_alarms_for_subdash(sid)
+        for alarm in active_alarms:
+            if 'triggered_at' in alarm and alarm['triggered_at'] is not None:
+                try:
+                    alarm['triggered_at'] = alarm['triggered_at'].isoformat()
+                except Exception:
+                    alarm['triggered_at'] = str(alarm['triggered_at'])
+        return jsonify({"success": True, "alarms": active_alarms})
+    except Exception as e:
+        print(f"⚠️ Error fetching active tag alarms: {e}")
         return jsonify({"success": False, "alarms": [], "error": str(e)}), 500
 
 @subdash_bp.get("/api/tags")
@@ -900,3 +985,407 @@ def demo_qtag6():
     Displays mockup UI with simulated realtime data for review before integration.
     """
     return render_template("subdashboards/demo_qtag6.html")
+
+
+# ========== QTAG6 ROUTES (6 tags) ==========
+
+@subdash_bp.route("/<int:sid>/add_qtag6", methods=["POST"])
+def add_qtag6_card(sid):
+    """Add a new qtag6 card to subdashboard"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        tag_ids = []
+        for i in range(1, 7):
+            t = request.form.get(f"tag{i}_id")
+            if not t:
+                return jsonify({"success": False, "message": f"Tag {i} is required"}), 400
+            tag_ids.append(int(t))
+
+        if len(set(tag_ids)) != 6:
+            return jsonify({"success": False, "message": "All 6 tags must be different"}), 400
+
+        group_id = request.form.get("group_id")
+        new_group_name = request.form.get("new_group_name", "").strip()
+        card_title = request.form.get("card_title", "").strip() or None
+        left_title = request.form.get("left_title", "").strip() or None
+        right_title = request.form.get("right_title", "").strip() or None
+
+        # Priority: existing group > new group name (avoid duplicate groups)
+        if group_id:
+            group_id = int(group_id)
+        elif new_group_name:
+            group_id = db.add_subdash_group({"dashboard_id": sid, "name": new_group_name, "order": 0})
+        else:
+            return jsonify({"success": False, "message": "Please select a group or enter a new group name"}), 400
+
+        card_id = db.add_qtag6_card(group_id, *tag_ids,
+                                     card_title=card_title, left_title=left_title, right_title=right_title)
+        try:
+            get_emission_manager().force_refresh_subdash_cache()
+        except Exception:
+            pass
+
+        return jsonify({"success": True, "message": "Qtag6 card added successfully", "card_id": card_id})
+    except Exception as e:
+        print(f"Error adding qtag6 card: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/update_qtag6/<int:card_id>", methods=["POST"])
+def update_qtag6_card_route(sid, card_id):
+    """Update a qtag6 card"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        existing = db.get_qtag6_card_by_id(card_id)
+        if not existing:
+            return jsonify({"success": False, "message": "Card not found"}), 404
+
+        kwargs = {}
+        for i in range(1, 7):
+            t = request.form.get(f"tag{i}_id")
+            if t:
+                kwargs[f'tag{i}_id'] = int(t)
+        for field in ('card_title', 'left_title', 'right_title'):
+            v = request.form.get(field)
+            if v is not None:
+                kwargs[field] = v.strip() or None
+
+        result = db.update_qtag6_card(card_id, **kwargs)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Qtag6 card updated successfully"})
+        return jsonify({"success": False, "message": "Failed to update"}), 500
+    except Exception as e:
+        print(f"Error updating qtag6 card: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/delete_qtag6/<int:card_id>", methods=["DELETE"])
+def delete_qtag6_card_route(sid, card_id):
+    """Delete a qtag6 card"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        if not db.get_qtag6_card_by_id(card_id):
+            return jsonify({"success": False, "message": "Card not found"}), 404
+        result = db.delete_qtag6_card(card_id)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Qtag6 card deleted successfully"})
+        return jsonify({"success": False, "message": "Failed to delete"}), 500
+    except Exception as e:
+        print(f"Error deleting qtag6 card: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/qtag6/<int:card_id>/rename", methods=["POST"])
+def rename_qtag6_card(sid, card_id):
+    """Rename qtag6 card titles"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        data = request.get_json() or {}
+        target = data.get("target")
+        new_title = data.get("title", "").strip()
+        if not target or not new_title:
+            return jsonify({"success": False, "message": "Target and title required"}), 400
+        if not db.get_qtag6_card_by_id(card_id):
+            return jsonify({"success": False, "message": "Card not found"}), 404
+        kwargs = {}
+        if target == "card":
+            kwargs['card_title'] = new_title
+        elif target == "left":
+            kwargs['left_title'] = new_title
+        elif target == "right":
+            kwargs['right_title'] = new_title
+        else:
+            return jsonify({"success": False, "message": "Invalid target"}), 400
+        result = db.update_qtag6_card(card_id, **kwargs)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Title updated"})
+        return jsonify({"success": False, "message": "Failed to update"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ========== QTAG SINGLE3 ROUTES (PV + SV HIGH/LOW) ==========
+
+@subdash_bp.route("/<int:sid>/add_qtag_single3", methods=["POST"])
+def add_qtag_single3_card(sid):
+    """Add a new qtag single3 card"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        pv_tag_id = request.form.get("pv_tag_id")
+        if not pv_tag_id:
+            return jsonify({"success": False, "message": "PV tag is required"}), 400
+
+        group_id = request.form.get("group_id")
+        new_group_name = request.form.get("new_group_name", "").strip()
+        card_title = request.form.get("card_title", "").strip() or None
+
+        sv_high_type = request.form.get("sv_high_type", "fixed")
+        sv_high_tag_id = request.form.get("sv_high_tag_id")
+        sv_high_fixed = request.form.get("sv_high_fixed")
+        sv_low_type = request.form.get("sv_low_type", "fixed")
+        sv_low_tag_id = request.form.get("sv_low_tag_id")
+        sv_low_fixed = request.form.get("sv_low_fixed")
+
+        # Priority: existing group > new group name (avoid duplicate groups)
+        if group_id:
+            group_id = int(group_id)
+        elif new_group_name:
+            group_id = db.add_subdash_group({"dashboard_id": sid, "name": new_group_name, "order": 0})
+        else:
+            return jsonify({"success": False, "message": "Please select a group or enter a new group name"}), 400
+
+        card_id = db.add_qtag_single3_card(
+            group_id=group_id,
+            pv_tag_id=int(pv_tag_id),
+            card_title=card_title,
+            sv_high_type=sv_high_type,
+            sv_high_tag_id=int(sv_high_tag_id) if sv_high_tag_id else None,
+            sv_high_fixed=float(sv_high_fixed) if sv_high_fixed else None,
+            sv_low_type=sv_low_type,
+            sv_low_tag_id=int(sv_low_tag_id) if sv_low_tag_id else None,
+            sv_low_fixed=float(sv_low_fixed) if sv_low_fixed else None,
+        )
+        try:
+            get_emission_manager().force_refresh_subdash_cache()
+        except Exception:
+            pass
+        return jsonify({"success": True, "message": "Qtag Single3 card added", "card_id": card_id})
+    except Exception as e:
+        print(f"Error adding qtag single3 card: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/update_qtag_single3/<int:card_id>", methods=["POST"])
+def update_qtag_single3_card_route(sid, card_id):
+    """Update a qtag single3 card"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        if not db.get_qtag_single3_card_by_id(card_id):
+            return jsonify({"success": False, "message": "Card not found"}), 404
+
+        kwargs = {}
+        pv = request.form.get("pv_tag_id")
+        if pv:
+            kwargs['pv_tag_id'] = int(pv)
+        for field in ('card_title',):
+            v = request.form.get(field)
+            if v is not None:
+                kwargs[field] = v.strip() or None
+        for prefix in ('sv_high', 'sv_low'):
+            t = request.form.get(f"{prefix}_type")
+            if t:
+                kwargs[f'{prefix}_type'] = t
+            tid = request.form.get(f"{prefix}_tag_id")
+            kwargs[f'{prefix}_tag_id'] = int(tid) if tid else None
+            fv = request.form.get(f"{prefix}_fixed")
+            kwargs[f'{prefix}_fixed'] = float(fv) if fv else None
+
+        result = db.update_qtag_single3_card(card_id, **kwargs)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Card updated"})
+        return jsonify({"success": False, "message": "Failed to update"}), 500
+    except Exception as e:
+        print(f"Error updating qtag single3: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/delete_qtag_single3/<int:card_id>", methods=["DELETE"])
+def delete_qtag_single3_card_route(sid, card_id):
+    """Delete a qtag single3 card"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        if not db.get_qtag_single3_card_by_id(card_id):
+            return jsonify({"success": False, "message": "Card not found"}), 404
+        result = db.delete_qtag_single3_card(card_id)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Card deleted"})
+        return jsonify({"success": False, "message": "Failed to delete"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/qtag_single3/<int:card_id>/rename", methods=["POST"])
+def rename_qtag_single3_card(sid, card_id):
+    """Rename qtag single3 card title"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        data = request.get_json() or {}
+        new_title = data.get("title", "").strip()
+        if not new_title:
+            return jsonify({"success": False, "message": "Title required"}), 400
+        if not db.get_qtag_single3_card_by_id(card_id):
+            return jsonify({"success": False, "message": "Card not found"}), 404
+        result = db.update_qtag_single3_card(card_id, card_title=new_title)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Title updated"})
+        return jsonify({"success": False, "message": "Failed to update"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ========== QTAG PV ONLY ROUTES ==========
+
+@subdash_bp.route("/<int:sid>/add_qtag_pv", methods=["POST"])
+def add_qtag_pv_card(sid):
+    """Add a new qtag PV only card"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        pv_tag_id = request.form.get("pv_tag_id")
+        if not pv_tag_id:
+            return jsonify({"success": False, "message": "PV tag is required"}), 400
+
+        group_id = request.form.get("group_id")
+        new_group_name = request.form.get("new_group_name", "").strip()
+        card_title = request.form.get("card_title", "").strip() or None
+
+        # Priority: existing group > new group name (avoid duplicate groups)
+        if group_id:
+            group_id = int(group_id)
+        elif new_group_name:
+            group_id = db.add_subdash_group({"dashboard_id": sid, "name": new_group_name, "order": 0})
+        else:
+            return jsonify({"success": False, "message": "Please select a group or enter a new group name"}), 400
+
+        card_id = db.add_qtag_pv_card(group_id, int(pv_tag_id), card_title)
+        try:
+            get_emission_manager().force_refresh_subdash_cache()
+        except Exception:
+            pass
+        return jsonify({"success": True, "message": "Qtag PV card added", "card_id": card_id})
+    except Exception as e:
+        print(f"Error adding qtag PV card: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/update_qtag_pv/<int:card_id>", methods=["POST"])
+def update_qtag_pv_card_route(sid, card_id):
+    """Update a qtag PV only card"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        if not db.get_qtag_pv_card_by_id(card_id):
+            return jsonify({"success": False, "message": "Card not found"}), 404
+        kwargs = {}
+        pv = request.form.get("pv_tag_id")
+        if pv:
+            kwargs['pv_tag_id'] = int(pv)
+        ct = request.form.get("card_title")
+        if ct is not None:
+            kwargs['card_title'] = ct.strip() or None
+        result = db.update_qtag_pv_card(card_id, **kwargs)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Card updated"})
+        return jsonify({"success": False, "message": "Failed to update"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/delete_qtag_pv/<int:card_id>", methods=["DELETE"])
+def delete_qtag_pv_card_route(sid, card_id):
+    """Delete a qtag PV only card"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        if not db.get_qtag_pv_card_by_id(card_id):
+            return jsonify({"success": False, "message": "Card not found"}), 404
+        result = db.delete_qtag_pv_card(card_id)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Card deleted"})
+        return jsonify({"success": False, "message": "Failed to delete"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/qtag_pv/<int:card_id>/rename", methods=["POST"])
+def rename_qtag_pv_card(sid, card_id):
+    """Rename qtag PV card title"""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
+    try:
+        data = request.get_json() or {}
+        new_title = data.get("title", "").strip()
+        if not new_title:
+            return jsonify({"success": False, "message": "Title required"}), 400
+        if not db.get_qtag_pv_card_by_id(card_id):
+            return jsonify({"success": False, "message": "Card not found"}), 404
+        result = db.update_qtag_pv_card(card_id, card_title=new_title)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "message": "Title updated"})
+        return jsonify({"success": False, "message": "Failed to update"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/update_card_color", methods=["POST"])
+def update_card_color(sid):
+    """Update background color for any card type (quad, quad6, single3, pvonly)."""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied"}), 403
+    try:
+        data = request.get_json() or {}
+        card_type = data.get("card_type", "")
+        card_id = data.get("card_id")
+        color = data.get("color", "").strip()
+
+        if not card_type or not card_id:
+            return jsonify({"success": False, "message": "card_type and card_id required"}), 400
+
+        if card_type not in ("quad", "quad6", "single3", "pvonly"):
+            return jsonify({"success": False, "message": "Invalid card_type"}), 400
+
+        # Allow empty/null to reset to default
+        result = db.update_card_color(card_type, int(card_id), color if color else None)
+        if result:
+            try:
+                get_emission_manager().force_refresh_subdash_cache()
+            except Exception:
+                pass
+            return jsonify({"success": True, "card_color": color if color else None})
+        return jsonify({"success": False, "message": "Card not found or update failed"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
