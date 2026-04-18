@@ -739,6 +739,20 @@
 
 /* ========== Qtag Single / Single3 / PV Only Styles ========== */
 
+/* Grid wrapper for single cards - matches double card internal layout */
+.qtag-single-pair-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  padding: 8px !important;
+}
+
+@media (max-width: 768px) {
+  .qtag-single-pair-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 .qtag-single-sub-card {
   padding: 0 !important;
   border: 1px solid #e5e7eb !important;
@@ -747,7 +761,6 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
   overflow: hidden;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  max-width: 420px;
 }
 
 .qtag-single-sub-card:hover {
@@ -977,6 +990,182 @@
 
 .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-tag-unit {
   display: none !important;
+}
+
+/* ========== Qtag PV Dual Styles (2 PV tags, 2 columns) ========== */
+
+.qtag-pv-dual-card {
+  border-radius: 14px !important;
+  overflow: visible !important;
+  position: relative !important;
+  transition: box-shadow 0.3s ease;
+}
+
+.qtag-pv-dual-card:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+}
+
+.qtag-pv-dual-card .card-header {
+  min-height: 52px !important;
+  padding: 12px 16px !important;
+  border-radius: 14px 14px 0 0 !important;
+}
+
+.qtag-pv-dual-card .card-body {
+  padding: 10px !important;
+}
+
+.qtag-pv-dual-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  padding: 8px !important;
+}
+
+@media (max-width: 768px) {
+  .qtag-pv-dual-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.qtag-pv-dual-sub-card {
+  padding: 0 !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.qtag-pv-dual-sub-card:hover {
+  transform: scale(1.01);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.qtag-pv-dual-sub-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 10px 14px !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem !important;
+}
+
+.qtag-pv-dual-sub-head.qtag-pv-dual-left-head {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+}
+
+.qtag-pv-dual-sub-head.qtag-pv-dual-right-head {
+  background: linear-gradient(135deg, #06b6d4 0%, #14b8a6 100%) !important;
+}
+
+.qtag-pv-dual-sub-title {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+  opacity: 0.95;
+}
+
+.qtag-pv-dual-tag-rows {
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.qtag-pv-dual-tag-item {
+  background: #1a1f2e !important;
+  border-radius: 0 !important;
+  border: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  position: relative !important;
+  transition: all 0.3s ease;
+}
+
+.qtag-pv-dual-pvonly-top-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  padding: 10px 16px 0 16px !important;
+}
+
+.qtag-pv-dual-description {
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  color: #9ca3af !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.qtag-pv-dual-unit {
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  color: #9ca3af !important;
+  text-transform: uppercase !important;
+}
+
+.qtag-pv-dual-value-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 1;
+  width: 100%;
+  padding: 8px 16px !important;
+}
+
+.qtag-pv-dual-tag-value {
+  font-size: 2.4rem !important;
+  font-weight: 700 !important;
+  color: #f9a8d4 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+.qtag-pv-dual-update-time {
+  padding: 6px 14px 10px;
+  font-size: 0.75rem;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qtag-pv-dual-type-badge {
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Dark theme for Qtag PV Dual */
+[data-bs-theme="dark"] .qtag-pv-dual-sub-card {
+  background: #1f2937 !important;
+  border-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .qtag-pv-dual-tag-item {
+  background: #0f1420 !important;
+}
+
+/* Custom BG color support for PV Dual */
+.qtag-custom-bg .qtag-pv-dual-sub-title,
+.qtag-custom-bg .qtag-pv-dual-type-badge,
+.qtag-custom-bg .qtag-pv-dual-tag-value,
+.qtag-custom-bg .qtag-pv-dual-description,
+.qtag-custom-bg .qtag-pv-dual-unit,
+.qtag-custom-bg .qtag-pv-dual-update-time {
+  color: var(--qtag-card-text, inherit) !important;
 }
 
 /* Alarm states for Qtag Single */

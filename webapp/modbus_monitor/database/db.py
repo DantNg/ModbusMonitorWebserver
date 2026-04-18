@@ -30,8 +30,7 @@ def get_tag_values_with_interval(tag_id: int, dt_from, dt_to, interval_sec: floa
 
 from ast import Dict, stmt
 from typing import Optional
-from typing import List as list
-from typing import Tuple as tuple
+from typing import List, Tuple
 from datetime import datetime, timedelta, timezone
 import os
 import sys
@@ -503,6 +502,20 @@ subdash_qtag_pv_cards = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# ========== Qtag PV Dual Cards (2 PV tags, 2 columns) ==========
+subdash_qtag_pv_dual_cards = Table(
+    "subdash_qtag_pv_dual_cards", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
+    Column("card_title", String(200), nullable=True),
+    Column("left_title", String(200), nullable=True),
+    Column("right_title", String(200), nullable=True),
+    Column("left_tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("right_tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("card_color", String(20), nullable=True),  # Background color (hex)
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
 
 def create_schema():
     """Tạo bảng nếu chưa có (idempotent)."""
@@ -516,7 +529,8 @@ def create_schema():
 def _migrate_card_color(engine):
     """Add card_color column to existing card tables (safe for repeated calls)."""
     tables = ['subdash_quad_cards', 'subdash_qtag6_cards',
-              'subdash_qtag_single3_cards', 'subdash_qtag_pv_cards']
+              'subdash_qtag_single3_cards', 'subdash_qtag_pv_cards',
+              'subdash_qtag_pv_dual_cards']
     with engine.connect() as con:
         for tbl in tables:
             try:
@@ -582,7 +596,7 @@ def add_tag_row(device_id: int, data: dict) -> int:
         res = con.execute(insert(tags).values(**data))
         return res.inserted_primary_key[0]
 
-def insert_tag_values_bulk(rows: list[tuple[int, "datetime", float]]):
+def insert_tag_values_bulk(rows: List[Tuple[int, str, float]]):
     """
     Insert bulk data vào tag_values và update tag_latest_values
     rows = [(tag_id, ts, value), ...]
@@ -1037,7 +1051,7 @@ def delete_alarm_event_row(eid: int) -> int:
     with init_engine().begin() as con:
         res = con.execute(delete(alarm_events).where(alarm_events.c.id == eid))
         return res.rowcount
-def delete_alarm_events(ids: list[int]) -> int:
+def delete_alarm_events(ids: List[int]) -> int:
     with init_engine().begin() as con:
         res = con.execute(delete(alarm_events).where(alarm_events.c.id.in_(ids)))
         return res.rowcount
@@ -1209,6 +1223,23 @@ def get_active_tag_alarms_for_subdash(subdash_id: int):
             for card in pv_rows:
                 if card.get('pv_tag_id'):
                     all_tag_ids.add(card['pv_tag_id'])
+
+            # PV Dual: 2 PV tags per card (left + right)
+            pv_dual_rows = con.execute(
+                select(subdash_qtag_pv_dual_cards)
+                .select_from(
+                    subdash_qtag_pv_dual_cards.join(
+                        subdash_tag_groups,
+                        subdash_qtag_pv_dual_cards.c.group_id == subdash_tag_groups.c.id
+                    )
+                )
+                .where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).mappings().all()
+            for card in pv_dual_rows:
+                if card.get('left_tag_id'):
+                    all_tag_ids.add(card['left_tag_id'])
+                if card.get('right_tag_id'):
+                    all_tag_ids.add(card['right_tag_id'])
 
             # Also include tags from quad cards (tag1..tag4)
             quad_rows = con.execute(
@@ -1473,7 +1504,7 @@ def get_data_logger(lid: int):
         r = con.execute(select(data_loggers).where(data_loggers.c.id == lid)).mappings().first()
         return dict(r) if r else None
 
-def get_data_logger_tag_ids(lid: int) -> list[int]:
+def get_data_logger_tag_ids(lid: int) -> List[int]:
     """Return tag IDs for a logger in the order they were attached (older first)."""
     with init_engine().connect() as con:
         rows = con.execute(
@@ -1484,11 +1515,11 @@ def get_data_logger_tag_ids(lid: int) -> list[int]:
         return [r[0] for r in rows]
 
 # Alias for backward compatibility
-def list_data_logger_tags(lid: int) -> list[int]:
+def list_data_logger_tags(lid: int) -> List[int]:
     """Alias for get_data_logger_tag_ids"""
     return get_data_logger_tag_ids(lid)
 
-def add_data_logger_row(data: dict, tag_ids: list[int]) -> int:
+def add_data_logger_row(data: dict, tag_ids: List[int]) -> int:
     with init_engine().begin() as con:
         res = con.execute(insert(data_loggers).values(**data))
         new_id = res.inserted_primary_key[0]
@@ -1499,7 +1530,7 @@ def add_data_logger_row(data: dict, tag_ids: list[int]) -> int:
             )
         return new_id
 
-def update_data_logger_row(lid: int, data: dict, tag_ids: list[int]) -> int:
+def update_data_logger_row(lid: int, data: dict, tag_ids: List[int]) -> int:
     """Cập nhật logger và cập nhật mapping tag theo kiểu diff để KHÔNG reset created_at của tag đã tồn tại.
 
     - Chỉ INSERT những tag mới được thêm vào (giữ created_at theo mặc định now())
@@ -1672,7 +1703,7 @@ def get_latest_tag_value(tag_id: int):
             formatted_value = value
         return (formatted_value, ts)
 
-def get_latest_tag_values_batch(tag_ids: list[int]) -> dict:
+def get_latest_tag_values_batch(tag_ids: List[int]) -> dict:
     """
     Lấy latest values cho nhiều tags cùng lúc từ bảng tag_latest_values với format giá trị theo datatype
     Returns: {tag_id: (value, timestamp), ...}
@@ -1829,7 +1860,7 @@ def get_subdashboard(sid: int):
         r = con.execute(select(dashboards).where(dashboards.c.id == sid)).mappings().first()
         return dict(r) if r else None
         
-def add_subdashboard_row(data: dict, tag_ids: list[int] = None) -> int:
+def add_subdashboard_row(data: dict, tag_ids: List[int] = None) -> int:
     """Add a new subdashboard and optionally attach tags."""
     with init_engine().begin() as con:
         res = con.execute(insert(dashboards).values(**data))
@@ -2049,7 +2080,7 @@ def list_data_loggers():
         print(f"Error listing data loggers: {e}")
         return []
 
-def get_logger_tag_ids(logger_id: int) -> list[int]:
+def get_logger_tag_ids(logger_id: int) -> List[int]:
     """Get tag IDs associated with a logger"""
     try:
         with init_engine().connect() as con:
@@ -2108,7 +2139,7 @@ def get_tag_logger_map(device_id: int = None) -> dict:
         print(f"Error getting tag logger map: {e}")
         return {}
 
-def batch_insert_data_logs(log_entries: list[dict]):
+def batch_insert_data_logs(log_entries: List[dict]):
     """Batch insert data log entries into tag_values table"""
     try:
         if not log_entries:
@@ -2493,7 +2524,7 @@ def get_auto_start_workers():
 
 # ----------- TAG LOGS (DATALOGGER) -----------
 
-def bulk_insert_tag_logs(log_entries: list[tuple]) -> int:
+def bulk_insert_tag_logs(log_entries: List[tuple]) -> int:
     """
     Bulk insert/upsert tag logs with ON DUPLICATE KEY UPDATE for idempotency
     log_entries = [(logger_id, tag_id, ts, value), ...]
@@ -2854,7 +2885,7 @@ def get_notifications(
     status: str = "all",   # 'unread' | 'seen' | 'dismissed' | 'all'
     limit: int = 50,
     offset: int = 0
-) -> list[dict]:
+) -> List[dict]:
     """
     Lấy danh sách notifications cho 1 user, kèm thông tin alarm_events.
     Mặc định ẩn 'dismissed' khi status='all'.
@@ -3352,6 +3383,92 @@ def delete_qtag_pv_card(card_id: int) -> bool:
         return False
 
 
+# ========== QTAG PV DUAL CARD CRUD OPERATIONS ==========
+
+def add_qtag_pv_dual_card(group_id: int, left_tag_id: int, right_tag_id: int,
+                          card_title: str = None, left_title: str = None, right_title: str = None) -> int:
+    """Add a new qtag PV dual card to a group."""
+    with init_engine().begin() as con:
+        res = con.execute(
+            insert(subdash_qtag_pv_dual_cards).values(
+                group_id=group_id,
+                card_title=card_title,
+                left_title=left_title,
+                right_title=right_title,
+                left_tag_id=left_tag_id,
+                right_tag_id=right_tag_id,
+            )
+        )
+        return res.inserted_primary_key[0]
+
+
+def get_qtag_pv_dual_cards_for_group(group_id: int):
+    """Get all qtag PV dual cards for a group with tag details."""
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(subdash_qtag_pv_dual_cards).where(subdash_qtag_pv_dual_cards.c.group_id == group_id)
+        ).mappings().all()
+
+        result = []
+        for card in rows:
+            cd = dict(card)
+            # Left tag
+            left_tag = con.execute(select(tags).where(tags.c.id == cd['left_tag_id'])).mappings().first()
+            cd['left_tag'] = dict(left_tag) if left_tag else None
+            if left_tag:
+                last_value, _ = get_latest_tag_value(cd['left_tag_id'])
+                cd['left_tag']['last_value'] = last_value if last_value is not None else 0
+            # Right tag
+            right_tag = con.execute(select(tags).where(tags.c.id == cd['right_tag_id'])).mappings().first()
+            cd['right_tag'] = dict(right_tag) if right_tag else None
+            if right_tag:
+                last_value, _ = get_latest_tag_value(cd['right_tag_id'])
+                cd['right_tag']['last_value'] = last_value if last_value is not None else 0
+            result.append(cd)
+        return result
+
+
+def get_qtag_pv_dual_card_by_id(card_id: int):
+    """Get a specific qtag PV dual card by ID."""
+    with init_engine().connect() as con:
+        row = con.execute(
+            select(subdash_qtag_pv_dual_cards).where(subdash_qtag_pv_dual_cards.c.id == card_id)
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def update_qtag_pv_dual_card(card_id: int, **kwargs) -> bool:
+    """Update a qtag PV dual card."""
+    try:
+        allowed = {'card_title', 'left_title', 'right_title', 'left_tag_id', 'right_tag_id', 'card_color'}
+        values_dict = {k: v for k, v in kwargs.items() if k in allowed}
+        if not values_dict:
+            return True
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(subdash_qtag_pv_dual_cards)
+                .where(subdash_qtag_pv_dual_cards.c.id == card_id)
+                .values(**values_dict)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating qtag PV dual card {card_id}: {e}")
+        return False
+
+
+def delete_qtag_pv_dual_card(card_id: int) -> bool:
+    """Delete a qtag PV dual card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(subdash_qtag_pv_dual_cards).where(subdash_qtag_pv_dual_cards.c.id == card_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting qtag PV dual card {card_id}: {e}")
+        return False
+
+
 def update_card_color(card_type: str, card_id: int, color: str) -> bool:
     """Update card_color for any card type. color can be hex like '#ff0000' or None to reset."""
     import re
@@ -3360,6 +3477,7 @@ def update_card_color(card_type: str, card_id: int, color: str) -> bool:
         'quad6': subdash_qtag6_cards,
         'single3': subdash_qtag_single3_cards,
         'pvonly': subdash_qtag_pv_cards,
+        'pvdual': subdash_qtag_pv_dual_cards,
     }
     tbl = table_map.get(card_type)
     if tbl is None:

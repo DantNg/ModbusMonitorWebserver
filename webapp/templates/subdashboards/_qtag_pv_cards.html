@@ -1,7 +1,8 @@
 <!-- Qtag PV Only Cards (1 PV tag) -->
 {% if group.qtag_pv_cards %}
+  <div class="col-12 col-lg-8 col-xl-7">
+    <div class="qtag-single-pair-grid">
   {% for card in group.qtag_pv_cards %}
-  <div class="col-12 col-lg-6 col-xl-5">
     <div class="qtag-single-sub-card{% if card.card_color %} qtag-custom-bg{% endif %}"
          data-qtag-pv-id="{{ card.id }}"
          data-card-type="pvonly"
@@ -54,6 +55,7 @@
         <i class="bi bi-clock"></i> Last updated: --:--:--
       </div>
     </div>
-  </div>
   {% endfor %}
+    </div>
+  </div>
 {% endif %}

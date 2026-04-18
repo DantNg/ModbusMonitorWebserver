@@ -2555,8 +2555,25 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             }
           });
 
+          // ✅ Update Qtag PV Dual values
+          const pvDualElements = document.querySelectorAll(`[id^="qtag-pv-dual-val-"][id$="-${tag.id}"]`);
+          pvDualElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+            // Update last updated time for the correct column
+            const subCard = el.closest('.qtag-pv-dual-sub-card');
+            if (subCard) {
+              const timeEl = subCard.querySelector('.qtag-pv-dual-update-time');
+              if (timeEl) {
+                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
+              }
+            }
+          });
+
           // Check if new card types also need timer reset
-          if (qtag6ValElements.length > 0 || single3PvElements.length > 0 || pvOnlyElements.length > 0 || single3SvElements.length > 0) {
+          if (qtag6ValElements.length > 0 || single3PvElements.length > 0 || pvOnlyElements.length > 0 || single3SvElements.length > 0 || pvDualElements.length > 0) {
             resetTagTimer(tag.id);
           }
 
@@ -3465,7 +3482,199 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   }
 
   // ============================================================
-  // ★ CHANGE CARD COLOR (all card types: quad, quad6, single3, pvonly)
+  // ★ ADD: Qtag PV Dual Card
+  // ============================================================
+  const addPvDualForm = document.getElementById('addQtagPvDualForm');
+  if (addPvDualForm) {
+    addPvDualForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const form = e.target;
+      const errorEl = document.getElementById('pv-dual-error-message');
+      errorEl.style.display = 'none';
+
+      if (!form.querySelector('[name="left_tag_id"]').value || !form.querySelector('[name="right_tag_id"]').value) {
+        errorEl.textContent = 'Please select both left and right PV tags';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const groupId = form.querySelector('[name="group_id"]').value;
+      const newGroupName = form.querySelector('[name="new_group_name"]').value.trim();
+      if (!groupId && !newGroupName) {
+        errorEl.textContent = 'Please select a group or enter a new group name';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Adding PV Dual Card...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(form);
+      fetch(`/subdash/${currentSubdashId}/add_qtag_pv_dual`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'PV Dual card added', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to add PV Dual card', icon: 'error' });
+        }
+      })
+      .catch(err => {
+        Swal.fire({ title: 'Error', text: err.message, icon: 'error' });
+      });
+    });
+  }
+
+  // ============================================================
+  // ★ DELETE: Qtag PV Dual Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.delete-qtag-pv-dual-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+
+    Swal.fire({
+      title: 'Delete PV Dual Card?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc3545',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Deleting...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/delete_qtag_pv_dual/${cardId}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Deleted!', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to delete', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  });
+
+  // ============================================================
+  // ★ RENAME: Qtag PV Dual Card (card title, left title, right title)
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.rename-qtag-pv-dual-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+    const target = btn.dataset.target || 'card';
+    const card = btn.closest('.qtag-pv-dual-card') || document.querySelector(`.qtag-pv-dual-card[data-qtag-pv-dual-id="${cardId}"]`);
+    if (!card) return;
+
+    let titleEl, currentTitle;
+    if (target === 'left') {
+      titleEl = card.querySelector('.qtag-pv-dual-sub-card[data-column="left"] .qtag-pv-dual-sub-title');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'Left';
+    } else if (target === 'right') {
+      titleEl = card.querySelector('.qtag-pv-dual-sub-card[data-column="right"] .qtag-pv-dual-sub-title');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'Right';
+    } else {
+      titleEl = card.querySelector('.fw-semibold');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'PV Dual Card';
+    }
+
+    Swal.fire({
+      title: 'Đổi tên',
+      input: 'text',
+      inputLabel: 'Tiêu đề mới:',
+      inputValue: currentTitle,
+      showCancelButton: true,
+      confirmButtonText: 'Cập nhật',
+      cancelButtonText: 'Hủy',
+      inputValidator: v => (!v || !v.trim()) ? 'Vui lòng nhập tiêu đề' : null
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Đang cập nhật...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/qtag_pv_dual/${cardId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: target, title: result.value.trim() })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          if (titleEl) titleEl.textContent = result.value.trim();
+          Swal.fire({ icon: 'success', title: 'Thành công', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+        } else {
+          Swal.fire({ icon: 'error', title: 'Lỗi', text: data.error || 'Không thể cập nhật' });
+        }
+      })
+      .catch(err => Swal.fire({ icon: 'error', title: 'Lỗi', text: err.message }));
+    });
+  });
+
+  // ============================================================
+  // ★ EDIT TAGS: Qtag PV Dual - Open modal and populate
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.edit-qtag-pv-dual-btn');
+    if (!btn) return;
+    e.preventDefault();
+
+    document.getElementById('editPvDualId').value = btn.dataset.cardId;
+    document.getElementById('editPvDualLeftTag').value = btn.dataset.leftTagId || '';
+    document.getElementById('editPvDualRightTag').value = btn.dataset.rightTagId || '';
+
+    // Populate left/right titles from card data attributes
+    const card = btn.closest('.qtag-pv-dual-card');
+    if (card) {
+      document.getElementById('editPvDualLeftTitle').value = card.dataset.leftTitle || '';
+      document.getElementById('editPvDualRightTitle').value = card.dataset.rightTitle || '';
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('editQtagPvDualModal'));
+    modal.show();
+  });
+
+  // Edit PV Dual form submission
+  const editPvDualForm = document.getElementById('editQtagPvDualForm');
+  if (editPvDualForm) {
+    editPvDualForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const cardId = document.getElementById('editPvDualId').value;
+      const errorEl = document.getElementById('edit-pv-dual-error-message');
+      errorEl.style.display = 'none';
+
+      if (!document.getElementById('editPvDualLeftTag').value || !document.getElementById('editPvDualRightTag').value) {
+        errorEl.textContent = 'Please select both left and right PV tags';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Updating PV Dual...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(editPvDualForm);
+      fetch(`/subdash/${currentSubdashId}/update_qtag_pv_dual/${cardId}`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'PV Dual card updated', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.error || 'Failed to update', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  }
+
+  // ============================================================
+  // ★ CHANGE CARD COLOR (all card types: quad, quad6, single3, pvonly, pvdual)
   // ============================================================
   // Helper: determine if a color is dark → return white text, else black
   function getContrastColor(hexColor) {
