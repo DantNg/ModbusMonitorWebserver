@@ -79,6 +79,8 @@
 <div id="quad-alarm-data" style="display: none;" data-active-alarms='{{ active_quad_alarms | default([]) | tojson }}'></div>
 <!-- Store active per-tag alarms as JSON in data attribute (for Qtag6, Single3, PV Only) -->
 <div id="tag-alarm-data" style="display: none;" data-active-alarms='{{ active_tag_alarms | default([]) | tojson }}'></div>
+<!-- Store active card alarms as JSON (for Qtag6, Single3, PV Only, PV Dual) -->
+<div id="card-alarm-data" style="display: none;" data-active-alarms='{{ active_card_alarms | default([]) | tojson }}'></div>
 
 <div id="group-panels">
   {% if current_group == '__all__' %}
@@ -966,6 +968,11 @@
   {% include 'subdashboards/compare_conditions_modal.html' %}
 </div>
 
+<!-- Include Card Alarm Conditions Modal (Qtag6, Single3, PV Only, PV Dual) -->
+<div style="z-index: 9999; position: relative;">
+  {% include 'subdashboards/card_conditions_modal.html' %}
+</div>
+
 <!-- Modal: Edit Unit -->
 <div class="modal fade" id="editUnitModal" tabindex="-1" aria-labelledby="editUnitModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -1584,6 +1591,7 @@
 <!-- Remove duplicate socket.io (already loaded in base.html) -->
 <script src="{{ url_for('static', filename='vendor/js/sweetalert2.all.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/quad_conditions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/card_conditions.js') }}"></script>
 <!-- Pass Jinja2 variables to external JS via config object -->
 <script>
   window.SUBDASH_CONFIG = {

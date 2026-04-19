@@ -42,6 +42,8 @@
             <li><button class="dropdown-item text-danger delete-qtag-single3-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
             <li><hr class="dropdown-divider"></li>
             <li><button class="dropdown-item change-card-color-btn" data-card-id="{{ card.id }}" data-card-type="single3" data-current-color="{{ card.card_color or '' }}"><i class="bi bi-palette me-2"></i>Change Color</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item set-card-condition-btn" data-card-type="single3" data-card-id="{{ card.id }}" title="Set Alarm Conditions"><i class="bi bi-sliders me-2"></i>Set Alarm Conditions</button></li>
           </ul>
         </div>
         {% endif %}

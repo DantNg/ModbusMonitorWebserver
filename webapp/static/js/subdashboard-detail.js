@@ -1053,6 +1053,66 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       const modal = new bootstrap.Modal(document.getElementById('compareConditionsModal'));
       modal.show();
     });
+
+    // Open card alarm conditions modal (Qtag6, Single3, PV Only, PV Dual)
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('.set-card-condition-btn');
+      if (!btn) return;
+
+      e.preventDefault();
+      const cardType = btn.dataset.cardType || '';
+      const cardId = btn.dataset.cardId || '';
+
+      document.getElementById('cardCondCardType').value = cardType;
+      document.getElementById('cardCondCardId').value = cardId;
+
+      // Toggle right section visibility based on card type
+      const rightSection = document.getElementById('cardCondRightSection');
+      const isDual = DUAL_COLUMN_TYPES.includes(cardType);
+      if (rightSection) {
+        rightSection.style.display = isDual ? 'block' : 'none';
+      }
+
+      // Update column titles based on card type
+      const leftTitle = document.getElementById('cardCondLeftTitle');
+      const rightTitle = document.getElementById('cardCondRightTitle');
+      if (cardType === 'qtag6') {
+        if (leftTitle) leftTitle.textContent = 'Left Column (PV1)';
+        if (rightTitle) rightTitle.textContent = 'Right Column (PV2)';
+      } else if (cardType === 'pv_dual') {
+        if (leftTitle) leftTitle.textContent = 'Left PV';
+        if (rightTitle) rightTitle.textContent = 'Right PV';
+      } else if (cardType === 'single3') {
+        if (leftTitle) leftTitle.textContent = 'PV Value';
+      } else if (cardType === 'pv_only') {
+        if (leftTitle) leftTitle.textContent = 'PV Value';
+      }
+
+      // Load available tags and conditions
+      loadCardAvailableTags();
+      loadCardConditionsFromAPI(cardType, cardId);
+
+      const modal = new bootstrap.Modal(document.getElementById('cardConditionsModal'));
+      modal.show();
+    });
+
+    // Card condition compare type toggle
+    document.addEventListener('change', function (e) {
+      if (e.target.classList.contains('card-compare-type-selector')) {
+        const target = e.target.dataset.target;
+        if (target) {
+          cardCondToggleCompareType(target, e.target.value);
+        }
+      }
+    });
+
+    // Card condition save button
+    document.addEventListener('click', function (e) {
+      if (e.target.id === 'saveCardConditionsBtn' || e.target.closest('#saveCardConditionsBtn')) {
+        e.preventDefault();
+        saveCardConditionsToAPI();
+      }
+    });
     
     // Load available tags for comparison dropdowns
     function loadAvailableTagsForComparison() {
@@ -2035,6 +2095,157 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   // Periodic tag alarm sync alongside quad alarm sync
   const _tagAlarmSyncInterval = setInterval(fetchAndApplyTagAlarms, 10000);
 
+  // ========== Card Alarm System (Qtag6, Single3, PV Only, PV Dual) ==========
+
+  // Apply active card alarm states on page load
+  function applyActiveCardAlarms() {
+    const dataEl = document.getElementById('card-alarm-data');
+    let activeAlarms = [];
+    if (dataEl) {
+      try {
+        const dataStr = dataEl.getAttribute('data-active-alarms');
+        activeAlarms = dataStr ? JSON.parse(dataStr) : [];
+      } catch (e) {
+        console.error('Failed to parse active card alarms:', e);
+        return;
+      }
+    }
+    if (!activeAlarms || activeAlarms.length === 0) return;
+
+    activeAlarms.forEach(alarm => {
+      applyCardAlarmVisual(alarm.card_type, alarm.card_id, alarm.column, alarm.alarm_type);
+    });
+    console.log(`[CardAlarm] Applied ${activeAlarms.length} active card alarms`);
+  }
+
+  function applyCardAlarmVisual(cardType, cardId, column, alarmType) {
+    // Find the card element based on card type
+    let cardEl = null;
+    const alarmClass = alarmType === 'High' ? 'card-alarm-high' : 'card-alarm-low';
+    const removeClass = alarmType === 'High' ? 'card-alarm-low' : 'card-alarm-high';
+
+    if (cardType === 'qtag6') {
+      // Apply to sub-card column
+      const selector = `.qtag6-sub-card[data-card-id="${cardId}"][data-column="${column}"]`;
+      cardEl = document.querySelector(selector);
+      if (!cardEl) {
+        // Fallback: find card then column
+        const card = document.querySelector(`.qtag6-card[data-card-id="${cardId}"]`);
+        if (card) {
+          const subCards = card.querySelectorAll('.qtag6-sub-card');
+          cardEl = column === 'left' ? subCards[0] : subCards[1];
+        }
+      }
+    } else if (cardType === 'pv_dual') {
+      const selector = `.qtag-pv-dual-sub-card[data-card-id="${cardId}"][data-column="${column}"]`;
+      cardEl = document.querySelector(selector);
+      if (!cardEl) {
+        const card = document.querySelector(`.qtag-pv-dual-card[data-card-id="${cardId}"]`);
+        if (card) {
+          const subCards = card.querySelectorAll('.qtag-pv-dual-sub-card');
+          cardEl = column === 'left' ? subCards[0] : subCards[1];
+        }
+      }
+    } else if (cardType === 'single3') {
+      cardEl = document.querySelector(`.qtag-single3-card[data-card-id="${cardId}"]`);
+    } else if (cardType === 'pv_only') {
+      cardEl = document.querySelector(`.qtag-pv-card[data-card-id="${cardId}"]`);
+    }
+
+    if (cardEl) {
+      cardEl.classList.remove(removeClass);
+      cardEl.classList.add(alarmClass);
+    }
+  }
+
+  function removeCardAlarmVisual(cardType, cardId, column) {
+    let cardEl = null;
+
+    if (cardType === 'qtag6') {
+      cardEl = document.querySelector(`.qtag6-sub-card[data-card-id="${cardId}"][data-column="${column}"]`);
+      if (!cardEl) {
+        const card = document.querySelector(`.qtag6-card[data-card-id="${cardId}"]`);
+        if (card) {
+          const subCards = card.querySelectorAll('.qtag6-sub-card');
+          cardEl = column === 'left' ? subCards[0] : subCards[1];
+        }
+      }
+    } else if (cardType === 'pv_dual') {
+      cardEl = document.querySelector(`.qtag-pv-dual-sub-card[data-card-id="${cardId}"][data-column="${column}"]`);
+      if (!cardEl) {
+        const card = document.querySelector(`.qtag-pv-dual-card[data-card-id="${cardId}"]`);
+        if (card) {
+          const subCards = card.querySelectorAll('.qtag-pv-dual-sub-card');
+          cardEl = column === 'left' ? subCards[0] : subCards[1];
+        }
+      }
+    } else if (cardType === 'single3') {
+      cardEl = document.querySelector(`.qtag-single3-card[data-card-id="${cardId}"]`);
+    } else if (cardType === 'pv_only') {
+      cardEl = document.querySelector(`.qtag-pv-card[data-card-id="${cardId}"]`);
+    }
+
+    if (cardEl) {
+      cardEl.classList.remove('card-alarm-high', 'card-alarm-low');
+    }
+  }
+
+  function fetchAndApplyCardAlarms() {
+    const subdashId = currentSubdashId;
+    if (!subdashId) return;
+
+    fetch(`/subdash/${subdashId}/api/active_card_alarms`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success || !Array.isArray(data.alarms)) return;
+
+        // Build set of active alarms from server
+        const serverAlarms = new Map();
+        data.alarms.forEach(alarm => {
+          const key = `${alarm.card_type}-${alarm.card_id}-${alarm.column}`;
+          serverAlarms.set(key, alarm.alarm_type);
+        });
+
+        // Sync card alarm visuals
+        const cardSelectors = [
+          '.qtag6-sub-card[data-card-id]',
+          '.qtag-pv-dual-sub-card[data-card-id]',
+          '.qtag-single3-card[data-card-id]',
+          '.qtag-pv-card[data-card-id]'
+        ];
+
+        cardSelectors.forEach(selector => {
+          document.querySelectorAll(selector).forEach(el => {
+            const cardId = el.getAttribute('data-card-id');
+            const column = el.getAttribute('data-column') || 'left';
+            const cardType = el.getAttribute('data-card-type');
+            if (!cardId || !cardType) return;
+
+            const key = `${cardType}-${cardId}-${column}`;
+            const activeType = serverAlarms.get(key);
+
+            el.classList.remove('card-alarm-high', 'card-alarm-low');
+            if (activeType === 'High') {
+              el.classList.add('card-alarm-high');
+            } else if (activeType === 'Low') {
+              el.classList.add('card-alarm-low');
+            }
+          });
+        });
+
+        console.log(`[CardAlarmSync] Synced ${data.alarms.length} active card alarms`);
+      })
+      .catch(err => {
+        console.warn('[CardAlarmSync] Failed to fetch active card alarms:', err);
+      });
+  }
+
+  window.fetchAndApplyCardAlarms = fetchAndApplyCardAlarms;
+  const _cardAlarmSyncInterval = setInterval(fetchAndApplyCardAlarms, 10000);
+
+  // Apply card alarms on page load
+  applyActiveCardAlarms();
+
   // Check if tag supports write operations
   function canWriteTag(functionCode) {
     const fc = getFunctionCodeInt(functionCode);
@@ -2773,6 +2984,25 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       } else if (status === 'OUTGOING') {
         removeTagAlarmVisual(tagId);
         console.log(`✅ Tag alarm cleared: tag ${tagId}`);
+      }
+    });
+
+    // Listen for card alarm events (Qtag6, Single3, PV Only, PV Dual)
+    socket.on('card_alarm_event', function (data) {
+      console.log('🚨 Card alarm event received:', data);
+
+      const cardType = data.card_type;
+      const cardId = data.card_id;
+      const column = data.column || 'left';
+      const alarmType = data.alarm_type;
+      const status = data.status;
+
+      if (status === 'INCOMING') {
+        applyCardAlarmVisual(cardType, cardId, column, alarmType);
+        console.log(`✅ Card alarm applied: ${cardType}/${cardId} ${column} (${alarmType})`);
+      } else if (status === 'OUTGOING') {
+        removeCardAlarmVisual(cardType, cardId, column);
+        console.log(`✅ Card alarm cleared: ${cardType}/${cardId} ${column}`);
       }
     });
 

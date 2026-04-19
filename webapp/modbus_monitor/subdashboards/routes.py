@@ -197,6 +197,21 @@ def subdash_detail(sid):
         except Exception as e:
             print(f"⚠️ Could not load active tag alarms: {e}")
 
+    # Get active card alarms (Qtag6, Single3, PV Only, PV Dual)
+    active_card_alarms = []
+    if hasattr(db, "get_active_card_alarms_by_subdash"):
+        try:
+            active_card_alarms = db.get_active_card_alarms_by_subdash(sid)
+            for alarm in active_card_alarms:
+                if 'triggered_at' in alarm and alarm['triggered_at'] is not None:
+                    try:
+                        alarm['triggered_at'] = alarm['triggered_at'].isoformat()
+                    except Exception:
+                        alarm['triggered_at'] = str(alarm['triggered_at'])
+            print(f"🔔 Found {len(active_card_alarms)} active card alarms for subdashboard {sid}")
+        except Exception as e:
+            print(f"⚠️ Could not load active card alarms: {e}")
+
     current_group = request.args.get('group', '__all__')
 
     response = make_response(render_template(
@@ -206,7 +221,8 @@ def subdash_detail(sid):
         groups=groups,
         current_group=current_group,
         active_quad_alarms=active_quad_alarms,
-        active_tag_alarms=active_tag_alarms
+        active_tag_alarms=active_tag_alarms,
+        active_card_alarms=active_card_alarms
     ))
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['Pragma'] = 'no-cache'
@@ -943,6 +959,113 @@ def delete_quad_condition_route(sid, quad_id):
     except Exception as e:
         print(f"Error deleting quad condition: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ========== CARD ALARM CONDITIONS ROUTES (Qtag6, Single3, PV Only, PV Dual) ==========
+
+VALID_CARD_TYPES = {'qtag6', 'single3', 'pv_only', 'pv_dual'}
+
+@subdash_bp.route("/<int:sid>/card_condition/<card_type>/<int:card_id>", methods=["GET"])
+def get_card_condition(sid, card_type, card_id):
+    """Get alarm condition for a card"""
+    if card_type not in VALID_CARD_TYPES:
+        return jsonify({"success": False, "message": "Invalid card type"}), 400
+    try:
+        condition = db.get_card_alarm_condition(card_type, card_id)
+        return jsonify({"success": True, "condition": condition})
+    except Exception as e:
+        print(f"Error getting card condition: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/card_condition/<card_type>/<int:card_id>", methods=["POST"])
+def save_card_condition(sid, card_type, card_id):
+    """Save alarm condition for a card"""
+    if card_type not in VALID_CARD_TYPES:
+        return jsonify({"success": False, "message": "Invalid card type"}), 400
+    try:
+        data = request.get_json()
+        conditions_data = {
+            "enabled": data.get("enabled", True),
+            # Left column
+            "left_high_operator": data.get("left_high_operator"),
+            "left_high_compare_type": data.get("left_high_compare_type"),
+            "left_high_value": data.get("left_high_value"),
+            "left_high_compare_tag_id": data.get("left_high_compare_tag_id"),
+            "left_high_on_stable": data.get("left_high_on_stable", 10),
+            "left_high_off_stable": data.get("left_high_off_stable", 30),
+            "left_low_operator": data.get("left_low_operator"),
+            "left_low_compare_type": data.get("left_low_compare_type"),
+            "left_low_value": data.get("left_low_value"),
+            "left_low_compare_tag_id": data.get("left_low_compare_tag_id"),
+            "left_low_on_stable": data.get("left_low_on_stable", 10),
+            "left_low_off_stable": data.get("left_low_off_stable", 30),
+            "left_email": data.get("left_email"),
+            "left_sms": data.get("left_sms"),
+            "left_description": data.get("left_description"),
+            # Right column (only used for dual-column types)
+            "right_high_operator": data.get("right_high_operator"),
+            "right_high_compare_type": data.get("right_high_compare_type"),
+            "right_high_value": data.get("right_high_value"),
+            "right_high_compare_tag_id": data.get("right_high_compare_tag_id"),
+            "right_high_on_stable": data.get("right_high_on_stable", 10),
+            "right_high_off_stable": data.get("right_high_off_stable", 30),
+            "right_low_operator": data.get("right_low_operator"),
+            "right_low_compare_type": data.get("right_low_compare_type"),
+            "right_low_value": data.get("right_low_value"),
+            "right_low_compare_tag_id": data.get("right_low_compare_tag_id"),
+            "right_low_on_stable": data.get("right_low_on_stable", 10),
+            "right_low_off_stable": data.get("right_low_off_stable", 30),
+            "right_email": data.get("right_email"),
+            "right_sms": data.get("right_sms"),
+            "right_description": data.get("right_description"),
+        }
+        condition_id = db.save_card_alarm_condition(card_type, card_id, conditions_data)
+        return jsonify({
+            "success": True,
+            "message": "Alarm condition saved successfully",
+            "condition_id": condition_id
+        })
+    except Exception as e:
+        print(f"Error saving card condition: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.route("/<int:sid>/card_condition/<card_type>/<int:card_id>", methods=["DELETE"])
+def delete_card_condition(sid, card_type, card_id):
+    """Delete alarm condition for a card"""
+    if card_type not in VALID_CARD_TYPES:
+        return jsonify({"success": False, "message": "Invalid card type"}), 400
+    try:
+        result = db.delete_card_alarm_condition(card_type, card_id)
+        if result:
+            return jsonify({"success": True, "message": "Alarm condition deleted"})
+        else:
+            return jsonify({"success": False, "message": "Condition not found"}), 404
+    except Exception as e:
+        print(f"Error deleting card condition: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.get("/<int:sid>/api/active_card_alarms")
+def api_active_card_alarms(sid):
+    """API endpoint to fetch active card alarm states for a subdashboard."""
+    try:
+        active_alarms = []
+        if hasattr(db, "get_active_card_alarms_by_subdash"):
+            active_alarms = db.get_active_card_alarms_by_subdash(sid)
+        for alarm in active_alarms:
+            if 'triggered_at' in alarm and alarm['triggered_at'] is not None:
+                try:
+                    alarm['triggered_at'] = alarm['triggered_at'].isoformat()
+                except Exception:
+                    alarm['triggered_at'] = str(alarm['triggered_at'])
+        return jsonify({"success": True, "alarms": active_alarms})
+    except Exception as e:
+        print(f"⚠️ Error fetching active card alarms: {e}")
+        return jsonify({"success": False, "alarms": [], "error": str(e)}), 500
 
 
 # ========== QUAD TAG TITLES ROUTES ==========

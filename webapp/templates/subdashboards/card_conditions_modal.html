@@ -1,0 +1,293 @@
+<!-- Card Alarm Conditions Modal (for Qtag6, Single3, PV Only, PV Dual) -->
+<div class="modal fade" id="cardConditionsModal" tabindex="-1" aria-labelledby="cardConditionsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cardConditionsModalLabel">
+          <i class="bi bi-sliders me-2"></i>Set Alarm Conditions
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cardCondCardType" value="">
+        <input type="hidden" id="cardCondCardId" value="">
+
+        <!-- Enabled Switch -->
+        <div class="mb-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="cardCondEnabled" checked>
+            <label class="form-check-label fw-bold" for="cardCondEnabled">
+              <i class="bi bi-power me-1"></i>Enable Condition Monitoring
+            </label>
+          </div>
+        </div>
+
+        <!-- Left Column Configuration (always shown) -->
+        <div class="card border-0 shadow-sm mb-3" id="cardCondLeftSection">
+          <div class="card-header bg-primary text-white">
+            <i class="bi bi-columns me-2"></i><span id="cardCondLeftTitle">Left Column</span> Conditions
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <!-- High Threshold -->
+              <div class="col-12">
+                <label class="form-label fw-bold text-danger">
+                  <i class="bi bi-thermometer-high me-1"></i>High Threshold Alert
+                </label>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Operator *</label>
+                <select id="cardLeftHighOperator" class="form-select">
+                  <option value=">">Greater Than (&gt;)</option>
+                  <option value=">=">Greater Or Equal (&gt;=)</option>
+                  <option value="==">Equal (==)</option>
+                  <option value="!=">Not Equal (!=)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Compare Type *</label>
+                <select id="cardLeftHighCompareType" class="form-select card-compare-type-selector" data-target="cardLeftHigh">
+                  <option value="static">Static Value</option>
+                  <option value="tag">Compare with Tag</option>
+                </select>
+              </div>
+              <div class="col-md-12 compare-value-container" id="cardLeftHighValueContainer">
+                <label class="form-label">Threshold Value *</label>
+                <input type="number" id="cardLeftHighValue" class="form-control" placeholder="Enter value" step="any">
+              </div>
+              <div class="col-md-12 compare-tag-container" id="cardLeftHighTagContainer" style="display: none;">
+                <label class="form-label">Compare with Tag *</label>
+                <select id="cardLeftHighCompareTag" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">On Stable Time (seconds) *</label>
+                <input type="number" id="cardLeftHighOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Off Stable Time (seconds) *</label>
+                <input type="number" id="cardLeftHighOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
+              </div>
+              <div class="col-12">
+                <small class="text-muted">🔴 Display color: <strong class="text-danger">Red</strong> when condition is met</small>
+              </div>
+
+              <div class="col-12"><hr></div>
+
+              <!-- Low Threshold -->
+              <div class="col-12">
+                <label class="form-label fw-bold text-info">
+                  <i class="bi bi-thermometer-low me-1"></i>Low Threshold Alert
+                </label>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Operator *</label>
+                <select id="cardLeftLowOperator" class="form-select">
+                  <option value="<">Less Than (&lt;)</option>
+                  <option value="<=">Less Or Equal (&lt;=)</option>
+                  <option value="==">Equal (==)</option>
+                  <option value="!=">Not Equal (!=)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Compare Type *</label>
+                <select id="cardLeftLowCompareType" class="form-select card-compare-type-selector" data-target="cardLeftLow">
+                  <option value="static">Static Value</option>
+                  <option value="tag">Compare with Tag</option>
+                </select>
+              </div>
+              <div class="col-md-12 compare-value-container" id="cardLeftLowValueContainer">
+                <label class="form-label">Threshold Value *</label>
+                <input type="number" id="cardLeftLowValue" class="form-control" placeholder="Enter value" step="any">
+              </div>
+              <div class="col-md-12 compare-tag-container" id="cardLeftLowTagContainer" style="display: none;">
+                <label class="form-label">Compare with Tag *</label>
+                <select id="cardLeftLowCompareTag" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">On Stable Time (seconds) *</label>
+                <input type="number" id="cardLeftLowOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Off Stable Time (seconds) *</label>
+                <input type="number" id="cardLeftLowOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
+              </div>
+              <div class="col-12">
+                <small class="text-muted">🟡 Display color: <strong class="text-warning">Yellow</strong> when condition is met</small>
+              </div>
+
+              <div class="col-12"><hr></div>
+
+              <!-- Notification Settings -->
+              <div class="col-12">
+                <label class="form-label fw-bold">
+                  <i class="bi bi-bell me-1"></i>Alert Notifications
+                </label>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Send To Email</label>
+                <textarea id="cardLeftEmail" class="form-control" rows="2"
+                  placeholder="example1@gmail.com, example2@gmail.com, ..."></textarea>
+                <small class="form-text text-muted">Separate multiple emails with commas</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Send To SMS</label>
+                <textarea id="cardLeftSMS" class="form-control" rows="2"
+                  placeholder="+84xxxxxxxxx, +84xxxxxxxxx, ..."></textarea>
+                <small class="form-text text-muted">Separate multiple numbers with commas</small>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Description / Notes</label>
+                <textarea id="cardLeftDescription" class="form-control" rows="2"
+                  placeholder="Additional information about these conditions..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column Configuration (hidden for single-column cards) -->
+        <div class="card border-0 shadow-sm mb-3" id="cardCondRightSection">
+          <div class="card-header bg-success text-white">
+            <i class="bi bi-columns me-2"></i><span id="cardCondRightTitle">Right Column</span> Conditions
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <!-- High Threshold -->
+              <div class="col-12">
+                <label class="form-label fw-bold text-danger">
+                  <i class="bi bi-thermometer-high me-1"></i>High Threshold Alert
+                </label>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Operator *</label>
+                <select id="cardRightHighOperator" class="form-select">
+                  <option value=">">Greater Than (&gt;)</option>
+                  <option value=">=">Greater Or Equal (&gt;=)</option>
+                  <option value="==">Equal (==)</option>
+                  <option value="!=">Not Equal (!=)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Compare Type *</label>
+                <select id="cardRightHighCompareType" class="form-select card-compare-type-selector" data-target="cardRightHigh">
+                  <option value="static">Static Value</option>
+                  <option value="tag">Compare with Tag</option>
+                </select>
+              </div>
+              <div class="col-md-12 compare-value-container" id="cardRightHighValueContainer">
+                <label class="form-label">Threshold Value *</label>
+                <input type="number" id="cardRightHighValue" class="form-control" placeholder="Enter value" step="any">
+              </div>
+              <div class="col-md-12 compare-tag-container" id="cardRightHighTagContainer" style="display: none;">
+                <label class="form-label">Compare with Tag *</label>
+                <select id="cardRightHighCompareTag" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">On Stable Time (seconds) *</label>
+                <input type="number" id="cardRightHighOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Off Stable Time (seconds) *</label>
+                <input type="number" id="cardRightHighOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
+              </div>
+              <div class="col-12">
+                <small class="text-muted">🔴 Display color: <strong class="text-danger">Red</strong> when condition is met</small>
+              </div>
+
+              <div class="col-12"><hr></div>
+
+              <!-- Low Threshold -->
+              <div class="col-12">
+                <label class="form-label fw-bold text-info">
+                  <i class="bi bi-thermometer-low me-1"></i>Low Threshold Alert
+                </label>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Operator *</label>
+                <select id="cardRightLowOperator" class="form-select">
+                  <option value="<">Less Than (&lt;)</option>
+                  <option value="<=">Less Or Equal (&lt;=)</option>
+                  <option value="==">Equal (==)</option>
+                  <option value="!=">Not Equal (!=)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Compare Type *</label>
+                <select id="cardRightLowCompareType" class="form-select card-compare-type-selector" data-target="cardRightLow">
+                  <option value="static">Static Value</option>
+                  <option value="tag">Compare with Tag</option>
+                </select>
+              </div>
+              <div class="col-md-12 compare-value-container" id="cardRightLowValueContainer">
+                <label class="form-label">Threshold Value *</label>
+                <input type="number" id="cardRightLowValue" class="form-control" placeholder="Enter value" step="any">
+              </div>
+              <div class="col-md-12 compare-tag-container" id="cardRightLowTagContainer" style="display: none;">
+                <label class="form-label">Compare with Tag *</label>
+                <select id="cardRightLowCompareTag" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">On Stable Time (seconds) *</label>
+                <input type="number" id="cardRightLowOnStable" class="form-control" placeholder="10" min="0" step="1" value="10">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Off Stable Time (seconds) *</label>
+                <input type="number" id="cardRightLowOffStable" class="form-control" placeholder="30" min="0" step="1" value="30">
+              </div>
+              <div class="col-12">
+                <small class="text-muted">🟡 Display color: <strong class="text-warning">Yellow</strong> when condition is met</small>
+              </div>
+
+              <div class="col-12"><hr></div>
+
+              <!-- Notification Settings -->
+              <div class="col-12">
+                <label class="form-label fw-bold">
+                  <i class="bi bi-bell me-1"></i>Alert Notifications (Right Column)
+                </label>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Send To Email</label>
+                <textarea id="cardRightEmail" class="form-control" rows="2"
+                  placeholder="example1@gmail.com, example2@gmail.com, ..."></textarea>
+                <small class="form-text text-muted">Separate multiple emails with commas</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Send To SMS</label>
+                <textarea id="cardRightSMS" class="form-control" rows="2"
+                  placeholder="+84xxxxxxxxx, +84xxxxxxxxx, ..."></textarea>
+                <small class="form-text text-muted">Separate multiple numbers with commas</small>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Description / Notes</label>
+                <textarea id="cardRightDescription" class="form-control" rows="2"
+                  placeholder="Additional information about these conditions..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>How it works:</strong> PV tag values will be compared against the threshold values you set.
+          When a condition is met and stable for the specified time, the card color will change and notifications will be sent.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x-circle me-1"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-primary" id="saveCardConditionsBtn">
+          <i class="bi bi-check-circle me-1"></i>Save All Conditions
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

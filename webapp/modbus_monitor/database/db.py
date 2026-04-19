@@ -516,6 +516,78 @@ subdash_qtag_pv_dual_cards = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# --- Card Alarm Conditions - Unified alarm config for Qtag6, Single3, PV Only, PV Dual ---
+card_alarm_conditions = Table(
+    "card_alarm_conditions", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("card_type", String(20), nullable=False),  # 'qtag6', 'single3', 'pv_only', 'pv_dual'
+    Column("card_id", Integer, nullable=False),        # ID in the respective card table
+    Column("enabled", Boolean, default=True),
+
+    # Left column conditions (PV tag of left column or single PV)
+    Column("left_high_operator", String(10)),
+    Column("left_high_compare_type", String(10)),   # 'static' or 'tag'
+    Column("left_high_value", Float, nullable=True),
+    Column("left_high_compare_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
+    Column("left_high_on_stable", Integer, default=10),
+    Column("left_high_off_stable", Integer, default=30),
+
+    Column("left_low_operator", String(10)),
+    Column("left_low_compare_type", String(10)),
+    Column("left_low_value", Float, nullable=True),
+    Column("left_low_compare_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
+    Column("left_low_on_stable", Integer, default=10),
+    Column("left_low_off_stable", Integer, default=30),
+
+    Column("left_email", String(500), nullable=True),
+    Column("left_sms", String(500), nullable=True),
+    Column("left_description", String(500), nullable=True),
+
+    # Right column conditions (only used for dual-column cards: qtag6, pv_dual)
+    Column("right_high_operator", String(10)),
+    Column("right_high_compare_type", String(10)),
+    Column("right_high_value", Float, nullable=True),
+    Column("right_high_compare_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
+    Column("right_high_on_stable", Integer, default=10),
+    Column("right_high_off_stable", Integer, default=30),
+
+    Column("right_low_operator", String(10)),
+    Column("right_low_compare_type", String(10)),
+    Column("right_low_value", Float, nullable=True),
+    Column("right_low_compare_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
+    Column("right_low_on_stable", Integer, default=10),
+    Column("right_low_off_stable", Integer, default=30),
+
+    Column("right_email", String(500), nullable=True),
+    Column("right_sms", String(500), nullable=True),
+    Column("right_description", String(500), nullable=True),
+
+    Column("created_at", DateTime, server_default=func.now()),
+    Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now()),
+
+    UniqueConstraint("card_type", "card_id", name="uq_card_alarm_condition")
+)
+
+Index("idx_card_alarm_conditions_type_id", card_alarm_conditions.c.card_type, card_alarm_conditions.c.card_id)
+
+# --- Card Alarm States - Persistent alarm states for non-quad cards ---
+card_alarm_states = Table(
+    "card_alarm_states", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("card_type", String(20), nullable=False),
+    Column("card_id", Integer, nullable=False),
+    Column("column", String(10), nullable=False),           # 'left' or 'right'
+    Column("alarm_type", String(10), nullable=False),       # 'High' or 'Low'
+    Column("triggered_at", DateTime, nullable=False),
+    Column("pv_value", Float, nullable=True),
+    Column("threshold", Float, nullable=True),
+    Column("operator", String(10), nullable=True),
+
+    UniqueConstraint("card_type", "card_id", "column", name="uq_card_alarm_state")
+)
+
+Index("idx_card_alarm_states_type_id", card_alarm_states.c.card_type, card_alarm_states.c.card_id)
+
 
 def create_schema():
     """Tạo bảng nếu chưa có (idempotent)."""
@@ -3661,4 +3733,231 @@ def get_all_active_quad_conditions():
             .where(quad_tag_conditions.c.enabled == True)
         ).mappings().all()
         return [dict(r) for r in result]
+
+
+# ========== Card Alarm Conditions CRUD ==========
+
+def get_card_alarm_condition(card_type: str, card_id: int):
+    """Get alarm condition for a specific card."""
+    with init_engine().connect() as con:
+        result = con.execute(
+            select(card_alarm_conditions)
+            .where(
+                (card_alarm_conditions.c.card_type == card_type) &
+                (card_alarm_conditions.c.card_id == card_id)
+            )
+        ).mappings().first()
+        return dict(result) if result else None
+
+
+def save_card_alarm_condition(card_type: str, card_id: int, conditions_data: dict) -> int:
+    """Save or update alarm condition for a card. Returns condition_id."""
+    with init_engine().begin() as con:
+        existing = con.execute(
+            select(card_alarm_conditions.c.id)
+            .where(
+                (card_alarm_conditions.c.card_type == card_type) &
+                (card_alarm_conditions.c.card_id == card_id)
+            )
+        ).first()
+
+        if existing:
+            con.execute(
+                update(card_alarm_conditions)
+                .where(
+                    (card_alarm_conditions.c.card_type == card_type) &
+                    (card_alarm_conditions.c.card_id == card_id)
+                )
+                .values(**conditions_data)
+            )
+            return existing[0]
+        else:
+            conditions_data['card_type'] = card_type
+            conditions_data['card_id'] = card_id
+            result = con.execute(
+                insert(card_alarm_conditions).values(**conditions_data)
+            )
+            return result.inserted_primary_key[0]
+
+
+def delete_card_alarm_condition(card_type: str, card_id: int) -> bool:
+    """Delete alarm condition for a card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(card_alarm_conditions)
+                .where(
+                    (card_alarm_conditions.c.card_type == card_type) &
+                    (card_alarm_conditions.c.card_id == card_id)
+                )
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting card alarm condition for {card_type}/{card_id}: {e}")
+        return False
+
+
+def get_all_active_card_conditions():
+    """Get all enabled card alarm conditions for alarm worker."""
+    with init_engine().connect() as con:
+        result = con.execute(
+            select(card_alarm_conditions)
+            .where(card_alarm_conditions.c.enabled == True)
+        ).mappings().all()
+        return [dict(r) for r in result]
+
+
+def insert_card_alarm_state(card_type: str, card_id: int, column: str,
+                            alarm_type: str, pv_value: float,
+                            threshold: float, operator: str):
+    """Insert or update card alarm state (UPSERT)."""
+    try:
+        with init_engine().begin() as con:
+            con.execute(
+                delete(card_alarm_states)
+                .where(
+                    (card_alarm_states.c.card_type == card_type) &
+                    (card_alarm_states.c.card_id == card_id) &
+                    (card_alarm_states.c.column == column)
+                )
+            )
+            res = con.execute(
+                card_alarm_states.insert().values(
+                    card_type=card_type,
+                    card_id=card_id,
+                    column=column,
+                    alarm_type=alarm_type,
+                    triggered_at=datetime.now(),
+                    pv_value=pv_value,
+                    threshold=threshold,
+                    operator=operator
+                )
+            )
+            return res.inserted_primary_key[0] if res.inserted_primary_key else None
+    except Exception as e:
+        print(f"Error inserting card alarm state: {e}")
+        return None
+
+
+def delete_card_alarm_state(card_type: str, card_id: int, column: str):
+    """Delete card alarm state when alarm clears."""
+    try:
+        with init_engine().begin() as con:
+            res = con.execute(
+                delete(card_alarm_states)
+                .where(
+                    (card_alarm_states.c.card_type == card_type) &
+                    (card_alarm_states.c.card_id == card_id) &
+                    (card_alarm_states.c.column == column)
+                )
+            )
+            return res.rowcount
+    except Exception as e:
+        print(f"Error deleting card alarm state: {e}")
+        return 0
+
+
+def get_active_card_alarms():
+    """Get all active card alarm states."""
+    try:
+        with init_engine().connect() as con:
+            rows = con.execute(
+                select(card_alarm_states).order_by(card_alarm_states.c.triggered_at.desc())
+            ).mappings().all()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"Error getting active card alarms: {e}")
+        return []
+
+
+def get_active_card_alarms_by_subdash(subdash_id: int):
+    """Get active card alarm states for a specific subdashboard."""
+    try:
+        with init_engine().connect() as con:
+            # Collect all card IDs by type for this subdashboard
+            card_keys = []  # list of (card_type, card_id)
+
+            # Qtag6
+            rows = con.execute(
+                select(subdash_qtag6_cards.c.id).select_from(
+                    subdash_qtag6_cards.join(subdash_tag_groups, subdash_qtag6_cards.c.group_id == subdash_tag_groups.c.id)
+                ).where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).fetchall()
+            for r in rows:
+                card_keys.append(('qtag6', r[0]))
+
+            # Single3
+            rows = con.execute(
+                select(subdash_qtag_single3_cards.c.id).select_from(
+                    subdash_qtag_single3_cards.join(subdash_tag_groups, subdash_qtag_single3_cards.c.group_id == subdash_tag_groups.c.id)
+                ).where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).fetchall()
+            for r in rows:
+                card_keys.append(('single3', r[0]))
+
+            # PV Only
+            rows = con.execute(
+                select(subdash_qtag_pv_cards.c.id).select_from(
+                    subdash_qtag_pv_cards.join(subdash_tag_groups, subdash_qtag_pv_cards.c.group_id == subdash_tag_groups.c.id)
+                ).where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).fetchall()
+            for r in rows:
+                card_keys.append(('pv_only', r[0]))
+
+            # PV Dual
+            rows = con.execute(
+                select(subdash_qtag_pv_dual_cards.c.id).select_from(
+                    subdash_qtag_pv_dual_cards.join(subdash_tag_groups, subdash_qtag_pv_dual_cards.c.group_id == subdash_tag_groups.c.id)
+                ).where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).fetchall()
+            for r in rows:
+                card_keys.append(('pv_dual', r[0]))
+
+            if not card_keys:
+                return []
+
+            # Build OR conditions for each (card_type, card_id) pair
+            conditions = []
+            for ct, cid in card_keys:
+                conditions.append(
+                    and_(
+                        card_alarm_states.c.card_type == ct,
+                        card_alarm_states.c.card_id == cid
+                    )
+                )
+
+            from sqlalchemy import or_
+            rows = con.execute(
+                select(card_alarm_states).where(or_(*conditions))
+                .order_by(card_alarm_states.c.triggered_at.desc())
+            ).mappings().all()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"Error getting active card alarms by subdash: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+def get_card_info_for_alarm(card_type: str, card_id: int):
+    """Get card info with tag IDs for alarm evaluation.
+    Returns dict with pv tag IDs depending on card type."""
+    try:
+        table_map = {
+            'qtag6': subdash_qtag6_cards,
+            'single3': subdash_qtag_single3_cards,
+            'pv_only': subdash_qtag_pv_cards,
+            'pv_dual': subdash_qtag_pv_dual_cards,
+        }
+        table = table_map.get(card_type)
+        if not table:
+            return None
+        with init_engine().connect() as con:
+            result = con.execute(
+                select(table).where(table.c.id == card_id)
+            ).mappings().first()
+            return dict(result) if result else None
+    except Exception as e:
+        print(f"Error getting card info for alarm {card_type}/{card_id}: {e}")
+        return None
     

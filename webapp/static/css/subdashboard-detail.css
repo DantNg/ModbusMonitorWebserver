@@ -415,6 +415,31 @@
   color: #fcd34d !important;
 }
 
+/* Card Alarm States (Qtag6, Single3, PV Only, PV Dual) */
+.card-alarm-high {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  border: 2px solid #dc2626 !important;
+  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4) !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
+.card-alarm-low {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  border: 2px solid #f59e0b !important;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4) !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
+}
+
+[data-bs-theme="dark"] .card-alarm-high {
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
+  border-color: #dc2626 !important;
+}
+
+[data-bs-theme="dark"] .card-alarm-low {
+  background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+  border-color: #f59e0b !important;
+}
+
 
 /* ========== Qtag6 Specific Styles (6 tags: 2 columns) ========== */
 

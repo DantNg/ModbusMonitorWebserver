@@ -319,6 +319,16 @@ class AlarmWorker:
         self._quad_managed_tag_ids: set = set()
         self._quad_managed_tag_ids_ts = 0.0
         self._quad_managed_tag_ids_ttl = 10.0  # Refresh every 10 seconds
+
+        # Card alarm conditions cache (Qtag6, Single3, PV Only, PV Dual)
+        self._cached_card_conditions: Optional[List[dict]] = None
+        self._cached_card_conditions_ts = 0.0
+        self._cached_card_conditions_ttl = 5.0
+        self._card_info_cache: Dict[str, dict] = {}  # "type_id" -> {"data": ..., "ts": ...}
+        self._card_info_cache_ttl = 30.0
+        self._card_managed_tag_ids: set = set()
+        self._card_managed_tag_ids_ts = 0.0
+        self._card_managed_tag_ids_ttl = 10.0
         
         
     def _load_notification_config(self):
@@ -1764,6 +1774,496 @@ class AlarmWorker:
         if hash(alarm_key) not in self._last_notification:
             self._last_notification[hash(alarm_key)] = {}
         self._last_notification[hash(alarm_key)][notification_type] = time.time()
+
+    # ========== Card Alarm Evaluation (Qtag6, Single3, PV Only, PV Dual) ==========
+
+    def _get_card_managed_tag_ids(self) -> set:
+        """Get all tag IDs managed by card alarm conditions to skip in regular evaluation."""
+        now = time.time()
+        if (now - self._card_managed_tag_ids_ts) < self._card_managed_tag_ids_ttl:
+            return self._card_managed_tag_ids
+
+        tag_ids = set()
+        try:
+            if not self.db_available:
+                return tag_ids
+
+            conditions = self.db.get_all_active_card_conditions()
+            if not conditions:
+                self._card_managed_tag_ids = tag_ids
+                self._card_managed_tag_ids_ts = now
+                return tag_ids
+
+            for condition in conditions:
+                card_type = condition.get("card_type")
+                card_id = condition.get("card_id")
+                if not card_type or not card_id:
+                    continue
+
+                cache_key = f"{card_type}_{card_id}"
+                cached = self._card_info_cache.get(cache_key)
+                if cached and (now - cached['ts']) < self._card_info_cache_ttl:
+                    card_info = cached['data']
+                else:
+                    card_info = self.db.get_card_info_for_alarm(card_type, card_id)
+                    self._card_info_cache[cache_key] = {'data': card_info, 'ts': now}
+
+                if not card_info:
+                    continue
+
+                # Extract PV tag IDs based on card type
+                pv_tags = self._get_card_pv_tag_ids(card_type, card_info)
+                tag_ids.update(pv_tags)
+
+            self._card_managed_tag_ids = tag_ids
+            self._card_managed_tag_ids_ts = now
+
+        except Exception as e:
+            self.log("ERROR", f"Failed to get card managed tag IDs: {e}")
+
+        return self._card_managed_tag_ids
+
+    def _get_card_pv_tag_ids(self, card_type: str, card_info: dict) -> list:
+        """Extract PV tag IDs from card info based on card type."""
+        pv_ids = []
+        if card_type == 'qtag6':
+            # tag1 = left PV, tag2 = right PV
+            for key in ('tag1_id', 'tag2_id'):
+                tid = card_info.get(key)
+                if tid:
+                    pv_ids.append(int(tid))
+        elif card_type == 'single3':
+            tid = card_info.get('pv_tag_id')
+            if tid:
+                pv_ids.append(int(tid))
+        elif card_type == 'pv_only':
+            tid = card_info.get('pv_tag_id')
+            if tid:
+                pv_ids.append(int(tid))
+        elif card_type == 'pv_dual':
+            for key in ('left_tag_id', 'right_tag_id'):
+                tid = card_info.get(key)
+                if tid:
+                    pv_ids.append(int(tid))
+        return pv_ids
+
+    def _evaluate_card_conditions(self):
+        """Evaluate all active card alarm conditions (cached with TTL)."""
+        if not self.db_available:
+            return
+
+        try:
+            now = time.time()
+            if self._cached_card_conditions is None or (now - self._cached_card_conditions_ts) > self._cached_card_conditions_ttl:
+                self._cached_card_conditions = self.db.get_all_active_card_conditions()
+                self._cached_card_conditions_ts = now
+
+            card_conditions = self._cached_card_conditions
+            if not card_conditions:
+                return
+
+            for condition in card_conditions:
+                try:
+                    self._process_card_condition(condition)
+                except Exception as e:
+                    self.log("ERROR", f"Failed to process card condition {condition.get('card_type')}/{condition.get('card_id')}: {e}")
+
+        except Exception as e:
+            self.log("ERROR", f"Failed to load card conditions: {e}")
+
+    def _process_card_condition(self, condition: dict):
+        """Process a single card alarm condition."""
+        card_type = condition.get("card_type")
+        card_id = condition.get("card_id")
+
+        # Get card info (cached)
+        now = time.time()
+        cache_key = f"{card_type}_{card_id}"
+        cached = self._card_info_cache.get(cache_key)
+        if cached and (now - cached['ts']) < self._card_info_cache_ttl:
+            card_info = cached['data']
+        else:
+            card_info = self.db.get_card_info_for_alarm(card_type, card_id)
+            self._card_info_cache[cache_key] = {'data': card_info, 'ts': now}
+
+        if not card_info:
+            return
+
+        # Determine PV tag IDs for left/right columns based on card type
+        if card_type == 'qtag6':
+            # Left column: tag1 (PV), Right column: tag2 (PV)
+            left_pv_id = card_info.get("tag1_id")
+            right_pv_id = card_info.get("tag2_id")
+        elif card_type == 'pv_dual':
+            left_pv_id = card_info.get("left_tag_id")
+            right_pv_id = card_info.get("right_tag_id")
+        elif card_type in ('single3', 'pv_only'):
+            left_pv_id = card_info.get("pv_tag_id")
+            right_pv_id = None
+        else:
+            return
+
+        # Evaluate left column (always present)
+        if left_pv_id:
+            left_pv_value = self._get_tag_value(left_pv_id)
+            self._evaluate_card_column(
+                condition, "left", left_pv_value, left_pv_id,
+                card_type, card_id, card_info
+            )
+
+        # Evaluate right column (only for dual-column types)
+        if right_pv_id and card_type in ('qtag6', 'pv_dual'):
+            right_pv_value = self._get_tag_value(right_pv_id)
+            self._evaluate_card_column(
+                condition, "right", right_pv_value, right_pv_id,
+                card_type, card_id, card_info
+            )
+
+    def _evaluate_card_column(self, condition: dict, column: str,
+                              pv_value: float, pv_tag_id: int,
+                              card_type: str, card_id: int, card_info: dict):
+        """Evaluate conditions for one column of a card alarm."""
+        alarm_key = f"card_{card_type}_{card_id}_{column}"
+
+        # Get condition parameters for this column
+        high_op = condition.get(f"{column}_high_operator")
+        high_compare_type = condition.get(f"{column}_high_compare_type")
+        high_value = condition.get(f"{column}_high_value")
+        high_compare_tag_id = condition.get(f"{column}_high_compare_tag_id")
+        high_on_stable = condition.get(f"{column}_high_on_stable", 10)
+        high_off_stable = condition.get(f"{column}_high_off_stable", 30)
+
+        low_op = condition.get(f"{column}_low_operator")
+        low_compare_type = condition.get(f"{column}_low_compare_type")
+        low_value = condition.get(f"{column}_low_value")
+        low_compare_tag_id = condition.get(f"{column}_low_compare_tag_id")
+        low_on_stable = condition.get(f"{column}_low_on_stable", 10)
+        low_off_stable = condition.get(f"{column}_low_off_stable", 30)
+
+        email = condition.get(f"{column}_email", "")
+        sms = condition.get(f"{column}_sms", "")
+        description = condition.get(f"{column}_description", "")
+
+        # Skip if device offline
+        if pv_tag_id:
+            online = self._is_tag_device_online(pv_tag_id)
+            if online is False:
+                self._offline_skipped.add(alarm_key)
+                return
+
+        # Check reconnection
+        reconnected = alarm_key in self._offline_skipped
+        if reconnected:
+            self._offline_skipped.discard(alarm_key)
+
+        # Check HIGH threshold
+        high_threshold = None
+        high_condition_met = False
+        if high_op and (high_value is not None or high_compare_tag_id):
+            if high_compare_type == "tag" and high_compare_tag_id:
+                high_threshold = self._get_tag_value(high_compare_tag_id)
+            else:
+                high_threshold = high_value
+            if high_threshold is not None and pv_value is not None:
+                high_condition_met = self._compare_value(pv_value, high_op, high_threshold)
+
+        # Check LOW threshold
+        low_threshold = None
+        low_condition_met = False
+        if low_op and (low_value is not None or low_compare_tag_id):
+            if low_compare_type == "tag" and low_compare_tag_id:
+                low_threshold = self._get_tag_value(low_compare_tag_id)
+            else:
+                low_threshold = low_value
+            if low_threshold is not None and pv_value is not None:
+                low_condition_met = self._compare_value(pv_value, low_op, low_threshold)
+
+        alarm_triggered = high_condition_met or low_condition_met
+        current_alarm_type = "High" if high_condition_met else ("Low" if low_condition_met else None)
+
+        stored_alarm_type = self._alarm_types.get(alarm_key)
+        previous_active = self._alarm_states.get(alarm_key, False)
+
+        # Determine stable times
+        if alarm_triggered:
+            selected_on_stable = high_on_stable if high_condition_met else low_on_stable
+            selected_off_stable = high_off_stable if high_condition_met else low_off_stable
+        elif previous_active and stored_alarm_type:
+            selected_on_stable = high_on_stable if stored_alarm_type == "High" else low_on_stable
+            selected_off_stable = high_off_stable if stored_alarm_type == "High" else low_off_stable
+        else:
+            selected_on_stable = high_on_stable
+            selected_off_stable = high_off_stable
+
+        self._process_card_alarm_state(
+            alarm_key, alarm_triggered, card_type, card_id, column,
+            pv_value, pv_tag_id,
+            high_condition_met, low_condition_met,
+            selected_on_stable, selected_off_stable,
+            email, sms, description,
+            high_threshold if high_condition_met else low_threshold,
+            high_op if high_condition_met else low_op,
+            current_alarm_type,
+            high_threshold, low_threshold, high_op, low_op,
+            card_info, reconnected
+        )
+
+    def _process_card_alarm_state(self, alarm_key: str, current_condition: bool,
+                                  card_type: str, card_id: int, column: str,
+                                  pv_value: float, pv_tag_id: int,
+                                  high_met: bool, low_met: bool,
+                                  on_stable_sec: int, off_stable_sec: int,
+                                  email: str, sms: str, description: str,
+                                  threshold: float, operator: str,
+                                  current_alarm_type: str,
+                                  high_threshold: float, low_threshold: float,
+                                  high_op: str, low_op: str,
+                                  card_info: dict = None, reconnected: bool = False):
+        """Process card alarm state with stability timers (mirrors quad logic)."""
+        now = time.time()
+        previous_active = self._alarm_states.get(alarm_key, False)
+        stored_alarm_type = self._alarm_types.get(alarm_key)
+
+        card_title = card_info.get("card_title", f"{card_type} {card_id}") if card_info else f"{card_type} {card_id}"
+        if column == "left":
+            column_display = card_info.get("left_title", "Left") if card_info else "Left"
+        else:
+            column_display = card_info.get("right_title", "Right") if card_info else "Right"
+
+        # Handle alarm type change (HIGH->LOW or LOW->HIGH)
+        alarm_type_changed = (previous_active and current_condition and
+                             stored_alarm_type and current_alarm_type and
+                             stored_alarm_type != current_alarm_type)
+
+        if alarm_type_changed:
+            self.log("INFO", f"🔄 Card Alarm TYPE CHANGED: {card_type}/{card_id} {column} - {stored_alarm_type} → {current_alarm_type}")
+            self._alarm_states[alarm_key] = False
+            # Emit OUTGOING for old alarm type
+            try:
+                event_data = {
+                    "card_type": card_type, "card_id": card_id, "column": column,
+                    "alarm_type": stored_alarm_type, "status": "OUTGOING",
+                    "tag_id": pv_tag_id, "pv_value": pv_value,
+                    "threshold": threshold, "operator": operator,
+                    "timestamp": datetime.now().isoformat()
+                }
+                self.data_queue.put({"type": "card_alarm_event", "data": event_data})
+                try:
+                    sio.emit('card_alarm_event', event_data)
+                except Exception:
+                    pass
+            except Exception as e:
+                self.log("ERROR", f"Failed to emit card alarm type change OUTGOING: {e}")
+            self._alarm_since[alarm_key] = now
+            self._alarm_types[alarm_key] = current_alarm_type
+            return
+
+        if current_condition and not previous_active:
+            # Potential activation
+            if alarm_key not in self._alarm_since:
+                self._alarm_since[alarm_key] = now
+
+            stable_time = now - self._alarm_since[alarm_key]
+            if stable_time >= on_stable_sec:
+                self._alarm_states[alarm_key] = True
+                alarm_type = "High" if high_met else "Low"
+                self._alarm_types[alarm_key] = alarm_type
+                alarm_name = card_title
+
+                self.log("INFO", f"⚠️ Card Alarm TRIGGERED: {alarm_name} ({card_type}) - {alarm_type} - {column_display} PV: {pv_value} (threshold: {threshold})")
+
+                # Emit socket event first for instant UI update
+                ts_now = datetime.now()
+                event_data = {
+                    "card_type": card_type, "card_id": card_id, "column": column,
+                    "alarm_type": alarm_type, "status": "INCOMING",
+                    "tag_id": pv_tag_id, "pv_value": pv_value,
+                    "threshold": threshold, "operator": operator,
+                    "timestamp": ts_now.isoformat()
+                }
+                try:
+                    sio.emit('card_alarm_event', event_data)
+                    self.data_queue.put({"type": "card_alarm_event", "data": event_data})
+                except Exception as e:
+                    self.log("WARNING", f"Socket emit failed: {e}")
+
+                # Save to database
+                if self.db_available:
+                    try:
+                        event_id = self.db.insert_alarm_event(
+                            ts=ts_now, name=alarm_name, level="Critical",
+                            target=pv_tag_id, value=pv_value,
+                            note=f"{column_display} - Alarm activated ({alarm_type}): {operator} {threshold}",
+                            event_type="INCOMING", operator=operator, threshold=threshold
+                        )
+                        state_id = self.db.insert_card_alarm_state(
+                            card_type=card_type, card_id=card_id, column=column,
+                            alarm_type=alarm_type, pv_value=pv_value,
+                            threshold=threshold, operator=operator
+                        )
+                        self.log("INFO", f"✅ Saved card alarm INCOMING: event={event_id}, state={state_id}")
+                    except Exception as e:
+                        self.log("ERROR", f"Failed to save card alarm event: {e}")
+
+                # Send notifications
+                if email or sms:
+                    self._send_card_notification(
+                        alarm_key, alarm_name, pv_value, threshold,
+                        operator, "incoming", email, sms, description, on_stable_sec
+                    )
+
+        elif not current_condition and previous_active:
+            # Potential deactivation
+            if alarm_key not in self._alarm_since:
+                self._alarm_since[alarm_key] = now
+
+            stable_time = now - self._alarm_since[alarm_key]
+            if stable_time >= off_stable_sec:
+                self._alarm_states[alarm_key] = False
+                alarm_type = self._alarm_types.get(alarm_key, "High")
+                stored_threshold = high_threshold if alarm_type == "High" else low_threshold
+                stored_operator = high_op if alarm_type == "High" else low_op
+                alarm_name = card_title
+
+                self.log("INFO", f"✅ Card Alarm CLEARED: {alarm_name} ({card_type}) - {alarm_type} - PV: {pv_value}")
+
+                ts_now = datetime.now()
+                event_data = {
+                    "card_type": card_type, "card_id": card_id, "column": column,
+                    "alarm_type": alarm_type, "status": "OUTGOING",
+                    "tag_id": pv_tag_id, "pv_value": pv_value,
+                    "threshold": stored_threshold, "operator": stored_operator,
+                    "timestamp": ts_now.isoformat()
+                }
+                try:
+                    sio.emit('card_alarm_event', event_data)
+                    self.data_queue.put({"type": "card_alarm_event", "data": event_data})
+                except Exception as e:
+                    self.log("WARNING", f"Socket emit failed: {e}")
+
+                if self.db_available:
+                    try:
+                        event_id = self.db.insert_alarm_event(
+                            ts=ts_now, name=alarm_name, level="Warning",
+                            target=pv_tag_id, value=pv_value,
+                            note=f"{column_display} - Alarm cleared ({alarm_type}): {stored_operator} {stored_threshold}",
+                            event_type="OUTGOING", operator=stored_operator, threshold=stored_threshold
+                        )
+                        deleted = self.db.delete_card_alarm_state(card_type, card_id, column)
+                        self.log("INFO", f"✅ Saved card alarm OUTGOING: event={event_id}, deleted={deleted}")
+                    except Exception as e:
+                        self.log("ERROR", f"Failed to save card alarm clear event: {e}")
+
+                if email or sms:
+                    self._send_card_notification(
+                        alarm_key, alarm_name, pv_value, stored_threshold,
+                        stored_operator, "outgoing", email, sms, description, off_stable_sec
+                    )
+
+                if alarm_key in self._alarm_types:
+                    del self._alarm_types[alarm_key]
+                if alarm_key in self._alarm_since:
+                    del self._alarm_since[alarm_key]
+
+        elif current_condition == previous_active:
+            # Stable state - reset timer
+            if alarm_key in self._alarm_since:
+                del self._alarm_since[alarm_key]
+
+            # Re-emit INCOMING after device reconnect
+            if reconnected and current_condition and previous_active:
+                alarm_type = self._alarm_types.get(alarm_key, current_alarm_type or "High")
+                try:
+                    event_data = {
+                        "card_type": card_type, "card_id": card_id, "column": column,
+                        "alarm_type": alarm_type, "status": "INCOMING",
+                        "pv_value": pv_value, "threshold": threshold,
+                        "operator": operator, "timestamp": datetime.now().isoformat()
+                    }
+                    self.data_queue.put({"type": "card_alarm_event", "data": event_data})
+                    try:
+                        sio.emit('card_alarm_event', event_data)
+                    except Exception:
+                        pass
+                except Exception as e:
+                    self.log("ERROR", f"Failed to re-emit card alarm after reconnect: {e}")
+
+    def _send_card_notification(self, alarm_key: str, alarm_name: str,
+                                value: float, threshold: float, operator: str,
+                                notification_type: str, email: str, sms: str,
+                                description: str, stable_time_sec: int):
+        """Send notification for card alarm."""
+        if not self._should_send_notification(hash(alarm_key), notification_type, stable_time_sec):
+            return
+
+        subject = f"ALARM: {alarm_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {alarm_name}"
+        body = self.create_alarm_email_body(
+            device_name="Tag Card",
+            alarm_name=alarm_name,
+            tag_value=value,
+            threshold=threshold,
+            operator=operator,
+            alarm_level="Warning",
+            notification_type=notification_type
+        )
+        if description:
+            body += f"\n\nDescription: {description}"
+
+        if email and email.strip():
+            email_thread = threading.Thread(
+                target=self._send_email_async,
+                args=(email.strip(), subject, body, hash(alarm_key)),
+                daemon=True
+            )
+            email_thread.start()
+
+        if sms and sms.strip():
+            sms_message = self.create_alarm_sms_text(
+                alarm_name=alarm_name,
+                tag_value=value,
+                threshold=threshold,
+                operator=operator,
+                notification_type=notification_type
+            )
+            if description:
+                sms_message += f"\nNote: {description[:50]}"
+            try:
+                if self.sms_queue is not None:
+                    self.sms_queue.put_nowait((sms.strip(), sms_message, hash(alarm_key)))
+            except Exception as e:
+                self.log("ERROR", f"Failed to queue SMS for card alarm: {e}")
+
+        if hash(alarm_key) not in self._last_notification:
+            self._last_notification[hash(alarm_key)] = {}
+        self._last_notification[hash(alarm_key)][notification_type] = time.time()
+
+    def _restore_card_alarm_states(self):
+        """Restore persisted card alarm states from database on startup."""
+        if not self.db_available:
+            return
+        try:
+            active_alarms = self.db.get_active_card_alarms()
+            if not active_alarms:
+                self.log("INFO", "No persisted card alarm states to restore")
+                return
+
+            restored = 0
+            for alarm in active_alarms:
+                card_type = alarm.get("card_type")
+                card_id = alarm.get("card_id")
+                column = alarm.get("column")
+                alarm_type = alarm.get("alarm_type", "High")
+
+                if card_type and card_id is not None and column:
+                    alarm_key = f"card_{card_type}_{card_id}_{column}"
+                    self._alarm_states[alarm_key] = True
+                    self._alarm_types[alarm_key] = alarm_type
+                    restored += 1
+                    self.log("DEBUG", f"Restored card alarm state: {alarm_key} type={alarm_type}")
+
+            self.log("INFO", f"✅ Restored {restored} persisted card alarm state(s) from database")
+        except Exception as e:
+            self.log("ERROR", f"Failed to restore card alarm states: {e}")
     
     def _restore_quad_alarm_states(self):
         """Restore persisted quad alarm states from database on startup.
@@ -1837,15 +2337,20 @@ class AlarmWorker:
                 # Get tag IDs managed by quad alarms to avoid duplicate notifications
                 quad_managed_tags = self._get_quad_managed_tag_ids()
                 
+                # Get tag IDs managed by card alarms to avoid duplicate notifications
+                card_managed_tags = self._get_card_managed_tag_ids()
+                
                 if alarm_rules:
                     # self.log("DEBUG", f"Evaluating {len(alarm_rules)} alarm rules")
                     
-                    # Process each enabled alarm rule (skip tags already covered by quad alarms)
+                    # Process each enabled alarm rule (skip tags already covered by quad/card alarms)
                     for rule in alarm_rules:
                         if rule.get("enabled", True):
                             tag_id = rule.get("tag_id") or rule.get("target")
                             if tag_id and int(tag_id) in quad_managed_tags:
                                 continue  # Skip - this tag is managed by quad alarm system
+                            if tag_id and int(tag_id) in card_managed_tags:
+                                continue  # Skip - this tag is managed by card alarm system
                             self._process_alarm_rule(rule)
                 
                 # Evaluate quad tag conditions
@@ -1853,6 +2358,12 @@ class AlarmWorker:
                     self._evaluate_quad_conditions()
                 except Exception as e:
                     self.log("ERROR", f"Failed to evaluate quad conditions: {e}")
+
+                # Evaluate card alarm conditions (Qtag6, Single3, PV Only, PV Dual)
+                try:
+                    self._evaluate_card_conditions()
+                except Exception as e:
+                    self.log("ERROR", f"Failed to evaluate card conditions: {e}")
                 
                 # Update sequence number
                 self.seq += 1
@@ -1950,8 +2461,9 @@ class AlarmWorker:
             self.sms_sender_thread.start()
         
         try:
-            # Restore persisted quad alarm states from database before starting loop
+            # Restore persisted alarm states from database before starting loop
             self._restore_quad_alarm_states()
+            self._restore_card_alarm_states()
             
             # Start alarm evaluation loop
             self._alarm_loop()
