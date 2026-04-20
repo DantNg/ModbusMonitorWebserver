@@ -709,9 +709,12 @@
 
 /* Qtag4 SV value styling - match qtag6 tag value */
 .qtag4-sv-value {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--qtag-card-text, #333);
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  color: #f9a8d4 !important;
+  line-height: 1 !important;
+  flex: 1 1 auto !important;
+  text-align: center !important;
 }
 
 /* Alarm states for Qtag6 */

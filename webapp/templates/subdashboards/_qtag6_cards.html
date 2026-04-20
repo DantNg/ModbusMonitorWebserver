@@ -70,7 +70,7 @@
               <div class="qtag6-tag-item" data-tag-id="{{ card.tag1_id }}" data-role="pv">
                 <div class="qtag6-tag-label label-pv">PV</div>
                 <div class="qtag6-value-row">
-                  <div class="qtag6-tag-value" id="qtag6-val-{{ card.id }}-{{ card.tag1_id }}">{{ card.tag1.last_value or '---' }}</div>
+                  <div class="qtag6-tag-value" id="qtag6-val-{{ card.id }}-{{ card.tag1_id }}">{{ card.tag1.last_value if card.tag1.last_value is not none else 0 }}</div>
                   <div class="qtag6-tag-unit">{{ card.tag1.unit or '' }}</div>
                 </div>
               </div>
@@ -79,9 +79,9 @@
                 <div class="qtag6-tag-label label-sv">SV</div>
                 <div class="qtag6-value-row">
                   <div class="qtag6-sv-inline">
-                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-left-{{ card.id }}" {% if (card.left_sv_low_type or 'tag') == 'tag' and card.tag5_id %}data-tag-id="{{ card.tag5_id }}"{% endif %}>{{ card.tag5.last_value if card.tag5 else (card.tag5_sv_value if card.tag5_sv_value is not none else '---') }}</span>
+                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-left-{{ card.id }}" {% if (card.left_sv_low_type or 'tag') == 'tag' and card.tag5_id %}data-tag-id="{{ card.tag5_id }}"{% endif %}>{{ card.tag5.last_value if card.tag5 else (card.tag5_sv_value if card.tag5_sv_value is not none else 0) }}</span>
                     <span class="qtag6-sv-separator">-</span>
-                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-left-{{ card.id }}" {% if (card.left_sv_high_type or 'tag') == 'tag' and card.tag3_id %}data-tag-id="{{ card.tag3_id }}"{% endif %}>{{ card.tag3.last_value if card.tag3 else (card.tag3_sv_value if card.tag3_sv_value is not none else '---') }}</span>
+                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-left-{{ card.id }}" {% if (card.left_sv_high_type or 'tag') == 'tag' and card.tag3_id %}data-tag-id="{{ card.tag3_id }}"{% endif %}>{{ card.tag3.last_value if card.tag3 else (card.tag3_sv_value if card.tag3_sv_value is not none else 0) }}</span>
                   </div>
                   <div class="qtag6-tag-unit">{{ card.tag1.unit or '' }}</div>
                 </div>
@@ -102,7 +102,7 @@
               <div class="qtag6-tag-item" data-tag-id="{{ card.tag2_id }}" data-role="pv">
                 <div class="qtag6-tag-label label-pv">PV</div>
                 <div class="qtag6-value-row">
-                  <div class="qtag6-tag-value" id="qtag6-val-{{ card.id }}-{{ card.tag2_id }}">{{ card.tag2.last_value or '---' }}</div>
+                  <div class="qtag6-tag-value" id="qtag6-val-{{ card.id }}-{{ card.tag2_id }}">{{ card.tag2.last_value if card.tag2.last_value is not none else 0 }}</div>
                   <div class="qtag6-tag-unit">{{ card.tag2.unit or '' }}</div>
                 </div>
               </div>
@@ -111,9 +111,9 @@
                 <div class="qtag6-tag-label label-sv">SV</div>
                 <div class="qtag6-value-row">
                   <div class="qtag6-sv-inline">
-                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-right-{{ card.id }}" {% if (card.right_sv_low_type or 'tag') == 'tag' and card.tag6_id %}data-tag-id="{{ card.tag6_id }}"{% endif %}>{{ card.tag6.last_value if card.tag6 else (card.tag6_sv_value if card.tag6_sv_value is not none else '---') }}</span>
+                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-right-{{ card.id }}" {% if (card.right_sv_low_type or 'tag') == 'tag' and card.tag6_id %}data-tag-id="{{ card.tag6_id }}"{% endif %}>{{ card.tag6.last_value if card.tag6 else (card.tag6_sv_value if card.tag6_sv_value is not none else 0) }}</span>
                     <span class="qtag6-sv-separator">-</span>
-                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-right-{{ card.id }}" {% if (card.right_sv_high_type or 'tag') == 'tag' and card.tag4_id %}data-tag-id="{{ card.tag4_id }}"{% endif %}>{{ card.tag4.last_value if card.tag4 else (card.tag4_sv_value if card.tag4_sv_value is not none else '---') }}</span>
+                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-right-{{ card.id }}" {% if (card.right_sv_high_type or 'tag') == 'tag' and card.tag4_id %}data-tag-id="{{ card.tag4_id }}"{% endif %}>{{ card.tag4.last_value if card.tag4 else (card.tag4_sv_value if card.tag4_sv_value is not none else 0) }}</span>
                   </div>
                   <div class="qtag6-tag-unit">{{ card.tag2.unit or '' }}</div>
                 </div>
