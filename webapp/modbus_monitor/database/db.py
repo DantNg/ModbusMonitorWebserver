@@ -395,14 +395,19 @@ subdash_quad_cards = Table(
     "subdash_quad_cards", _md,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
-    Column("tag1_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
-    Column("tag2_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
-    Column("tag3_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
-    Column("tag4_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
-    Column("card_title", String(200), nullable=True),  # Tên card
-    Column("left_title", String(200), nullable=True),  # Tên cột trái
-    Column("right_title", String(200), nullable=True),  # Tên cột phải
-    Column("card_color", String(20), nullable=True),  # Background color (hex)
+    Column("tag1_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),   # PV Left
+    Column("tag2_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),   # PV Right
+    Column("tag3_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # SV Left (nullable for fixed)
+    Column("tag4_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # SV Right (nullable for fixed)
+    # SV type/fixed value columns (fix value mode support)
+    Column("sv_left_type", String(10), nullable=True, default="tag"),     # 'tag' or 'fixed'
+    Column("sv_left_fixed", Float, nullable=True),
+    Column("sv_right_type", String(10), nullable=True, default="tag"),
+    Column("sv_right_fixed", Float, nullable=True),
+    Column("card_title", String(200), nullable=True),
+    Column("left_title", String(200), nullable=True),
+    Column("right_title", String(200), nullable=True),
+    Column("card_color", String(20), nullable=True),
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -463,14 +468,43 @@ subdash_qtag6_cards = Table(
     Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
     Column("tag1_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Left PV
     Column("tag2_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Right PV
-    Column("tag3_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Left SV HIGH
-    Column("tag4_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Right SV HIGH
-    Column("tag5_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Left SV LOW
-    Column("tag6_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),  # Right SV LOW
+    Column("tag3_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # Left SV HIGH (nullable for fixed)
+    Column("tag4_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # Right SV HIGH (nullable for fixed)
+    Column("tag5_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # Left SV LOW (nullable for fixed)
+    Column("tag6_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # Right SV LOW (nullable for fixed)
+    # SV type/fixed value columns (fix value mode support)
+    Column("left_sv_high_type", String(10), nullable=True, default="tag"),    # 'tag' or 'fixed'
+    Column("left_sv_high_fixed", Float, nullable=True),
+    Column("right_sv_high_type", String(10), nullable=True, default="tag"),
+    Column("right_sv_high_fixed", Float, nullable=True),
+    Column("left_sv_low_type", String(10), nullable=True, default="tag"),
+    Column("left_sv_low_fixed", Float, nullable=True),
+    Column("right_sv_low_type", String(10), nullable=True, default="tag"),
+    Column("right_sv_low_fixed", Float, nullable=True),
     Column("card_title", String(200), nullable=True),
     Column("left_title", String(200), nullable=True),
     Column("right_title", String(200), nullable=True),
-    Column("card_color", String(20), nullable=True),  # Background color (hex)
+    Column("card_color", String(20), nullable=True),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
+# ========== Qtag4 Cards (4 tags: 2 columns x 2 tags each - PV + SV) ==========
+subdash_qtag4_cards = Table(
+    "subdash_qtag4_cards", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
+    Column("tag1_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),   # Left PV
+    Column("tag2_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),   # Right PV
+    Column("tag3_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # Left SV (nullable for fixed)
+    Column("tag4_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # Right SV (nullable for fixed)
+    Column("left_sv_type", String(10), nullable=True, default="tag"),    # 'tag' or 'fixed'
+    Column("left_sv_fixed", Float, nullable=True),
+    Column("right_sv_type", String(10), nullable=True, default="tag"),
+    Column("right_sv_fixed", Float, nullable=True),
+    Column("card_title", String(200), nullable=True),
+    Column("left_title", String(200), nullable=True),
+    Column("right_title", String(200), nullable=True),
+    Column("card_color", String(20), nullable=True),
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -595,12 +629,15 @@ def create_schema():
     _md.create_all(engine)
     # Migrate: add card_color column to existing tables if missing
     _migrate_card_color(engine)
+    # Migrate: add fix value columns to quad and qtag6 tables
+    _migrate_sv_fix_value(engine)
     # create_performance_indexes()
 
 
 def _migrate_card_color(engine):
     """Add card_color column to existing card tables (safe for repeated calls)."""
     tables = ['subdash_quad_cards', 'subdash_qtag6_cards',
+              'subdash_qtag4_cards',
               'subdash_qtag_single3_cards', 'subdash_qtag_pv_cards',
               'subdash_qtag_pv_dual_cards']
     with engine.connect() as con:
@@ -614,6 +651,40 @@ def _migrate_card_color(engine):
                     print(f"[migrate] Added card_color to {tbl}")
                 except Exception as e:
                     print(f"[migrate] Could not add card_color to {tbl}: {e}")
+
+
+def _migrate_sv_fix_value(engine):
+    """Add SV fix value columns to quad and qtag6 tables (safe for repeated calls)."""
+    migrations = {
+        'subdash_quad_cards': [
+            ('sv_left_type', 'VARCHAR(10)'),
+            ('sv_left_fixed', 'REAL'),
+            ('sv_right_type', 'VARCHAR(10)'),
+            ('sv_right_fixed', 'REAL'),
+        ],
+        'subdash_qtag6_cards': [
+            ('left_sv_high_type', 'VARCHAR(10)'),
+            ('left_sv_high_fixed', 'REAL'),
+            ('right_sv_high_type', 'VARCHAR(10)'),
+            ('right_sv_high_fixed', 'REAL'),
+            ('left_sv_low_type', 'VARCHAR(10)'),
+            ('left_sv_low_fixed', 'REAL'),
+            ('right_sv_low_type', 'VARCHAR(10)'),
+            ('right_sv_low_fixed', 'REAL'),
+        ],
+    }
+    with engine.connect() as con:
+        for tbl, columns in migrations.items():
+            for col_name, col_type in columns:
+                try:
+                    con.execute(text(f"SELECT {col_name} FROM {tbl} LIMIT 1"))
+                except Exception:
+                    try:
+                        con.execute(text(f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_type}"))
+                        con.commit()
+                        print(f"[migrate] Added {col_name} to {tbl}")
+                    except Exception as e:
+                        print(f"[migrate] Could not add {col_name} to {tbl}: {e}")
 
 
 # ---------- CRUD NHANH (dùng trực tiếp trong route/service) ----------
@@ -3056,9 +3127,12 @@ def mark_user_notifications_dismissed(user_id: int) -> bool:
 
 # ========== QUAD TAG CARDS OPERATIONS ==========
 
-def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int, tag4_id: int, 
-                       card_title: str = None, left_title: str = None, right_title: str = None) -> int:
-    """Add a new quad tag card to a group."""
+def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int,
+                       tag3_id=None, tag4_id=None,
+                       card_title: str = None, left_title: str = None, right_title: str = None,
+                       sv_left_type='tag', sv_left_fixed=None,
+                       sv_right_type='tag', sv_right_fixed=None) -> int:
+    """Add a new quad tag card to a group. SV tags support fix value mode."""
     with init_engine().begin() as con:
         res = con.execute(
             insert(subdash_quad_cards).values(
@@ -3067,6 +3141,8 @@ def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int, t
                 tag2_id=tag2_id,
                 tag3_id=tag3_id,
                 tag4_id=tag4_id,
+                sv_left_type=sv_left_type, sv_left_fixed=sv_left_fixed,
+                sv_right_type=sv_right_type, sv_right_fixed=sv_right_fixed,
                 card_title=card_title,
                 left_title=left_title,
                 right_title=right_title
@@ -3075,30 +3151,49 @@ def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int, t
         return res.inserted_primary_key[0]
 
 def get_quad_cards_for_group(group_id: int):
-    """Get all quad cards for a specific group with tag details."""
+    """Get all quad cards for a specific group with tag details and resolved SV values."""
     with init_engine().connect() as con:
-        # Get quad cards
         quad_cards_query = select(subdash_quad_cards).where(subdash_quad_cards.c.group_id == group_id)
         quad_cards = con.execute(quad_cards_query).mappings().all()
-        
+
+        sv_map = {
+            3: ('sv_left_type', 'sv_left_fixed'),
+            4: ('sv_right_type', 'sv_right_fixed'),
+        }
+
         result = []
         for card in quad_cards:
             card_dict = dict(card)
-            
-            # Get tag details for each position
-            for pos in [1, 2, 3, 4]:
+
+            # PV tags (tag1, tag2) - always from tags table
+            for pos in [1, 2]:
                 tag_id = card_dict[f'tag{pos}_id']
-                tag_query = select(tags).where(tags.c.id == tag_id)
-                tag = con.execute(tag_query).mappings().first()
+                tag = con.execute(select(tags).where(tags.c.id == tag_id)).mappings().first()
                 card_dict[f'tag{pos}'] = dict(tag) if tag else None
-                
-                # Get last value for tag
                 if tag:
                     last_value, _ = get_latest_tag_value(tag_id)
                     card_dict[f'tag{pos}']['last_value'] = last_value if last_value is not None else 0
-            
+
+            # SV tags (tag3, tag4) - support fix value mode
+            for pos in [3, 4]:
+                type_col, fixed_col = sv_map[pos]
+                sv_type = card_dict.get(type_col) or 'tag'
+                tag_id = card_dict.get(f'tag{pos}_id')
+
+                sv_value = _resolve_sv_value(con, sv_type, tag_id, card_dict.get(fixed_col))
+                card_dict[f'tag{pos}_sv_value'] = sv_value
+
+                if sv_type == 'tag' and tag_id:
+                    tag = con.execute(select(tags).where(tags.c.id == tag_id)).mappings().first()
+                    card_dict[f'tag{pos}'] = dict(tag) if tag else None
+                    if tag:
+                        last_value, _ = get_latest_tag_value(tag_id)
+                        card_dict[f'tag{pos}']['last_value'] = last_value if last_value is not None else 0
+                else:
+                    card_dict[f'tag{pos}'] = None
+
             result.append(card_dict)
-        
+
         return result
 
 def delete_quad_card(quad_card_id: int) -> bool:
@@ -3121,19 +3216,25 @@ def get_quad_card_by_id(quad_card_id: int):
         ).mappings().first()
         return dict(result) if result else None
 
-def update_quad_card(quad_card_id: int, tag1_id: int, tag2_id: int, tag3_id: int, tag4_id: int, 
-                     card_title: str = None, left_title: str = None, right_title: str = None) -> bool:
-    """Update a quad tag card."""
+def update_quad_card(quad_card_id: int, tag1_id: int, tag2_id: int,
+                     tag3_id=None, tag4_id=None,
+                     card_title: str = None, left_title: str = None, right_title: str = None,
+                     sv_left_type='tag', sv_left_fixed=None,
+                     sv_right_type='tag', sv_right_fixed=None) -> bool:
+    """Update a quad tag card. SV tags support fix value mode."""
     try:
         with init_engine().begin() as con:
             values_dict = {
                 'tag1_id': tag1_id,
                 'tag2_id': tag2_id,
                 'tag3_id': tag3_id,
-                'tag4_id': tag4_id
+                'tag4_id': tag4_id,
+                'sv_left_type': sv_left_type,
+                'sv_left_fixed': sv_left_fixed,
+                'sv_right_type': sv_right_type,
+                'sv_right_fixed': sv_right_fixed,
             }
-            
-            # Only update titles if provided
+
             if card_title is not None:
                 values_dict['card_title'] = card_title
             if left_title is not None:
@@ -3180,10 +3281,14 @@ def update_quad_card_titles(quad_card_id: int, card_title: str = None, left_titl
 
 # ========== QTAG6 CARD CRUD OPERATIONS ==========
 
-def add_qtag6_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int,
-                   tag4_id: int, tag5_id: int, tag6_id: int,
-                   card_title: str = None, left_title: str = None, right_title: str = None) -> int:
-    """Add a new qtag6 card (6 tags) to a group."""
+def add_qtag6_card(group_id: int, tag1_id: int, tag2_id: int,
+                   tag3_id=None, tag4_id=None, tag5_id=None, tag6_id=None,
+                   card_title: str = None, left_title: str = None, right_title: str = None,
+                   left_sv_high_type='tag', left_sv_high_fixed=None,
+                   right_sv_high_type='tag', right_sv_high_fixed=None,
+                   left_sv_low_type='tag', left_sv_low_fixed=None,
+                   right_sv_low_type='tag', right_sv_low_fixed=None) -> int:
+    """Add a new qtag6 card (6 tags) to a group. SV tags support fix value mode."""
     with init_engine().begin() as con:
         res = con.execute(
             insert(subdash_qtag6_cards).values(
@@ -3191,6 +3296,10 @@ def add_qtag6_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int,
                 tag1_id=tag1_id, tag2_id=tag2_id,
                 tag3_id=tag3_id, tag4_id=tag4_id,
                 tag5_id=tag5_id, tag6_id=tag6_id,
+                left_sv_high_type=left_sv_high_type, left_sv_high_fixed=left_sv_high_fixed,
+                right_sv_high_type=right_sv_high_type, right_sv_high_fixed=right_sv_high_fixed,
+                left_sv_low_type=left_sv_low_type, left_sv_low_fixed=left_sv_low_fixed,
+                right_sv_low_type=right_sv_low_type, right_sv_low_fixed=right_sv_low_fixed,
                 card_title=card_title,
                 left_title=left_title,
                 right_title=right_title
@@ -3200,22 +3309,53 @@ def add_qtag6_card(group_id: int, tag1_id: int, tag2_id: int, tag3_id: int,
 
 
 def get_qtag6_cards_for_group(group_id: int):
-    """Get all qtag6 cards for a specific group with tag details."""
+    """Get all qtag6 cards for a specific group with tag details and resolved SV values."""
     with init_engine().connect() as con:
         rows = con.execute(
             select(subdash_qtag6_cards).where(subdash_qtag6_cards.c.group_id == group_id)
         ).mappings().all()
 
+        # Map tag position -> SV type/fixed column names
+        sv_map = {
+            3: ('left_sv_high_type', 'left_sv_high_fixed'),
+            4: ('right_sv_high_type', 'right_sv_high_fixed'),
+            5: ('left_sv_low_type', 'left_sv_low_fixed'),
+            6: ('right_sv_low_type', 'right_sv_low_fixed'),
+        }
+
         result = []
         for card in rows:
             card_dict = dict(card)
-            for pos in range(1, 7):
+            # PV tags (tag1, tag2) - always from tags table
+            for pos in [1, 2]:
                 tag_id = card_dict[f'tag{pos}_id']
                 tag = con.execute(select(tags).where(tags.c.id == tag_id)).mappings().first()
                 card_dict[f'tag{pos}'] = dict(tag) if tag else None
                 if tag:
                     last_value, _ = get_latest_tag_value(tag_id)
                     card_dict[f'tag{pos}']['last_value'] = last_value if last_value is not None else 0
+
+            # SV tags (tag3-6) - support fix value mode
+            for pos in [3, 4, 5, 6]:
+                type_col, fixed_col = sv_map[pos]
+                sv_type = card_dict.get(type_col) or 'tag'  # default 'tag' for backward compat
+                tag_id = card_dict.get(f'tag{pos}_id')
+
+                # Resolve SV value
+                sv_value = _resolve_sv_value(con, sv_type, tag_id,
+                                             card_dict.get(fixed_col))
+                card_dict[f'tag{pos}_sv_value'] = sv_value
+
+                # Load tag info if type is 'tag'
+                if sv_type == 'tag' and tag_id:
+                    tag = con.execute(select(tags).where(tags.c.id == tag_id)).mappings().first()
+                    card_dict[f'tag{pos}'] = dict(tag) if tag else None
+                    if tag:
+                        last_value, _ = get_latest_tag_value(tag_id)
+                        card_dict[f'tag{pos}']['last_value'] = last_value if last_value is not None else 0
+                else:
+                    card_dict[f'tag{pos}'] = None
+
             result.append(card_dict)
         return result
 
@@ -3233,8 +3373,12 @@ def update_qtag6_card(card_id: int, **kwargs) -> bool:
     """Update a qtag6 card. Pass only fields to update."""
     try:
         allowed = {'tag1_id', 'tag2_id', 'tag3_id', 'tag4_id', 'tag5_id', 'tag6_id',
-                    'card_title', 'left_title', 'right_title', 'card_color'}
-        values_dict = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+                    'card_title', 'left_title', 'right_title', 'card_color',
+                    'left_sv_high_type', 'left_sv_high_fixed',
+                    'right_sv_high_type', 'right_sv_high_fixed',
+                    'left_sv_low_type', 'left_sv_low_fixed',
+                    'right_sv_low_type', 'right_sv_low_fixed'}
+        values_dict = {k: v for k, v in kwargs.items() if k in allowed}
         if not values_dict:
             return True
         with init_engine().begin() as con:
@@ -3259,6 +3403,119 @@ def delete_qtag6_card(card_id: int) -> bool:
             return result.rowcount > 0
     except Exception as e:
         print(f"Error deleting qtag6 card {card_id}: {e}")
+        return False
+
+
+# ========== QTAG4 CARD CRUD OPERATIONS (2 columns: PV + SV each) ==========
+
+def add_qtag4_card(group_id: int, tag1_id: int, tag2_id: int,
+                   tag3_id=None, tag4_id=None,
+                   card_title: str = None, left_title: str = None, right_title: str = None,
+                   left_sv_type='tag', left_sv_fixed=None,
+                   right_sv_type='tag', right_sv_fixed=None) -> int:
+    """Add a new qtag4 card (4 tags: 2 PV + 2 SV) to a group."""
+    with init_engine().begin() as con:
+        res = con.execute(
+            insert(subdash_qtag4_cards).values(
+                group_id=group_id,
+                tag1_id=tag1_id, tag2_id=tag2_id,
+                tag3_id=tag3_id, tag4_id=tag4_id,
+                left_sv_type=left_sv_type, left_sv_fixed=left_sv_fixed,
+                right_sv_type=right_sv_type, right_sv_fixed=right_sv_fixed,
+                card_title=card_title,
+                left_title=left_title,
+                right_title=right_title
+            )
+        )
+        return res.inserted_primary_key[0]
+
+
+def get_qtag4_cards_for_group(group_id: int):
+    """Get all qtag4 cards for a specific group with tag details and resolved SV values."""
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(subdash_qtag4_cards).where(subdash_qtag4_cards.c.group_id == group_id)
+        ).mappings().all()
+
+        sv_map = {
+            3: ('left_sv_type', 'left_sv_fixed'),
+            4: ('right_sv_type', 'right_sv_fixed'),
+        }
+
+        result = []
+        for card in rows:
+            card_dict = dict(card)
+            # PV tags (tag1, tag2) - always from tags table
+            for pos in [1, 2]:
+                tag_id = card_dict[f'tag{pos}_id']
+                tag = con.execute(select(tags).where(tags.c.id == tag_id)).mappings().first()
+                card_dict[f'tag{pos}'] = dict(tag) if tag else None
+                if tag:
+                    last_value, _ = get_latest_tag_value(tag_id)
+                    card_dict[f'tag{pos}']['last_value'] = last_value if last_value is not None else 0
+
+            # SV tags (tag3, tag4) - support fix value mode
+            for pos in [3, 4]:
+                type_col, fixed_col = sv_map[pos]
+                sv_type = card_dict.get(type_col) or 'tag'
+                tag_id = card_dict.get(f'tag{pos}_id')
+                sv_value = _resolve_sv_value(con, sv_type, tag_id, card_dict.get(fixed_col))
+                card_dict[f'tag{pos}_sv_value'] = sv_value
+
+                if sv_type == 'tag' and tag_id:
+                    tag = con.execute(select(tags).where(tags.c.id == tag_id)).mappings().first()
+                    card_dict[f'tag{pos}'] = dict(tag) if tag else None
+                    if tag:
+                        last_value, _ = get_latest_tag_value(tag_id)
+                        card_dict[f'tag{pos}']['last_value'] = last_value if last_value is not None else 0
+                else:
+                    card_dict[f'tag{pos}'] = None
+
+            result.append(card_dict)
+        return result
+
+
+def get_qtag4_card_by_id(card_id: int):
+    """Get a specific qtag4 card by ID."""
+    with init_engine().connect() as con:
+        row = con.execute(
+            select(subdash_qtag4_cards).where(subdash_qtag4_cards.c.id == card_id)
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def update_qtag4_card(card_id: int, **kwargs) -> bool:
+    """Update a qtag4 card. Pass only fields to update."""
+    try:
+        allowed = {'tag1_id', 'tag2_id', 'tag3_id', 'tag4_id',
+                    'card_title', 'left_title', 'right_title', 'card_color',
+                    'left_sv_type', 'left_sv_fixed',
+                    'right_sv_type', 'right_sv_fixed'}
+        values_dict = {k: v for k, v in kwargs.items() if k in allowed}
+        if not values_dict:
+            return True
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(subdash_qtag4_cards)
+                .where(subdash_qtag4_cards.c.id == card_id)
+                .values(**values_dict)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating qtag4 card {card_id}: {e}")
+        return False
+
+
+def delete_qtag4_card(card_id: int) -> bool:
+    """Delete a qtag4 card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(subdash_qtag4_cards).where(subdash_qtag4_cards.c.id == card_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting qtag4 card {card_id}: {e}")
         return False
 
 

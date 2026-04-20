@@ -1,7 +1,7 @@
 <!-- Qtag PV Dual Cards (2 PV tags, 2 columns) -->
 {% if group.qtag_pv_dual_cards %}
   {% for card in group.qtag_pv_dual_cards %}
-  <div class="col-12 col-lg-8 col-xl-7">
+  <div class="col-12 col-lg-6 col-xl-6">
     <div class="card h-100 shadow-soft qtag-pv-dual-card{% if card.card_color %} qtag-custom-bg{% endif %}"
          data-qtag-pv-dual-id="{{ card.id }}"
          data-card-type="pvdual"

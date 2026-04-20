@@ -18,12 +18,12 @@
       <div class="ms-auto d-flex gap-2 align-items-center flex-shrink-0">
   {% if session.get('role') != 'user' %}
   <a href="{{ url_for('subdash_bp.list_subdash') }}" class="btn btn-sm btn-outline-secondary toolbar-back-btn">
-    <span class="d-none d-md-inline">â† Back</span>
-    <span class="d-md-none">â†</span>
+    <span class="d-none d-md-inline">Back</span>
+    <span class="d-md-none">←</span>
   </a>
   {% endif %}
-        <!-- <button id="testSocketBtn" class="btn btn-sm btn-info">ðŸ”Œ Test Socket</button>
-        <button id="forceRefreshBtn" class="btn btn-sm btn-warning">ðŸ”„ Force Refresh</button> -->
+        <!-- <button id="testSocketBtn" class="btn btn-sm btn-info">🔌 Test Socket</button>
+        <button id="forceRefreshBtn" class="btn btn-sm btn-warning">🔄 Force Refresh</button> -->
         {% if session.get("role") == "admin" %}
         <div class="dropdown"></div>
         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="settingsDropdown"
@@ -39,6 +39,9 @@
           </li>
           <li>
             <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addQuadTagModal">+ Add Quad Tag Card</button>
+          </li>
+          <li>
+            <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addQtag4Modal">+ Add Qtag4 Card (4 tags)</button>
           </li>
           <li>
             <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addQtag6Modal">+ Add Qtag6 Card (6 tags)</button>
@@ -122,8 +125,7 @@
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start mb-2">
                 <div>
-                  <div class="fw-semibold">{{ tag.name }}</div>
-                  <div class="text-muted small">{{ tag.description or ' ' }}</div>
+                  {% if tag.description %}<div class="fw-semibold">{{ tag.description }}</div>{% endif %}
                 </div>
                 {% if session.get("role") == "admin" %}
                 <div class="dropdown">
@@ -283,7 +285,7 @@
                       </button>
                     </li>
                     {% endif %}
-                    {% if quad_card.tag3.function_code|int in [1, 3] %}
+                    {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' and quad_card.tag3.function_code|int in [1, 3] %}
                     <li>
                       <button class="dropdown-item write-quad-tag-btn"
                               data-tag-id="{{ quad_card.tag3_id }}"
@@ -293,7 +295,7 @@
                       </button>
                     </li>
                     {% endif %}
-                    {% if quad_card.tag4.function_code|int in [1, 3] %}
+                    {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' and quad_card.tag4.function_code|int in [1, 3] %}
                     <li>
                       <button class="dropdown-item write-quad-tag-btn"
                               data-tag-id="{{ quad_card.tag4_id }}"
@@ -309,8 +311,12 @@
                               data-quad-id="{{ quad_card.id }}"
                               data-tag1-id="{{ quad_card.tag1_id }}"
                               data-tag2-id="{{ quad_card.tag2_id }}"
-                              data-tag3-id="{{ quad_card.tag3_id }}"
-                              data-tag4-id="{{ quad_card.tag4_id }}"
+                              data-tag3-id="{{ quad_card.tag3_id or '' }}"
+                              data-tag4-id="{{ quad_card.tag4_id or '' }}"
+                              data-sv-left-type="{{ quad_card.sv_left_type or 'tag' }}"
+                              data-sv-left-fixed="{{ quad_card.sv_left_fixed if quad_card.sv_left_fixed is not none else '' }}"
+                              data-sv-right-type="{{ quad_card.sv_right_type or 'tag' }}"
+                              data-sv-right-fixed="{{ quad_card.sv_right_fixed if quad_card.sv_right_fixed is not none else '' }}"
                               title="Edit Tags in Quad Card">
                         <i class="bi bi-pencil-square me-2"></i>Edit Tags
                       </button>
@@ -354,21 +360,21 @@
                     </div>
                   </div>
                   
-                  <!-- Bottom Left -->
-                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag3_id }}" data-device-status="{{ quad_card.tag3.device_status or 'unknown' }}">
-                    <div class="quad-tag-name">{{ quad_card.tag3.name }}</div>
+                  <!-- Bottom Left (SV Left) -->
+                  <div class="quad-tag-item" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}" data-device-status="{{ quad_card.tag3.device_status or 'unknown' }}"{% endif %}>
+                    <div class="quad-tag-name">{{ quad_card.tag3.name if quad_card.tag3 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-{{ quad_card.tag3_id }}" class="fw-bold">{{ quad_card.tag3.last_value or '0' }}</span>
-                      <small class="text-muted ms-auto">{{ quad_card.tag3.unit or '' }}</small>
+                      <span id="quad-tag-val-sv-left-{{ quad_card.id }}" class="fw-bold" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>{{ quad_card.tag3.last_value if quad_card.tag3 else (quad_card.tag3_sv_value if quad_card.tag3_sv_value is not none else '0') }}</span>
+                      <small class="text-muted ms-auto">{{ quad_card.tag3.unit if quad_card.tag3 else '' }}</small>
                     </div>
                   </div>
                   
-                  <!-- Bottom Right -->
-                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag4_id }}" data-device-status="{{ quad_card.tag4.device_status or 'unknown' }}">
-                    <div class="quad-tag-name">{{ quad_card.tag4.name }}</div>
+                  <!-- Bottom Right (SV Right) -->
+                  <div class="quad-tag-item" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}" data-device-status="{{ quad_card.tag4.device_status or 'unknown' }}"{% endif %}>
+                    <div class="quad-tag-name">{{ quad_card.tag4.name if quad_card.tag4 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-{{ quad_card.tag4_id }}" class="fw-bold">{{ quad_card.tag4.last_value or '0' }}</span>
-                      <small class="text-muted ms-auto">{{ quad_card.tag4.unit or '' }}</small>
+                      <span id="quad-tag-val-sv-right-{{ quad_card.id }}" class="fw-bold" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>{{ quad_card.tag4.last_value if quad_card.tag4 else (quad_card.tag4_sv_value if quad_card.tag4_sv_value is not none else '0') }}</span>
+                      <small class="text-muted ms-auto">{{ quad_card.tag4.unit if quad_card.tag4 else '' }}</small>
                     </div>
                   </div>
                 </div>
@@ -383,6 +389,11 @@
       </div>
       {% endif %}
         
+      <!-- Qtag4 Cards -->
+      <div class="row g-2 mb-2">
+        {% include 'subdashboards/_qtag4_cards.html' %}
+      </div>
+
       <!-- Qtag6 Cards -->
       <div class="row g-2 mb-2">
         {% include 'subdashboards/_qtag6_cards.html' %}
@@ -445,8 +456,7 @@
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start mb-2">
                 <div>
-                  <div class="fw-semibold">{{ tag.name }}</div>
-                  <div class="text-muted small">{{ tag.description or ' ' }}</div>
+                  {% if tag.description %}<div class="fw-semibold">{{ tag.description }}</div>{% endif %}
                 </div>
                 {% if session.get("role") == "admin" %}
                 <div class="dropdown">
@@ -631,13 +641,13 @@
                     </div>
                   </div>
                   
-                  <!-- Bottom Left -->
-                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag3_id }}">
-                    <div class="quad-tag-name">{{ quad_card.tag3.name }}</div>
+                  <!-- Bottom Left (SV Left) -->
+                  <div class="quad-tag-item" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>
+                    <div class="quad-tag-name">{{ quad_card.tag3.name if quad_card.tag3 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-{{ quad_card.tag3_id }}" class="fw-bold">{{ quad_card.tag3.last_value or '0' }}</span>
-                      <small class="text-muted">{{ quad_card.tag3.unit or '' }}</small>
-                      {% if session.get('role') == 'admin' and quad_card.tag3.function_code|int in [1, 3] %}
+                      <span id="quad-tag-val-sv-left-{{ quad_card.id }}-2" class="fw-bold" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>{{ quad_card.tag3.last_value if quad_card.tag3 else (quad_card.tag3_sv_value if quad_card.tag3_sv_value is not none else '0') }}</span>
+                      <small class="text-muted">{{ quad_card.tag3.unit if quad_card.tag3 else '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag3 and quad_card.tag3.function_code|int in [1, 3] %}
                         <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
                                 data-tag-id="{{ quad_card.tag3_id }}" 
                                 data-tag-name="{{ quad_card.tag3.name }}" 
@@ -648,13 +658,13 @@
                     </div>
                   </div>
                   
-                  <!-- Bottom Right -->
-                  <div class="quad-tag-item" data-tag-id="{{ quad_card.tag4_id }}">
-                    <div class="quad-tag-name">{{ quad_card.tag4.name }}</div>
+                  <!-- Bottom Right (SV Right) -->
+                  <div class="quad-tag-item" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>
+                    <div class="quad-tag-name">{{ quad_card.tag4.name if quad_card.tag4 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-{{ quad_card.tag4_id }}" class="fw-bold">{{ quad_card.tag4.last_value or '0' }}</span>
-                      <small class="text-muted">{{ quad_card.tag4.unit or '' }}</small>
-                      {% if session.get('role') == 'admin' and quad_card.tag4.function_code|int in [1, 3] %}
+                      <span id="quad-tag-val-sv-right-{{ quad_card.id }}-2" class="fw-bold" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>{{ quad_card.tag4.last_value if quad_card.tag4 else (quad_card.tag4_sv_value if quad_card.tag4_sv_value is not none else '0') }}</span>
+                      <small class="text-muted">{{ quad_card.tag4.unit if quad_card.tag4 else '' }}</small>
+                      {% if session.get('role') == 'admin' and quad_card.tag4 and quad_card.tag4.function_code|int in [1, 3] %}
                         <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
                                 data-tag-id="{{ quad_card.tag4_id }}" 
                                 data-tag-name="{{ quad_card.tag4.name }}" 
@@ -716,6 +726,11 @@
       </div>
       {% endif %}
         
+      <!-- Qtag4 Cards -->
+      <div class="row g-2 mb-2">
+        {% include 'subdashboards/_qtag4_cards.html' %}
+      </div>
+
       <!-- Qtag6 Cards -->
       <div class="row g-2 mb-2">
         {% include 'subdashboards/_qtag6_cards.html' %}
@@ -871,26 +886,44 @@
                 
                 <div class="col-md-6">
                   <label for="tag3_select" class="form-label">
-                    <span class="badge bg-warning me-2">3</span>Bottom Left Tag
+                    <span class="badge bg-warning me-2">3</span>Bottom Left (SV Left) - Type
                   </label>
-                  <select id="tag3_select" name="tag3_id" class="form-select" required>
-                    <option value="">Choose tag for position 3...</option>
-                    {% for tag in all_tags %}
-                    <option value="{{ tag.id }}" data-name="{{ tag.tag_name }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
-                    {% endfor %}
+                  <select name="sv_left_type" class="form-select sv-type-select mb-2" data-target="quad_sv_left">
+                    <option value="tag">From Tag</option>
+                    <option value="fixed">Fixed Value</option>
                   </select>
+                  <div class="quad-sv-left-tag-group">
+                    <select id="tag3_select" name="tag3_id" class="form-select">
+                      <option value="">Choose tag for SV Left...</option>
+                      {% for tag in all_tags %}
+                      <option value="{{ tag.id }}" data-name="{{ tag.tag_name }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="quad-sv-left-fixed-group" style="display:none;">
+                    <input type="number" name="sv_left_fixed" class="form-control" step="any" placeholder="Fixed value">
+                  </div>
                 </div>
                 
                 <div class="col-md-6">
                   <label for="tag4_select" class="form-label">
-                    <span class="badge bg-danger me-2">4</span>Bottom Right Tag
+                    <span class="badge bg-danger me-2">4</span>Bottom Right (SV Right) - Type
                   </label>
-                  <select id="tag4_select" name="tag4_id" class="form-select" required>
-                    <option value="">Choose tag for position 4...</option>
-                    {% for tag in all_tags %}
-                    <option value="{{ tag.id }}" data-name="{{ tag.tag_name }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
-                    {% endfor %}
+                  <select name="sv_right_type" class="form-select sv-type-select mb-2" data-target="quad_sv_right">
+                    <option value="tag">From Tag</option>
+                    <option value="fixed">Fixed Value</option>
                   </select>
+                  <div class="quad-sv-right-tag-group">
+                    <select id="tag4_select" name="tag4_id" class="form-select">
+                      <option value="">Choose tag for SV Right...</option>
+                      {% for tag in all_tags %}
+                      <option value="{{ tag.id }}" data-name="{{ tag.tag_name }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="quad-sv-right-fixed-group" style="display:none;">
+                    <input type="number" name="sv_right_fixed" class="form-control" step="any" placeholder="Fixed value">
+                  </div>
                 </div>
               </div>
             </div>
@@ -1055,30 +1088,48 @@
 
             <!-- Tag 3 (Bottom Left SV) -->
             <div class="col-md-6">
-              <label for="edit_tag3_select" class="form-label">
+              <label class="form-label">
                 <i class="bi bi-3-circle-fill text-warning me-1"></i>
-                <strong>Tag 3</strong> - Bottom Left (SV)
+                <strong>Tag 3</strong> - Bottom Left (SV) - Type
               </label>
-              <select id="edit_tag3_select" name="tag3_id" class="form-select" required>
-                <option value="">Choose tag...</option>
-                {% for tag in all_tags %}
-                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
-                {% endfor %}
+              <select id="edit_sv_left_type" name="sv_left_type" class="form-select sv-type-select mb-2" data-target="edit_quad_sv_left">
+                <option value="tag">From Tag</option>
+                <option value="fixed">Fixed Value</option>
               </select>
+              <div class="edit-quad-sv-left-tag-group">
+                <select id="edit_tag3_select" name="tag3_id" class="form-select">
+                  <option value="">Choose tag...</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="edit-quad-sv-left-fixed-group" style="display:none;">
+                <input type="number" id="edit_sv_left_fixed" name="sv_left_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
             </div>
 
             <!-- Tag 4 (Bottom Right SV) -->
             <div class="col-md-6">
-              <label for="edit_tag4_select" class="form-label">
+              <label class="form-label">
                 <i class="bi bi-4-circle-fill text-danger me-1"></i>
-                <strong>Tag 4</strong> - Bottom Right (SV)
+                <strong>Tag 4</strong> - Bottom Right (SV) - Type
               </label>
-              <select id="edit_tag4_select" name="tag4_id" class="form-select" required>
-                <option value="">Choose tag...</option>
-                {% for tag in all_tags %}
-                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
-                {% endfor %}
+              <select id="edit_sv_right_type" name="sv_right_type" class="form-select sv-type-select mb-2" data-target="edit_quad_sv_right">
+                <option value="tag">From Tag</option>
+                <option value="fixed">Fixed Value</option>
               </select>
+              <div class="edit-quad-sv-right-tag-group">
+                <select id="edit_tag4_select" name="tag4_id" class="form-select">
+                  <option value="">Choose tag...</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="edit-quad-sv-right-fixed-group" style="display:none;">
+                <input type="number" id="edit_sv_right_fixed" name="sv_right_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
             </div>
           </div>
 
@@ -1123,18 +1174,107 @@
             </div>
           </div>
           <hr>
-          <div class="row g-3">
-            {% for i in range(1, 7) %}
+          <!-- PV Tags (always from tag) -->
+          <div class="row g-3 mb-3">
             <div class="col-md-6">
-              <label class="form-label">Tag {{ i }} {% if i == 1 %}(Left PV){% elif i == 2 %}(Right PV){% elif i == 3 %}(Left SV HIGH){% elif i == 4 %}(Right SV HIGH){% elif i == 5 %}(Left SV LOW){% elif i == 6 %}(Right SV LOW){% endif %}</label>
-              <select name="tag{{ i }}_id" class="form-select" required>
+              <label class="form-label fw-bold">Tag 1 (Left PV)</label>
+              <select name="tag1_id" class="form-select" required>
                 <option value="">-- Select Tag --</option>
                 {% for tag in all_tags %}
                 <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
                 {% endfor %}
               </select>
             </div>
-            {% endfor %}
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Tag 2 (Right PV)</label>
+              <select name="tag2_id" class="form-select" required>
+                <option value="">-- Select Tag --</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <hr>
+          <!-- SV HIGH -->
+          <h6>SV HIGH</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Left SV HIGH - Type</label>
+              <select name="left_sv_high_type" class="form-select sv-type-select" data-target="qtag6_left_sv_high">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="qtag6-left-sv-high-fixed-group mt-2">
+                <input type="number" name="left_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="qtag6-left-sv-high-tag-group mt-2" style="display:none;">
+                <select name="tag3_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Right SV HIGH - Type</label>
+              <select name="right_sv_high_type" class="form-select sv-type-select" data-target="qtag6_right_sv_high">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="qtag6-right-sv-high-fixed-group mt-2">
+                <input type="number" name="right_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="qtag6-right-sv-high-tag-group mt-2" style="display:none;">
+                <select name="tag4_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <!-- SV LOW -->
+          <h6>SV LOW</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Left SV LOW - Type</label>
+              <select name="left_sv_low_type" class="form-select sv-type-select" data-target="qtag6_left_sv_low">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="qtag6-left-sv-low-fixed-group mt-2">
+                <input type="number" name="left_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="qtag6-left-sv-low-tag-group mt-2" style="display:none;">
+                <select name="tag5_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Right SV LOW - Type</label>
+              <select name="right_sv_low_type" class="form-select sv-type-select" data-target="qtag6_right_sv_low">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="qtag6-right-sv-low-fixed-group mt-2">
+                <input type="number" name="right_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="qtag6-right-sv-low-tag-group mt-2" style="display:none;">
+                <select name="tag6_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
           </div>
           <hr>
           <div class="mb-3">
@@ -1449,18 +1589,107 @@
             </div>
           </div>
           <hr>
-          <div class="row g-3">
-            {% for i in range(1, 7) %}
+          <!-- PV Tags -->
+          <div class="row g-3 mb-3">
             <div class="col-md-6">
-              <label class="form-label">Tag {{ i }} {% if i == 1 %}(Left PV){% elif i == 2 %}(Right PV){% elif i == 3 %}(Left SV HIGH){% elif i == 4 %}(Right SV HIGH){% elif i == 5 %}(Left SV LOW){% elif i == 6 %}(Right SV LOW){% endif %}</label>
-              <select id="editQtag6Tag{{ i }}" name="tag{{ i }}_id" class="form-select" required>
+              <label class="form-label">Tag 1 (Left PV)</label>
+              <select id="editQtag6Tag1" name="tag1_id" class="form-select" required>
                 <option value="">-- Select Tag --</option>
                 {% for tag in all_tags %}
                 <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
                 {% endfor %}
               </select>
             </div>
-            {% endfor %}
+            <div class="col-md-6">
+              <label class="form-label">Tag 2 (Right PV)</label>
+              <select id="editQtag6Tag2" name="tag2_id" class="form-select" required>
+                <option value="">-- Select Tag --</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <hr>
+          <!-- SV HIGH -->
+          <h6>SV HIGH</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Left SV HIGH - Type</label>
+              <select id="editQtag6LeftSvHighType" name="left_sv_high_type" class="form-select sv-type-select" data-target="edit_qtag6_left_sv_high">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="edit-qtag6-left-sv-high-fixed-group mt-2">
+                <input type="number" id="editQtag6LeftSvHighFixed" name="left_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="edit-qtag6-left-sv-high-tag-group mt-2" style="display:none;">
+                <select id="editQtag6Tag3" name="tag3_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Right SV HIGH - Type</label>
+              <select id="editQtag6RightSvHighType" name="right_sv_high_type" class="form-select sv-type-select" data-target="edit_qtag6_right_sv_high">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="edit-qtag6-right-sv-high-fixed-group mt-2">
+                <input type="number" id="editQtag6RightSvHighFixed" name="right_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="edit-qtag6-right-sv-high-tag-group mt-2" style="display:none;">
+                <select id="editQtag6Tag4" name="tag4_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <!-- SV LOW -->
+          <h6>SV LOW</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Left SV LOW - Type</label>
+              <select id="editQtag6LeftSvLowType" name="left_sv_low_type" class="form-select sv-type-select" data-target="edit_qtag6_left_sv_low">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="edit-qtag6-left-sv-low-fixed-group mt-2">
+                <input type="number" id="editQtag6LeftSvLowFixed" name="left_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="edit-qtag6-left-sv-low-tag-group mt-2" style="display:none;">
+                <select id="editQtag6Tag5" name="tag5_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Right SV LOW - Type</label>
+              <select id="editQtag6RightSvLowType" name="right_sv_low_type" class="form-select sv-type-select" data-target="edit_qtag6_right_sv_low">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="edit-qtag6-right-sv-low-fixed-group mt-2">
+                <input type="number" id="editQtag6RightSvLowFixed" name="right_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="edit-qtag6-right-sv-low-tag-group mt-2" style="display:none;">
+                <select id="editQtag6Tag6" name="tag6_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
           </div>
           <div id="edit-qtag6-error-message" class="alert alert-danger mt-3" style="display: none;"></div>
         </div>
@@ -1474,6 +1703,225 @@
 </div>
 
 <!-- Modal: Edit Qtag Single3 -->
+
+<!-- Modal: Add Qtag4 Card -->
+<div class="modal fade" id="addQtag4Modal" tabindex="-1" aria-labelledby="addQtag4ModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title" id="addQtag4ModalLabel"><i class="bi bi-grid-3x3 me-2"></i>Add Qtag4 Card (4 Tags)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="addQtag4Form">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Card Title</label>
+            <input type="text" name="card_title" class="form-control" placeholder="e.g. AHU-01 Temperature">
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Left Column Title</label>
+              <input type="text" name="left_title" class="form-control" placeholder="e.g. Supply">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Right Column Title</label>
+              <input type="text" name="right_title" class="form-control" placeholder="e.g. Return">
+            </div>
+          </div>
+          <hr>
+          <!-- PV Tags (always from tag) -->
+          <h6>PV Tags</h6>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label"><span class="badge bg-primary me-1">1</span>Left PV</label>
+              <select name="tag1_id" class="form-select" required>
+                <option value="">-- Select Tag --</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><span class="badge bg-info me-1">2</span>Right PV</label>
+              <select name="tag2_id" class="form-select" required>
+                <option value="">-- Select Tag --</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <hr>
+          <!-- SV Tags -->
+          <h6>SV Tags</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Left SV - Type</label>
+              <select name="left_sv_type" class="form-select sv-type-select mb-2" data-target="qtag4_left_sv">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="qtag4-left-sv-fixed-group">
+                <input type="number" name="left_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="qtag4-left-sv-tag-group" style="display:none;">
+                <select name="tag3_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Right SV - Type</label>
+              <select name="right_sv_type" class="form-select sv-type-select mb-2" data-target="qtag4_right_sv">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="qtag4-right-sv-fixed-group">
+                <input type="number" name="right_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="qtag4-right-sv-tag-group" style="display:none;">
+                <select name="tag4_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <hr>
+          <!-- Group selection -->
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Add to Group</label>
+              <div class="input-group">
+                <select name="group_id" class="form-select">
+                  <option value="">Select existing group...</option>
+                  {% for group in groups %}
+                  <option value="{{ group.id }}">{{ group.name }}</option>
+                  {% endfor %}
+                </select>
+                <button class="btn btn-outline-secondary" type="button"
+                  onclick="const s=this.closest('.modal').querySelector('#newQtag4GroupSection');s.style.display=s.style.display==='none'?'':'none'">
+                  <i class="bi bi-plus-circle"></i> New
+                </button>
+              </div>
+            </div>
+            <div class="col-12" id="newQtag4GroupSection" style="display:none;">
+              <label class="form-label">New Group Name</label>
+              <input type="text" name="new_group_name" class="form-control" placeholder="Enter new group name...">
+            </div>
+          </div>
+          <div id="qtag4-error-message" class="alert alert-danger mt-3" style="display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Qtag4 Card</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Edit Qtag4 Tags -->
+<div class="modal fade" id="editQtag4Modal" tabindex="-1" aria-labelledby="editQtag4ModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title" id="editQtag4ModalLabel"><i class="bi bi-pencil-square me-2"></i>Edit Qtag4 Tags</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="editQtag4Form">
+        <input type="hidden" id="editQtag4Id" name="card_id">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-bold text-primary">Left Column Title</label>
+              <input type="text" id="editQtag4LeftTitle" name="left_title" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold text-info">Right Column Title</label>
+              <input type="text" id="editQtag4RightTitle" name="right_title" class="form-control">
+            </div>
+          </div>
+          <hr>
+          <!-- PV Tags -->
+          <h6>PV Tags</h6>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Tag 1 (Left PV)</label>
+              <select id="editQtag4Tag1" name="tag1_id" class="form-select" required>
+                <option value="">-- Select Tag --</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Tag 2 (Right PV)</label>
+              <select id="editQtag4Tag2" name="tag2_id" class="form-select" required>
+                <option value="">-- Select Tag --</option>
+                {% for tag in all_tags %}
+                <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <hr>
+          <!-- SV Tags -->
+          <h6>SV Tags</h6>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Left SV - Type</label>
+              <select id="editQtag4LeftSvType" name="left_sv_type" class="form-select sv-type-select" data-target="edit_qtag4_left_sv">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="edit-qtag4-left-sv-fixed-group mt-2">
+                <input type="number" id="editQtag4LeftSvFixed" name="left_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="edit-qtag4-left-sv-tag-group mt-2" style="display:none;">
+                <select id="editQtag4Tag3" name="tag3_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Right SV - Type</label>
+              <select id="editQtag4RightSvType" name="right_sv_type" class="form-select sv-type-select" data-target="edit_qtag4_right_sv">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="edit-qtag4-right-sv-fixed-group mt-2">
+                <input type="number" id="editQtag4RightSvFixed" name="right_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="edit-qtag4-right-sv-tag-group mt-2" style="display:none;">
+                <select id="editQtag4Tag4" name="tag4_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div id="edit-qtag4-error-message" class="alert alert-danger mt-3" style="display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Update Qtag4</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="editQtagSingle3Modal" tabindex="-1" aria-labelledby="editQtagSingle3ModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -1585,7 +2033,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/subdashboard-detail.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/subdashboard-detail.css') }}?v={{ range(100000) | random }}">
 {% endblock %}
 {% block scripts %}
 <!-- Remove duplicate socket.io (already loaded in base.html) -->
@@ -1599,5 +2047,5 @@
     currentGroup: '{{ current_group }}'
   };
 </script>
-<script src="{{ url_for('static', filename='js/subdashboard-detail.js') }}"></script>
+<script src="{{ url_for('static', filename='js/subdashboard-detail.js') }}?v={{ range(100000) | random }}"></script>
 {% endblock %}

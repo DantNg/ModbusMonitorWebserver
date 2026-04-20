@@ -654,6 +654,23 @@
   letter-spacing: 0.5px;
 }
 
+.qtag4-type-badge {
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Qtag4 SV value styling - match qtag6 tag value */
+.qtag4-sv-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--qtag-card-text, #333);
+}
+
 /* Alarm states for Qtag6 */
 .qtag6-sub-card.qtag6-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
@@ -1183,13 +1200,8 @@
   background: #0f1420 !important;
 }
 
-/* Custom BG color support for PV Dual */
-.qtag-custom-bg .qtag-pv-dual-sub-title,
-.qtag-custom-bg .qtag-pv-dual-type-badge,
-.qtag-custom-bg .qtag-pv-dual-tag-value,
-.qtag-custom-bg .qtag-pv-dual-description,
-.qtag-custom-bg .qtag-pv-dual-unit,
-.qtag-custom-bg .qtag-pv-dual-update-time {
+/* Custom BG color support for PV Dual (header elements only) */
+.qtag-custom-bg .card-header .qtag-pv-dual-type-badge {
   color: var(--qtag-card-text, inherit) !important;
 }
 
@@ -1244,41 +1256,57 @@
 }
 
 /* ==========================================================
-   ★ CARD CUSTOM BACKGROUND COLOR (all card types)
+   ★ CARD CUSTOM BACKGROUND COLOR (header only)
    ========================================================== */
+
+/* Card-level: only set CSS variables, do NOT color the whole card */
 .qtag-custom-bg {
-  background-color: var(--qtag-card-bg) !important;
-  color: var(--qtag-card-text, inherit) !important;
+  /* Variables propagate to children; background stays default */
 }
 
+/* Color the card header (Qtag6, PV Dual, Quad) */
 .qtag-custom-bg .card-header {
   background-color: var(--qtag-card-bg) !important;
   color: var(--qtag-card-text, inherit) !important;
   border-bottom-color: rgba(255,255,255,0.15) !important;
 }
 
+/* Card body keeps its default background */
 .qtag-custom-bg .card-body {
-  background-color: var(--qtag-card-bg) !important;
-  color: var(--qtag-card-text, inherit) !important;
+  /* No custom background */
 }
 
-/* Override header gradient for Single3 and PV Only cards */
+/* Override header gradient for Single3 and PV Only cards (sub-head IS the header) */
 .qtag-custom-bg .qtag-single-sub-head {
   background: var(--qtag-card-bg) !important;
   color: var(--qtag-card-text, #fff) !important;
 }
 
+/* Text color overrides ONLY for elements inside the header */
 .qtag-custom-bg .card-header .text-muted,
-.qtag-custom-bg .qtag6-card-title,
-.qtag-custom-bg .qtag-single-card-title,
-.qtag-custom-bg .qtag-pv-card-title {
+.qtag-custom-bg .card-header .fw-semibold,
+.qtag-custom-bg .card-header .quad-status-indicator {
   color: var(--qtag-card-text, inherit) !important;
   opacity: 0.9;
 }
 
-/* Gear icon inherits card text color */
-.qtag-custom-bg .dropdown-toggle,
-.qtag-custom-bg .dropdown-toggle i {
+/* Gear icon inherits card text color only in header */
+.qtag-custom-bg .card-header .dropdown-toggle,
+.qtag-custom-bg .card-header .dropdown-toggle i,
+.qtag-custom-bg .qtag-single-sub-head .dropdown-toggle,
+.qtag-custom-bg .qtag-single-sub-head .dropdown-toggle i {
+  color: var(--qtag-card-text, inherit) !important;
+}
+
+/* Single/PV cards: header text elements */
+.qtag-custom-bg .qtag-single-sub-title,
+.qtag-custom-bg .qtag-single-type-badge,
+.qtag-custom-bg .qtag-single-sub-head .quad-status-indicator {
+  color: var(--qtag-card-text, inherit) !important;
+}
+
+.qtag-custom-bg .qtag-single-type-badge {
+  background: rgba(255,255,255,0.15) !important;
   color: var(--qtag-card-text, inherit) !important;
 }
 
@@ -1296,40 +1324,18 @@
   background-color: #2a2a3e !important;
 }
 
-/* Force all inner text elements to inherit card text color (light bg support) */
-.qtag-custom-bg .qtag-single-sub-title,
-.qtag-custom-bg .qtag-single-type-badge,
-.qtag-custom-bg .qtag-single-tag-value,
-.qtag-custom-bg .qtag-pvonly-description,
-.qtag-custom-bg .qtag-pvonly-unit,
-.qtag-custom-bg .qtag-single-update-time,
-.qtag-custom-bg .qtag-single-tag-label,
-.qtag-custom-bg .qtag6-tag-value,
-.qtag-custom-bg .qtag6-tag-label,
-.qtag-custom-bg .qtag6-card-title,
-.qtag-custom-bg .quad-status-indicator {
-  color: var(--qtag-card-text, inherit) !important;
-}
-
-.qtag-custom-bg .qtag-single-type-badge {
-  background: rgba(255,255,255,0.15) !important;
-  color: var(--qtag-card-text, inherit) !important;
-}
-
-.qtag-custom-bg .qtag-single-update-time {
-  border-top-color: rgba(128,128,128,0.2) !important;
-}
-
 .qtag-custom-bg .card-header {
   border-bottom-color: rgba(128,128,128,0.2) !important;
 }
 
-.qtag-custom-bg .btn-outline-light {
+.qtag-custom-bg .card-header .btn-outline-light,
+.qtag-custom-bg .qtag-single-sub-head .btn-outline-light {
   color: var(--qtag-card-text, inherit) !important;
   border-color: var(--qtag-card-text, inherit) !important;
   opacity: 0.7;
 }
 
-.qtag-custom-bg .btn-outline-light:hover {
+.qtag-custom-bg .card-header .btn-outline-light:hover,
+.qtag-custom-bg .qtag-single-sub-head .btn-outline-light:hover {
   opacity: 1;
 }

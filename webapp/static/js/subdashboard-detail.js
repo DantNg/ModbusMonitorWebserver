@@ -386,29 +386,13 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         
         const tag1Id = document.getElementById('tag1_select').value;
         const tag2Id = document.getElementById('tag2_select').value;
-        const tag3Id = document.getElementById('tag3_select').value;
-        const tag4Id = document.getElementById('tag4_select').value;
         const groupId = document.getElementById('quad_target_group').value;
         const newGroupName = document.getElementById('new_quad_group_name').value.trim();
-        const cardTitle = document.getElementById('quad_card_title').value.trim();
-        const leftTitle = document.getElementById('quad_left_title').value.trim();
-        const rightTitle = document.getElementById('quad_right_title').value.trim();
         
-        console.log('Selected tags:', { tag1Id, tag2Id, tag3Id, tag4Id });
-        console.log('Group info:', { groupId, newGroupName });
-        
-        // Validate that all 4 tags are selected
-        if (!tag1Id || !tag2Id || !tag3Id || !tag4Id) {
-          console.log('Validation failed: not all tags selected');
-          showQuadError('Please select all 4 tags');
-          return;
-        }
-        
-        // Validate that all tags are different
-        const tagIds = [tag1Id, tag2Id, tag3Id, tag4Id];
-        const uniqueTagIds = [...new Set(tagIds)];
-        if (uniqueTagIds.length !== 4) {
-          showQuadError('All 4 tags must be different');
+        // Validate PV tags
+        if (!tag1Id || !tag2Id) {
+          console.log('Validation failed: PV tags not selected');
+          showQuadError('Please select both PV tags');
           return;
         }
         
@@ -427,28 +411,15 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           }
         });
         
-        // Prepare form data
-        const formData = new FormData();
-        formData.append('tag1_id', tag1Id);
-        formData.append('tag2_id', tag2Id);
-        formData.append('tag3_id', tag3Id);
-        formData.append('tag4_id', tag4Id);
-        if (groupId) {
-          formData.append('group_id', groupId);
-        }
-        if (newGroupName) {
-          formData.append('new_group_name', newGroupName);
-        }
-        // Add quad card titles
-        if (cardTitle) {
-          formData.append('card_title', cardTitle);
-        }
-        if (leftTitle) {
-          formData.append('left_title', leftTitle);
-        }
-        if (rightTitle) {
-          formData.append('right_title', rightTitle);
-        }
+        // Use FormData from form (includes SV type/fixed and all other fields)
+        const formData = new FormData(addQuadTagForm);
+        // Map the title field names to what the route expects
+        const cardTitle = document.getElementById('quad_card_title').value.trim();
+        const leftTitle = document.getElementById('quad_left_title').value.trim();
+        const rightTitle = document.getElementById('quad_right_title').value.trim();
+        formData.set('card_title', cardTitle);
+        formData.set('left_title', leftTitle);
+        formData.set('right_title', rightTitle);
         
         // Send request
         console.log('Sending request to:', `/subdash/${currentSubdashId}/add_quad_tag`);
@@ -744,19 +715,43 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         
         const btn = e.target.closest('.edit-quad-tags-btn');
         const quadId = btn.dataset.quadId;
-        const tag1Id = btn.dataset.tag1Id;
-        const tag2Id = btn.dataset.tag2Id;
-        const tag3Id = btn.dataset.tag3Id;
-        const tag4Id = btn.dataset.tag4Id;
         
         // Set quad ID
         document.getElementById('editQuadId').value = quadId;
         
-        // Set current tag selections
-        document.getElementById('edit_tag1_select').value = tag1Id;
-        document.getElementById('edit_tag2_select').value = tag2Id;
-        document.getElementById('edit_tag3_select').value = tag3Id;
-        document.getElementById('edit_tag4_select').value = tag4Id;
+        // Set PV tag selections
+        document.getElementById('edit_tag1_select').value = btn.dataset.tag1Id;
+        document.getElementById('edit_tag2_select').value = btn.dataset.tag2Id;
+        
+        // SV Left fix value
+        const svLeftType = btn.dataset.svLeftType || 'tag';
+        document.getElementById('edit_sv_left_type').value = svLeftType;
+        const leftFixedGrp = document.querySelector('.edit-quad-sv-left-fixed-group');
+        const leftTagGrp = document.querySelector('.edit-quad-sv-left-tag-group');
+        if (leftFixedGrp && leftTagGrp) {
+          leftFixedGrp.style.display = svLeftType === 'fixed' ? '' : 'none';
+          leftTagGrp.style.display = svLeftType === 'tag' ? '' : 'none';
+        }
+        if (svLeftType === 'fixed') {
+          document.getElementById('edit_sv_left_fixed').value = btn.dataset.svLeftFixed || '';
+        } else {
+          document.getElementById('edit_tag3_select').value = btn.dataset.tag3Id || '';
+        }
+
+        // SV Right fix value
+        const svRightType = btn.dataset.svRightType || 'tag';
+        document.getElementById('edit_sv_right_type').value = svRightType;
+        const rightFixedGrp = document.querySelector('.edit-quad-sv-right-fixed-group');
+        const rightTagGrp = document.querySelector('.edit-quad-sv-right-tag-group');
+        if (rightFixedGrp && rightTagGrp) {
+          rightFixedGrp.style.display = svRightType === 'fixed' ? '' : 'none';
+          rightTagGrp.style.display = svRightType === 'tag' ? '' : 'none';
+        }
+        if (svRightType === 'fixed') {
+          document.getElementById('edit_sv_right_fixed').value = btn.dataset.svRightFixed || '';
+        } else {
+          document.getElementById('edit_tag4_select').value = btn.dataset.tag4Id || '';
+        }
         
         // Show modal
         const modal = new bootstrap.Modal(document.getElementById('editQuadTagsModal'));
@@ -773,20 +768,10 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         const quadId = document.getElementById('editQuadId').value;
         const tag1Id = document.getElementById('edit_tag1_select').value;
         const tag2Id = document.getElementById('edit_tag2_select').value;
-        const tag3Id = document.getElementById('edit_tag3_select').value;
-        const tag4Id = document.getElementById('edit_tag4_select').value;
         
-        // Validate that all 4 tags are selected
-        if (!tag1Id || !tag2Id || !tag3Id || !tag4Id) {
-          showEditQuadError('Please select all 4 tags');
-          return;
-        }
-        
-        // Validate that all tags are different
-        const tagIds = [tag1Id, tag2Id, tag3Id, tag4Id];
-        const uniqueTagIds = [...new Set(tagIds)];
-        if (uniqueTagIds.length !== 4) {
-          showEditQuadError('All 4 tags must be different');
+        // Validate PV tags
+        if (!tag1Id || !tag2Id) {
+          showEditQuadError('Please select both PV tags');
           return;
         }
         
@@ -799,12 +784,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           }
         });
         
-        // Prepare form data
-        const formData = new FormData();
-        formData.append('tag1_id', tag1Id);
-        formData.append('tag2_id', tag2Id);
-        formData.append('tag3_id', tag3Id);
-        formData.append('tag4_id', tag4Id);
+        // Use FormData from the form (includes SV type/fixed fields)
+        const formData = new FormData(editQuadTagsForm);
         
         // Send request
         fetch(`/subdash/${currentSubdashId}/update_quad_tags/${quadId}`, {
@@ -2706,7 +2687,18 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             updateQuadLastUpdated();
           }
 
-          // ✅ Update Qtag6 values - elements with pattern qtag6-val-{cardId}-{tagId}
+          // ✅ Update Quad SV elements (tag-based only, fixed values are static)
+          const quadSvElements = document.querySelectorAll(
+            `[id^="quad-tag-val-sv-"][data-tag-id="${tag.id}"]`
+          );
+          quadSvElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+          });
+
+          // ✅ Update Qtag6 values - PV elements with pattern qtag6-val-{cardId}-{tagId}
           const qtag6ValElements = document.querySelectorAll(`[id^="qtag6-val-"][id$="-${tag.id}"]`);
           qtag6ValElements.forEach(el => {
             const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
@@ -2720,6 +2712,45 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
               if (timeEl) {
                 timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
               }
+            }
+          });
+
+          // ✅ Update Qtag6 SV elements (tag-based only, fixed values are static)
+          const qtag6SvElements = document.querySelectorAll(
+            `.qtag6-sv-low[data-tag-id="${tag.id}"], .qtag6-sv-high[data-tag-id="${tag.id}"]`
+          );
+          qtag6SvElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+          });
+
+          // ✅ Update Qtag4 values - PV elements with pattern qtag4-val-{cardId}-{tagId}
+          const qtag4ValElements = document.querySelectorAll(`[id^="qtag4-val-"][id$="-${tag.id}"]`);
+          qtag4ValElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+            // Update last updated time for the sub-card
+            const subCard = el.closest('.qtag6-sub-card');
+            if (subCard) {
+              const timeEl = subCard.querySelector('.qtag6-update-time');
+              if (timeEl) {
+                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
+              }
+            }
+          });
+
+          // ✅ Update Qtag4 SV elements (tag-based only, fixed values are static)
+          const qtag4SvElements = document.querySelectorAll(
+            `.qtag4-sv-value[data-tag-id="${tag.id}"]`
+          );
+          qtag4SvElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
             }
           });
 
@@ -3148,10 +3179,10 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       const errorEl = document.getElementById('qtag6-error-message');
       errorEl.style.display = 'none';
 
-      // Validate all 6 tags
-      for (let i = 1; i <= 6; i++) {
+      // Validate PV tags (tag1, tag2 required)
+      for (let i = 1; i <= 2; i++) {
         if (!form.querySelector(`[name="tag${i}_id"]`).value) {
-          errorEl.textContent = 'Please select all 6 tags';
+          errorEl.textContent = 'Please select both PV tags (Tag 1 and Tag 2)';
           errorEl.style.display = 'block';
           return;
         }
@@ -3311,6 +3342,225 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
     });
   });
+
+  // ============================================================
+  // ★ ADD: Qtag4 Card Form
+  // ============================================================
+  const addQtag4Form = document.getElementById('addQtag4Form');
+  if (addQtag4Form) {
+    addQtag4Form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const form = e.target;
+      const errorEl = document.getElementById('qtag4-error-message');
+      errorEl.style.display = 'none';
+
+      for (let i = 1; i <= 2; i++) {
+        if (!form.querySelector(`[name="tag${i}_id"]`).value) {
+          errorEl.textContent = 'Please select both PV tags (Tag 1 and Tag 2)';
+          errorEl.style.display = 'block';
+          return;
+        }
+      }
+
+      const groupId = form.querySelector('[name="group_id"]').value;
+      const newGroupName = form.querySelector('[name="new_group_name"]').value.trim();
+      if (!groupId && !newGroupName) {
+        errorEl.textContent = 'Please select a group or enter a new group name';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Adding Qtag4 Card...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(form);
+      fetch(`/subdash/${currentSubdashId}/add_qtag4`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'Qtag4 card added', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.message || 'Failed to add Qtag4 card', icon: 'error' });
+        }
+      })
+      .catch(err => {
+        Swal.fire({ title: 'Error', text: err.message, icon: 'error' });
+      });
+    });
+  }
+
+  // ============================================================
+  // ★ DELETE: Qtag4 Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.delete-qtag4-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+
+    Swal.fire({
+      title: 'Delete Qtag4 Card?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc3545',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Deleting...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/delete_qtag4/${cardId}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Deleted!', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.message || 'Failed to delete', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  });
+
+  // ============================================================
+  // ★ RENAME: Qtag4 Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.rename-qtag4-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+    const target = btn.dataset.target || 'card';
+    const card = btn.closest('.qtag4-card') || document.querySelector(`.qtag4-card[data-qtag4-id="${cardId}"]`);
+    if (!card) return;
+
+    let titleEl, currentTitle;
+    if (target === 'left') {
+      titleEl = card.querySelector('.qtag6-sub-card[data-column="left"] .qtag6-sub-title');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'Group A';
+    } else if (target === 'right') {
+      titleEl = card.querySelector('.qtag6-sub-card[data-column="right"] .qtag6-sub-title');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'Group B';
+    } else {
+      titleEl = card.querySelector('.fw-semibold');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'Qtag4 Card';
+    }
+
+    Swal.fire({
+      title: 'Đổi tên',
+      input: 'text',
+      inputLabel: 'Tiêu đề mới:',
+      inputValue: currentTitle,
+      showCancelButton: true,
+      confirmButtonText: 'Cập nhật',
+      cancelButtonText: 'Hủy',
+      inputValidator: v => (!v || !v.trim()) ? 'Vui lòng nhập tiêu đề' : null
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Đang cập nhật...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/qtag4/${cardId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: target, title: result.value.trim() })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          if (titleEl) titleEl.textContent = result.value.trim();
+          Swal.fire({ icon: 'success', title: 'Thành công', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+        } else {
+          Swal.fire({ icon: 'error', title: 'Lỗi', text: data.message || 'Không thể cập nhật' });
+        }
+      })
+      .catch(err => Swal.fire({ icon: 'error', title: 'Lỗi', text: err.message }));
+    });
+  });
+
+  // ============================================================
+  // ★ EDIT: Qtag4 Card - Open modal and populate
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.edit-qtag4-btn');
+    if (!btn) return;
+    e.preventDefault();
+
+    document.getElementById('editQtag4Id').value = btn.dataset.cardId;
+    const card = btn.closest('.qtag4-card');
+    if (card) {
+      document.getElementById('editQtag4LeftTitle').value = card.dataset.leftTitle || '';
+      document.getElementById('editQtag4RightTitle').value = card.dataset.rightTitle || '';
+    }
+    // PV tags
+    for (let i = 1; i <= 2; i++) {
+      const selectEl = document.getElementById(`editQtag4Tag${i}`);
+      if (selectEl) selectEl.value = btn.dataset[`tag${i}Id`] || '';
+    }
+
+    // SV fields
+    const svFields = [
+      { prefix: 'left_sv', typeEl: 'editQtag4LeftSvType', fixedEl: 'editQtag4LeftSvFixed', tagEl: 'editQtag4Tag3', dataType: 'leftSvType', dataFixed: 'leftSvFixed', dataTag: 'tag3Id' },
+      { prefix: 'right_sv', typeEl: 'editQtag4RightSvType', fixedEl: 'editQtag4RightSvFixed', tagEl: 'editQtag4Tag4', dataType: 'rightSvType', dataFixed: 'rightSvFixed', dataTag: 'tag4Id' },
+    ];
+    svFields.forEach(f => {
+      const svType = btn.dataset[f.dataType] || 'tag';
+      document.getElementById(f.typeEl).value = svType;
+      const target = `edit_qtag4_${f.prefix}`;
+      const fixedGrp = document.querySelector(`.${target.replace(/_/g, '-')}-fixed-group`);
+      const tagGrp = document.querySelector(`.${target.replace(/_/g, '-')}-tag-group`);
+      if (fixedGrp && tagGrp) {
+        fixedGrp.style.display = svType === 'fixed' ? '' : 'none';
+        tagGrp.style.display = svType === 'tag' ? '' : 'none';
+      }
+      if (svType === 'fixed') {
+        document.getElementById(f.fixedEl).value = btn.dataset[f.dataFixed] || '';
+      } else {
+        document.getElementById(f.tagEl).value = btn.dataset[f.dataTag] || '';
+      }
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('editQtag4Modal'));
+    modal.show();
+  });
+
+  // Edit Qtag4 form submission
+  const editQtag4Form = document.getElementById('editQtag4Form');
+  if (editQtag4Form) {
+    editQtag4Form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const cardId = document.getElementById('editQtag4Id').value;
+      const errorEl = document.getElementById('edit-qtag4-error-message');
+      errorEl.style.display = 'none';
+
+      for (let i = 1; i <= 2; i++) {
+        if (!document.getElementById(`editQtag4Tag${i}`).value) {
+          errorEl.textContent = 'Please select both PV tags';
+          errorEl.style.display = 'block';
+          return;
+        }
+      }
+
+      Swal.fire({ title: 'Updating Qtag4...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(editQtag4Form);
+      fetch(`/subdash/${currentSubdashId}/update_qtag4/${cardId}`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'Qtag4 updated', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.message || 'Failed to update', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  }
 
   // ============================================================
   // ★ DELETE: Qtag Single3 Card
@@ -3540,11 +3790,35 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       document.getElementById('editQtag6LeftTitle').value = card.dataset.leftTitle || '';
       document.getElementById('editQtag6RightTitle').value = card.dataset.rightTitle || '';
     }
-    // Set current tag selections
-    for (let i = 1; i <= 6; i++) {
+    // Set PV tag selections
+    for (let i = 1; i <= 2; i++) {
       const selectEl = document.getElementById(`editQtag6Tag${i}`);
       if (selectEl) selectEl.value = btn.dataset[`tag${i}Id`] || '';
     }
+
+    // SV type/fixed/tag population helper
+    const svFields = [
+      { prefix: 'left_sv_high', typeEl: 'editQtag6LeftSvHighType', fixedEl: 'editQtag6LeftSvHighFixed', tagEl: 'editQtag6Tag3', dataType: 'leftSvHighType', dataFixed: 'leftSvHighFixed', dataTag: 'tag3Id' },
+      { prefix: 'right_sv_high', typeEl: 'editQtag6RightSvHighType', fixedEl: 'editQtag6RightSvHighFixed', tagEl: 'editQtag6Tag4', dataType: 'rightSvHighType', dataFixed: 'rightSvHighFixed', dataTag: 'tag4Id' },
+      { prefix: 'left_sv_low', typeEl: 'editQtag6LeftSvLowType', fixedEl: 'editQtag6LeftSvLowFixed', tagEl: 'editQtag6Tag5', dataType: 'leftSvLowType', dataFixed: 'leftSvLowFixed', dataTag: 'tag5Id' },
+      { prefix: 'right_sv_low', typeEl: 'editQtag6RightSvLowType', fixedEl: 'editQtag6RightSvLowFixed', tagEl: 'editQtag6Tag6', dataType: 'rightSvLowType', dataFixed: 'rightSvLowFixed', dataTag: 'tag6Id' },
+    ];
+    svFields.forEach(f => {
+      const svType = btn.dataset[f.dataType] || 'tag';
+      document.getElementById(f.typeEl).value = svType;
+      const target = `edit_qtag6_${f.prefix}`;
+      const fixedGrp = document.querySelector(`.${target.replace(/_/g, '-')}-fixed-group`);
+      const tagGrp = document.querySelector(`.${target.replace(/_/g, '-')}-tag-group`);
+      if (fixedGrp && tagGrp) {
+        fixedGrp.style.display = svType === 'fixed' ? '' : 'none';
+        tagGrp.style.display = svType === 'tag' ? '' : 'none';
+      }
+      if (svType === 'fixed') {
+        document.getElementById(f.fixedEl).value = btn.dataset[f.dataFixed] || '';
+      } else {
+        document.getElementById(f.tagEl).value = btn.dataset[f.dataTag] || '';
+      }
+    });
 
     const modal = new bootstrap.Modal(document.getElementById('editQtag6Modal'));
     modal.show();
@@ -3559,10 +3833,10 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       const errorEl = document.getElementById('edit-qtag6-error-message');
       errorEl.style.display = 'none';
 
-      // Validate all 6 tags selected
-      for (let i = 1; i <= 6; i++) {
+      // Validate PV tags selected
+      for (let i = 1; i <= 2; i++) {
         if (!document.getElementById(`editQtag6Tag${i}`).value) {
-          errorEl.textContent = 'Please select all 6 tags';
+          errorEl.textContent = 'Please select both PV tags';
           errorEl.style.display = 'block';
           return;
         }
@@ -4058,7 +4332,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       .then(data => {
         if (data.success) {
           // Find the card element and apply color immediately (no reload)
-          const cardEl = btn.closest('.quad-tag-card, .qtag6-card, .qtag-single-sub-card');
+          const cardEl = btn.closest('.quad-tag-card, .qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag-pv-dual-card');
           if (cardEl) {
             applyCardColor(cardEl, selectedColor);
           }

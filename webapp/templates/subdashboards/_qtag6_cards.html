@@ -1,7 +1,7 @@
 <!-- Qtag6 Cards (6 tags: 2 columns with PV + SV HIGH/LOW each) -->
 {% if group.qtag6_cards %}
   {% for card in group.qtag6_cards %}
-  <div class="col-12 col-lg-8 col-xl-7">
+  <div class="col-12 col-lg-6 col-xl-6">
     <div class="card h-100 shadow-soft qtag6-card{% if card.card_color %} qtag-custom-bg{% endif %}"
          data-qtag6-id="{{ card.id }}"
          data-card-type="quad6"
@@ -36,8 +36,16 @@
             <li><button class="dropdown-item edit-qtag6-btn"
                         data-card-id="{{ card.id }}"
                         data-tag1-id="{{ card.tag1_id }}" data-tag2-id="{{ card.tag2_id }}"
-                        data-tag3-id="{{ card.tag3_id }}" data-tag4-id="{{ card.tag4_id }}"
-                        data-tag5-id="{{ card.tag5_id }}" data-tag6-id="{{ card.tag6_id }}">
+                        data-tag3-id="{{ card.tag3_id or '' }}" data-tag4-id="{{ card.tag4_id or '' }}"
+                        data-tag5-id="{{ card.tag5_id or '' }}" data-tag6-id="{{ card.tag6_id or '' }}"
+                        data-left-sv-high-type="{{ card.left_sv_high_type or 'tag' }}"
+                        data-left-sv-high-fixed="{{ card.left_sv_high_fixed if card.left_sv_high_fixed is not none else '' }}"
+                        data-right-sv-high-type="{{ card.right_sv_high_type or 'tag' }}"
+                        data-right-sv-high-fixed="{{ card.right_sv_high_fixed if card.right_sv_high_fixed is not none else '' }}"
+                        data-left-sv-low-type="{{ card.left_sv_low_type or 'tag' }}"
+                        data-left-sv-low-fixed="{{ card.left_sv_low_fixed if card.left_sv_low_fixed is not none else '' }}"
+                        data-right-sv-low-type="{{ card.right_sv_low_type or 'tag' }}"
+                        data-right-sv-low-fixed="{{ card.right_sv_low_fixed if card.right_sv_low_fixed is not none else '' }}">
               <i class="bi bi-pencil me-2"></i>Edit Tags (6 tags)</button></li>
             <li><button class="dropdown-item text-danger delete-qtag6-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
             <li><hr class="dropdown-divider"></li>
@@ -71,9 +79,9 @@
                 <div class="qtag6-tag-label label-sv">SV</div>
                 <div class="qtag6-value-row">
                   <div class="qtag6-sv-inline">
-                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-val-{{ card.id }}-{{ card.tag5_id }}" data-tag-id="{{ card.tag5_id }}">{{ card.tag5.last_value or '---' }}</span>
+                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-left-{{ card.id }}" {% if (card.left_sv_low_type or 'tag') == 'tag' and card.tag5_id %}data-tag-id="{{ card.tag5_id }}"{% endif %}>{{ card.tag5.last_value if card.tag5 else (card.tag5_sv_value if card.tag5_sv_value is not none else '---') }}</span>
                     <span class="qtag6-sv-separator">-</span>
-                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-val-{{ card.id }}-{{ card.tag3_id }}" data-tag-id="{{ card.tag3_id }}">{{ card.tag3.last_value or '---' }}</span>
+                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-left-{{ card.id }}" {% if (card.left_sv_high_type or 'tag') == 'tag' and card.tag3_id %}data-tag-id="{{ card.tag3_id }}"{% endif %}>{{ card.tag3.last_value if card.tag3 else (card.tag3_sv_value if card.tag3_sv_value is not none else '---') }}</span>
                   </div>
                   <div class="qtag6-tag-unit">{{ card.tag1.unit or '' }}</div>
                 </div>
@@ -103,9 +111,9 @@
                 <div class="qtag6-tag-label label-sv">SV</div>
                 <div class="qtag6-value-row">
                   <div class="qtag6-sv-inline">
-                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-val-{{ card.id }}-{{ card.tag6_id }}" data-tag-id="{{ card.tag6_id }}">{{ card.tag6.last_value or '---' }}</span>
+                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-right-{{ card.id }}" {% if (card.right_sv_low_type or 'tag') == 'tag' and card.tag6_id %}data-tag-id="{{ card.tag6_id }}"{% endif %}>{{ card.tag6.last_value if card.tag6 else (card.tag6_sv_value if card.tag6_sv_value is not none else '---') }}</span>
                     <span class="qtag6-sv-separator">-</span>
-                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-val-{{ card.id }}-{{ card.tag4_id }}" data-tag-id="{{ card.tag4_id }}">{{ card.tag4.last_value or '---' }}</span>
+                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-right-{{ card.id }}" {% if (card.right_sv_high_type or 'tag') == 'tag' and card.tag4_id %}data-tag-id="{{ card.tag4_id }}"{% endif %}>{{ card.tag4.last_value if card.tag4 else (card.tag4_sv_value if card.tag4_sv_value is not none else '---') }}</span>
                   </div>
                   <div class="qtag6-tag-unit">{{ card.tag2.unit or '' }}</div>
                 </div>
