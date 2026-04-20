@@ -508,6 +508,21 @@ subdash_qtag4_cards = Table(
     Column("created_at", DateTime, server_default=func.now()),
 )
 
+# ========== Qtag2 Cards (1 column: PV + SV, Qtag4-style but single column) ==========
+subdash_qtag2_cards = Table(
+    "subdash_qtag2_cards", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
+    Column("tag1_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),   # PV
+    Column("tag2_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # SV (nullable for fixed)
+    Column("sv_type", String(10), nullable=True, default="tag"),    # 'tag' or 'fixed'
+    Column("sv_fixed", Float, nullable=True),
+    Column("card_title", String(200), nullable=True),
+    Column("column_title", String(200), nullable=True),
+    Column("card_color", String(20), nullable=True),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
 # ========== Qtag3 Cards (1 column: PV + SV HIGH + SV LOW, Qtag6-style layout) ==========
 subdash_qtag3_cards = Table(
     "subdash_qtag3_cards", _md,
@@ -656,6 +671,7 @@ def _migrate_card_color(engine):
     """Add card_color column to existing card tables (safe for repeated calls)."""
     tables = ['subdash_quad_cards', 'subdash_qtag6_cards',
               'subdash_qtag4_cards', 'subdash_qtag3_cards',
+              'subdash_qtag2_cards',
               'subdash_qtag_single3_cards', 'subdash_qtag_pv_cards',
               'subdash_qtag_pv_dual_cards']
     with engine.connect() as con:
@@ -3647,6 +3663,103 @@ def delete_qtag3_card(card_id: int) -> bool:
             return result.rowcount > 0
     except Exception as e:
         print(f"Error deleting qtag3 card {card_id}: {e}")
+        return False
+
+
+# ========== QTAG2 CARD CRUD OPERATIONS ==========
+
+def add_qtag2_card(group_id: int, tag1_id: int,
+                   tag2_id=None, card_title: str = None,
+                   column_title: str = None,
+                   sv_type='tag', sv_fixed=None) -> int:
+    """Add a new qtag2 card (1 column: PV + SV)."""
+    with init_engine().begin() as con:
+        res = con.execute(
+            insert(subdash_qtag2_cards).values(
+                group_id=group_id,
+                tag1_id=tag1_id, tag2_id=tag2_id,
+                sv_type=sv_type, sv_fixed=sv_fixed,
+                card_title=card_title, column_title=column_title
+            )
+        )
+        return res.inserted_primary_key[0]
+
+
+def get_qtag2_cards_for_group(group_id: int):
+    """Get all qtag2 cards for a group with tag details and resolved SV value."""
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(subdash_qtag2_cards).where(subdash_qtag2_cards.c.group_id == group_id)
+        ).mappings().all()
+
+        result = []
+        for card in rows:
+            card_dict = dict(card)
+            # PV tag (tag1) - always from tags table
+            tag_id = card_dict['tag1_id']
+            tag = con.execute(select(tags).where(tags.c.id == tag_id)).mappings().first()
+            card_dict['tag1'] = dict(tag) if tag else None
+            if tag:
+                last_value, _ = get_latest_tag_value(tag_id)
+                card_dict['tag1']['last_value'] = last_value if last_value is not None else 0
+
+            # SV (tag2) - support fix value mode
+            sv_type = card_dict.get('sv_type') or 'tag'
+            tag2_id = card_dict.get('tag2_id')
+            card_dict['tag2_sv_value'] = _resolve_sv_value(con, sv_type, tag2_id, card_dict.get('sv_fixed'))
+            if sv_type == 'tag' and tag2_id:
+                tag = con.execute(select(tags).where(tags.c.id == tag2_id)).mappings().first()
+                card_dict['tag2'] = dict(tag) if tag else None
+                if tag:
+                    last_value, _ = get_latest_tag_value(tag2_id)
+                    card_dict['tag2']['last_value'] = last_value if last_value is not None else 0
+            else:
+                card_dict['tag2'] = None
+
+            result.append(card_dict)
+        return result
+
+
+def get_qtag2_card_by_id(card_id: int):
+    """Get a specific qtag2 card by ID."""
+    with init_engine().connect() as con:
+        row = con.execute(
+            select(subdash_qtag2_cards).where(subdash_qtag2_cards.c.id == card_id)
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def update_qtag2_card(card_id: int, **kwargs) -> bool:
+    """Update a qtag2 card. Pass only fields to update."""
+    try:
+        allowed = {'tag1_id', 'tag2_id',
+                    'card_title', 'column_title', 'card_color',
+                    'sv_type', 'sv_fixed'}
+        values_dict = {k: v for k, v in kwargs.items() if k in allowed}
+        if not values_dict:
+            return True
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(subdash_qtag2_cards)
+                .where(subdash_qtag2_cards.c.id == card_id)
+                .values(**values_dict)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating qtag2 card {card_id}: {e}")
+        return False
+
+
+def delete_qtag2_card(card_id: int) -> bool:
+    """Delete a qtag2 card."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(subdash_qtag2_cards).where(subdash_qtag2_cards.c.id == card_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting qtag2 card {card_id}: {e}")
         return False
 
 

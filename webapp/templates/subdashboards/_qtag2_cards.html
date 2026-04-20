@@ -1,0 +1,87 @@
+<!-- Qtag2 Cards (1 column: PV + SV, Qtag4-style but single column) -->
+{% if group.qtag2_cards %}
+  {% for card in group.qtag2_cards %}
+  <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+    <div class="card h-100 shadow-soft qtag2-card{% if card.card_color %} qtag-custom-bg{% endif %}"
+         data-qtag2-id="{{ card.id }}"
+         data-card-type="qtag2"
+         data-card-color="{{ card.card_color or '' }}"
+         data-card-title="{{ card.card_title or 'Qtag2 Card' }}"
+         data-column-title="{{ card.column_title or '' }}"
+         {% if card.card_color %}style="--qtag-card-bg: {{ card.card_color }};"{% endif %}>
+      <!-- Card Header -->
+      <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+        <div class="d-flex align-items-center gap-2">
+          <span class="quad-status-indicator {% if card.tag1.device_status == 'disconnected' %}status-offline{% elif card.tag1.device_status == 'connected' %}status-online{% else %}status-unknown{% endif %}"
+                id="qtag2-status-{{ card.id }}"
+                data-pv-tag-id="{{ card.tag1_id }}"
+                data-device-status="{{ card.tag1.device_status or 'unknown' }}"
+                title="Device status">
+            <i class="bi bi-circle-fill"></i>
+          </span>
+          <span class="fw-semibold">{{ card.card_title or 'Qtag2 Card' }}</span>
+          <span class="qtag2-type-badge">QTAG2</span>
+        </div>
+        {% if session.get('role') == 'admin' %}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown">
+            <i class="bi bi-gear"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button class="dropdown-item rename-qtag2-btn" data-card-id="{{ card.id }}" data-target="card"><i class="bi bi-pencil-square me-2"></i>Rename Card</button></li>
+            <li><button class="dropdown-item rename-qtag2-btn" data-card-id="{{ card.id }}" data-target="column"><i class="bi bi-columns me-2"></i>Rename Column</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item edit-qtag2-btn"
+                        data-card-id="{{ card.id }}"
+                        data-tag1-id="{{ card.tag1_id }}"
+                        data-tag2-id="{{ card.tag2_id or '' }}"
+                        data-sv-type="{{ card.sv_type or 'tag' }}"
+                        data-sv-fixed="{{ card.sv_fixed if card.sv_fixed is not none else '' }}">
+              <i class="bi bi-pencil me-2"></i>Edit Tags</button></li>
+            <li><button class="dropdown-item text-danger delete-qtag2-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item change-card-color-btn" data-card-id="{{ card.id }}" data-card-type="qtag2" data-current-color="{{ card.card_color or '' }}"><i class="bi bi-palette me-2"></i>Change Color</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item set-card-condition-btn" data-card-type="qtag2" data-card-id="{{ card.id }}"><i class="bi bi-sliders me-2"></i>Set Alarm Conditions</button></li>
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Card Body: Single column with PV + SV -->
+      <div class="card-body">
+        <div class="qtag2-column">
+          <div class="qtag6-sub-card" data-column="single">
+            {% if card.column_title %}
+            <div class="qtag6-sub-head qtag6-left-head">
+              <div class="qtag6-sub-title">{{ card.column_title }}</div>
+            </div>
+            {% endif %}
+            <div class="qtag6-tag-rows">
+              <!-- PV (Tag 1) -->
+              <div class="qtag6-tag-item" data-tag-id="{{ card.tag1_id }}" data-role="pv">
+                <div class="qtag6-tag-label label-pv">PV</div>
+                <div class="qtag6-value-row">
+                  <div class="qtag6-tag-value" id="qtag2-val-{{ card.id }}-{{ card.tag1_id }}">{{ card.tag1.last_value if card.tag1.last_value is not none else 0 }}</div>
+                  <div class="qtag6-tag-unit">{{ card.tag1.unit or '' }}</div>
+                </div>
+              </div>
+              <!-- SV (Tag 2) -->
+              <div class="qtag6-tag-item" data-role="sv">
+                <div class="qtag6-tag-label label-sv">SV</div>
+                <div class="qtag6-value-row">
+                  <div class="qtag6-tag-value qtag2-sv-value" id="qtag2-sv-{{ card.id }}" {% if (card.sv_type or 'tag') == 'tag' and card.tag2_id %}data-tag-id="{{ card.tag2_id }}"{% endif %}>{{ card.tag2.last_value if card.tag2 else (card.tag2_sv_value if card.tag2_sv_value is not none else 0) }}</div>
+                  <div class="qtag6-tag-unit">{{ card.tag1.unit or '' }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="qtag6-update-time" id="qtag2-time-{{ card.id }}">
+              <i class="bi bi-clock"></i> Last updated: --:--:--
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}

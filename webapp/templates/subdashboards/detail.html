@@ -41,8 +41,11 @@
             <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addQuadTagModal">+ Add Quad Tag Card</button>
           </li>
           <li>
-            <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addQtag3Modal">+ Add Qtag3 Card (3 tags)</button>
+            <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addQtag2Modal">+ Add Qtag2 Card (2 tags)</button>
           </li>
+          <!-- <li>
+            <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addQtag3Modal">+ Add Qtag3 Card (3 tags)</button>
+          </li> -->
           <li>
             <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addQtag4Modal">+ Add Qtag4 Card (4 tags)</button>
           </li>
@@ -392,6 +395,11 @@
       </div>
       {% endif %}
         
+      <!-- Qtag2 Cards -->
+      <div class="row g-2 mb-2">
+        {% include 'subdashboards/_qtag2_cards.html' %}
+      </div>
+
       <!-- Qtag3 Cards -->
       <div class="row g-2 mb-2">
         {% include 'subdashboards/_qtag3_cards.html' %}
@@ -734,6 +742,11 @@
       </div>
       {% endif %}
         
+      <!-- Qtag2 Cards -->
+      <div class="row g-2 mb-2">
+        {% include 'subdashboards/_qtag2_cards.html' %}
+      </div>
+
       <!-- Qtag3 Cards -->
       <div class="row g-2 mb-2">
         {% include 'subdashboards/_qtag3_cards.html' %}
@@ -2104,6 +2117,141 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-primary">Update Qtag3</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add Qtag2 Card -->
+<div class="modal fade" id="addQtag2Modal" tabindex="-1" aria-labelledby="addQtag2ModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title" id="addQtag2ModalLabel"><i class="bi bi-grid-3x3 me-2"></i>Add Qtag2 Card (PV + SV)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="addQtag2Form">
+        <div class="modal-body">
+          <!-- Card Title -->
+          <div class="mb-3">
+            <label class="form-label">Card Title (optional)</label>
+            <input type="text" name="card_title" class="form-control" placeholder="e.g. Temperature Monitor">
+          </div>
+          <!-- Column Title -->
+          <div class="mb-3">
+            <label class="form-label">Column Title (optional)</label>
+            <input type="text" name="column_title" class="form-control" placeholder="e.g. Sensor A">
+          </div>
+          <hr>
+          <!-- PV Tag -->
+          <div class="mb-3">
+            <label class="form-label"><span class="badge bg-info me-2">PV</span>Process Value Tag</label>
+            <select name="tag1_id" class="form-select" required>
+              <option value="">-- Select PV Tag --</option>
+              {% for tag in all_tags %}
+              <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <hr>
+          <!-- SV Type -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">SV - Type</label>
+              <select name="sv_type" class="form-select sv-type-select" data-target="qtag2_sv">
+                <option value="tag">From Tag</option>
+                <option value="fixed">Fixed Value</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <div class="qtag2-sv-fixed-group mt-4" style="display:none;">
+                <input type="number" name="sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="qtag2-sv-tag-group mt-4">
+                <select name="tag2_id" class="form-select">
+                  <option value="">-- Select SV Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <hr>
+          <!-- Group -->
+          <div class="mb-3">
+            <label class="form-label">Group</label>
+            <select name="group_id" class="form-select">
+              <option value="">-- Select Group --</option>
+              {% for g in groups %}
+              <option value="{{ g.id }}">{{ g.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Or Create New Group</label>
+            <input type="text" name="new_group_name" class="form-control" placeholder="New group name">
+          </div>
+          <div id="qtag2-error-message" class="alert alert-danger mt-3" style="display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Qtag2 Card</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Edit Qtag2 Card -->
+<div class="modal fade" id="editQtag2Modal" tabindex="-1" aria-labelledby="editQtag2ModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title" id="editQtag2ModalLabel"><i class="bi bi-pencil-square me-2"></i>Edit Qtag2 Tags</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="editQtag2Form">
+        <input type="hidden" id="editQtag2Id" name="card_id">
+        <div class="modal-body">
+          <!-- PV Tag -->
+          <div class="mb-3">
+            <label class="form-label"><span class="badge bg-info me-2">PV</span>Process Value Tag</label>
+            <select id="editQtag2Tag1" name="tag1_id" class="form-select" required>
+              <option value="">-- Select PV Tag --</option>
+              {% for tag in all_tags %}
+              <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <hr>
+          <!-- SV -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">SV - Type</label>
+              <select id="editQtag2SvType" name="sv_type" class="form-select sv-type-select" data-target="edit_qtag2_sv">
+                <option value="fixed">Fixed Value</option>
+                <option value="tag">From Tag</option>
+              </select>
+              <div class="edit-qtag2-sv-fixed-group mt-2">
+                <input type="number" id="editQtag2SvFixed" name="sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+              </div>
+              <div class="edit-qtag2-sv-tag-group mt-2" style="display:none;">
+                <select id="editQtag2Tag2" name="tag2_id" class="form-select">
+                  <option value="">-- Select Tag --</option>
+                  {% for tag in all_tags %}
+                  <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div id="edit-qtag2-error-message" class="alert alert-danger mt-3" style="display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Update Qtag2</button>
         </div>
       </form>
     </div>
