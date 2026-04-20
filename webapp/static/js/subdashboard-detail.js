@@ -2754,6 +2754,34 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             }
           });
 
+          // ✅ Update Qtag3 PV values - pattern qtag3-val-{cardId}-{tagId}
+          const qtag3ValElements = document.querySelectorAll(`[id^="qtag3-val-"][id$="-${tag.id}"]`);
+          qtag3ValElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+            // Update last updated time
+            const subCard = el.closest('.qtag6-sub-card');
+            if (subCard) {
+              const timeEl = subCard.querySelector('.qtag6-update-time');
+              if (timeEl) {
+                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
+              }
+            }
+          });
+
+          // ✅ Update Qtag3 SV elements (tag-based only)
+          const qtag3SvElements = document.querySelectorAll(
+            `.qtag3-sv-low[data-tag-id="${tag.id}"], .qtag3-sv-high[data-tag-id="${tag.id}"]`
+          );
+          qtag3SvElements.forEach(el => {
+            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            if (el.textContent !== newVal) {
+              pending.push({ valEl: el, newVal: newVal, tag });
+            }
+          });
+
           // ✅ Update Qtag Single3 PV values
           const single3PvElements = document.querySelectorAll(`[id^="qtag-single3-pv-"][id$="-${tag.id}"]`);
           single3PvElements.forEach(el => {
@@ -3563,6 +3591,217 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   }
 
   // ============================================================
+  // ★ ADD: Qtag3 Card Form
+  // ============================================================
+  const addQtag3Form = document.getElementById('addQtag3Form');
+  if (addQtag3Form) {
+    addQtag3Form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const form = e.target;
+      const errorEl = document.getElementById('qtag3-error-message');
+      errorEl.style.display = 'none';
+
+      if (!form.querySelector('[name="tag1_id"]').value) {
+        errorEl.textContent = 'Please select a PV tag';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const groupId = form.querySelector('[name="group_id"]').value;
+      const newGroupName = form.querySelector('[name="new_group_name"]').value.trim();
+      if (!groupId && !newGroupName) {
+        errorEl.textContent = 'Please select a group or enter a new group name';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Adding Qtag3 Card...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(form);
+      fetch(`/subdash/${currentSubdashId}/add_qtag3`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'Qtag3 card added', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.message || 'Failed to add Qtag3 card', icon: 'error' });
+        }
+      })
+      .catch(err => {
+        Swal.fire({ title: 'Error', text: err.message, icon: 'error' });
+      });
+    });
+  }
+
+  // ============================================================
+  // ★ DELETE: Qtag3 Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.delete-qtag3-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+
+    Swal.fire({
+      title: 'Delete Qtag3 Card?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc3545',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Deleting...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/delete_qtag3/${cardId}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Deleted!', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.message || 'Failed to delete', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  });
+
+  // ============================================================
+  // ★ RENAME: Qtag3 Card
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.rename-qtag3-btn');
+    if (!btn) return;
+    e.preventDefault();
+    const cardId = btn.dataset.cardId;
+    const target = btn.dataset.target || 'card';
+    const card = btn.closest('.qtag3-card') || document.querySelector(`.qtag3-card[data-qtag3-id="${cardId}"]`);
+    if (!card) return;
+
+    let currentTitle;
+    if (target === 'column') {
+      const titleEl = card.querySelector('.qtag6-sub-title');
+      currentTitle = titleEl ? titleEl.textContent.trim() : '';
+    } else {
+      const titleEl = card.querySelector('.fw-semibold');
+      currentTitle = titleEl ? titleEl.textContent.trim() : 'Qtag3 Card';
+    }
+
+    Swal.fire({
+      title: 'Đổi tên',
+      input: 'text',
+      inputLabel: 'Tiêu đề mới:',
+      inputValue: currentTitle,
+      showCancelButton: true,
+      confirmButtonText: 'Cập nhật',
+      cancelButtonText: 'Hủy',
+      inputValidator: v => (!v || !v.trim()) ? 'Vui lòng nhập tiêu đề' : null
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      Swal.fire({ title: 'Đang cập nhật...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      fetch(`/subdash/${currentSubdashId}/qtag3/${cardId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: target, title: result.value.trim() })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ icon: 'success', title: 'Thành công', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+        } else {
+          Swal.fire({ icon: 'error', title: 'Lỗi', text: data.message || 'Không thể cập nhật' });
+        }
+      })
+      .catch(err => Swal.fire({ icon: 'error', title: 'Lỗi', text: err.message }));
+    });
+  });
+
+  // ============================================================
+  // ★ EDIT: Qtag3 Card - Open modal and populate
+  // ============================================================
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.edit-qtag3-btn');
+    if (!btn) return;
+    e.preventDefault();
+
+    document.getElementById('editQtag3Id').value = btn.dataset.cardId;
+    // PV tag
+    document.getElementById('editQtag3Tag1').value = btn.dataset.tag1Id || '';
+
+    // SV HIGH
+    const svHighType = btn.dataset.svHighType || 'tag';
+    document.getElementById('editQtag3SvHighType').value = svHighType;
+    const highFixedGrp = document.querySelector('.edit-qtag3-sv-high-fixed-group');
+    const highTagGrp = document.querySelector('.edit-qtag3-sv-high-tag-group');
+    if (highFixedGrp && highTagGrp) {
+      highFixedGrp.style.display = svHighType === 'fixed' ? '' : 'none';
+      highTagGrp.style.display = svHighType === 'tag' ? '' : 'none';
+    }
+    if (svHighType === 'fixed') {
+      document.getElementById('editQtag3SvHighFixed').value = btn.dataset.svHighFixed || '';
+    } else {
+      document.getElementById('editQtag3Tag2').value = btn.dataset.tag2Id || '';
+    }
+
+    // SV LOW
+    const svLowType = btn.dataset.svLowType || 'tag';
+    document.getElementById('editQtag3SvLowType').value = svLowType;
+    const lowFixedGrp = document.querySelector('.edit-qtag3-sv-low-fixed-group');
+    const lowTagGrp = document.querySelector('.edit-qtag3-sv-low-tag-group');
+    if (lowFixedGrp && lowTagGrp) {
+      lowFixedGrp.style.display = svLowType === 'fixed' ? '' : 'none';
+      lowTagGrp.style.display = svLowType === 'tag' ? '' : 'none';
+    }
+    if (svLowType === 'fixed') {
+      document.getElementById('editQtag3SvLowFixed').value = btn.dataset.svLowFixed || '';
+    } else {
+      document.getElementById('editQtag3Tag3').value = btn.dataset.tag3Id || '';
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('editQtag3Modal'));
+    modal.show();
+  });
+
+  // Edit Qtag3 form submission
+  const editQtag3Form = document.getElementById('editQtag3Form');
+  if (editQtag3Form) {
+    editQtag3Form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const cardId = document.getElementById('editQtag3Id').value;
+      const errorEl = document.getElementById('edit-qtag3-error-message');
+      errorEl.style.display = 'none';
+
+      if (!document.getElementById('editQtag3Tag1').value) {
+        errorEl.textContent = 'Please select a PV tag';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      Swal.fire({ title: 'Updating Qtag3...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      const formData = new FormData(editQtag3Form);
+      fetch(`/subdash/${currentSubdashId}/update_qtag3/${cardId}`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          Swal.fire({ title: 'Success!', text: 'Qtag3 updated', icon: 'success', timer: 2000 }).then(() => location.reload());
+        } else {
+          Swal.fire({ title: 'Error', text: data.message || 'Failed to update', icon: 'error' });
+        }
+      })
+      .catch(err => Swal.fire({ title: 'Error', text: err.message, icon: 'error' }));
+    });
+  }
+
+  // ============================================================
   // ★ DELETE: Qtag Single3 Card
   // ============================================================
   document.addEventListener('click', function (e) {
@@ -4332,7 +4571,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       .then(data => {
         if (data.success) {
           // Find the card element and apply color immediately (no reload)
-          const cardEl = btn.closest('.quad-tag-card, .qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag-pv-dual-card');
+          const cardEl = btn.closest('.quad-tag-card, .qtag6-card, .qtag4-card, .qtag3-card, .qtag-single-sub-card, .qtag-pv-dual-card');
           if (cardEl) {
             applyCardColor(cardEl, selectedColor);
           }

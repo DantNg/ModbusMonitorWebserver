@@ -664,6 +664,24 @@
   letter-spacing: 0.5px;
 }
 
+.qtag3-type-badge {
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Qtag3 single column layout */
+.qtag3-column {
+  display: block;
+}
+.qtag3-column .qtag6-sub-card {
+  border-radius: 12px;
+}
+
 /* Qtag4 SV value styling - match qtag6 tag value */
 .qtag4-sv-value {
   font-size: 1.1rem;
