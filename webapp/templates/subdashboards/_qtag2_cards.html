@@ -22,39 +22,39 @@
           <span class="fw-semibold">{{ card.card_title or 'Qtag2 Card' }}</span>
           <span class="qtag2-type-badge">QTAG2</span>
         </div>
-        {% if session.get('role') == 'admin' %}
-        <div class="dropdown">
-          <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown">
-            <i class="bi bi-gear"></i>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><button class="dropdown-item rename-qtag2-btn" data-card-id="{{ card.id }}" data-target="card"><i class="bi bi-pencil-square me-2"></i>Rename Card</button></li>
-            <li><button class="dropdown-item rename-qtag2-btn" data-card-id="{{ card.id }}" data-target="column"><i class="bi bi-columns me-2"></i>Rename Column</button></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><button class="dropdown-item edit-qtag2-btn"
-                        data-card-id="{{ card.id }}"
-                        data-tag1-id="{{ card.tag1_id }}"
-                        data-tag2-id="{{ card.tag2_id or '' }}"
-                        data-sv-type="{{ card.sv_type or 'tag' }}"
-                        data-sv-fixed="{{ card.sv_fixed if card.sv_fixed is not none else '' }}">
-              <i class="bi bi-pencil me-2"></i>Edit Tags</button></li>
-            <li><button class="dropdown-item text-danger delete-qtag2-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><button class="dropdown-item change-card-color-btn" data-card-id="{{ card.id }}" data-card-type="qtag2" data-current-color="{{ card.card_color or '' }}"><i class="bi bi-palette me-2"></i>Change Color</button></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><button class="dropdown-item set-card-condition-btn" data-card-type="qtag2" data-card-id="{{ card.id }}"><i class="bi bi-sliders me-2"></i>Set Alarm Conditions</button></li>
-          </ul>
-        </div>
-        {% endif %}
       </div>
 
       <!-- Card Body: Single column with PV + SV -->
       <div class="card-body">
         <div class="qtag2-column">
           <div class="qtag6-sub-card" data-column="single">
-            {% if card.column_title %}
-            <div class="qtag6-sub-head qtag6-left-head">
-              <div class="qtag6-sub-title">{{ card.column_title }}</div>
+            {% if card.column_title or session.get('role') == 'admin' %}
+            <div class="qtag6-sub-head qtag6-left-head d-flex justify-content-between align-items-center">
+              <div class="qtag6-sub-title">{{ card.column_title or '' }}</div>
+              {% if session.get('role') == 'admin' %}
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown">
+                  <i class="bi bi-gear"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><button class="dropdown-item rename-qtag2-btn" data-card-id="{{ card.id }}" data-target="card"><i class="bi bi-pencil-square me-2"></i>Rename Card</button></li>
+                  <li><button class="dropdown-item rename-qtag2-btn" data-card-id="{{ card.id }}" data-target="column"><i class="bi bi-columns me-2"></i>Rename Column</button></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><button class="dropdown-item edit-qtag2-btn"
+                              data-card-id="{{ card.id }}"
+                              data-tag1-id="{{ card.tag1_id }}"
+                              data-tag2-id="{{ card.tag2_id or '' }}"
+                              data-sv-type="{{ card.sv_type or 'tag' }}"
+                              data-sv-fixed="{{ card.sv_fixed if card.sv_fixed is not none else '' }}">
+                    <i class="bi bi-pencil me-2"></i>Edit Tags</button></li>
+                  <li><button class="dropdown-item text-danger delete-qtag2-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><button class="dropdown-item change-card-color-btn" data-card-id="{{ card.id }}" data-card-type="qtag2" data-current-color="{{ card.card_color or '' }}"><i class="bi bi-palette me-2"></i>Change Color</button></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><button class="dropdown-item set-card-condition-btn" data-card-type="qtag2" data-card-id="{{ card.id }}"><i class="bi bi-sliders me-2"></i>Set Alarm Conditions</button></li>
+                </ul>
+              </div>
+              {% endif %}
             </div>
             {% endif %}
             <div class="qtag6-tag-rows">
