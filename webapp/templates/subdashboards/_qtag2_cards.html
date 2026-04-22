@@ -1,7 +1,7 @@
 <!-- Qtag2 Cards (1 column: PV + SV, Qtag4-style but single column) -->
 {% if group.qtag2_cards %}
   {% for card in group.qtag2_cards %}
-  <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+  <div class="col-12 col-sm-6 col-lg-3 col-xl-3">
     <div class="qtag-single-sub-card qtag2-card{% if card.card_color %} qtag-custom-bg{% endif %}"
          data-qtag2-id="{{ card.id }}"
          data-card-type="qtag2"

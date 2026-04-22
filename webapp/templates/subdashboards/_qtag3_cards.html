@@ -1,7 +1,7 @@
 <!-- Qtag3 Cards (1 column: PV + SV HIGH/LOW, Qtag6-style layout) -->
 {% if group.qtag3_cards %}
   {% for card in group.qtag3_cards %}
-  <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+  <div class="col-12 col-sm-6 col-lg-3 col-xl-3">
     <div class="card h-100 shadow-soft qtag3-card{% if card.card_color %} qtag-custom-bg{% endif %}"
          data-qtag3-id="{{ card.id }}"
          data-card-type="qtag3"
