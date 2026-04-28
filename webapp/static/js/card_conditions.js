@@ -1,11 +1,11 @@
 /**
  * Card Alarm Conditions Manager
- * Manages alarm conditions for Qtag6, Single3, PV Only, PV Dual cards
+ * Manages alarm conditions for Qtag6, Single3, PV Only, PV Dual, Qtag2, Qtag3, Qtag4 cards
  * Uses unified card_alarm_conditions table via API
  */
 
 // Card types that use dual columns (left + right)
-const DUAL_COLUMN_TYPES = ['qtag6', 'pv_dual'];
+const DUAL_COLUMN_TYPES = ['qtag6', 'pv_dual', 'qtag4'];
 
 function cardCondSetValue(elementId, value, defaultValue) {
   const element = document.getElementById(elementId);

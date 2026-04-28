@@ -587,7 +587,7 @@ subdash_qtag_pv_dual_cards = Table(
 card_alarm_conditions = Table(
     "card_alarm_conditions", _md,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("card_type", String(20), nullable=False),  # 'qtag6', 'single3', 'pv_only', 'pv_dual'
+    Column("card_type", String(20), nullable=False),  # 'qtag6', 'qtag4', 'qtag3', 'qtag2', 'single3', 'pv_only', 'pv_dual'
     Column("card_id", Integer, nullable=False),        # ID in the respective card table
     Column("enabled", Boolean, default=True),
 
@@ -610,7 +610,7 @@ card_alarm_conditions = Table(
     Column("left_sms", String(500), nullable=True),
     Column("left_description", String(500), nullable=True),
 
-    # Right column conditions (only used for dual-column cards: qtag6, pv_dual)
+    # Right column conditions (only used for dual-column cards: qtag6, qtag4, pv_dual)
     Column("right_high_operator", String(10)),
     Column("right_high_compare_type", String(10)),
     Column("right_high_value", Float, nullable=True),
@@ -4414,6 +4414,33 @@ def get_active_card_alarms_by_subdash(subdash_id: int):
             for r in rows:
                 card_keys.append(('pv_dual', r[0]))
 
+            # Qtag2
+            rows = con.execute(
+                select(subdash_qtag2_cards.c.id).select_from(
+                    subdash_qtag2_cards.join(subdash_tag_groups, subdash_qtag2_cards.c.group_id == subdash_tag_groups.c.id)
+                ).where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).fetchall()
+            for r in rows:
+                card_keys.append(('qtag2', r[0]))
+
+            # Qtag3
+            rows = con.execute(
+                select(subdash_qtag3_cards.c.id).select_from(
+                    subdash_qtag3_cards.join(subdash_tag_groups, subdash_qtag3_cards.c.group_id == subdash_tag_groups.c.id)
+                ).where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).fetchall()
+            for r in rows:
+                card_keys.append(('qtag3', r[0]))
+
+            # Qtag4
+            rows = con.execute(
+                select(subdash_qtag4_cards.c.id).select_from(
+                    subdash_qtag4_cards.join(subdash_tag_groups, subdash_qtag4_cards.c.group_id == subdash_tag_groups.c.id)
+                ).where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).fetchall()
+            for r in rows:
+                card_keys.append(('qtag4', r[0]))
+
             if not card_keys:
                 return []
 
@@ -4449,6 +4476,9 @@ def get_card_info_for_alarm(card_type: str, card_id: int):
             'single3': subdash_qtag_single3_cards,
             'pv_only': subdash_qtag_pv_cards,
             'pv_dual': subdash_qtag_pv_dual_cards,
+            'qtag2': subdash_qtag2_cards,
+            'qtag3': subdash_qtag3_cards,
+            'qtag4': subdash_qtag4_cards,
         }
         table = table_map.get(card_type)
         if not table:

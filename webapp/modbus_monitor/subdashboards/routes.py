@@ -248,7 +248,7 @@ def subdash_detail(sid):
         except Exception as e:
             print(f"⚠️ Could not load active tag alarms: {e}")
 
-    # Get active card alarms (Qtag6, Single3, PV Only, PV Dual)
+    # Get active card alarms (Qtag6, Qtag4, Qtag3, Qtag2, Single3, PV Only, PV Dual)
     active_card_alarms = []
     if hasattr(db, "get_active_card_alarms_by_subdash"):
         try:

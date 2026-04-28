@@ -320,7 +320,7 @@ class AlarmWorker:
         self._quad_managed_tag_ids_ts = 0.0
         self._quad_managed_tag_ids_ttl = 10.0  # Refresh every 10 seconds
 
-        # Card alarm conditions cache (Qtag6, Single3, PV Only, PV Dual)
+        # Card alarm conditions cache (Qtag6, Single3, PV Only, PV Dual, Qtag2, Qtag3, Qtag4)
         self._cached_card_conditions: Optional[List[dict]] = None
         self._cached_card_conditions_ts = 0.0
         self._cached_card_conditions_ttl = 5.0
@@ -1775,7 +1775,7 @@ class AlarmWorker:
             self._last_notification[hash(alarm_key)] = {}
         self._last_notification[hash(alarm_key)][notification_type] = time.time()
 
-    # ========== Card Alarm Evaluation (Qtag6, Single3, PV Only, PV Dual) ==========
+    # ========== Card Alarm Evaluation (Qtag6, Qtag4, Qtag3, Qtag2, Single3, PV Only, PV Dual) ==========
 
     def _get_card_managed_tag_ids(self) -> set:
         """Get all tag IDs managed by card alarm conditions to skip in regular evaluation."""
@@ -1845,6 +1845,17 @@ class AlarmWorker:
                 tid = card_info.get(key)
                 if tid:
                     pv_ids.append(int(tid))
+        elif card_type == 'qtag4':
+            # tag1 = left PV, tag2 = right PV
+            for key in ('tag1_id', 'tag2_id'):
+                tid = card_info.get(key)
+                if tid:
+                    pv_ids.append(int(tid))
+        elif card_type in ('qtag2', 'qtag3'):
+            # Single column, PV = tag1_id
+            tid = card_info.get('tag1_id')
+            if tid:
+                pv_ids.append(int(tid))
         return pv_ids
 
     def _evaluate_card_conditions(self):
@@ -1900,6 +1911,14 @@ class AlarmWorker:
         elif card_type in ('single3', 'pv_only'):
             left_pv_id = card_info.get("pv_tag_id")
             right_pv_id = None
+        elif card_type == 'qtag4':
+            # 2 columns: tag1 = left PV, tag2 = right PV
+            left_pv_id = card_info.get("tag1_id")
+            right_pv_id = card_info.get("tag2_id")
+        elif card_type in ('qtag2', 'qtag3'):
+            # Single column: PV = tag1_id
+            left_pv_id = card_info.get("tag1_id")
+            right_pv_id = None
         else:
             return
 
@@ -1912,7 +1931,7 @@ class AlarmWorker:
             )
 
         # Evaluate right column (only for dual-column types)
-        if right_pv_id and card_type in ('qtag6', 'pv_dual'):
+        if right_pv_id and card_type in ('qtag6', 'pv_dual', 'qtag4'):
             right_pv_value = self._get_tag_value(right_pv_id)
             self._evaluate_card_column(
                 condition, "right", right_pv_value, right_pv_id,
