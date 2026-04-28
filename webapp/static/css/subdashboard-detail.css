@@ -93,8 +93,7 @@
 }
 
 .quad-tag-card:hover {
-  box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important;
-  /* Avoid shifting card to prevent dropdown jitter */
+  /* Bloom/glow effects removed */
   transform: none !important;
 }
 
@@ -137,8 +136,7 @@
 }
 
 .quad-sub-card:hover {
-  transform: scale(1.02) !important;
-  box-shadow: inset 0 0 20px rgba(255,255,255,0.1) !important;
+  /* Bloom/glow effects removed */
 }
 
 .quad-sub-card-title {
@@ -447,11 +445,10 @@
   border-radius: 14px !important;
   overflow: visible !important;
   position: relative !important;
-  transition: box-shadow 0.3s ease;
 }
 
 .qtag6-card:hover {
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+  /* Bloom/glow effects removed */
 }
 
 .qtag6-card .card-header {
@@ -484,12 +481,10 @@
   background: #fff !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
   overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .qtag6-sub-card:hover {
-  transform: scale(1.01);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08) !important;
+  /* Bloom/glow effects removed */
 }
 
 .qtag6-sub-head {
@@ -518,27 +513,25 @@
 }
 
 .qtag6-tag-rows {
-  padding: 14px !important;
+  padding: 8px 14px 4px 14px !important;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .qtag6-tag-item {
   background: #1a1f2e !important;
   border-radius: 8px !important;
-  padding: 12px 14px !important;
+  padding: 8px 14px !important;
   display: grid !important;
   grid-template-columns: auto 1fr !important;
   align-items: center !important;
   gap: 12px !important;
   border: 1px solid #2d3748 !important;
-  transition: all 0.3s ease;
 }
 
 .qtag6-tag-item:hover {
   background: #242b3d !important;
-  transform: translateX(2px);
 }
 
 .qtag6-tag-label {
@@ -636,7 +629,7 @@
 }
 
 .qtag6-update-time {
-  padding: 6px 14px 10px;
+  padding: 2px 14px 8px;
   font-size: 0.75rem;
   color: #6b7280;
   display: flex;
@@ -848,12 +841,10 @@
   background: #fff !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
   overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .qtag-single-sub-card:hover {
-  transform: scale(1.01);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08) !important;
+  /* Bloom/glow effects removed */
 }
 
 .qtag-single-sub-head {
@@ -888,28 +879,26 @@
 }
 
 .qtag-single-tag-rows {
-  padding: 14px !important;
+  padding: 8px 14px 4px 14px !important;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   min-height: 138px;
 }
 
 .qtag-single-tag-item {
   background: #1a1f2e !important;
   border-radius: 8px !important;
-  padding: 12px 14px !important;
+  padding: 8px 14px !important;
   display: grid !important;
   grid-template-columns: auto 1fr !important;
   align-items: center !important;
   gap: 12px !important;
   border: 1px solid #2d3748 !important;
-  transition: all 0.3s ease;
 }
 
 .qtag-single-tag-item:hover {
   background: #242b3d !important;
-  transform: translateX(2px);
 }
 
 .qtag-single-tag-label {
@@ -959,7 +948,7 @@
 }
 
 .qtag-single-update-time {
-  padding: 6px 14px 10px;
+  padding: 2px 14px 8px;
   font-size: 0.75rem;
   color: #6b7280;
   display: flex;
@@ -1086,11 +1075,10 @@
   border-radius: 14px !important;
   overflow: visible !important;
   position: relative !important;
-  transition: box-shadow 0.3s ease;
 }
 
 .qtag-pv-dual-card:hover {
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+  /* Bloom/glow effects removed */
 }
 
 .qtag-pv-dual-card .card-header {
@@ -1123,12 +1111,10 @@
   background: #fff !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
   overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .qtag-pv-dual-sub-card:hover {
-  transform: scale(1.01);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08) !important;
+  /* Bloom/glow effects removed */
 }
 
 .qtag-pv-dual-sub-head {
@@ -1218,7 +1204,7 @@
 }
 
 .qtag-pv-dual-update-time {
-  padding: 6px 14px 10px;
+  padding: 2px 14px 8px;
   font-size: 0.75rem;
   color: #6b7280;
   display: flex;
@@ -1305,24 +1291,38 @@
    ★ CARD CUSTOM BACKGROUND COLOR (header only)
    ========================================================== */
 
-/* Card-level: only set CSS variables, do NOT color the whole card */
+/* Card-level: only set CSS variables, do NOT color the whole card body */
 .qtag-custom-bg {
   /* Variables propagate to children; background stays default */
 }
 
-/* Color the card header (Qtag6, PV Dual, Quad) */
+/* ── EXPLICITLY prevent color from bleeding into card body ── */
+/* For Bootstrap card types (Qtag3, Qtag6, Qtag4, PV Dual) */
+.qtag-custom-bg .card-body {
+  background: inherit !important;
+}
+/* For inline-header card types (Single3, PV Only, Qtag2) */
+.qtag-custom-bg.qtag-single-sub-card {
+  background: #fff !important;
+}
+[data-bs-theme="dark"] .qtag-custom-bg.qtag-single-sub-card {
+  background: #1f2937 !important;
+}
+/* Keep inner sub-column headers unchanged (gradient stays) */
+.qtag-custom-bg .qtag6-sub-head,
+.qtag-custom-bg .qtag-pv-dual-sub-head {
+  /* No color override – keep original gradient */
+}
+
+/* ── Apply custom color ONLY to the outer main header ── */
+/* Qtag3, Qtag6, Qtag4, PV Dual – outer Bootstrap card-header */
 .qtag-custom-bg .card-header {
   background-color: var(--qtag-card-bg) !important;
   color: var(--qtag-card-text, inherit) !important;
   border-bottom-color: rgba(255,255,255,0.15) !important;
 }
 
-/* Card body keeps its default background */
-.qtag-custom-bg .card-body {
-  /* No custom background */
-}
-
-/* Override header gradient for Single3 and PV Only cards (sub-head IS the header) */
+/* Single3, PV Only, Qtag2 – inline head IS the outer header */
 .qtag-custom-bg .qtag-single-sub-head {
   background: var(--qtag-card-bg) !important;
   color: var(--qtag-card-text, #fff) !important;
