@@ -1,0 +1,90 @@
+{% extends "auth_base.html" %}
+{% set page_title = "License Activation" %}
+
+{% block content %}
+<div class="text-center mb-4">
+  <!-- Lock icon -->
+  <div class="mb-3">
+    <i class="bi bi-shield-lock-fill text-primary" style="font-size: 3rem;"></i>
+  </div>
+  <h4 class="fw-bold">Activate Your License</h4>
+  <p class="text-muted small">
+    A valid license is required to use this application.<br>
+    Please contact your system administrator to obtain a license key.  
+  </p>
+</div>
+
+<!-- Error alert -->
+{% if error %}
+<div class="alert alert-danger d-flex align-items-center gap-2 py-2 mb-3" role="alert">
+  <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+  <span>{{ error }}</span>
+</div>
+{% endif %}
+
+<!-- Activation form -->
+<form method="POST" action="{{ url_for('license_bp.activate') }}" autocomplete="off">
+  <div class="mb-3">
+    <label for="license_key" class="form-label fw-semibold">License Key</label>
+    <textarea id="license_key"
+              name="license_key"
+              class="form-control font-monospace"
+              rows="4"
+              placeholder="Paste your license key here…"
+              required
+              style="font-size: 0.78rem; letter-spacing: 0.02em;"></textarea>
+    <div class="form-text">
+      The license key is bound to this machine's hardware. Contact your administrator if you need a new key.
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <label for="note" class="form-label">Note <span class="text-muted">(optional)</span></label>
+    <input type="text" id="note" name="note" class="form-control"
+           placeholder="e.g. Production server 1" maxlength="255">
+  </div>
+
+  <div class="d-grid">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-key-fill me-2"></i>Activate License
+    </button>
+  </div>
+</form>
+
+<!-- Machine UID (diagnostic) -->
+<hr class="my-4">
+<details class="small text-muted">
+  <summary class="fw-semibold" style="cursor: pointer;">
+    <i class="bi bi-hdd me-1"></i>Machine Identification
+  </summary>
+  <div class="mt-2 p-3 rounded" style="background: rgba(255,255,255,0.05); font-family: monospace; font-size: 0.78rem;">
+    <p class="mb-2 text-muted" style="font-family: inherit; font-size: 0.75rem;">
+      Provide the following information to your administrator when requesting a license key.
+    </p>
+    <div class="mb-1">
+      <span class="fw-semibold">Machine ID:</span>
+      <span id="machineUid">Loading…</span>
+    </div>
+    <div>
+      <span class="fw-semibold">Fingerprint:</span>
+      <span id="machineHash">Loading…</span>
+    </div>
+  </div>
+</details>
+
+<script>
+  // Fetch machine UID via AJAX for display purposes only
+  fetch("{{ url_for('license_bp.machine_uid') }}")
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        document.getElementById("machineUid").textContent  = d.uid;
+        document.getElementById("machineHash").textContent = d.hash;
+      }
+    })
+    .catch(() => {
+      document.getElementById("machineUid").textContent  = "unavailable";
+      document.getElementById("machineHash").textContent = "unavailable";
+    });
+</script>
+{% endblock %}

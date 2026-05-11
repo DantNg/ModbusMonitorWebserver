@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% set page_title = "License Management" %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+  <!-- Page header -->
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <i class="bi bi-shield-lock-fill text-primary fs-3"></i>
+    <div>
+      <h5 class="mb-0 fw-bold">License Management</h5>
+      <p class="text-muted small mb-0">View, activate and manage application licenses.</p>
+    </div>
+  </div>
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ 'success' if cat == 'success' else 'danger' }} alert-dismissible fade show py-2 mb-3" role="alert">
+      {{ msg }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endif %}
+  {% endwith %}
+
+  <!-- Two-column layout -->
+  <div class="row g-4">
+
+    <!-- LEFT: Active status card -->
+    <div class="col-12 col-lg-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header fw-semibold">
+          <i class="bi bi-patch-check-fill me-2 text-success"></i>Current Status
+        </div>
+        <div class="card-body">
+          {% if active_license %}
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="badge bg-success fs-6 px-3 py-2">
+              <i class="bi bi-check-circle me-1"></i>Licensed
+            </span>
+          </div>
+          <table class="table table-sm mb-0">
+            <tr>
+              <td class="text-muted small">Type</td>
+              <td class="small fw-semibold">
+                {% if active_license.is_permanent %}
+                  <span class="badge bg-primary">Permanent</span>
+                {% else %}
+                  <span class="badge bg-info text-dark">Time-limited</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% if not active_license.is_permanent and active_license.expires_at %}
+            <tr>
+              <td class="text-muted small">Expires</td>
+              <td class="small fw-semibold">{{ active_license.expires_at.strftime('%d/%m/%Y') if active_license.expires_at else '—' }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+              <td class="text-muted small">Activated</td>
+              <td class="small">{{ active_license.activated_at.strftime('%d/%m/%Y %H:%M') if active_license.activated_at else '—' }}</td>
+            </tr>
+            {% if active_license.note %}
+            <tr>
+              <td class="text-muted small">Note</td>
+              <td class="small">{{ active_license.note }}</td>
+            </tr>
+            {% endif %}
+          </table>
+          {% else %}
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="badge bg-danger fs-6 px-3 py-2">
+              <i class="bi bi-x-circle me-1"></i>Unlicensed
+            </span>
+          </div>
+          <p class="text-muted small mb-3">No active license found for this machine.</p>
+          <a href="{{ url_for('license_bp.activate') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-key-fill me-1"></i>Activate Now
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Machine info card -->
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header fw-semibold">
+          <i class="bi bi-hdd-fill me-2 text-secondary"></i>This Machine
+        </div>
+        <div class="card-body">
+          <div class="mb-2">
+            <span class="text-muted small d-block">HDD Serial Number</span>
+            <code class="small">{{ machine_uid }}</code>
+          </div>
+          <div>
+            <span class="text-muted small d-block">SHA-256 Hash (used in key)</span>
+            <code class="small text-break" style="font-size: 0.7rem;">{{ machine_hash }}</code>
+          </div>
+          <hr>
+          <p class="text-muted small mb-0">
+            Use <code>generate_license.py</code> with the serial number above to generate a key for this machine.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: License table + add form -->
+    <div class="col-12 col-lg-8">
+
+      <!-- Add new license form -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header fw-semibold">
+          <i class="bi bi-plus-circle me-2 text-primary"></i>Activate New License
+        </div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('license_bp.activate') }}" id="activateForm">
+            <div class="row g-3 align-items-end">
+              <div class="col-12 col-md-8">
+                <label class="form-label small fw-semibold">License Key</label>
+                <textarea name="license_key" class="form-control font-monospace"
+                          rows="3" placeholder="Paste license key…" required
+                          style="font-size: 0.78rem;"></textarea>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label small fw-semibold">Note (optional)</label>
+                <input type="text" name="note" class="form-control" placeholder="e.g. Server 1" maxlength="255">
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="bi bi-key-fill me-1"></i>Activate
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- License history table -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header fw-semibold">
+          <i class="bi bi-list-ul me-2"></i>All Licenses
+        </div>
+        <div class="card-body p-0">
+          {% if all_licenses %}
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th class="ps-3">#</th>
+                  <th>Key (truncated)</th>
+                  <th>Type</th>
+                  <th>Expires</th>
+                  <th>Status</th>
+                  <th>Activated</th>
+                  <th>Note</th>
+                  <th class="text-end pe-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for lic in all_licenses %}
+                <tr id="lic-row-{{ lic.id }}">
+                  <td class="ps-3 text-muted small">{{ lic.id }}</td>
+                  <td>
+                    <code class="small" title="{{ lic.license_key }}">
+                      {{ lic.license_key[:18] }}…
+                    </code>
+                  </td>
+                  <td class="small">
+                    {% if lic.is_permanent %}
+                      <span class="badge bg-primary">Permanent</span>
+                    {% else %}
+                      <span class="badge bg-info text-dark">Time-limited</span>
+                    {% endif %}
+                  </td>
+                  <td class="small">
+                    {% if lic.is_permanent %}—
+                    {% elif lic.expires_at %}{{ lic.expires_at.strftime('%d/%m/%Y') }}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td>
+                    {% if lic.display_status == 'Active (Permanent)' or lic.display_status == 'Active' %}
+                      <span class="badge bg-success">{{ lic.display_status }}</span>
+                    {% elif lic.display_status == 'Expired' %}
+                      <span class="badge bg-warning text-dark">Expired</span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ lic.display_status }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="small">{{ lic.activated_at.strftime('%d/%m/%Y %H:%M') if lic.activated_at else '—' }}</td>
+                  <td class="small">{{ lic.note or '—' }}</td>
+                  <td class="text-end pe-3">
+                    {% if lic.status == 'active' %}
+                    <button class="btn btn-xs btn-outline-warning revoke-btn"
+                            data-id="{{ lic.id }}" title="Revoke">
+                      <i class="bi bi-slash-circle"></i>
+                    </button>
+                    {% endif %}
+                    <button class="btn btn-xs btn-outline-danger delete-btn ms-1"
+                            data-id="{{ lic.id }}" title="Delete">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-muted text-center py-4">
+            <i class="bi bi-inbox fs-3 d-block mb-2"></i>No licenses found.
+          </div>
+          {% endif %}
+        </div>
+      </div><!-- /card -->
+
+    </div><!-- /col right -->
+  </div><!-- /row -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ── Revoke ──────────────────────────────────────────────────────────────
+  document.querySelectorAll(".revoke-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      if (!confirm("Revoke this license? The application will require re-activation.")) return;
+      const resp = await fetch(`/license/${id}/revoke`, { method: "POST" });
+      const data = await resp.json();
+      if (data.success) {
+        location.reload();
+      } else {
+        alert("Error: " + data.message);
+      }
+    });
+  });
+
+  // ── Delete ───────────────────────────────────────────────────────────────
+  document.querySelectorAll(".delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      if (!confirm("Permanently delete this license record?")) return;
+      const resp = await fetch(`/license/${id}/delete`, { method: "POST" });
+      const data = await resp.json();
+      if (data.success) {
+        document.getElementById(`lic-row-${id}`)?.remove();
+      } else {
+        alert("Error: " + data.message);
+      }
+    });
+  });
+</script>
+{% endblock %}

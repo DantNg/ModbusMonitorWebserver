@@ -322,6 +322,20 @@ quad_alarm_states = Table(
 # Index để query nhanh theo quad_id
 Index("idx_quad_alarm_states_quad", quad_alarm_states.c.quad_id)
 
+# --- Bảng License ---
+licenses = Table(
+    "licenses", _md,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("license_key", String(512), nullable=False, unique=True),
+    Column("hdd_uid_hash", String(64), nullable=False),   # SHA-256 hash của HDD UID
+    Column("expires_at", DateTime, nullable=True),         # NULL = vĩnh viễn
+    Column("is_permanent", Boolean, default=False),
+    Column("note", String(255), nullable=True),
+    Column("status", String(20), default="active"),        # active | revoked
+    Column("activated_at", DateTime, server_default=func.now()),
+    Column("created_at", DateTime, server_default=func.now()),
+)
+
 # --- Bảng Data Logger ---
 data_loggers = Table(
     "data_loggers", _md,
@@ -4491,4 +4505,96 @@ def get_card_info_for_alarm(card_type: str, card_id: int):
     except Exception as e:
         print(f"Error getting card info for alarm {card_type}/{card_id}: {e}")
         return None
-    
+
+
+# ===== License CRUD =====
+
+def get_active_license():
+    """
+    Lấy license đang active và chưa hết hạn (nếu có).
+    Dùng trong before_request hook và trang quản lý license.
+    """
+    try:
+        with init_engine().connect() as con:
+            now = datetime.now()
+            result = con.execute(
+                select(licenses)
+                .where(
+                    (licenses.c.status == "active") &
+                    (
+                        (licenses.c.is_permanent == True) |
+                        (licenses.c.expires_at > now)
+                    )
+                )
+                .order_by(licenses.c.activated_at.desc())
+                .limit(1)
+            ).mappings().first()
+            return dict(result) if result else None
+    except Exception as e:
+        print(f"[license] Error getting active license: {e}")
+        return None
+
+
+def list_all_licenses():
+    """Liệt kê tất cả license (cho trang quản lý)."""
+    try:
+        with init_engine().connect() as con:
+            rows = con.execute(
+                select(licenses).order_by(licenses.c.activated_at.desc())
+            ).mappings().all()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"[license] Error listing licenses: {e}")
+        return []
+
+
+def add_license(license_key: str, hdd_uid_hash: str, expires_at, is_permanent: bool, note: str = "") -> int:
+    """
+    Thêm license mới vào database.
+    Returns inserted ID hoặc -1 nếu lỗi (kể cả trùng key).
+    """
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                insert(licenses).values(
+                    license_key=license_key,
+                    hdd_uid_hash=hdd_uid_hash,
+                    expires_at=expires_at,
+                    is_permanent=is_permanent,
+                    note=note,
+                    status="active",
+                    activated_at=datetime.now(),
+                )
+            )
+            return result.inserted_primary_key[0]
+    except Exception as e:
+        print(f"[license] Error adding license: {e}")
+        return -1
+
+
+def revoke_license(license_id: int) -> bool:
+    """Đánh dấu license là revoked (không xóa khỏi DB)."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(licenses)
+                .where(licenses.c.id == license_id)
+                .values(status="revoked")
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"[license] Error revoking license {license_id}: {e}")
+        return False
+
+
+def delete_license(license_id: int) -> bool:
+    """Xóa hẳn một license khỏi database."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(licenses).where(licenses.c.id == license_id)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"[license] Error deleting license {license_id}: {e}")
+        return False

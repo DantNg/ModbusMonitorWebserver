@@ -7,6 +7,7 @@ from .logger_settings import logger_settings_bp
 from .auth import auth_bp
 from .subdashboards import subdash_bp
 from .datalogger import datalogger_bp
+from .license import license_bp
 from .database.db import init_engine, create_schema
 import os
 import asyncio
@@ -189,6 +190,7 @@ def create_app():
 
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix="/auth")
+    app.register_blueprint(license_bp, url_prefix="/license")
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(alarms_bp, url_prefix="/alarms")
     app.register_blueprint(devices_bp)
@@ -197,6 +199,23 @@ def create_app():
     app.register_blueprint(subdash_bp)
     app.register_blueprint(datalogger_bp)
     socketio.init_app(app)
+
+    # ----- License guard: redirect to activation page if no valid license -----
+    # Paths that are always accessible (license page itself, auth, static assets)
+    _LICENSE_EXEMPT = ("/license", "/auth", "/static")
+
+    @app.before_request
+    def check_license_guard():
+        """Block access to all routes when no valid license is present."""
+        # Allow exempt paths unconditionally
+        if any(request.path.startswith(p) for p in _LICENSE_EXEMPT):
+            return None
+
+        from .license_manager import is_license_valid
+        from flask import redirect, url_for
+        if not is_license_valid():
+            return redirect(url_for("license_bp.activate"))
+        return None
 
     # ----- Static file robustness for long uptime (10+ days) -----
     # Add explicit Cache-Control headers for static assets so browsers

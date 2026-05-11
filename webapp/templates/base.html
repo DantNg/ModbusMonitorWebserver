@@ -149,6 +149,10 @@
               href="{{ url_for('logger_settings_bp.datalogger_settings') }}">
               <i class="bi bi-database me-2"></i> Data Logger Setting
             </a>
+            <a class="side-link small {{ 'active' if request.path.startswith('/license') else '' }}"
+              href="{{ url_for('license_bp.manage') }}">
+              <i class="bi bi-shield-lock me-2"></i> License
+            </a>
           </div>
         </div>
       </div>
