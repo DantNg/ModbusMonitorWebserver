@@ -516,13 +516,13 @@
   padding: 8px 14px 4px 14px !important;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 14px;
 }
 
 .qtag6-tag-item {
   background: #1a1f2e !important;
   border-radius: 8px !important;
-  padding: 8px 14px !important;
+  padding: 12px 14px !important;
   display: grid !important;
   grid-template-columns: auto 1fr !important;
   align-items: center !important;
@@ -685,11 +685,25 @@
   border-radius: 12px;
 }
 
-/* Qtag2 SV value styling - match qtag4 sv value */
+/* Qtag2 SV value styling - same as qtag4-sv-value */
 .qtag2-sv-value {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--qtag-card-text, #333);
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  color: #f9a8d4 !important;
+  line-height: 1 !important;
+  flex: 1 1 auto !important;
+  text-align: center !important;
+}
+
+/*
+ * Sync qtag2 tag-row width with qtag4 sub-column width.
+ * qtag4: col-6 → card-body 16px + grid 8px = 24px/side → sub-col ≈ 168px content.
+ * qtag2: col-3 → no card-body wrapper → sub-card ≈ 186px content (18px wider).
+ * Adding 22px H-padding to tag-rows brings content to ≈ 170px ≈ qtag4.
+ */
+.qtag2-card .qtag6-tag-rows {
+  padding-left: 22px !important;
+  padding-right: 22px !important;
 }
 
 /* Qtag3 single column layout */
@@ -698,6 +712,16 @@
 }
 .qtag3-column .qtag6-sub-card {
   border-radius: 12px;
+}
+
+/*
+ * Sync qtag3 card-body padding with qtag4.
+ * qtag4: card-body 16px (default) + qtag6-grid 8px = 24px/side.
+ * qtag3: card-body 16px (default) + no grid = 16px/side → sub-card is 14px narrower.
+ * Setting card-body to 8px gives 16px total padding/side → sub-card ≈ 170px ≈ qtag4.
+ */
+.qtag3-card .card-body {
+  padding: 8px !important;
 }
 
 /* Qtag4 SV value styling - match qtag6 tag value */
@@ -882,14 +906,14 @@
   padding: 8px 14px 4px 14px !important;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 14px;
   min-height: 138px;
 }
 
 .qtag-single-tag-item {
   background: #1a1f2e !important;
   border-radius: 8px !important;
-  padding: 8px 14px !important;
+  padding: 12px 14px !important;
   display: grid !important;
   grid-template-columns: auto 1fr !important;
   align-items: center !important;
@@ -1010,6 +1034,16 @@
   color: #fb923c !important;
   margin-right: 2px !important;
   -webkit-text-stroke: 0.5px currentColor;
+}
+
+/*
+ * Sync single3 tag-row width with qtag4 sub-column width.
+ * single3: col-3 → qtag-single-sub-card border only → tag-item ≈ 186px (18px wider than qtag4's ~168px).
+ * Adding 22px H-padding to tag-rows brings content to ≈ 170px ≈ qtag4.
+ */
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-rows {
+  padding-left: 22px !important;
+  padding-right: 22px !important;
 }
 
 /* PV Only specific styles */
