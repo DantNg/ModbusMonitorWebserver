@@ -48,7 +48,7 @@
             <span class="qtag-pvonly-unit">{{ card.pv_tag.unit or '' }}</span>
           </div>
           <div class="qtag-single-value-row">
-            <div class="qtag-single-tag-value" id="qtag-pv-val-{{ card.id }}-{{ card.pv_tag_id }}">{{ card.pv_tag.last_value if card.pv_tag.last_value is not none else 0 }}</div>
+            <div class="qtag-single-tag-value" id="qtag-pv-val-{{ card.id }}-{{ card.pv_tag_id }}">{{ ( card.pv_tag.last_value if card.pv_tag.last_value is not none else 0) | format_value }}</div>
           </div>
         </div>
       </div>

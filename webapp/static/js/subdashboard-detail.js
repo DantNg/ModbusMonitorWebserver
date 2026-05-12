@@ -1328,8 +1328,21 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     } else if (Math.abs(num) >= 1000) {
       return (num / 1000).toFixed(1) + 'K';
     } else {
-      return num.toFixed(1);
+      return num % 1 === 0 ? String(Math.round(num)) : num.toFixed(2);
     }
+  }
+
+
+  /**
+   * Format a raw tag value for display:
+   * - integer (or whole float) -> no decimal  e.g. 123.0 -> "123"
+   * - decimal -> exactly 2 decimal places     e.g. 123.5 -> "123.50"
+   */
+  function fmtVal(value) {
+    if (value === null || value === undefined || value === '') return '0';
+    const num = parseFloat(value);
+    if (isNaN(num)) return String(value);
+    return num % 1 === 0 ? String(Math.round(num)) : num.toFixed(2);
   }
 
   // Local title helpers to allow renaming headers and persisting in the browser
@@ -2677,7 +2690,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           
           if (valEl) {
             const oldVal = valEl.textContent;
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value); // hoặc formatValue(tag.value, tag.datatype)
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value); // hoặc formatValue(tag.value, tag.datatype)
 
             if (oldVal !== newVal) {
               pending.push({ valEl, newVal, tag });
@@ -2688,7 +2701,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           quadValElements.forEach(quadValEl => {
             const oldQuadVal = quadValEl.textContent;
             // Khi offline thì ép về 0, tránh giữ giá trị cũ
-            const newQuadVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newQuadVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             
             if (oldQuadVal !== newQuadVal) {
               pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
@@ -2706,7 +2719,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             `[id^="quad-tag-val-sv-"][data-tag-id="${tag.id}"]`
           );
           quadSvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2715,7 +2728,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag6 values - PV elements with pattern qtag6-val-{cardId}-{tagId}
           const qtag6ValElements = document.querySelectorAll(`[id^="qtag6-val-"][id$="-${tag.id}"]`);
           qtag6ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2734,7 +2747,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             `.qtag6-sv-low[data-tag-id="${tag.id}"], .qtag6-sv-high[data-tag-id="${tag.id}"]`
           );
           qtag6SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2743,7 +2756,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag4 values - PV elements with pattern qtag4-val-{cardId}-{tagId}
           const qtag4ValElements = document.querySelectorAll(`[id^="qtag4-val-"][id$="-${tag.id}"]`);
           qtag4ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2762,7 +2775,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             `.qtag4-sv-value[data-tag-id="${tag.id}"]`
           );
           qtag4SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2771,7 +2784,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag3 PV values - pattern qtag3-val-{cardId}-{tagId}
           const qtag3ValElements = document.querySelectorAll(`[id^="qtag3-val-"][id$="-${tag.id}"]`);
           qtag3ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2790,7 +2803,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             `.qtag3-sv-low[data-tag-id="${tag.id}"], .qtag3-sv-high[data-tag-id="${tag.id}"]`
           );
           qtag3SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2799,7 +2812,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag2 PV values - pattern qtag2-val-{cardId}-{tagId}
           const qtag2ValElements = document.querySelectorAll(`[id^="qtag2-val-"][id$="-${tag.id}"]`);
           qtag2ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2815,7 +2828,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag2 SV elements (tag-based only)
           const qtag2SvElements = document.querySelectorAll(`.qtag2-sv-value[data-tag-id="${tag.id}"]`);
           qtag2SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2824,7 +2837,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag Single3 PV values
           const single3PvElements = document.querySelectorAll(`[id^="qtag-single3-pv-"][id$="-${tag.id}"]`);
           single3PvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2841,7 +2854,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag Single3 SV HIGH/LOW (matched by data-tag-id attribute)
           const single3SvElements = document.querySelectorAll(`.qtag-single-sv-low[data-tag-id="${tag.id}"], .qtag-single-sv-high[data-tag-id="${tag.id}"]`);
           single3SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2850,7 +2863,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag PV Only values
           const pvOnlyElements = document.querySelectorAll(`[id^="qtag-pv-val-"][id$="-${tag.id}"]`);
           pvOnlyElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -2867,7 +2880,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag PV Dual values
           const pvDualElements = document.querySelectorAll(`[id^="qtag-pv-dual-val-"][id$="-${tag.id}"]`);
           pvDualElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : String(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }

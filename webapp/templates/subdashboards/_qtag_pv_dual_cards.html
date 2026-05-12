@@ -68,7 +68,7 @@
                   <span class="qtag-pv-dual-unit">{{ card.left_tag.unit or '' }}</span>
                 </div>
                 <div class="qtag-pv-dual-value-row">
-                  <div class="qtag-pv-dual-tag-value" id="qtag-pv-dual-val-{{ card.id }}-{{ card.left_tag_id }}">{{ card.left_tag.last_value if card.left_tag.last_value is not none else 0 }}</div>
+                  <div class="qtag-pv-dual-tag-value" id="qtag-pv-dual-val-{{ card.id }}-{{ card.left_tag_id }}">{{ ( card.left_tag.last_value if card.left_tag.last_value is not none else 0) | format_value }}</div>
                 </div>
               </div>
             </div>
@@ -89,7 +89,7 @@
                   <span class="qtag-pv-dual-unit">{{ card.right_tag.unit or '' }}</span>
                 </div>
                 <div class="qtag-pv-dual-value-row">
-                  <div class="qtag-pv-dual-tag-value" id="qtag-pv-dual-val-{{ card.id }}-{{ card.right_tag_id }}">{{ card.right_tag.last_value if card.right_tag.last_value is not none else 0 }}</div>
+                  <div class="qtag-pv-dual-tag-value" id="qtag-pv-dual-val-{{ card.id }}-{{ card.right_tag_id }}">{{ ( card.right_tag.last_value if card.right_tag.last_value is not none else 0) | format_value }}</div>
                 </div>
               </div>
             </div>
