@@ -3201,18 +3201,21 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   }
 
   // ============================================================
-  // ★ SV Type Toggle for Single3 modals (fixed vs tag)
+  // ★ SV Type Toggle — Fixed Value ↔ From Tag
+  // Scoped to the closest <form> to avoid cross-modal interference
+  // when multiple modals are present in the DOM simultaneously.
   // ============================================================
   document.addEventListener('change', function (e) {
     if (!e.target.classList.contains('sv-type-select')) return;
-    const target = e.target.dataset.target; // e.g. 'sv_high', 'sv_low', 'edit_sv_high', 'edit_sv_low'
-    const val = e.target.value;
-    const fixedGroup = document.querySelector(`.${target.replace(/_/g, '-')}-fixed-group`);
-    const tagGroup = document.querySelector(`.${target.replace(/_/g, '-')}-tag-group`);
-    if (fixedGroup && tagGroup) {
-      fixedGroup.style.display = val === 'fixed' ? '' : 'none';
-      tagGroup.style.display = val === 'tag' ? '' : 'none';
-    }
+    const target = e.target.dataset.target;
+    const val    = e.target.value;
+    const cssBase = target.replace(/_/g, '-');
+    // Scope lookup to the containing form so selectors are unique per modal
+    const scope  = e.target.closest('form') || document;
+    const fixedGroup = scope.querySelector(`.${cssBase}-fixed-group`);
+    const tagGroup   = scope.querySelector(`.${cssBase}-tag-group`);
+    if (fixedGroup) fixedGroup.style.display = val === 'fixed' ? '' : 'none';
+    if (tagGroup)   tagGroup.style.display   = val === 'tag'   ? '' : 'none';
   });
 
   // ============================================================
@@ -3275,7 +3278,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         if (data.success) {
           Swal.fire({ title: 'Success!', text: 'Qtag6 card added', icon: 'success', timer: 2000 }).then(() => location.reload());
         } else {
-          Swal.fire({ title: 'Error', text: data.error || 'Failed to add Qtag6 card', icon: 'error' });
+          Swal.fire({ title: 'Error', text: data.message || data.error || 'Failed to add Qtag6 card', icon: 'error' });
         }
       })
       .catch(err => {
@@ -4846,7 +4849,10 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
 
     // Initialize --qtag-card-text for cards that already have custom color from server
     document.querySelectorAll('.qtag-custom-bg').forEach(cardEl => {
-      const bg = getComputedStyle(cardEl).getPropertyValue('--qtag-card-bg').trim();
+      // Use data-card-color attribute (most reliable); fallback to inline CSS var
+      const bg = cardEl.dataset.cardColor ||
+                 cardEl.style.getPropertyValue('--qtag-card-bg').trim() ||
+                 getComputedStyle(cardEl).getPropertyValue('--qtag-card-bg').trim();
       if (bg) {
         cardEl.style.setProperty('--qtag-card-text', getContrastColor(bg));
       }

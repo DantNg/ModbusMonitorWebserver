@@ -8,7 +8,7 @@
          data-card-color="{{ card.card_color or '' }}"
          data-card-title="{{ card.card_title or 'Qtag3 Card' }}"
          data-column-title="{{ card.column_title or '' }}"
-         {% if card.card_color %}style="--qtag-card-bg: {{ card.card_color }};"{% endif %}>
+         {% if card.card_color %}style="--qtag-card-bg: {{ card.card_color }}; --qtag-card-text: {{ card.card_color | contrast_color }};"{% endif %}>
       <!-- Card Header -->
       <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
         <div class="d-flex align-items-center gap-2">

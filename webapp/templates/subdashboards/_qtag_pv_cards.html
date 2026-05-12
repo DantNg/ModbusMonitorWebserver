@@ -8,7 +8,7 @@
          data-card-color="{{ card.card_color or '' }}"
          data-card-title="{{ card.card_title or 'PV Only' }}"
          data-pv-tag-id="{{ card.pv_tag_id }}"
-         {% if card.card_color %}style="--qtag-card-bg: {{ card.card_color }};"{% endif %}>
+         {% if card.card_color %}style="--qtag-card-bg: {{ card.card_color }}; --qtag-card-text: {{ card.card_color | contrast_color }};"{% endif %}>
       <div class="qtag-single-sub-head">
         <div class="d-flex align-items-center gap-2">
           <span class="quad-status-indicator {% if card.pv_tag.device_status == 'disconnected' %}status-offline{% elif card.pv_tag.device_status == 'connected' %}status-online{% else %}status-unknown{% endif %}"

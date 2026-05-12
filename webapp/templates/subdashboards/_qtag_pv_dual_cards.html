@@ -9,7 +9,7 @@
          data-card-title="{{ card.card_title or 'PV Dual Card' }}"
          data-left-title="{{ card.left_title or 'Left' }}"
          data-right-title="{{ card.right_title or 'Right' }}"
-         {% if card.card_color %}style="--qtag-card-bg: {{ card.card_color }};"{% endif %}>
+         {% if card.card_color %}style="--qtag-card-bg: {{ card.card_color }}; --qtag-card-text: {{ card.card_color | contrast_color }};"{% endif %}>
       <!-- Card Header -->
       <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2" style="border-radius: 14px 14px 0 0;">
         <div class="d-flex align-items-center gap-2">

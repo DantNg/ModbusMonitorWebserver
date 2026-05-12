@@ -4060,11 +4060,14 @@ def update_card_color(card_type: str, card_id: int, color: str) -> bool:
     """Update card_color for any card type. color can be hex like '#ff0000' or None to reset."""
     import re
     table_map = {
-        'quad': subdash_quad_cards,
-        'quad6': subdash_qtag6_cards,
+        'quad':    subdash_quad_cards,
+        'quad6':   subdash_qtag6_cards,
+        'qtag4':   subdash_qtag4_cards,
+        'qtag3':   subdash_qtag3_cards,
+        'qtag2':   subdash_qtag2_cards,
         'single3': subdash_qtag_single3_cards,
-        'pvonly': subdash_qtag_pv_cards,
-        'pvdual': subdash_qtag_pv_dual_cards,
+        'pvonly':  subdash_qtag_pv_cards,
+        'pvdual':  subdash_qtag_pv_dual_cards,
     }
     tbl = table_map.get(card_type)
     if tbl is None:

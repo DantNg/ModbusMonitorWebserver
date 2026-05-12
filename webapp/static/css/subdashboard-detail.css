@@ -354,14 +354,12 @@
 .quad-sub-card.quad-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
   border: 2px solid #dc2626 !important;
-  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4) !important;
   animation: pulse-red 2s ease-in-out infinite;
 }
 
 .quad-sub-card.quad-alarm-low {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
   border: 2px solid #f59e0b !important;
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4) !important;
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
@@ -375,23 +373,15 @@
   font-weight: 900 !important;
 }
 
-/* Pulse animations for alarms */
+/* Pulse animations for alarms — border-only, no glow */
 @keyframes pulse-red {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(220, 38, 38, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(220, 38, 38, 0.7);
-  }
+  0%, 100% { border-color: #dc2626; }
+  50% { border-color: #b91c1c; }
 }
 
 @keyframes pulse-yellow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(245, 158, 11, 0.7);
-  }
+  0%, 100% { border-color: #f59e0b; }
+  50% { border-color: #d97706; }
 }
 
 /* Dark theme alarm states */
@@ -417,14 +407,12 @@
 .card-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
   border: 2px solid #dc2626 !important;
-  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4) !important;
   animation: pulse-red 2s ease-in-out infinite;
 }
 
 .card-alarm-low {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
   border: 2px solid #f59e0b !important;
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4) !important;
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
@@ -738,14 +726,12 @@
 .qtag6-sub-card.qtag6-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
   border: 2px solid #dc2626 !important;
-  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4) !important;
   animation: pulse-red 2s ease-in-out infinite;
 }
 
 .qtag6-sub-card.qtag6-alarm-low {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
   border: 2px solid #f59e0b !important;
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4) !important;
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
@@ -1275,14 +1261,12 @@
 .qtag-single-sub-card.qtag-single-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
   border: 2px solid #dc2626 !important;
-  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4) !important;
   animation: pulse-red 2s ease-in-out infinite;
 }
 
 .qtag-single-sub-card.qtag-single-alarm-low {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
   border: 2px solid #f59e0b !important;
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4) !important;
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
@@ -1418,4 +1402,27 @@
 .qtag-custom-bg .card-header .btn-outline-light:hover,
 .qtag-custom-bg .qtag-single-sub-head .btn-outline-light:hover {
   opacity: 1;
+}
+
+/* ==========================================================
+   ★ MODAL & POPUP Z-INDEX FIX
+   The sticky subdash toolbar uses z-index: 1200 (from style.css),
+   which is higher than Bootstrap's default modal z-index (1055).
+   Override to ensure modals, backdrops and SweetAlert always
+   render above the toolbar.
+   ========================================================== */
+
+/* Bootstrap modal above sticky toolbar (1200) */
+.modal {
+  z-index: 1400 !important;
+}
+
+/* Backdrop between toolbar (1200) and modal (1400) — dims the toolbar */
+.modal-backdrop {
+  z-index: 1390 !important;
+}
+
+/* SweetAlert2 must be above everything including open modals (1400) */
+.swal2-container {
+  z-index: 1600 !important;
 }

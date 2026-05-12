@@ -220,7 +220,7 @@
                  data-card-title="{{ quad_card.card_title or 'Quad Tag Card' }}"
                  data-left-title="{{ quad_card.left_title or 'Group A' }}"
                  data-right-title="{{ quad_card.right_title or 'Group B' }}"
-                 {% if quad_card.card_color %}style="--qtag-card-bg: {{ quad_card.card_color }};"{% endif %}>
+                 {% if quad_card.card_color %}style="--qtag-card-bg: {{ quad_card.card_color }}; --qtag-card-text: {{ quad_card.card_color | contrast_color }};"{% endif %}>
               <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
                 <div class="d-flex align-items-center gap-2">
                   <span class="quad-status-indicator {% if quad_card.tag1.device_status == 'disconnected' %}status-offline{% elif quad_card.tag1.device_status == 'connected' %}status-online{% else %}status-unknown{% endif %}" 
@@ -527,7 +527,7 @@
                  data-card-title="{{ quad_card.card_title or 'Quad Tag Card' }}"
                  data-left-title="{{ quad_card.left_title or 'Group A' }}"
                  data-right-title="{{ quad_card.right_title or 'Group B' }}"
-                 {% if quad_card.card_color %}style="--qtag-card-bg: {{ quad_card.card_color }};"{% endif %}>
+                 {% if quad_card.card_color %}style="--qtag-card-bg: {{ quad_card.card_color }}; --qtag-card-text: {{ quad_card.card_color | contrast_color }};"{% endif %}>
               <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
                 <div class="d-flex align-items-center gap-2">
                   <span class="quad-status-indicator {% if quad_card.tag1.device_status == 'disconnected' %}status-offline{% elif quad_card.tag1.device_status == 'connected' %}status-online{% else %}status-unknown{% endif %}" 
@@ -1129,7 +1129,7 @@
 
 <!-- Modal: Add Qtag6 Card -->
 <div class="modal fade" id="addQtag6Modal" tabindex="-1" aria-labelledby="addQtag6ModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-dark text-white">
         <h5 class="modal-title" id="addQtag6ModalLabel"><i class="bi bi-grid-3x3 me-2"></i>Add Qtag6 Card (6 Tags)</h5>
@@ -1281,7 +1281,7 @@
 
 <!-- Modal: Add Qtag Single3 Card -->
 <div class="modal fade" id="addQtagSingle3Modal" tabindex="-1" aria-labelledby="addQtagSingle3ModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-primary text-white">
         <h5 class="modal-title" id="addQtagSingle3ModalLabel"><i class="bi bi-thermometer-half me-2"></i>Add Qtag Single3 Card (PV + SV HIGH/LOW)</h5>
@@ -1547,7 +1547,7 @@
 
 <!-- Modal: Edit Qtag6 Tags -->
 <div class="modal fade" id="editQtag6Modal" tabindex="-1" aria-labelledby="editQtag6ModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-dark text-white">
         <h5 class="modal-title" id="editQtag6ModalLabel"><i class="bi bi-pencil-square me-2"></i>Edit Qtag6 Tags</h5>
@@ -1684,7 +1684,7 @@
 
 <!-- Modal: Add Qtag4 Card -->
 <div class="modal fade" id="addQtag4Modal" tabindex="-1" aria-labelledby="addQtag4ModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-dark text-white">
         <h5 class="modal-title" id="addQtag4ModalLabel"><i class="bi bi-grid-3x3 me-2"></i>Add Qtag4 Card (4 Tags)</h5>
@@ -1806,7 +1806,7 @@
 
 <!-- Modal: Edit Qtag4 Tags -->
 <div class="modal fade" id="editQtag4Modal" tabindex="-1" aria-labelledby="editQtag4ModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-dark text-white">
         <h5 class="modal-title" id="editQtag4ModalLabel"><i class="bi bi-pencil-square me-2"></i>Edit Qtag4 Tags</h5>
@@ -2077,7 +2077,7 @@
 
 <!-- Modal: Add Qtag2 Card -->
 <div class="modal fade" id="addQtag2Modal" tabindex="-1" aria-labelledby="addQtag2ModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-dark text-white">
         <h5 class="modal-title" id="addQtag2ModalLabel"><i class="bi bi-grid-3x3 me-2"></i>Add Qtag2 Card (PV + SV)</h5>
@@ -2153,7 +2153,7 @@
 
 <!-- Modal: Edit Qtag2 Card -->
 <div class="modal fade" id="editQtag2Modal" tabindex="-1" aria-labelledby="editQtag2ModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-dark text-white">
         <h5 class="modal-title" id="editQtag2ModalLabel"><i class="bi bi-pencil-square me-2"></i>Edit Qtag2 Tags</h5>
@@ -2206,7 +2206,7 @@
 </div>
 
 <div class="modal fade" id="editQtagSingle3Modal" tabindex="-1" aria-labelledby="editQtagSingle3ModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-primary text-white">
         <h5 class="modal-title" id="editQtagSingle3ModalLabel"><i class="bi bi-pencil-square me-2"></i>Edit Qtag Single3</h5>

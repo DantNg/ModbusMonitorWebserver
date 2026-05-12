@@ -2289,7 +2289,7 @@ def update_card_color(sid):
         if not card_type or not card_id:
             return jsonify({"success": False, "message": "card_type and card_id required"}), 400
 
-        if card_type not in ("quad", "quad6", "single3", "pvonly", "pvdual"):
+        if card_type not in ("quad", "quad6", "qtag4", "qtag3", "qtag2", "single3", "pvonly", "pvdual"):
             return jsonify({"success": False, "message": "Invalid card_type"}), 400
 
         # Allow empty/null to reset to default

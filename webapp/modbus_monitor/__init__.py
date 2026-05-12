@@ -188,6 +188,18 @@ def create_app():
         else:
             return f"{num_value:.2f}"
 
+    @app.template_filter('contrast_color')
+    def contrast_color_filter(hex_color):
+        """Return #1a1a1a (dark) or #ffffff (light) for readable text contrast on the given hex background."""
+        if not hex_color:
+            return ''
+        h = hex_color.lstrip('#')
+        if len(h) != 6:
+            return '#ffffff'
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        yiq = (r * 299 + g * 587 + b * 114) / 1000
+        return '#1a1a1a' if yiq >= 140 else '#ffffff'
+
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(license_bp, url_prefix="/license")
