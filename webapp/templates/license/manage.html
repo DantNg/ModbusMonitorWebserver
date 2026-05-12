@@ -25,12 +25,12 @@
   {% endif %}
   {% endwith %}
 
-  <!-- Two-column layout -->
-  <div class="row g-4">
+  <!-- Two-column layout: Status + Activate (equal height) -->
+  <div class="row g-4 mb-4">
 
     <!-- LEFT: Active status card -->
-    <div class="col-12 col-lg-4">
-      <div class="card border-0 shadow-sm h-100">
+    <div class="col-12 col-lg-4 d-flex">
+      <div class="card border-0 shadow-sm w-100">
         <div class="card-header fw-semibold">
           <i class="bi bi-patch-check-fill me-2 text-success"></i>Current Status
         </div>
@@ -82,30 +82,11 @@
           {% endif %}
         </div>
       </div>
-
-      <!-- Machine info card -->
-      <div class="card border-0 shadow-sm mt-4">
-        <div class="card-header fw-semibold">
-          <i class="bi bi-hdd-fill me-2 text-secondary"></i>This Machine
-        </div>
-        <div class="card-body">
-          <div class="mb-2">
-            <span class="text-muted small d-block">HDD Serial Number</span>
-            <code class="small">{{ machine_uid }}</code>
-          </div>
-          <div>
-            <code class="small text-break" style="font-size: 0.7rem;">{{ machine_hash }}</code>
-          </div>
-          <hr>
-        </div>
-      </div>
     </div>
 
-    <!-- RIGHT: License table + add form -->
-    <div class="col-12 col-lg-8">
-
-      <!-- Add new license form -->
-      <div class="card border-0 shadow-sm mb-4">
+    <!-- RIGHT: Activate new license form -->
+    <div class="col-12 col-lg-8 d-flex">
+      <div class="card border-0 shadow-sm w-100">
         <div class="card-header fw-semibold">
           <i class="bi bi-plus-circle me-2 text-primary"></i>Activate New License
         </div>
@@ -131,8 +112,13 @@
           </form>
         </div>
       </div>
+    </div>
 
-      <!-- License history table -->
+  </div><!-- /top row -->
+
+  <!-- License history table -->
+  <div class="row">
+    <div class="col-12">
       <div class="card border-0 shadow-sm">
         <div class="card-header fw-semibold">
           <i class="bi bi-list-ul me-2"></i>All Licenses
@@ -208,10 +194,9 @@
           </div>
           {% endif %}
         </div>
-      </div><!-- /card -->
-
-    </div><!-- /col right -->
-  </div><!-- /row -->
+      </div>
+    </div>
+  </div><!-- /history row -->
 </div>
 {% endblock %}
 
