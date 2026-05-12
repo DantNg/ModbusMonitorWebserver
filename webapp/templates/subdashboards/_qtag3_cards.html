@@ -2,13 +2,14 @@
 {% if group.qtag3_cards %}
   {% for card in group.qtag3_cards %}
   <div class="col-12 col-sm-6 col-lg-3 col-xl-3">
-    <div class="card h-100 shadow-soft qtag3-card{% if card.card_color %} qtag-custom-bg{% endif %}"
+    <div class="card h-100 shadow-soft qtag3-card{% if card.card_color %} qtag-custom-bg{% endif %}{% if card.sub_color %} qtag-sub-custom-bg{% endif %}"
          data-qtag3-id="{{ card.id }}"
          data-card-type="qtag3"
          data-card-color="{{ card.card_color or '' }}"
+         data-sub-color="{{ card.sub_color or '' }}"
          data-card-title="{{ card.card_title or 'Qtag3 Card' }}"
          data-column-title="{{ card.column_title or '' }}"
-         {% if card.card_color %}style="--qtag-card-bg: {{ card.card_color }}; --qtag-card-text: {{ card.card_color | contrast_color }};"{% endif %}>
+         {% if card.card_color or card.sub_color %}style="{% if card.card_color %}--qtag-card-bg: {{ card.card_color }}; --qtag-card-text: {{ card.card_color | contrast_color }};{% endif %}{% if card.sub_color %} --qtag-sub-bg: {{ card.sub_color }}; --qtag-sub-text: {{ card.sub_color | contrast_color }};{% endif %}"{% endif %}>
       <!-- Card Header -->
       <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
         <div class="d-flex align-items-center gap-2">
@@ -43,7 +44,8 @@
               <i class="bi bi-pencil me-2"></i>Edit Tags</button></li>
             <li><button class="dropdown-item text-danger delete-qtag3-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
             <li><hr class="dropdown-divider"></li>
-            <li><button class="dropdown-item change-card-color-btn" data-card-id="{{ card.id }}" data-card-type="qtag3" data-current-color="{{ card.card_color or '' }}"><i class="bi bi-palette me-2"></i>Change Color</button></li>
+            <li><button class="dropdown-item change-card-color-btn" data-card-id="{{ card.id }}" data-card-type="qtag3" data-current-color="{{ card.card_color or '' }}"><i class="bi bi-palette me-2"></i>Change Header Color</button></li>
+            <li><button class="dropdown-item change-sub-color-btn" data-card-id="{{ card.id }}" data-card-type="qtag3" data-sub-side="left" data-current-color="{{ card.sub_color or '' }}"><i class="bi bi-palette2 me-2"></i>Change Sub-Header Color</button></li>
             <li><hr class="dropdown-divider"></li>
             <li><button class="dropdown-item set-card-condition-btn" data-card-type="qtag3" data-card-id="{{ card.id }}"><i class="bi bi-sliders me-2"></i>Set Alarm Conditions</button></li>
           </ul>

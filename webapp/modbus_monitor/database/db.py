@@ -422,6 +422,8 @@ subdash_quad_cards = Table(
     Column("left_title", String(200), nullable=True),
     Column("right_title", String(200), nullable=True),
     Column("card_color", String(20), nullable=True),
+    Column("sub_color", String(20), nullable=True),       # Left sub-header color
+    Column("sub_color_right", String(20), nullable=True), # Right sub-header color
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -499,6 +501,8 @@ subdash_qtag6_cards = Table(
     Column("left_title", String(200), nullable=True),
     Column("right_title", String(200), nullable=True),
     Column("card_color", String(20), nullable=True),
+    Column("sub_color", String(20), nullable=True),       # Left sub-header color
+    Column("sub_color_right", String(20), nullable=True), # Right sub-header color
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -519,6 +523,8 @@ subdash_qtag4_cards = Table(
     Column("left_title", String(200), nullable=True),
     Column("right_title", String(200), nullable=True),
     Column("card_color", String(20), nullable=True),
+    Column("sub_color", String(20), nullable=True),       # Left sub-header color
+    Column("sub_color_right", String(20), nullable=True), # Right sub-header color
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -552,6 +558,7 @@ subdash_qtag3_cards = Table(
     Column("card_title", String(200), nullable=True),
     Column("column_title", String(200), nullable=True),
     Column("card_color", String(20), nullable=True),
+    Column("sub_color", String(20), nullable=True),
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -593,7 +600,9 @@ subdash_qtag_pv_dual_cards = Table(
     Column("right_title", String(200), nullable=True),
     Column("left_tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
     Column("right_tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
-    Column("card_color", String(20), nullable=True),  # Background color (hex)
+    Column("card_color", String(20), nullable=True),       # Background color (hex)
+    Column("sub_color", String(20), nullable=True),         # Left sub-header color (hex)
+    Column("sub_color_right", String(20), nullable=True),   # Right sub-header color (hex)
     Column("created_at", DateTime, server_default=func.now()),
 )
 
@@ -682,12 +691,23 @@ def create_schema():
 
 
 def _migrate_card_color(engine):
-    """Add card_color column to existing card tables (safe for repeated calls)."""
+    """Add card_color and sub_color columns to existing card tables (safe for repeated calls)."""
     tables = ['subdash_quad_cards', 'subdash_qtag6_cards',
               'subdash_qtag4_cards', 'subdash_qtag3_cards',
               'subdash_qtag2_cards',
               'subdash_qtag_single3_cards', 'subdash_qtag_pv_cards',
               'subdash_qtag_pv_dual_cards']
+    # Tables that have inner sub-heads (left/single)
+    sub_color_tables = [
+        'subdash_quad_cards', 'subdash_qtag6_cards',
+        'subdash_qtag4_cards', 'subdash_qtag3_cards',
+        'subdash_qtag_pv_dual_cards',
+    ]
+    # Tables that have 2 independent sub-heads (left + right)
+    sub_color_right_tables = [
+        'subdash_quad_cards', 'subdash_qtag6_cards',
+        'subdash_qtag4_cards', 'subdash_qtag_pv_dual_cards',
+    ]
     with engine.connect() as con:
         for tbl in tables:
             try:
@@ -699,6 +719,26 @@ def _migrate_card_color(engine):
                     print(f"[migrate] Added card_color to {tbl}")
                 except Exception as e:
                     print(f"[migrate] Could not add card_color to {tbl}: {e}")
+        for tbl in sub_color_tables:
+            try:
+                con.execute(text(f"SELECT sub_color FROM {tbl} LIMIT 1"))
+            except Exception:
+                try:
+                    con.execute(text(f"ALTER TABLE {tbl} ADD COLUMN sub_color VARCHAR(20)"))
+                    con.commit()
+                    print(f"[migrate] Added sub_color to {tbl}")
+                except Exception as e:
+                    print(f"[migrate] Could not add sub_color to {tbl}: {e}")
+        for tbl in sub_color_right_tables:
+            try:
+                con.execute(text(f"SELECT sub_color_right FROM {tbl} LIMIT 1"))
+            except Exception:
+                try:
+                    con.execute(text(f"ALTER TABLE {tbl} ADD COLUMN sub_color_right VARCHAR(20)"))
+                    con.commit()
+                    print(f"[migrate] Added sub_color_right to {tbl}")
+                except Exception as e:
+                    print(f"[migrate] Could not add sub_color_right to {tbl}: {e}")
 
 
 def _migrate_sv_fix_value(engine):
@@ -4056,9 +4096,12 @@ def delete_qtag_pv_dual_card(card_id: int) -> bool:
         return False
 
 
-def update_card_color(card_type: str, card_id: int, color: str) -> bool:
-    """Update card_color for any card type. color can be hex like '#ff0000' or None to reset."""
+def update_card_color(card_type: str, card_id: int, color: str, field: str = 'card_color') -> bool:
+    """Update card_color, sub_color, or sub_color_right for any card type."""
     import re
+    # Only allowed color fields
+    if field not in ('card_color', 'sub_color', 'sub_color_right'):
+        return False
     table_map = {
         'quad':    subdash_quad_cards,
         'quad6':   subdash_qtag6_cards,
@@ -4069,6 +4112,14 @@ def update_card_color(card_type: str, card_id: int, color: str) -> bool:
         'pvonly':  subdash_qtag_pv_cards,
         'pvdual':  subdash_qtag_pv_dual_cards,
     }
+    # sub_color (left) applies to card types with inner sub-heads
+    sub_color_types = {'quad', 'quad6', 'qtag4', 'qtag3', 'pvdual'}
+    # sub_color_right only applies to 2-column card types
+    sub_color_right_types = {'quad', 'quad6', 'qtag4', 'pvdual'}
+    if field == 'sub_color' and card_type not in sub_color_types:
+        return False
+    if field == 'sub_color_right' and card_type not in sub_color_right_types:
+        return False
     tbl = table_map.get(card_type)
     if tbl is None:
         return False
@@ -4078,11 +4129,11 @@ def update_card_color(card_type: str, card_id: int, color: str) -> bool:
     try:
         with init_engine().begin() as con:
             result = con.execute(
-                update(tbl).where(tbl.c.id == card_id).values(card_color=color or None)
+                update(tbl).where(tbl.c.id == card_id).values(**{field: color or None})
             )
             return result.rowcount > 0
     except Exception as e:
-        print(f"Error updating card color for {card_type}/{card_id}: {e}")
+        print(f"Error updating {field} for {card_type}/{card_id}: {e}")
         return False
 
 

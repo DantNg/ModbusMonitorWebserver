@@ -4686,6 +4686,39 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     if (colorBtn) colorBtn.dataset.currentColor = color || '';
   }
 
+  // Apply independent sub-header color to a card element
+  // Apply independent sub-header color (side: 'left' for single/left, 'right' for right column)
+  function applySubColor(cardEl, color, side) {
+    if (side === 'right') {
+      if (color) {
+        cardEl.style.setProperty('--qtag-sub-bg-right', color);
+        cardEl.style.setProperty('--qtag-sub-text-right', getContrastColor(color));
+        cardEl.classList.add('qtag-sub-right-custom');
+      } else {
+        cardEl.style.removeProperty('--qtag-sub-bg-right');
+        cardEl.style.removeProperty('--qtag-sub-text-right');
+        cardEl.classList.remove('qtag-sub-right-custom');
+      }
+      cardEl.dataset.subColorRight = color || '';
+      const btn = cardEl.querySelector('.change-sub-color-btn[data-sub-side="right"]');
+      if (btn) btn.dataset.currentColor = color || '';
+    } else {
+      // left / single column
+      if (color) {
+        cardEl.style.setProperty('--qtag-sub-bg', color);
+        cardEl.style.setProperty('--qtag-sub-text', getContrastColor(color));
+        cardEl.classList.add('qtag-sub-custom-bg');
+      } else {
+        cardEl.style.removeProperty('--qtag-sub-bg');
+        cardEl.style.removeProperty('--qtag-sub-text');
+        cardEl.classList.remove('qtag-sub-custom-bg');
+      }
+      cardEl.dataset.subColor = color || '';
+      const btn = cardEl.querySelector('.change-sub-color-btn[data-sub-side="left"]');
+      if (btn) btn.dataset.currentColor = color || '';
+    }
+  }
+
   document.addEventListener('click', function (e) {
     const btn = e.target.closest('.change-card-color-btn');
     if (!btn) return;
@@ -4822,6 +4855,137 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     });
   });
 
+  // Handler for changing independent sub-header color
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.change-sub-color-btn');
+    if (!btn) return;
+    e.preventDefault();
+
+    const cardType = btn.dataset.cardType;
+    const cardId = btn.dataset.cardId;
+    const currentColor = btn.dataset.currentColor || '';
+    const subSide = btn.dataset.subSide || 'left'; // 'left' or 'right'
+    const colorField = subSide === 'right' ? 'sub_color_right' : 'sub_color';
+    const dialogTitle = subSide === 'right' ? 'Change Right Sub-Header Color' : 'Change Left Sub-Header Color';
+
+    // Color palette (same as card color palette)
+    const colorPalette = [
+      ['Red',     '#ffcdd2','#ef9a9a','#e57373','#ef5350','#f44336','#e53935','#c62828','#b71c1c'],
+      ['Pink',    '#f8bbd0','#f48fb1','#f06292','#ec407a','#e91e63','#d81b60','#ad1457','#880e4f'],
+      ['Purple',  '#e1bee7','#ce93d8','#ba68c8','#ab47bc','#9c27b0','#8e24aa','#6a1b9a','#4a148c'],
+      ['Indigo',  '#c5cae9','#9fa8da','#7986cb','#5c6bc0','#3f51b5','#3949ab','#283593','#1a237e'],
+      ['Blue',    '#bbdefb','#90caf9','#64b5f6','#42a5f5','#2196f3','#1e88e5','#1565c0','#0d47a1'],
+      ['Cyan',    '#b2ebf2','#80deea','#4dd0e1','#26c6da','#00bcd4','#00acc1','#00838f','#006064'],
+      ['Teal',    '#b2dfdb','#80cbc4','#4db6ac','#26a69a','#009688','#00897b','#00695c','#004d40'],
+      ['Green',   '#c8e6c9','#a5d6a7','#81c784','#66bb6a','#4caf50','#43a047','#2e7d32','#1b5e20'],
+      ['Yellow',  '#fff9c4','#fff59d','#fff176','#ffee58','#ffeb3b','#fdd835','#f9a825','#f57f17'],
+      ['Orange',  '#ffe0b2','#ffcc80','#ffb74d','#ffa726','#ff9800','#fb8c00','#e65100','#bf360c'],
+      ['Brown',   '#d7ccc8','#bcaaa4','#a1887f','#8d6e63','#795548','#6d4c41','#4e342e','#3e2723'],
+      ['Gray',    '#f5f5f5','#e0e0e0','#bdbdbd','#9e9e9e','#757575','#616161','#424242','#212121'],
+    ];
+
+    let paletteHtml = '<div style="display:grid;grid-template-columns:50px repeat(8,1fr);gap:3px;align-items:center;">';
+    colorPalette.forEach(row => {
+      const label = row[0];
+      paletteHtml += `<span style="font-size:11px;color:#aaa;text-align:right;padding-right:4px;">${label}</span>`;
+      for (let i = 1; i < row.length; i++) {
+        const c = row[i];
+        const isActive = c.toLowerCase() === currentColor.toLowerCase();
+        paletteHtml += `<div class="swal-color-cell" data-color="${c}" title="${c}"
+          style="width:100%;aspect-ratio:1;border-radius:4px;background:${c};cursor:pointer;
+          border:2px solid ${isActive ? '#fff' : 'transparent'};
+          box-shadow:${isActive ? '0 0 0 2px #6366f1' : 'none'};
+          transition:transform .1s,border-color .15s;"></div>`;
+      }
+    });
+    paletteHtml += '</div>';
+
+    Swal.fire({
+      title: dialogTitle,
+      width: 480,
+      html: `
+        <div class="text-start">
+          <div class="mb-2 d-flex align-items-center gap-2">
+            <button type="button" id="swal-reset-default" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Default
+            </button>
+            <div class="d-flex align-items-center gap-2 ms-auto">
+              <label style="font-size:12px;color:#aaa;">Custom:</label>
+              <input type="color" id="swal-color-picker" value="${currentColor || '#1565c0'}"
+                style="width:36px;height:30px;border:1px solid #555;border-radius:4px;cursor:pointer;padding:1px;">
+            </div>
+          </div>
+          <div class="mb-3" id="swal-palette">${paletteHtml}</div>
+          <div class="p-3 rounded" id="swal-preview"
+            style="background:${currentColor || '#2a2a2a'};color:${currentColor ? getContrastColor(currentColor) : '#fff'};text-align:center;font-weight:500;">
+            Sub-Header Preview
+          </div>
+          <input type="hidden" id="swal-selected-color" value="${currentColor}">
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Save',
+      cancelButtonText: 'Cancel',
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        const preview = popup.querySelector('#swal-preview');
+        const hiddenInput = popup.querySelector('#swal-selected-color');
+        const pickerInput = popup.querySelector('#swal-color-picker');
+        const cells = popup.querySelectorAll('.swal-color-cell');
+        const resetBtn = popup.querySelector('#swal-reset-default');
+
+        function selectColor(color) {
+          hiddenInput.value = color;
+          preview.style.background = color || '#2a2a2a';
+          preview.style.color = color ? getContrastColor(color) : '#fff';
+          cells.forEach(cell => {
+            const match = cell.dataset.color.toLowerCase() === (color || '').toLowerCase();
+            cell.style.border = match ? '2px solid #fff' : '2px solid transparent';
+            cell.style.boxShadow = match ? '0 0 0 2px #6366f1' : 'none';
+          });
+          if (color) pickerInput.value = color;
+        }
+
+        cells.forEach(cell => {
+          cell.addEventListener('click', () => selectColor(cell.dataset.color));
+          cell.addEventListener('mouseenter', () => { cell.style.transform = 'scale(1.25)'; cell.style.zIndex = '2'; });
+          cell.addEventListener('mouseleave', () => { cell.style.transform = 'scale(1)'; cell.style.zIndex = ''; });
+        });
+
+        pickerInput.addEventListener('input', () => selectColor(pickerInput.value));
+        resetBtn.addEventListener('click', () => {
+          selectColor('');
+          pickerInput.value = '#1565c0';
+        });
+      },
+      preConfirm: () => {
+        return Swal.getPopup().querySelector('#swal-selected-color').value;
+      }
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      const selectedColor = result.value;
+
+      fetch(`/subdash/${currentSubdashId}/update_card_color`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ card_type: cardType, card_id: cardId, color: selectedColor, color_field: colorField })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          const cardEl = btn.closest('.quad-tag-card, .qtag6-card, .qtag4-card, .qtag3-card, .qtag-pv-dual-card');
+          if (cardEl) {
+            applySubColor(cardEl, selectedColor, subSide);
+          }
+          Swal.fire({ icon: 'success', title: 'Sub-header color saved', timer: 1200, showConfirmButton: false });
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Failed to save sub-header color' });
+        }
+      })
+      .catch(err => Swal.fire({ icon: 'error', title: 'Error', text: err.message }));
+    });
+  });
+
   function _startPollingFallbackCheck() {
     // Wait 5s, then check if socket is delivering data; if not, start polling
     setTimeout(function () {
@@ -4855,6 +5019,24 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
                  getComputedStyle(cardEl).getPropertyValue('--qtag-card-bg').trim();
       if (bg) {
         cardEl.style.setProperty('--qtag-card-text', getContrastColor(bg));
+      }
+    });
+
+    // Initialize --qtag-sub-text for cards that already have custom sub-header color from server
+    document.querySelectorAll('.qtag-sub-custom-bg').forEach(cardEl => {
+      const subBg = cardEl.dataset.subColor ||
+                    cardEl.style.getPropertyValue('--qtag-sub-bg').trim();
+      if (subBg) {
+        cardEl.style.setProperty('--qtag-sub-text', getContrastColor(subBg));
+      }
+    });
+
+    // Initialize --qtag-sub-text-right for cards with independent right sub-header color
+    document.querySelectorAll('.qtag-sub-right-custom').forEach(cardEl => {
+      const subBgRight = cardEl.dataset.subColorRight ||
+                         cardEl.style.getPropertyValue('--qtag-sub-bg-right').trim();
+      if (subBgRight) {
+        cardEl.style.setProperty('--qtag-sub-text-right', getContrastColor(subBgRight));
       }
     });
   });

@@ -550,7 +550,7 @@
 .qtag6-tag-value {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
-  color: #f9a8d4 !important;
+  color: #ffffff !important;
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
@@ -673,11 +673,21 @@
   border-radius: 12px;
 }
 
+/* Allow dropdown to overflow card bounds (same as quad/qtag6 cards) */
+.qtag2-card {
+  overflow: visible !important;
+  position: relative !important;
+}
+
+.qtag2-card .dropdown-menu {
+  z-index: 2050 !important;
+}
+
 /* Qtag2 SV value styling - same as qtag4-sv-value */
 .qtag2-sv-value {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
-  color: #f9a8d4 !important;
+  color: #ffffff !important;
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
@@ -702,6 +712,16 @@
   border-radius: 12px;
 }
 
+/* Allow dropdown to overflow card bounds */
+.qtag3-card {
+  overflow: visible !important;
+  position: relative !important;
+}
+
+.qtag3-card .dropdown-menu {
+  z-index: 2050 !important;
+}
+
 /*
  * Sync qtag3 card-body padding with qtag4.
  * qtag4: card-body 16px (default) + qtag6-grid 8px = 24px/side.
@@ -716,7 +736,7 @@
 .qtag4-sv-value {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
-  color: #f9a8d4 !important;
+  color: #ffffff !important;
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
@@ -939,7 +959,7 @@
 .qtag-single-tag-value {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
-  color: #f9a8d4 !important;
+  color: #ffffff !important;
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
@@ -1218,7 +1238,7 @@
 .qtag-pv-dual-tag-value {
   font-size: 2.4rem !important;
   font-weight: 700 !important;
-  color: #f9a8d4 !important;
+  color: #ffffff !important;
   line-height: 1 !important;
   text-align: center !important;
 }
@@ -1326,10 +1346,28 @@
 [data-bs-theme="dark"] .qtag-custom-bg.qtag-single-sub-card {
   background: #1f2937 !important;
 }
-/* Keep inner sub-column headers unchanged (gradient stays) */
-.qtag-custom-bg .qtag6-sub-head,
-.qtag-custom-bg .qtag-pv-dual-sub-head {
-  /* No color override – keep original gradient */
+/* Left/single sub-header independent color */
+.qtag-sub-custom-bg .qtag6-sub-head.qtag6-left-head,
+.qtag-sub-custom-bg .qtag-pv-dual-sub-head.qtag-pv-dual-left-head,
+.qtag-sub-custom-bg .quad-sub-card-head.quad-group-1 {
+  background: var(--qtag-sub-bg) !important;
+  color: var(--qtag-sub-text, #fff) !important;
+}
+/* Right sub-header independent color (completely separate from left) */
+.qtag-sub-right-custom .qtag6-sub-head.qtag6-right-head,
+.qtag-sub-right-custom .qtag-pv-dual-sub-head.qtag-pv-dual-right-head,
+.qtag-sub-right-custom .quad-sub-card-head.quad-group-2 {
+  background: var(--qtag-sub-bg-right) !important;
+  color: var(--qtag-sub-text-right, #fff) !important;
+}
+/* Text title color follows parent background */
+.qtag-sub-custom-bg .qtag6-sub-title,
+.qtag-sub-custom-bg .qtag-pv-dual-sub-title,
+.qtag-sub-custom-bg .quad-sub-card-title,
+.qtag-sub-right-custom .qtag6-sub-title,
+.qtag-sub-right-custom .qtag-pv-dual-sub-title,
+.qtag-sub-right-custom .quad-sub-card-title {
+  color: inherit !important;
 }
 
 /* ── Apply custom color ONLY to the outer main header ── */

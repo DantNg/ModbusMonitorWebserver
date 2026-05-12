@@ -60,9 +60,6 @@ def activate():
                     # Flush the validity cache so next request proceeds normally
                     invalidate_cache()
                     flash("License activated successfully!", "success")
-                    # Redirect admin to manage page, others to dashboard
-                    if session.get("role") == "admin":
-                        return redirect(url_for("license_bp.manage"))
                     return redirect(url_for("dashboard_bp.dashboard"))
 
     return render_template("license/activate.html", error=error, success=success)

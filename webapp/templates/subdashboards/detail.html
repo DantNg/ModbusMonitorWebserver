@@ -213,14 +213,17 @@
       <div class="row g-2 mb-2">
           {% for quad_card in group.quad_cards %}
           <div class="col-12 col-lg-8 col-xl-6">
-            <div class="card h-100 shadow-soft quad-tag-card{% if quad_card.card_color %} qtag-custom-bg{% endif %}" 
+            {% set _quad_style = (('--qtag-card-bg: ' + quad_card.card_color + '; --qtag-card-text: ' + (quad_card.card_color | contrast_color) + ';') if quad_card.card_color else '') + ((' --qtag-sub-bg: ' + quad_card.sub_color + '; --qtag-sub-text: ' + (quad_card.sub_color | contrast_color) + ';') if quad_card.sub_color else '') + ((' --qtag-sub-bg-right: ' + quad_card.sub_color_right + '; --qtag-sub-text-right: ' + (quad_card.sub_color_right | contrast_color) + ';') if quad_card.sub_color_right else '') %}
+            <div class="card h-100 shadow-soft quad-tag-card{% if quad_card.card_color %} qtag-custom-bg{% endif %}{% if quad_card.sub_color %} qtag-sub-custom-bg{% endif %}{% if quad_card.sub_color_right %} qtag-sub-right-custom{% endif %}" 
                  data-quad-id="{{ quad_card.id }}"
                  data-card-type="quad"
                  data-card-color="{{ quad_card.card_color or '' }}"
+                 data-sub-color="{{ quad_card.sub_color or '' }}"
+                 data-sub-color-right="{{ quad_card.sub_color_right or '' }}"
                  data-card-title="{{ quad_card.card_title or 'Quad Tag Card' }}"
                  data-left-title="{{ quad_card.left_title or 'Group A' }}"
                  data-right-title="{{ quad_card.right_title or 'Group B' }}"
-                 {% if quad_card.card_color %}style="--qtag-card-bg: {{ quad_card.card_color }}; --qtag-card-text: {{ quad_card.card_color | contrast_color }};"{% endif %}>
+                 {% if _quad_style %}style="{{ _quad_style }}"{% endif %}>
               <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
                 <div class="d-flex align-items-center gap-2">
                   <span class="quad-status-indicator {% if quad_card.tag1.device_status == 'disconnected' %}status-offline{% elif quad_card.tag1.device_status == 'connected' %}status-online{% else %}status-unknown{% endif %}" 
@@ -332,7 +335,25 @@
                               data-card-id="{{ quad_card.id }}"
                               data-card-type="quad"
                               data-current-color="{{ quad_card.card_color or '' }}">
-                        <i class="bi bi-palette me-2"></i>Change Color
+                        <i class="bi bi-palette me-2"></i>Change Header Color
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item change-sub-color-btn"
+                              data-card-id="{{ quad_card.id }}"
+                              data-card-type="quad"
+                              data-sub-side="left"
+                              data-current-color="{{ quad_card.sub_color or '' }}">
+                        <i class="bi bi-palette2 me-2"></i>Change Left Sub-Header Color
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item change-sub-color-btn"
+                              data-card-id="{{ quad_card.id }}"
+                              data-card-type="quad"
+                              data-sub-side="right"
+                              data-current-color="{{ quad_card.sub_color_right or '' }}">
+                        <i class="bi bi-palette2 me-2"></i>Change Right Sub-Header Color
                       </button>
                     </li>
                     <li>
@@ -520,14 +541,17 @@
       <div class="row g-2 mb-2">
           {% for quad_card in group.quad_cards %}
           <div class="col-12 col-lg-8 col-xl-6">
-            <div class="card h-100 shadow-soft quad-tag-card{% if quad_card.card_color %} qtag-custom-bg{% endif %}" 
+            {% set _quad_style = (('--qtag-card-bg: ' + quad_card.card_color + '; --qtag-card-text: ' + (quad_card.card_color | contrast_color) + ';') if quad_card.card_color else '') + ((' --qtag-sub-bg: ' + quad_card.sub_color + '; --qtag-sub-text: ' + (quad_card.sub_color | contrast_color) + ';') if quad_card.sub_color else '') + ((' --qtag-sub-bg-right: ' + quad_card.sub_color_right + '; --qtag-sub-text-right: ' + (quad_card.sub_color_right | contrast_color) + ';') if quad_card.sub_color_right else '') %}
+            <div class="card h-100 shadow-soft quad-tag-card{% if quad_card.card_color %} qtag-custom-bg{% endif %}{% if quad_card.sub_color %} qtag-sub-custom-bg{% endif %}{% if quad_card.sub_color_right %} qtag-sub-right-custom{% endif %}" 
                  data-quad-id="{{ quad_card.id }}"
                  data-card-type="quad"
                  data-card-color="{{ quad_card.card_color or '' }}"
+                 data-sub-color="{{ quad_card.sub_color or '' }}"
+                 data-sub-color-right="{{ quad_card.sub_color_right or '' }}"
                  data-card-title="{{ quad_card.card_title or 'Quad Tag Card' }}"
                  data-left-title="{{ quad_card.left_title or 'Group A' }}"
                  data-right-title="{{ quad_card.right_title or 'Group B' }}"
-                 {% if quad_card.card_color %}style="--qtag-card-bg: {{ quad_card.card_color }}; --qtag-card-text: {{ quad_card.card_color | contrast_color }};"{% endif %}>
+                 {% if _quad_style %}style="{{ _quad_style }}"{% endif %}>
               <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
                 <div class="d-flex align-items-center gap-2">
                   <span class="quad-status-indicator {% if quad_card.tag1.device_status == 'disconnected' %}status-offline{% elif quad_card.tag1.device_status == 'connected' %}status-online{% else %}status-unknown{% endif %}" 
@@ -583,7 +607,25 @@
                               data-card-id="{{ quad_card.id }}"
                               data-card-type="quad"
                               data-current-color="{{ quad_card.card_color or '' }}">
-                        <i class="bi bi-palette me-2"></i>Change Color
+                        <i class="bi bi-palette me-2"></i>Change Header Color
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item change-sub-color-btn"
+                              data-card-id="{{ quad_card.id }}"
+                              data-card-type="quad"
+                              data-sub-side="left"
+                              data-current-color="{{ quad_card.sub_color or '' }}">
+                        <i class="bi bi-palette2 me-2"></i>Change Left Sub-Header Color
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item change-sub-color-btn"
+                              data-card-id="{{ quad_card.id }}"
+                              data-card-type="quad"
+                              data-sub-side="right"
+                              data-current-color="{{ quad_card.sub_color_right or '' }}">
+                        <i class="bi bi-palette2 me-2"></i>Change Right Sub-Header Color
                       </button>
                     </li>
                     <li>

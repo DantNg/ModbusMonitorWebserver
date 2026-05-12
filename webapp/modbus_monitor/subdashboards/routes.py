@@ -2277,7 +2277,7 @@ def rename_qtag_pv_dual_card(sid, card_id):
 
 @subdash_bp.route("/<int:sid>/update_card_color", methods=["POST"])
 def update_card_color(sid):
-    """Update background color for any card type (quad, quad6, single3, pvonly, pvdual)."""
+    """Update background color or sub-header color for any card type."""
     if session.get("role") != "admin":
         return jsonify({"success": False, "message": "Access denied"}), 403
     try:
@@ -2285,6 +2285,7 @@ def update_card_color(sid):
         card_type = data.get("card_type", "")
         card_id = data.get("card_id")
         color = data.get("color", "").strip()
+        color_field = data.get("color_field", "card_color")
 
         if not card_type or not card_id:
             return jsonify({"success": False, "message": "card_type and card_id required"}), 400
@@ -2292,14 +2293,17 @@ def update_card_color(sid):
         if card_type not in ("quad", "quad6", "qtag4", "qtag3", "qtag2", "single3", "pvonly", "pvdual"):
             return jsonify({"success": False, "message": "Invalid card_type"}), 400
 
+        if color_field not in ("card_color", "sub_color", "sub_color_right"):
+            return jsonify({"success": False, "message": "Invalid color_field"}), 400
+
         # Allow empty/null to reset to default
-        result = db.update_card_color(card_type, int(card_id), color if color else None)
+        result = db.update_card_color(card_type, int(card_id), color if color else None, color_field)
         if result:
             try:
                 get_emission_manager().force_refresh_subdash_cache()
             except Exception:
                 pass
-            return jsonify({"success": True, "card_color": color if color else None})
+            return jsonify({"success": True, color_field: color if color else None})
         return jsonify({"success": False, "message": "Card not found or update failed"}), 404
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
