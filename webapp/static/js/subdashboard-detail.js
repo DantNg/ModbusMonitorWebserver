@@ -1335,14 +1335,18 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
 
   /**
    * Format a raw tag value for display:
-   * - integer (or whole float) -> no decimal  e.g. 123.0 -> "123"
-   * - decimal -> exactly 2 decimal places     e.g. 123.5 -> "123.50"
+   * - integer (or whole float) -> no decimal     e.g. 123.0   -> "123"
+   * - decimal -> up to 2 decimal places, no trailing zeros
+   *              e.g. 123.5   -> "123.5"
+   *              e.g. 123.50  -> "123.5"
+   *              e.g. 123.456 -> "123.46"
    */
   function fmtVal(value) {
     if (value === null || value === undefined || value === '') return '0';
     const num = parseFloat(value);
     if (isNaN(num)) return String(value);
-    return num % 1 === 0 ? String(Math.round(num)) : num.toFixed(2);
+    // Round to max 2 decimal places, then strip trailing zeros
+    return parseFloat(num.toFixed(2)).toString();
   }
 
   // Local title helpers to allow renaming headers and persisting in the browser

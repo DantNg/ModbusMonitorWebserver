@@ -182,11 +182,11 @@ def create_app():
                 if num_value.is_integer():
                     return f"{int(num_value)}"
                 else:
-                    return f"{num_value:.2f}"
+                    return f"{round(num_value, 2):g}"
         if num_value.is_integer():
             return f"{int(num_value)}"
         else:
-            return f"{num_value:.2f}"
+            return f"{round(num_value, 2):g}"
 
     @app.template_filter('contrast_color')
     def contrast_color_filter(hex_color):
