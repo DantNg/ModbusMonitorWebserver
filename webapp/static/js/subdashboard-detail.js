@@ -4440,6 +4440,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
 
     document.getElementById('editPvId').value = btn.dataset.cardId;
     document.getElementById('editPvTag').value = btn.dataset.pvTagId || '';
+    document.getElementById('editPvDescription').value = btn.dataset.description || '';
 
     const modal = new bootstrap.Modal(document.getElementById('editQtagPvModal'));
     modal.show();
@@ -4631,6 +4632,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     if (card) {
       document.getElementById('editPvDualLeftTitle').value = card.dataset.leftTitle || '';
       document.getElementById('editPvDualRightTitle').value = card.dataset.rightTitle || '';
+      document.getElementById('editPvDualLeftDescription').value = card.dataset.leftDescription || '';
+      document.getElementById('editPvDualRightDescription').value = card.dataset.rightDescription || '';
     }
 
     const modal = new bootstrap.Modal(document.getElementById('editQtagPvDualModal'));

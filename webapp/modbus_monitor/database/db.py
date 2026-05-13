@@ -586,6 +586,7 @@ subdash_qtag_pv_cards = Table(
     Column("group_id", Integer, ForeignKey("subdash_tag_groups.id", ondelete="CASCADE"), nullable=False),
     Column("card_title", String(200), nullable=True),
     Column("pv_tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("description", String(500), nullable=True),  # Custom description shown below card title
     Column("card_color", String(20), nullable=True),  # Background color (hex)
     Column("created_at", DateTime, server_default=func.now()),
 )
@@ -600,6 +601,8 @@ subdash_qtag_pv_dual_cards = Table(
     Column("right_title", String(200), nullable=True),
     Column("left_tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
     Column("right_tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+    Column("left_description", String(500), nullable=True),   # Custom description for left column
+    Column("right_description", String(500), nullable=True),  # Custom description for right column
     Column("card_color", String(20), nullable=True),       # Background color (hex)
     Column("sub_color", String(20), nullable=True),         # Left sub-header color (hex)
     Column("sub_color_right", String(20), nullable=True),   # Right sub-header color (hex)
@@ -687,6 +690,8 @@ def create_schema():
     _migrate_card_color(engine)
     # Migrate: add fix value columns to quad and qtag6 tables
     _migrate_sv_fix_value(engine)
+    # Migrate: add description columns to PV Only and PV Dual tables
+    _migrate_pv_description(engine)
     # create_performance_indexes()
 
 
@@ -739,6 +744,29 @@ def _migrate_card_color(engine):
                     print(f"[migrate] Added sub_color_right to {tbl}")
                 except Exception as e:
                     print(f"[migrate] Could not add sub_color_right to {tbl}: {e}")
+
+
+def _migrate_pv_description(engine):
+    """Add description columns to PV Only and PV Dual card tables (safe for repeated calls)."""
+    migrations = {
+        'subdash_qtag_pv_cards': [('description', 'VARCHAR(500)')],
+        'subdash_qtag_pv_dual_cards': [
+            ('left_description', 'VARCHAR(500)'),
+            ('right_description', 'VARCHAR(500)'),
+        ],
+    }
+    with engine.connect() as con:
+        for tbl, columns in migrations.items():
+            for col_name, col_type in columns:
+                try:
+                    con.execute(text(f"SELECT {col_name} FROM {tbl} LIMIT 1"))
+                except Exception:
+                    try:
+                        con.execute(text(f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_type}"))
+                        con.commit()
+                        print(f"[migrate] Added {col_name} to {tbl}")
+                    except Exception as e:
+                        print(f"[migrate] Could not add {col_name} to {tbl}: {e}")
 
 
 def _migrate_sv_fix_value(engine):
@@ -3937,7 +3965,7 @@ def delete_qtag_single3_card(card_id: int) -> bool:
 
 # ========== QTAG PV ONLY CARD CRUD OPERATIONS ==========
 
-def add_qtag_pv_card(group_id: int, pv_tag_id: int, card_title: str = None) -> int:
+def add_qtag_pv_card(group_id: int, pv_tag_id: int, card_title: str = None, description: str = None) -> int:
     """Add a new qtag PV only card to a group."""
     with init_engine().begin() as con:
         res = con.execute(
@@ -3945,6 +3973,7 @@ def add_qtag_pv_card(group_id: int, pv_tag_id: int, card_title: str = None) -> i
                 group_id=group_id,
                 card_title=card_title,
                 pv_tag_id=pv_tag_id,
+                description=description,
             )
         )
         return res.inserted_primary_key[0]
@@ -3981,7 +4010,7 @@ def get_qtag_pv_card_by_id(card_id: int):
 def update_qtag_pv_card(card_id: int, **kwargs) -> bool:
     """Update a qtag PV only card."""
     try:
-        allowed = {'card_title', 'pv_tag_id', 'card_color'}
+        allowed = {'card_title', 'pv_tag_id', 'card_color', 'description'}
         values_dict = {k: v for k, v in kwargs.items() if k in allowed}
         if not values_dict:
             return True
@@ -4013,7 +4042,8 @@ def delete_qtag_pv_card(card_id: int) -> bool:
 # ========== QTAG PV DUAL CARD CRUD OPERATIONS ==========
 
 def add_qtag_pv_dual_card(group_id: int, left_tag_id: int, right_tag_id: int,
-                          card_title: str = None, left_title: str = None, right_title: str = None) -> int:
+                          card_title: str = None, left_title: str = None, right_title: str = None,
+                          left_description: str = None, right_description: str = None) -> int:
     """Add a new qtag PV dual card to a group."""
     with init_engine().begin() as con:
         res = con.execute(
@@ -4024,6 +4054,8 @@ def add_qtag_pv_dual_card(group_id: int, left_tag_id: int, right_tag_id: int,
                 right_title=right_title,
                 left_tag_id=left_tag_id,
                 right_tag_id=right_tag_id,
+                left_description=left_description,
+                right_description=right_description,
             )
         )
         return res.inserted_primary_key[0]
@@ -4067,7 +4099,8 @@ def get_qtag_pv_dual_card_by_id(card_id: int):
 def update_qtag_pv_dual_card(card_id: int, **kwargs) -> bool:
     """Update a qtag PV dual card."""
     try:
-        allowed = {'card_title', 'left_title', 'right_title', 'left_tag_id', 'right_tag_id', 'card_color'}
+        allowed = {'card_title', 'left_title', 'right_title', 'left_tag_id', 'right_tag_id',
+                   'card_color', 'left_description', 'right_description'}
         values_dict = {k: v for k, v in kwargs.items() if k in allowed}
         if not values_dict:
             return True

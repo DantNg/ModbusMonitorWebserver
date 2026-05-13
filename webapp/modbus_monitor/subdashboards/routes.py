@@ -2058,6 +2058,7 @@ def add_qtag_pv_card(sid):
         group_id = request.form.get("group_id")
         new_group_name = request.form.get("new_group_name", "").strip()
         card_title = request.form.get("card_title", "").strip() or None
+        description = request.form.get("description", "").strip() or None
 
         # Priority: existing group > new group name (avoid duplicate groups)
         if group_id:
@@ -2067,7 +2068,7 @@ def add_qtag_pv_card(sid):
         else:
             return jsonify({"success": False, "message": "Please select a group or enter a new group name"}), 400
 
-        card_id = db.add_qtag_pv_card(group_id, int(pv_tag_id), card_title)
+        card_id = db.add_qtag_pv_card(group_id, int(pv_tag_id), card_title, description)
         try:
             get_emission_manager().force_refresh_subdash_cache()
         except Exception:
@@ -2093,6 +2094,9 @@ def update_qtag_pv_card_route(sid, card_id):
         ct = request.form.get("card_title")
         if ct is not None:
             kwargs['card_title'] = ct.strip() or None
+        desc = request.form.get("description")
+        if desc is not None:
+            kwargs['description'] = desc.strip() or None
         result = db.update_qtag_pv_card(card_id, **kwargs)
         if result:
             try:
@@ -2167,6 +2171,8 @@ def add_qtag_pv_dual_card(sid):
         card_title = request.form.get("card_title", "").strip() or None
         left_title = request.form.get("left_title", "").strip() or None
         right_title = request.form.get("right_title", "").strip() or None
+        left_description = request.form.get("left_description", "").strip() or None
+        right_description = request.form.get("right_description", "").strip() or None
 
         if group_id:
             group_id = int(group_id)
@@ -2176,7 +2182,8 @@ def add_qtag_pv_dual_card(sid):
             return jsonify({"success": False, "message": "Please select a group or enter a new group name"}), 400
 
         card_id = db.add_qtag_pv_dual_card(group_id, int(left_tag_id), int(right_tag_id),
-                                            card_title, left_title, right_title)
+                                            card_title, left_title, right_title,
+                                            left_description, right_description)
         try:
             get_emission_manager().force_refresh_subdash_cache()
         except Exception:
@@ -2211,6 +2218,12 @@ def update_qtag_pv_dual_card_route(sid, card_id):
         rt = request.form.get("right_title")
         if rt is not None:
             kwargs['right_title'] = rt.strip() or None
+        ld = request.form.get("left_description")
+        if ld is not None:
+            kwargs['left_description'] = ld.strip() or None
+        rd = request.form.get("right_description")
+        if rd is not None:
+            kwargs['right_description'] = rd.strip() or None
         result = db.update_qtag_pv_dual_card(card_id, **kwargs)
         if result:
             try:

@@ -1439,6 +1439,10 @@
               {% endfor %}
             </select>
           </div>
+          <div class="mb-3">
+            <label class="form-label">Description <small class="text-muted">(optional, shown below value)</small></label>
+            <input type="text" name="description" class="form-control" placeholder="e.g. Hum hiện tại TP" maxlength="200">
+          </div>
           <hr>
           <div class="mb-3">
             <label class="form-label">Add to Group</label>
@@ -1486,6 +1490,16 @@
             <div class="col-md-6">
               <label class="form-label fw-bold text-info">Right Column Title</label>
               <input type="text" name="right_title" class="form-control" placeholder="e.g. Sensor B">
+            </div>
+          </div>
+          <div class="row g-3 mt-0">
+            <div class="col-md-6">
+              <label class="form-label">Left Description <small class="text-muted">(optional)</small></label>
+              <input type="text" name="left_description" class="form-control" placeholder="e.g. Nhiệt độ lồng" maxlength="200">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Right Description <small class="text-muted">(optional)</small></label>
+              <input type="text" name="right_description" class="form-control" placeholder="e.g. Nhiệt độ phề" maxlength="200">
             </div>
           </div>
           <hr>
@@ -1553,6 +1567,16 @@
             <div class="col-md-6">
               <label class="form-label fw-bold text-info">Right Column Title</label>
               <input type="text" id="editPvDualRightTitle" name="right_title" class="form-control">
+            </div>
+          </div>
+          <div class="row g-3 mt-0">
+            <div class="col-md-6">
+              <label class="form-label">Left Description <small class="text-muted">(optional)</small></label>
+              <input type="text" id="editPvDualLeftDescription" name="left_description" class="form-control" maxlength="200">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Right Description <small class="text-muted">(optional)</small></label>
+              <input type="text" id="editPvDualRightDescription" name="right_description" class="form-control" maxlength="200">
             </div>
           </div>
           <hr>
@@ -2343,6 +2367,10 @@
               <option value="{{ tag.id }}">{{ tag.tag_name }} ({{ tag.device_name }})</option>
               {% endfor %}
             </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description <small class="text-muted">(optional, shown below value)</small></label>
+            <input type="text" id="editPvDescription" name="description" class="form-control" placeholder="e.g. Hum hiện tại TP" maxlength="200">
           </div>
           <div id="edit-pv-error-message" class="alert alert-danger mt-3" style="display: none;"></div>
         </div>

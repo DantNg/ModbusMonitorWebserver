@@ -12,6 +12,8 @@
          data-card-title="{{ card.card_title or 'PV Dual Card' }}"
          data-left-title="{{ card.left_title or 'Left' }}"
          data-right-title="{{ card.right_title or 'Right' }}"
+         data-left-description="{{ card.left_description or '' }}"
+         data-right-description="{{ card.right_description or '' }}"
          {% if _card_style %}style="{{ _card_style }}"{% endif %}>
       <!-- Card Header -->
       <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2" style="border-radius: 14px 14px 0 0;">
@@ -64,7 +66,9 @@
             <div class="qtag-pv-dual-tag-rows">
               <div class="qtag-pv-dual-tag-item" data-tag-id="{{ card.left_tag_id }}" data-role="pv">
                 <div class="qtag-pv-dual-pvonly-top-row">
-                  <span class="qtag-pv-dual-description">{{ card.left_tag.name or 'Process Value' }}</span>
+                  {% if card.left_description %}
+                  <span class="qtag-pv-dual-description">{{ card.left_description }}</span>
+                  {% endif %}
                   <span class="qtag-pv-dual-unit">{{ card.left_tag.unit or '' }}</span>
                 </div>
                 <div class="qtag-pv-dual-value-row">
@@ -85,7 +89,9 @@
             <div class="qtag-pv-dual-tag-rows">
               <div class="qtag-pv-dual-tag-item" data-tag-id="{{ card.right_tag_id }}" data-role="pv">
                 <div class="qtag-pv-dual-pvonly-top-row">
-                  <span class="qtag-pv-dual-description">{{ card.right_tag.name or 'Process Value' }}</span>
+                  {% if card.right_description %}
+                  <span class="qtag-pv-dual-description">{{ card.right_description }}</span>
+                  {% endif %}
                   <span class="qtag-pv-dual-unit">{{ card.right_tag.unit or '' }}</span>
                 </div>
                 <div class="qtag-pv-dual-value-row">

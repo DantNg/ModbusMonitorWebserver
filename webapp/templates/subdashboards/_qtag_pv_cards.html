@@ -29,7 +29,7 @@
           <ul class="dropdown-menu dropdown-menu-end">
             <li><button class="dropdown-item rename-qtag-pv-btn" data-card-id="{{ card.id }}"><i class="bi bi-pencil-square me-2"></i>Rename Card</button></li>
             <li><hr class="dropdown-divider"></li>
-            <li><button class="dropdown-item edit-qtag-pv-btn" data-card-id="{{ card.id }}" data-pv-tag-id="{{ card.pv_tag_id }}">
+            <li><button class="dropdown-item edit-qtag-pv-btn" data-card-id="{{ card.id }}" data-pv-tag-id="{{ card.pv_tag_id }}" data-description="{{ card.description or '' }}">
               <i class="bi bi-pencil me-2"></i>Edit Tag</button></li>
             <li><button class="dropdown-item text-danger delete-qtag-pv-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
             <li><hr class="dropdown-divider"></li>
@@ -44,7 +44,9 @@
         <!-- PV (Tag 1) -->
         <div class="qtag-single-tag-item" data-tag-id="{{ card.pv_tag_id }}" data-role="pv">
           <div class="qtag-pvonly-top-row">
-            <span class="qtag-pvonly-description">{{ card.pv_tag.name or 'Process Value' }}</span>
+            {% if card.description %}
+            <span class="qtag-pvonly-description">{{ card.description }}</span>
+            {% endif %}
             <span class="qtag-pvonly-unit">{{ card.pv_tag.unit or '' }}</span>
           </div>
           <div class="qtag-single-value-row">

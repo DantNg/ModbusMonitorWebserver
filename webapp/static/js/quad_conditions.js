@@ -225,24 +225,37 @@ async function saveConditionsToAPI() {
     const result = await response.json();
     
     if (result.success) {
-      Swal.fire({
-        icon: 'success',
-        title: 'Thành công!',
-        text: 'Điều kiện đã được lưu',
-        timer: 2000,
-        showConfirmButton: false
-      });
-      
-      // Close modal
-      const modal = bootstrap.Modal.getInstance(document.getElementById('compareConditionsModal'));
-      if (modal) {
-        modal.hide();
-      }
-      
+      // Close modal FIRST before showing Swal to avoid Bootstrap backdrop conflict
+      const modalEl = document.getElementById('compareConditionsModal');
+      const modal = bootstrap.Modal.getInstance(modalEl);
+
       // Mark that this quad has conditions for UI updates
       const quadCard = document.querySelector(`[data-quad-id="${quadId}"]`);
       if (quadCard && conditionData.enabled) {
         quadCard.setAttribute('data-has-conditions', 'true');
+      }
+
+      if (modal) {
+        // Show success Swal only after modal is fully hidden (avoids backdrop conflict)
+        modalEl.addEventListener('hidden.bs.modal', function onModalHidden() {
+          modalEl.removeEventListener('hidden.bs.modal', onModalHidden);
+          Swal.fire({
+            icon: 'success',
+            title: 'Thành công!',
+            text: 'Điều kiện đã được lưu',
+            timer: 2000,
+            showConfirmButton: false
+          });
+        });
+        modal.hide();
+      } else {
+        Swal.fire({
+          icon: 'success',
+          title: 'Thành công!',
+          text: 'Điều kiện đã được lưu',
+          timer: 2000,
+          showConfirmButton: false
+        });
       }
       
     } else {
