@@ -6,6 +6,9 @@ This module is intentionally free of Flask/DB imports so it can be used
 both by the webapp (before_request hook) and the standalone CLI tool.
 """
 
+import os
+import socket
+import struct
 import subprocess
 import hashlib
 import hmac
@@ -23,9 +26,111 @@ from typing import Optional, Tuple
 # ---------------------------------------------------------------------------
 _LICENSE_SECRET = "Mdb5-LcNs-Xk9P-qMrV-2025-zNf3-s8cW"
 
+# ---------------------------------------------------------------------------
+# NTP + Anti-rollback configuration
+# ---------------------------------------------------------------------------
+_NTP_SERVERS = ["pool.ntp.org", "time.google.com", "time.cloudflare.com"]
+_NTP_TIMEOUT = 3          # seconds per NTP server attempt
+
+# Max tolerated difference (seconds) between current time and last-seen timestamp
+# before treating it as a clock rollback.  1 hour covers legitimate NTP corrections
+# while catching any intentional date rollback (days / months).
+_ROLLBACK_TOLERANCE = 3600
+
+# Path of the HMAC-signed "last seen" file (inside project's logs/ directory)
+_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+_LAST_SEEN_FILE = os.path.normpath(
+    os.path.join(_MODULE_DIR, "..", "..", "logs", ".lts")
+)
+
 # Module-level cache so the DB is not hit on every request (60-second TTL)
 _cache: dict = {"valid": None, "ts": 0.0}
 _CACHE_TTL = 60  # seconds
+
+
+# ---------------------------------------------------------------------------
+# NTP helpers (raw UDP, no external libraries)
+# ---------------------------------------------------------------------------
+
+def _query_ntp_time() -> Optional[float]:
+    """
+    Query an NTP server via raw UDP socket.
+    Returns authoritative Unix timestamp (float) or None when offline / all servers fail.
+    No external libraries required – uses only stdlib socket + struct.
+    """
+    for host in _NTP_SERVERS:
+        s = None
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.settimeout(_NTP_TIMEOUT)
+            # Minimal NTP request packet (mode 3 = client)
+            s.sendto(b'\x1b' + 47 * b'\0', (host, 123))
+            data, _ = s.recvfrom(1024)
+            if len(data) >= 48:
+                # Transmit Timestamp field starts at byte 40 (high 32-bit word = seconds)
+                seconds_since_1900 = struct.unpack('!I', data[40:44])[0]
+                # NTP epoch is 1900-01-01; subtract 70 years to get Unix epoch
+                return float(seconds_since_1900 - 2208988800)
+        except Exception:
+            continue
+        finally:
+            if s:
+                try:
+                    s.close()
+                except Exception:
+                    pass
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Signed last-seen timestamp helpers (anti clock-rollback)
+# ---------------------------------------------------------------------------
+
+def _sign_ts(ts: float) -> str:
+    """Encode a timestamp as a URL-safe base64 blob with an HMAC signature."""
+    msg = f"{ts:.3f}"
+    sig = hmac.new(
+        _LICENSE_SECRET.encode("utf-8"), msg.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    payload = json.dumps({"ts": ts, "s": sig}, separators=(",", ":"))
+    return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8")
+
+
+def _verify_ts(data: str) -> Optional[float]:
+    """Return the timestamp if the HMAC is intact, else None (tampered / invalid)."""
+    try:
+        raw = base64.urlsafe_b64decode(data.encode("utf-8")).decode("utf-8")
+        payload = json.loads(raw)
+        ts = float(payload["ts"])
+        sig = payload["s"]
+        msg = f"{ts:.3f}"
+        expected = hmac.new(
+            _LICENSE_SECRET.encode("utf-8"), msg.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+        if hmac.compare_digest(sig, expected):
+            return ts
+    except Exception:
+        pass
+    return None
+
+
+def _read_last_seen() -> Optional[float]:
+    """Read and verify the persisted last-seen timestamp. Returns None if missing / tampered."""
+    try:
+        with open(_LAST_SEEN_FILE, "r", encoding="utf-8") as f:
+            return _verify_ts(f.read().strip())
+    except Exception:
+        return None
+
+
+def _write_last_seen(ts: float) -> None:
+    """Persist a new signed last-seen timestamp (only if it advances the stored value)."""
+    try:
+        os.makedirs(os.path.dirname(_LAST_SEEN_FILE), exist_ok=True)
+        with open(_LAST_SEEN_FILE, "w", encoding="utf-8") as f:
+            f.write(_sign_ts(ts))
+    except Exception:
+        pass
 
 
 def get_hdd_uid() -> str:
@@ -101,9 +206,15 @@ def generate_key(hdd_uid: str, expiry: Optional[str] = None) -> str:
     return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8")
 
 
-def verify_key(key: str) -> Tuple[bool, str, Optional[datetime]]:
+def verify_key(key: str, _now: Optional[datetime] = None) -> Tuple[bool, str, Optional[datetime]]:
     """
     Verify a license key against the current machine's HDD UID.
+
+    Args:
+        key  : License key string.
+        _now : Reference datetime used for expiry check.
+               Pass NTP-derived time to prevent clock-rollback bypass.
+               Defaults to datetime.now() when not provided.
 
     Returns:
         (is_valid: bool, message: str, expires_at: Optional[datetime])
@@ -145,11 +256,13 @@ def verify_key(key: str) -> Tuple[bool, str, Optional[datetime]]:
     except ValueError:
         return False, "License key contains an invalid expiry date.", None
 
-    if datetime.now() > expires_at:
+    # Use caller-supplied reference time (NTP-derived) when available to prevent
+    # clock-rollback bypass; fall back to system time only when no reference is given.
+    check_time = _now if _now is not None else datetime.now()
+    if check_time > expires_at:
         return False, f"License expired on {e}.", expires_at
 
     return True, f"License is valid until {e}.", expires_at
-
 
 def is_license_valid() -> bool:
     """
@@ -173,13 +286,50 @@ def invalidate_cache() -> None:
 
 
 def _check_db_license() -> bool:
-    """Internal: query DB and verify the stored license key."""
+    """
+    Internal: query DB and verify the stored license key with anti-tamper time checks.
+
+    Time-verification flow:
+    1. Try NTP (authoritative) → prevents bypass while online.
+    2. Fall back to system time if NTP is unreachable (offline mode).
+    3. Anti-rollback: if reference time is more than _ROLLBACK_TOLERANCE seconds
+       behind the last persisted last-seen timestamp, the system clock was rolled
+       back → deny (covers the "disconnect + change date" attack vector).
+    4. Verify key cryptographically using the reference time.
+    5. On success, advance the signed last-seen file so future rollbacks are caught.
+    """
     try:
         from .database.db import get_active_license
         row = get_active_license()
         if not row:
             return False
-        is_valid, _, _ = verify_key(row["license_key"])
+
+        # Step 1 & 2: get the most trustworthy time available
+        ntp_ts = _query_ntp_time()
+        ref_ts = ntp_ts if ntp_ts is not None else time.time()
+
+        # Step 3: anti-rollback check (only meaningful when NTP is unavailable;
+        # when NTP succeeds, the reference is already authoritative)
+        if ntp_ts is None:
+            last_seen = _read_last_seen()
+            if last_seen is not None and ref_ts < last_seen - _ROLLBACK_TOLERANCE:
+                print(
+                    f"[license] Clock rollback detected: "
+                    f"system={ref_ts:.0f}, last_seen={last_seen:.0f}, "
+                    f"diff={last_seen - ref_ts:.0f}s"
+                )
+                return False
+
+        # Step 4: cryptographic verification with reference time
+        ref_dt = datetime.fromtimestamp(ref_ts)
+        is_valid, msg, _ = verify_key(row["license_key"], _now=ref_dt)
+
+        # Step 5: advance last-seen only when timestamp moves forward
+        if is_valid:
+            last_seen = _read_last_seen()
+            if last_seen is None or ref_ts > last_seen:
+                _write_last_seen(ref_ts)
+
         return is_valid
     except Exception:
         return False
