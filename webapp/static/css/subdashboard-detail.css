@@ -1092,6 +1092,7 @@
   font-weight: 600 !important;
   color: #9ca3af !important;
   text-transform: uppercase !important;
+  margin-left: auto !important;
 }
 
 .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-value-row {
@@ -1224,6 +1225,7 @@
   font-weight: 600 !important;
   color: #9ca3af !important;
   text-transform: uppercase !important;
+  margin-left: auto !important;
 }
 
 .qtag-pv-dual-value-row {
