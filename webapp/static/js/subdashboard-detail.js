@@ -1836,6 +1836,29 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   }
 
   /**
+   * Check if a card element has monitoring enabled.
+   * Looks for the card-alarm-toggle inside the card (or its root ancestor).
+   * Returns true if toggle doesn't exist (no conditions set yet).
+   * Returns false if conditions exist but monitoring is disabled (data-monitoring-enabled="false").
+   * Returns true if conditions exist and monitoring is enabled.
+   */
+  function isCardMonitoringEnabled(cardEl) {
+    if (!cardEl) return true;
+    // Walk up to find the root card element that contains the toggle
+    const rootCard = cardEl.closest(
+      '[data-qtag6-id], [data-qtag4-id], [data-qtag-single3-id], ' +
+      '[data-qtag-pv-id], [data-qtag2-id], [data-qtag3-id], [data-qtag-pv-dual-id]'
+    ) || cardEl;
+    const toggleWrap = rootCard.querySelector('.card-alarm-toggle-wrap');
+    // No toggle wrap = no conditions configured yet → allow alarms
+    if (!toggleWrap) return true;
+    // data-monitoring-enabled is set when conditions exist
+    // 'false' = conditions exist but disabled; anything else (including absent) = allow
+    if (toggleWrap.dataset.monitoringEnabled === 'false') return false;
+    return true;
+  }
+
+  /**
    * Apply alarm visual to a specific tag element and its parent card.
    * @param {number} tagId - The tag ID
    * @param {string} alarmClass - 'high' or 'low'
@@ -1849,6 +1872,10 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     );
 
     tagElements.forEach(tagEl => {
+      // Skip if parent card has monitoring disabled
+      const parentCard = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
+      if (!isCardMonitoringEnabled(parentCard)) return;
+
       // Add per-tag alarm indicator
       tagEl.classList.add('tag-alarm-active', `tag-alarm-${alarmClass}`);
 
@@ -2071,6 +2098,9 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       const pvTagId = card.getAttribute('data-pv-tag-id');
       if (!pvTagId) return;
 
+      // Skip if monitoring is disabled for this card
+      if (!isCardMonitoringEnabled(card)) return;
+
       // Skip if PV tag already has a system alarm active
       if (systemAlarmMap && systemAlarmMap.has(parseInt(pvTagId))) return;
 
@@ -2185,6 +2215,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     }
 
     if (cardEl) {
+      // Check if monitoring is enabled for this card
+      if (!isCardMonitoringEnabled(cardEl)) return;
       cardEl.classList.remove(removeClass);
       cardEl.classList.add(alarmClass);
     }
@@ -2277,11 +2309,40 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           const cardType = key.substring(0, lastUnderscore);
           const cardId = key.substring(lastUnderscore + 1);
 
-          // Hiện toggle wrap
+          // Hiện/ẩn toggle wrap theo trạng thái, luôn gắn data-monitoring-enabled
           const wrap = document.querySelector(
             `.card-alarm-toggle-wrap[data-card-type="${cardType}"][data-card-id="${cardId}"]`
           );
-          if (wrap) wrap.classList.remove('d-none');
+          if (wrap) {
+            wrap.dataset.monitoringEnabled = enabled ? 'true' : 'false';
+            if (enabled) {
+              wrap.classList.remove('d-none');
+            } else {
+              wrap.classList.add('d-none');
+              // Xóa alarm visuals ngay sau khi biết trạng thái disabled
+              // (fix race condition: alarms có thể đã apply trước khi states load xong)
+              removeCardAlarmVisual(cardType, parseInt(cardId), 'left');
+              removeCardAlarmVisual(cardType, parseInt(cardId), 'right');
+              // Xóa tag-alarm visuals bên trong card
+              const rootCard = wrap.closest(
+                '[data-qtag6-id], [data-qtag4-id], [data-qtag-single3-id], ' +
+                '[data-qtag-pv-id], [data-qtag2-id], [data-qtag3-id], [data-qtag-pv-dual-id]'
+              );
+              if (rootCard) {
+                rootCard.querySelectorAll('.tag-alarm-active').forEach(el => {
+                  el.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
+                  el.removeAttribute('title');
+                });
+                // Xóa sub-card alarm classes (qtag6/qtag4)
+                rootCard.querySelectorAll('.qtag6-sub-card').forEach(sub => {
+                  sub.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
+                });
+                rootCard.querySelectorAll('.qtag-single-sub-card').forEach(sub => {
+                  sub.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
+                });
+              }
+            }
+          }
 
           // Set trạng thái checked
           const toggle = document.querySelector(
@@ -2321,10 +2382,23 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             showConfirmButton: false
           });
         } else {
-          // Nếu disable → xóa màu alarm trên card
+          // Nếu disable → xóa màu alarm trên card và ẩn toggle
           if (!enabled) {
             removeCardAlarmVisual(cardType, parseInt(cardId), 'left');
             removeCardAlarmVisual(cardType, parseInt(cardId), 'right');
+            const wrap = document.querySelector(
+              `.card-alarm-toggle-wrap[data-card-type="${cardType}"][data-card-id="${cardId}"]`
+            );
+            if (wrap) {
+              wrap.dataset.monitoringEnabled = 'false';
+              wrap.classList.add('d-none');
+            }
+          } else {
+            // Enable: cập nhật data attribute
+            const wrap = document.querySelector(
+              `.card-alarm-toggle-wrap[data-card-type="${cardType}"][data-card-id="${cardId}"]`
+            );
+            if (wrap) wrap.dataset.monitoringEnabled = 'true';
           }
           console.log(`[CardToggle] ${cardType}/${cardId} alarm = ${enabled}`);
         }
@@ -2341,7 +2415,14 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     const wrap = document.querySelector(
       `.card-alarm-toggle-wrap[data-card-type="${cardType}"][data-card-id="${cardId}"]`
     );
-    if (wrap) wrap.classList.remove('d-none');
+    if (wrap) {
+      wrap.dataset.monitoringEnabled = enabled ? 'true' : 'false';
+      if (enabled) {
+        wrap.classList.remove('d-none');
+      } else {
+        wrap.classList.add('d-none');
+      }
+    }
     const toggle = document.querySelector(
       `.card-alarm-toggle[data-card-type="${cardType}"][data-card-id="${cardId}"]`
     );

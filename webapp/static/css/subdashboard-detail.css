@@ -805,15 +805,6 @@
 }
 
 /* Alarm icon indicator for tag items */
-.tag-alarm-active::after {
-  content: '⚠️';
-  position: absolute;
-  top: 4px;
-  right: 8px;
-  font-size: 0.75rem;
-  z-index: 5;
-  animation: alarm-blink 1.5s ease-in-out infinite;
-}
 
 .tag-alarm-low {
   border-left: 3px solid #f59e0b !important;
