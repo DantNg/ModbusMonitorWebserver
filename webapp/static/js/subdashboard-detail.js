@@ -2348,11 +2348,6 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     if (toggle) toggle.checked = enabled;
   };
 
-
-    const fc = getFunctionCodeInt(functionCode);
-    return fc === 1 || fc === 3;
-  }
-
   // Show error message for quad tag form
   function showQuadError(message) {
     const errorDiv = document.getElementById('quad-error-message');
@@ -3360,6 +3355,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         if (!form.querySelector(`[name="tag${i}_id"]`).value) {
           errorEl.textContent = 'Please select both PV tags (Tag 1 and Tag 2)';
           errorEl.style.display = 'block';
+          errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return;
         }
       }
@@ -3369,6 +3365,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       if (!groupId && !newGroupName) {
         errorEl.textContent = 'Please select a group or enter a new group name';
         errorEl.style.display = 'block';
+        errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
 

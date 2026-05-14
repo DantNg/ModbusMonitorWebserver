@@ -1305,10 +1305,17 @@
               <option value="{{ group.id }}">{{ group.name }}</option>
               {% endfor %}
             </select>
+            {% if not groups %}
+            <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Chưa có nhóm nào. Nhập tên nhóm mới bên dưới.</small>
+            {% endif %}
           </div>
           <div class="mb-3">
-            <label class="form-label">Or Create New Group</label>
-            <input type="text" name="new_group_name" class="form-control" placeholder="New group name">
+            <label class="form-label{% if not groups %} fw-bold text-danger{% endif %}">
+              {% if not groups %}<i class="bi bi-exclamation-circle me-1"></i>{% endif %}
+              Create New Group <span class="text-danger">*</span>
+            </label>
+            <input type="text" name="new_group_name" class="form-control{% if not groups %} border-danger{% endif %}" placeholder="New group name (required)"
+              {% if not groups %}required{% endif %}>
           </div>
           <div id="qtag6-error-message" class="alert alert-danger" style="display: none;"></div>
         </div>
