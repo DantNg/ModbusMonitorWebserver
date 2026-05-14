@@ -468,7 +468,8 @@
   border-radius: 12px !important;
   background: #fff !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 
 .qtag6-sub-card:hover {
@@ -487,6 +488,7 @@
 
 .qtag6-sub-head.qtag6-left-head {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  border-radius: 12px 12px 0 0 !important;
 }
 
 .qtag6-sub-head.qtag6-right-head {
@@ -870,7 +872,8 @@
   border-radius: 14px !important;
   background: #fff !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 
 .qtag-single-sub-card:hover {
@@ -1151,7 +1154,8 @@
   border-radius: 12px !important;
   background: #fff !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 
 .qtag-pv-dual-sub-card:hover {
@@ -1170,6 +1174,7 @@
 
 .qtag-pv-dual-sub-head.qtag-pv-dual-left-head {
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  border-radius: 12px 12px 0 0 !important;
 }
 
 .qtag-pv-dual-sub-head.qtag-pv-dual-right-head {
