@@ -2309,16 +2309,15 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           const cardType = key.substring(0, lastUnderscore);
           const cardId = key.substring(lastUnderscore + 1);
 
-          // Hiện/ẩn toggle wrap theo trạng thái, luôn gắn data-monitoring-enabled
+          // Luôn gắn data-monitoring-enabled, KHÔNG hiện toggle trên card (chỉ dùng settings modal)
           const wrap = document.querySelector(
             `.card-alarm-toggle-wrap[data-card-type="${cardType}"][data-card-id="${cardId}"]`
           );
           if (wrap) {
             wrap.dataset.monitoringEnabled = enabled ? 'true' : 'false';
-            if (enabled) {
-              wrap.classList.remove('d-none');
-            } else {
-              wrap.classList.add('d-none');
+            // Luôn giữ ẩn
+            wrap.classList.add('d-none');
+            if (!enabled) {
               // Xóa alarm visuals ngay sau khi biết trạng thái disabled
               // (fix race condition: alarms có thể đã apply trước khi states load xong)
               removeCardAlarmVisual(cardType, parseInt(cardId), 'left');
@@ -2417,11 +2416,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     );
     if (wrap) {
       wrap.dataset.monitoringEnabled = enabled ? 'true' : 'false';
-      if (enabled) {
-        wrap.classList.remove('d-none');
-      } else {
-        wrap.classList.add('d-none');
-      }
+      // Luôn giữ ẩn - monitoring toggle chỉ dùng trong settings modal
+      wrap.classList.add('d-none');
     }
     const toggle = document.querySelector(
       `.card-alarm-toggle[data-card-type="${cardType}"][data-card-id="${cardId}"]`

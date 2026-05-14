@@ -493,6 +493,28 @@ def handle_quad_alarm_event(data):
         print(f'❌ Error handling quad_alarm_event: {e}')
         import traceback
         traceback.print_exc()
+
+@socketio.on('card_alarm_event')
+def handle_card_alarm_event(data):
+    """
+    Handle card alarm events (qtag6, qtag4, qtag3, qtag2, single3, pv_only, pv_dual)
+    from alarm worker and broadcast to all browser clients.
+    This receives events emitted by alarm_worker.py via socketio.Client().
+    """
+    try:
+        card_type = data.get('card_type')
+        card_id = data.get('card_id')
+        status = data.get('status')
+        print(f'📡 Received card_alarm_event from worker: {card_type}/{card_id} [{status}]')
+
+        # Broadcast to all clients (frontend filters by card_type/card_id)
+        socketio.emit('card_alarm_event', data)
+        print(f'✅ Broadcasted card_alarm_event to all clients: {card_type}/{card_id}')
+
+    except Exception as e:
+        print(f'❌ Error handling card_alarm_event: {e}')
+        import traceback
+        traceback.print_exc()
     
 def start_data_queue_processor():
     """Background thread to process data from workers (disabled in webapp-only mode)"""
