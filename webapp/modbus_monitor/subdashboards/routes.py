@@ -1069,9 +1069,9 @@ def delete_quad_condition_route(sid, quad_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-# ========== CARD ALARM CONDITIONS ROUTES (Qtag6, Single3, PV Only, PV Dual) ==========
+# ========== CARD ALARM CONDITIONS ROUTES (Qtag6, Qtag4, Qtag3, Qtag2, Single3, PV Only, PV Dual) ==========
 
-VALID_CARD_TYPES = {'qtag6', 'single3', 'pv_only', 'pv_dual'}
+VALID_CARD_TYPES = {'qtag6', 'qtag4', 'qtag3', 'qtag2', 'single3', 'pv_only', 'pv_dual'}
 
 @subdash_bp.route("/<int:sid>/card_condition/<card_type>/<int:card_id>", methods=["GET"])
 def get_card_condition(sid, card_type, card_id):

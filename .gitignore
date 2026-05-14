@@ -54,3 +54,4 @@ config/SMTP_config.json
 *.spec
 *.exe
 /new_requirement/*
+*.lts
