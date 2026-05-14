@@ -69,7 +69,8 @@ function cardCondSetDefaults() {
 }
 
 function cardCondPopulateForm(condition) {
-  document.getElementById('cardCondEnabled').checked = condition.enabled !== false;
+  // SQLite stores Boolean as 0/1 (integer), use !! to coerce correctly
+  document.getElementById('cardCondEnabled').checked = !!condition.enabled;
 
   // Left column
   cardCondSetValue('cardLeftHighOperator', condition.left_high_operator, '>');

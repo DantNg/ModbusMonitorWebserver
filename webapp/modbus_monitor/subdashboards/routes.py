@@ -1033,6 +1033,14 @@ def save_quad_condition(sid, quad_id):
         
         # Lưu vào database
         condition_id = db.save_quad_condition(quad_id, conditions_data)
+
+        # Nếu disable condition → xóa alarm states để tránh alarm cũ vẫn hiển thị
+        if not conditions_data.get("enabled", True):
+            try:
+                cleared = db.clear_quad_alarm_states_for_card(quad_id)
+                print(f"🧹 Cleared {cleared} quad alarm state(s) for quad {quad_id} (condition disabled)")
+            except Exception as e:
+                print(f"Warning: Could not clear quad alarm states: {e}")
         
         return jsonify({
             "success": True,
@@ -1121,6 +1129,15 @@ def save_card_condition(sid, card_type, card_id):
             "right_description": data.get("right_description"),
         }
         condition_id = db.save_card_alarm_condition(card_type, card_id, conditions_data)
+
+        # Nếu disable condition → xóa alarm states để tránh alarm cũ vẫn hiển thị
+        if not conditions_data.get("enabled", True):
+            try:
+                cleared = db.clear_card_alarm_states(card_type, card_id)
+                print(f"🧹 Cleared {cleared} card alarm state(s) for {card_type}/{card_id} (condition disabled)")
+            except Exception as e:
+                print(f"Warning: Could not clear card alarm states: {e}")
+
         return jsonify({
             "success": True,
             "message": "Alarm condition saved successfully",

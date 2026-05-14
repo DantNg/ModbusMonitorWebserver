@@ -35,8 +35,8 @@ async function loadConditionsFromAPI(quadId) {
 
 // Populate form with condition data from database
 function populateConditionForm(condition) {
-  // Global enabled state
-  document.getElementById('conditionsEnabled').checked = condition.enabled !== false;
+  // Global enabled state — SQLite stores Boolean as 0/1 (integer), so use !! to coerce
+  document.getElementById('conditionsEnabled').checked = !!condition.enabled;
   
   // Left column - High threshold
   setValue('leftHighOperator', condition.left_high_operator, '>');

@@ -1374,7 +1374,10 @@ def get_active_quad_alarms():
         return []
 
 def get_active_quad_alarms_by_subdash(subdash_id: int):
-    """Get active quad alarms for a specific subdashboard"""
+    """Get active quad alarms for a specific subdashboard.
+    Chỉ trả về alarms của các quad cards có enabled condition (enabled=True).
+    Điều này tránh trường hợp qtag mới chưa có conditions vẫn bị hiển thị alarm cũ.
+    """
     try:
         # Get all quad cards for this subdashboard first
         quad_card_ids = []
@@ -1392,8 +1395,22 @@ def get_active_quad_alarms_by_subdash(subdash_id: int):
         
         if not quad_card_ids:
             return []
+
+        # Lấy các quad card IDs có enabled condition (enabled=True)
+        with init_engine().connect() as con:
+            enabled_cond_rows = con.execute(
+                select(quad_tag_conditions.c.quad_card_id)
+                .where(
+                    (quad_tag_conditions.c.quad_card_id.in_(quad_card_ids)) &
+                    (quad_tag_conditions.c.enabled == True)
+                )
+            ).fetchall()
+            enabled_quad_ids = [row[0] for row in enabled_cond_rows]
+
+        if not enabled_quad_ids:
+            return []
         
-        # Now get active alarms for these quad cards
+        # Now get active alarms only for quad cards with enabled conditions
         with init_engine().connect() as con:
             query = select(
                 quad_alarm_states.c.quad_id,
@@ -1405,7 +1422,7 @@ def get_active_quad_alarms_by_subdash(subdash_id: int):
                 quad_alarm_states.c.threshold,
                 quad_alarm_states.c.operator
             ).where(
-                quad_alarm_states.c.quad_id.in_(quad_card_ids)
+                quad_alarm_states.c.quad_id.in_(enabled_quad_ids)
             ).order_by(quad_alarm_states.c.triggered_at.desc())
             
             rows = con.execute(query).mappings().all()
@@ -4459,6 +4476,37 @@ def delete_card_alarm_state(card_type: str, card_id: int, column: str):
         return 0
 
 
+def clear_quad_alarm_states_for_card(quad_card_id: int) -> int:
+    """Xóa tất cả alarm states của một quad card (dùng khi disable condition).
+    Trả về số row đã xóa."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(quad_alarm_states).where(quad_alarm_states.c.quad_id == quad_card_id)
+            )
+            return result.rowcount
+    except Exception as e:
+        print(f"Error clearing quad alarm states for card {quad_card_id}: {e}")
+        return 0
+
+
+def clear_card_alarm_states(card_type: str, card_id: int) -> int:
+    """Xóa tất cả alarm states của một card (dùng khi disable condition).
+    Trả về số row đã xóa."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                delete(card_alarm_states).where(
+                    (card_alarm_states.c.card_type == card_type) &
+                    (card_alarm_states.c.card_id == card_id)
+                )
+            )
+            return result.rowcount
+    except Exception as e:
+        print(f"Error clearing card alarm states for {card_type}/{card_id}: {e}")
+        return 0
+
+
 def get_active_card_alarms():
     """Get all active card alarm states."""
     try:
@@ -4473,7 +4521,10 @@ def get_active_card_alarms():
 
 
 def get_active_card_alarms_by_subdash(subdash_id: int):
-    """Get active card alarm states for a specific subdashboard."""
+    """Get active card alarm states for a specific subdashboard.
+    Chỉ trả về alarms của các card có enabled condition (enabled=True).
+    Điều này tránh trường hợp qtag mới chưa có conditions vẫn bị hiển thị alarm cũ.
+    """
     try:
         with init_engine().connect() as con:
             # Collect all card IDs by type for this subdashboard
@@ -4545,9 +4596,32 @@ def get_active_card_alarms_by_subdash(subdash_id: int):
             if not card_keys:
                 return []
 
-            # Build OR conditions for each (card_type, card_id) pair
-            conditions = []
+            # Lọc chỉ lấy các card có enabled condition trong card_alarm_conditions
+            # Tránh hiển thị alarm cho qtag mới chưa có conditions hoặc đã bị disable
+            # Dùng một query duy nhất thay vì N queries để tránh N+1 problem
+            from sqlalchemy import or_
+            cond_filters = []
             for ct, cid in card_keys:
+                cond_filters.append(
+                    and_(
+                        card_alarm_conditions.c.card_type == ct,
+                        card_alarm_conditions.c.card_id == cid,
+                        card_alarm_conditions.c.enabled == True
+                    )
+                )
+            enabled_rows = con.execute(
+                select(card_alarm_conditions.c.card_type, card_alarm_conditions.c.card_id)
+                .where(or_(*cond_filters))
+            ).fetchall()
+            enabled_card_keys = {(r[0], r[1]) for r in enabled_rows}
+
+            if not enabled_card_keys:
+                return []
+
+            # Build OR conditions for each (card_type, card_id) pair with enabled conditions
+            from sqlalchemy import or_
+            conditions = []
+            for ct, cid in enabled_card_keys:
                 conditions.append(
                     and_(
                         card_alarm_states.c.card_type == ct,
@@ -4555,7 +4629,6 @@ def get_active_card_alarms_by_subdash(subdash_id: int):
                     )
                 )
 
-            from sqlalchemy import or_
             rows = con.execute(
                 select(card_alarm_states).where(or_(*conditions))
                 .order_by(card_alarm_states.c.triggered_at.desc())
