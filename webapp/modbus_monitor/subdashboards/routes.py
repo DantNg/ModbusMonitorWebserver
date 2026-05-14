@@ -1202,6 +1202,18 @@ def api_card_conditions_states(sid):
         return jsonify({"success": False, "states": {}}), 500
 
 
+@subdash_bp.get("/<int:sid>/api/tags_for_conditions")
+def api_tags_for_conditions(sid):
+    """Trả về danh sách tất cả tags (id, name) trong subdashboard (gom từ tất cả loại card).
+    Dùng để populate dropdown compare tag trong Set Alarm Conditions modal."""
+    try:
+        tag_list = db.get_all_tags_for_subdash_conditions(sid)
+        return jsonify({"success": True, "tags": tag_list})
+    except Exception as e:
+        print(f"Error getting tags for conditions: {e}")
+        return jsonify({"success": False, "tags": []}), 500
+
+
 @subdash_bp.get("/<int:sid>/api/active_card_alarms")
 def api_active_card_alarms(sid):
     """API endpoint to fetch active card alarm states for a subdashboard."""

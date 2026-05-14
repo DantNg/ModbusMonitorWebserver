@@ -115,7 +115,7 @@ function cardCondPopulateForm(condition) {
   cardCondSetValue('cardRightDescription', condition.right_description, '');
 }
 
-function loadCardAvailableTags() {
+async function loadCardAvailableTags() {
   const tagSelects = [
     document.getElementById('cardLeftHighCompareTag'),
     document.getElementById('cardLeftLowCompareTag'),
@@ -123,49 +123,42 @@ function loadCardAvailableTags() {
     document.getElementById('cardRightLowCompareTag')
   ];
 
-  const tagsMap = new Map();
+  const subdashId = window.currentSubdashId
+    || document.body.dataset.subdashId
+    || document.querySelector('[data-subdash-id]')?.dataset.subdashId;
 
-  // Collect tags from various sources in the page
-  document.querySelectorAll('[data-tag-id]').forEach(el => {
-    const tagId = el.getAttribute('data-tag-id');
-    const tagName = el.getAttribute('data-tag-name');
-    if (tagId && tagName && !tagsMap.has(tagId)) {
-      tagsMap.set(tagId, tagName);
+  if (!subdashId) {
+    console.warn('[CardConditions] Cannot load tags: subdashId not found');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/subdash/${subdashId}/api/tags_for_conditions`);
+    const data = await res.json();
+
+    if (!data.success || !Array.isArray(data.tags) || data.tags.length === 0) {
+      console.warn('[CardConditions] No tags returned from API');
+      return;
     }
-  });
 
-  // Collect from write buttons
-  document.querySelectorAll('.write-btn[data-tag-id], .write-quad-tag-btn[data-tag-id]').forEach(btn => {
-    const tagId = btn.getAttribute('data-tag-id');
-    const tagName = btn.getAttribute('data-tag-name');
-    if (tagId && tagName && !tagsMap.has(tagId)) {
-      tagsMap.set(tagId, tagName);
-    }
-  });
+    // Giữ value đang chọn (nếu đang edit condition cũ)
+    const savedValues = tagSelects.map(sel => sel ? sel.value : '');
 
-  // Collect from select elements
-  document.querySelectorAll('select[id*="_select"] option').forEach(option => {
-    if (option.value && option.text && option.value !== '') {
-      if (!tagsMap.has(option.value)) {
-        tagsMap.set(option.value, option.text);
-      }
-    }
-  });
-
-  const tags = Array.from(tagsMap.entries()).map(([id, name]) => ({
-    id: id, name: name
-  })).sort((a, b) => a.name.localeCompare(b.name));
-
-  tagSelects.forEach(sel => {
-    if (!sel) return;
-    while (sel.options.length > 1) sel.remove(1);
-    tags.forEach(tag => {
-      const opt = document.createElement('option');
-      opt.value = tag.id;
-      opt.textContent = tag.name;
-      sel.appendChild(opt);
+    tagSelects.forEach((sel, idx) => {
+      if (!sel) return;
+      while (sel.options.length > 1) sel.remove(1);
+      data.tags.forEach(tag => {
+        const opt = document.createElement('option');
+        opt.value = tag.id;
+        opt.textContent = tag.name;
+        sel.appendChild(opt);
+      });
+      // Khôi phục lại value đã chọn trước
+      if (savedValues[idx]) sel.value = savedValues[idx];
     });
-  });
+  } catch (err) {
+    console.error('[CardConditions] Failed to load tags from API:', err);
+  }
 }
 
 async function loadCardConditionsFromAPI(cardType, cardId) {

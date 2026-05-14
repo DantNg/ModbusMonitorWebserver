@@ -1036,7 +1036,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     });
 
     // Open card alarm conditions modal (all card types: Qtag6, Qtag4, Qtag3, Qtag2, Single3, PV Only, PV Dual)
-    document.addEventListener('click', function (e) {
+    document.addEventListener('click', async function (e) {
       const btn = e.target.closest('.set-card-condition-btn');
       if (!btn) return;
 
@@ -1076,8 +1076,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         if (leftTitle) leftTitle.textContent = 'PV Value';
       }
 
-      // Load available tags and conditions
-      loadCardAvailableTags();
+      // Load available tags trước (await), sau đó load conditions để selected value hoạt động đúng
+      await loadCardAvailableTags();
       loadCardConditionsFromAPI(cardType, cardId);
 
       const modal = new bootstrap.Modal(document.getElementById('cardConditionsModal'));

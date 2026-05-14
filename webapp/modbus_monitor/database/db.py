@@ -2235,13 +2235,52 @@ def update_subdash_group(gid: int, data: dict):
 
 def delete_subdash_group(gid: int):
     with init_engine().begin() as con:
-        # First delete all tag associations
+        # 1. Thu thập tất cả card IDs theo type để xóa alarm conditions/states
+        card_tables = [
+            ('qtag6',   subdash_qtag6_cards),
+            ('qtag4',   subdash_qtag4_cards),
+            ('qtag3',   subdash_qtag3_cards),
+            ('qtag2',   subdash_qtag2_cards),
+            ('single3', subdash_qtag_single3_cards),
+            ('pv_only', subdash_qtag_pv_cards),
+            ('pv_dual', subdash_qtag_pv_dual_cards),
+        ]
+        for card_type, card_table in card_tables:
+            card_ids = [
+                r[0] for r in con.execute(
+                    select(card_table.c.id).where(card_table.c.group_id == gid)
+                ).fetchall()
+            ]
+            if card_ids:
+                # Xóa alarm states và conditions của các card này
+                for cid in card_ids:
+                    con.execute(
+                        delete(card_alarm_states).where(
+                            (card_alarm_states.c.card_type == card_type) &
+                            (card_alarm_states.c.card_id == cid)
+                        )
+                    )
+                    con.execute(
+                        delete(card_alarm_conditions).where(
+                            (card_alarm_conditions.c.card_type == card_type) &
+                            (card_alarm_conditions.c.card_id == cid)
+                        )
+                    )
+                # Xóa các card trong group (tránh FK constraint)
+                con.execute(delete(card_table).where(card_table.c.group_id == gid))
+                print(f"Deleted {len(card_ids)} {card_type} cards for group {gid}")
+
+        # 2. Xóa quad cards (quad_tag_conditions tự cascade)
+        con.execute(delete(subdash_quad_cards).where(subdash_quad_cards.c.group_id == gid))
+
+        # 3. Xóa tag associations
         result1 = con.execute(delete(subdash_group_tags).where(subdash_group_tags.c.group_id == gid))
         print(f"Deleted {result1.rowcount} tag associations for group {gid}")
-        
-        # Then delete the group itself
+
+        # 4. Xóa group
         result2 = con.execute(delete(subdash_tag_groups).where(subdash_tag_groups.c.id == gid))
         print(f"Deleted group {gid}, affected rows: {result2.rowcount}")
+
 
 def add_tag_to_subdash_group(group_id: int, tag_id: int):
     """Add a tag to a subdashboard group"""
@@ -4433,6 +4472,69 @@ def update_card_condition_enabled(card_type: str, card_id: int, enabled: bool) -
     except Exception as e:
         print(f"Error updating enabled for {card_type}/{card_id}: {e}")
         return False
+
+
+def get_all_tags_for_subdash_conditions(subdash_id: int) -> list:
+    """Lấy tất cả tags (id, name) dùng trong subdashboard (từ tất cả loại card + group tags).
+    Dùng để populate dropdown chọn compare tag trong Set Alarm Conditions."""
+    try:
+        with init_engine().connect() as con:
+            # Lấy tất cả group_id thuộc subdash này
+            group_rows = con.execute(
+                select(subdash_tag_groups.c.id)
+                .where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).fetchall()
+            group_ids = [r[0] for r in group_rows]
+            if not group_ids:
+                return []
+
+            tag_ids = set()
+
+            # 1. Tags từ subdash_group_tags (regular tags in groups)
+            rows = con.execute(
+                select(subdash_group_tags.c.tag_id)
+                .where(subdash_group_tags.c.group_id.in_(group_ids))
+            ).fetchall()
+            tag_ids.update(r[0] for r in rows)
+
+            # 2. Tags từ các card tables
+            # (tag1_id, tag2_id, ... nullable tags được lọc sau)
+            card_tag_columns = [
+                (subdash_quad_cards,         ['tag1_id', 'tag2_id', 'tag3_id', 'tag4_id']),
+                (subdash_qtag6_cards,        ['tag1_id', 'tag2_id', 'tag3_id', 'tag4_id', 'tag5_id', 'tag6_id']),
+                (subdash_qtag4_cards,        ['tag1_id', 'tag2_id', 'tag3_id', 'tag4_id']),
+                (subdash_qtag3_cards,        ['tag1_id', 'tag2_id', 'tag3_id']),
+                (subdash_qtag2_cards,        ['tag1_id', 'tag2_id']),
+                (subdash_qtag_single3_cards, ['pv_tag_id', 'sv_high_tag_id', 'sv_low_tag_id']),
+                (subdash_qtag_pv_cards,      ['pv_tag_id']),
+                (subdash_qtag_pv_dual_cards, ['left_tag_id', 'right_tag_id']),
+            ]
+            for table, col_names in card_tag_columns:
+                cols = [getattr(table.c, c) for c in col_names if hasattr(table.c, c)]
+                if not cols:
+                    continue
+                rows = con.execute(
+                    select(*cols).where(table.c.group_id.in_(group_ids))
+                ).fetchall()
+                for row in rows:
+                    for val in row:
+                        if val is not None:
+                            tag_ids.add(val)
+
+            if not tag_ids:
+                return []
+
+            # 3. Query tên tag một lần duy nhất
+            tag_rows = con.execute(
+                select(tags.c.id, tags.c.name)
+                .where(tags.c.id.in_(list(tag_ids)))
+                .order_by(tags.c.name)
+            ).fetchall()
+
+            return [{'id': r[0], 'name': r[1]} for r in tag_rows]
+    except Exception as e:
+        print(f"Error getting all tags for subdash {subdash_id}: {e}")
+        return []
 
 
 def get_card_conditions_enabled_for_subdash(subdash_id: int) -> dict:
