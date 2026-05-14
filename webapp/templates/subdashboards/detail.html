@@ -2391,8 +2391,8 @@
 {% block scripts %}
 <!-- Remove duplicate socket.io (already loaded in base.html) -->
 <script src="{{ url_for('static', filename='vendor/js/sweetalert2.all.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/quad_conditions.js') }}"></script>
-<script src="{{ url_for('static', filename='js/card_conditions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/quad_conditions.js') }}?v={{ range(100000) | random }}"></script>
+<script src="{{ url_for('static', filename='js/card_conditions.js') }}?v={{ range(100000) | random }}"></script>
 <!-- Pass Jinja2 variables to external JS via config object -->
 <script>
   window.SUBDASH_CONFIG = {

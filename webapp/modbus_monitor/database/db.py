@@ -4479,52 +4479,57 @@ def get_all_tags_for_subdash_conditions(subdash_id: int) -> list:
     Dùng để populate dropdown chọn compare tag trong Set Alarm Conditions."""
     try:
         with init_engine().connect() as con:
-            # Lấy tất cả group_id thuộc subdash này
+            tag_ids = set()
+
+            # 1. Lấy tất cả tags gắn trực tiếp vào subdash (dashboard_tags)
+            rows = con.execute(
+                select(dashboard_tags.c.tag_id)
+                .where(dashboard_tags.c.dashboard_id == subdash_id)
+            ).fetchall()
+            tag_ids.update(r[0] for r in rows)
+
+            # 2. Lấy tất cả group_id thuộc subdash này
             group_rows = con.execute(
                 select(subdash_tag_groups.c.id)
                 .where(subdash_tag_groups.c.dashboard_id == subdash_id)
             ).fetchall()
             group_ids = [r[0] for r in group_rows]
-            if not group_ids:
-                return []
 
-            tag_ids = set()
-
-            # 1. Tags từ subdash_group_tags (regular tags in groups)
-            rows = con.execute(
-                select(subdash_group_tags.c.tag_id)
-                .where(subdash_group_tags.c.group_id.in_(group_ids))
-            ).fetchall()
-            tag_ids.update(r[0] for r in rows)
-
-            # 2. Tags từ các card tables
-            # (tag1_id, tag2_id, ... nullable tags được lọc sau)
-            card_tag_columns = [
-                (subdash_quad_cards,         ['tag1_id', 'tag2_id', 'tag3_id', 'tag4_id']),
-                (subdash_qtag6_cards,        ['tag1_id', 'tag2_id', 'tag3_id', 'tag4_id', 'tag5_id', 'tag6_id']),
-                (subdash_qtag4_cards,        ['tag1_id', 'tag2_id', 'tag3_id', 'tag4_id']),
-                (subdash_qtag3_cards,        ['tag1_id', 'tag2_id', 'tag3_id']),
-                (subdash_qtag2_cards,        ['tag1_id', 'tag2_id']),
-                (subdash_qtag_single3_cards, ['pv_tag_id', 'sv_high_tag_id', 'sv_low_tag_id']),
-                (subdash_qtag_pv_cards,      ['pv_tag_id']),
-                (subdash_qtag_pv_dual_cards, ['left_tag_id', 'right_tag_id']),
-            ]
-            for table, col_names in card_tag_columns:
-                cols = [getattr(table.c, c) for c in col_names if hasattr(table.c, c)]
-                if not cols:
-                    continue
+            if group_ids:
+                # 3. Tags từ subdash_group_tags (regular tags in groups)
                 rows = con.execute(
-                    select(*cols).where(table.c.group_id.in_(group_ids))
+                    select(subdash_group_tags.c.tag_id)
+                    .where(subdash_group_tags.c.group_id.in_(group_ids))
                 ).fetchall()
-                for row in rows:
-                    for val in row:
-                        if val is not None:
-                            tag_ids.add(val)
+                tag_ids.update(r[0] for r in rows)
+
+                # 4. Tags từ tất cả loại card
+                card_tag_columns = [
+                    (subdash_quad_cards,         ['tag1_id', 'tag2_id', 'tag3_id', 'tag4_id']),
+                    (subdash_qtag6_cards,        ['tag1_id', 'tag2_id', 'tag3_id', 'tag4_id', 'tag5_id', 'tag6_id']),
+                    (subdash_qtag4_cards,        ['tag1_id', 'tag2_id', 'tag3_id', 'tag4_id']),
+                    (subdash_qtag3_cards,        ['tag1_id', 'tag2_id', 'tag3_id']),
+                    (subdash_qtag2_cards,        ['tag1_id', 'tag2_id']),
+                    (subdash_qtag_single3_cards, ['pv_tag_id', 'sv_high_tag_id', 'sv_low_tag_id']),
+                    (subdash_qtag_pv_cards,      ['pv_tag_id']),
+                    (subdash_qtag_pv_dual_cards, ['left_tag_id', 'right_tag_id']),
+                ]
+                for table, col_names in card_tag_columns:
+                    cols = [getattr(table.c, c) for c in col_names if hasattr(table.c, c)]
+                    if not cols:
+                        continue
+                    rows = con.execute(
+                        select(*cols).where(table.c.group_id.in_(group_ids))
+                    ).fetchall()
+                    for row in rows:
+                        for val in row:
+                            if val is not None:
+                                tag_ids.add(val)
 
             if not tag_ids:
                 return []
 
-            # 3. Query tên tag một lần duy nhất
+            # 5. Query tên tag một lần duy nhất
             tag_rows = con.execute(
                 select(tags.c.id, tags.c.name)
                 .where(tags.c.id.in_(list(tag_ids)))
