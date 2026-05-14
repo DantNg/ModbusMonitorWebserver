@@ -252,6 +252,10 @@ async function saveCardConditionsToAPI() {
       Swal.fire({ icon: 'success', title: 'Success!', text: 'Alarm conditions saved', timer: 2000, showConfirmButton: false });
       const modal = bootstrap.Modal.getInstance(document.getElementById('cardConditionsModal'));
       if (modal) modal.hide();
+      // Cập nhật toggle switch trên card (nếu có)
+      if (typeof window._onCardConditionSaved === 'function') {
+        window._onCardConditionSaved(cardType, cardId, !!conditionData.enabled);
+      }
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: result.message || 'Could not save conditions' });
     }

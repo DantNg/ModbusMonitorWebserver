@@ -2258,8 +2258,97 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   // Apply card alarms on page load
   applyActiveCardAlarms();
 
-  // Check if tag supports write operations
-  function canWriteTag(functionCode) {
+  // ========== Card Alarm Toggle Switch ==========
+
+  /**
+   * Load trạng thái enabled của tất cả card conditions trong subdashboard.
+   * Hiện toggle wrap nếu card đã có conditions, và set giá trị checked theo DB.
+   */
+  function loadCardConditionToggles() {
+    if (!currentSubdashId) return;
+    fetch(`/subdash/${currentSubdashId}/api/card_conditions_states`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success) return;
+        const states = data.states || {};
+        Object.entries(states).forEach(([key, enabled]) => {
+          // key format: "qtag2_5", "qtag3_2", etc.
+          const lastUnderscore = key.lastIndexOf('_');
+          const cardType = key.substring(0, lastUnderscore);
+          const cardId = key.substring(lastUnderscore + 1);
+
+          // Hiện toggle wrap
+          const wrap = document.querySelector(
+            `.card-alarm-toggle-wrap[data-card-type="${cardType}"][data-card-id="${cardId}"]`
+          );
+          if (wrap) wrap.classList.remove('d-none');
+
+          // Set trạng thái checked
+          const toggle = document.querySelector(
+            `.card-alarm-toggle[data-card-type="${cardType}"][data-card-id="${cardId}"]`
+          );
+          if (toggle) toggle.checked = enabled;
+        });
+      })
+      .catch(err => console.warn('[CardToggle] Could not load states:', err));
+  }
+
+  // Load toggle states khi page load
+  loadCardConditionToggles();
+
+  // Handle toggle click: gọi API toggle_enabled
+  document.addEventListener('change', function (e) {
+    if (!e.target.classList.contains('card-alarm-toggle')) return;
+    const cardType = e.target.dataset.cardType;
+    const cardId = e.target.dataset.cardId;
+    const enabled = e.target.checked;
+
+    fetch(`/subdash/${currentSubdashId}/card_condition/${cardType}/${cardId}/toggle_enabled`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    })
+      .then(res => res.json())
+      .then(result => {
+        if (!result.success) {
+          // Revert toggle nếu lỗi
+          e.target.checked = !enabled;
+          Swal.fire({
+            icon: 'warning',
+            title: 'Chưa có Alarm Conditions',
+            text: result.message || 'Vui lòng Set Alarm Conditions trước khi bật.',
+            timer: 3000,
+            showConfirmButton: false
+          });
+        } else {
+          // Nếu disable → xóa màu alarm trên card
+          if (!enabled) {
+            removeCardAlarmVisual(cardType, parseInt(cardId), 'left');
+            removeCardAlarmVisual(cardType, parseInt(cardId), 'right');
+          }
+          console.log(`[CardToggle] ${cardType}/${cardId} alarm = ${enabled}`);
+        }
+      })
+      .catch(err => {
+        e.target.checked = !enabled;
+        console.error('[CardToggle] Error:', err);
+      });
+  });
+
+  // Khi save conditions thành công trong modal → hiện toggle và set state
+  // (patch vào saveCardConditionsToAPI trong card_conditions.js)
+  window._onCardConditionSaved = function (cardType, cardId, enabled) {
+    const wrap = document.querySelector(
+      `.card-alarm-toggle-wrap[data-card-type="${cardType}"][data-card-id="${cardId}"]`
+    );
+    if (wrap) wrap.classList.remove('d-none');
+    const toggle = document.querySelector(
+      `.card-alarm-toggle[data-card-type="${cardType}"][data-card-id="${cardId}"]`
+    );
+    if (toggle) toggle.checked = enabled;
+  };
+
+
     const fc = getFunctionCodeInt(functionCode);
     return fc === 1 || fc === 3;
   }

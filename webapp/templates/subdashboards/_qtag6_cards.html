@@ -59,6 +59,14 @@
             <li><button class="dropdown-item set-card-condition-btn" data-card-type="qtag6" data-card-id="{{ card.id }}" title="Set Alarm Conditions"><i class="bi bi-sliders me-2"></i>Set Alarm Conditions</button></li>
           </ul>
         </div>
+        <!-- Toggle bật/tắt alarm monitoring (chỉ hiện nếu có condition) -->
+        <div class="card-alarm-toggle-wrap d-none" data-card-type="qtag6" data-card-id="{{ card.id }}">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input card-alarm-toggle" type="checkbox" role="switch"
+                   data-card-type="qtag6" data-card-id="{{ card.id }}"
+                   title="Bật/tắt Alarm Monitoring" style="cursor:pointer;">
+          </div>
+        </div>
         {% endif %}
       </div>
 

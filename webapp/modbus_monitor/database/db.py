@@ -4416,6 +4416,78 @@ def delete_card_alarm_condition(card_type: str, card_id: int) -> bool:
         return False
 
 
+def update_card_condition_enabled(card_type: str, card_id: int, enabled: bool) -> bool:
+    """Cập nhật trạng thái enabled của card alarm condition.
+    Trả về True nếu thành công (record tồn tại và đã update)."""
+    try:
+        with init_engine().begin() as con:
+            result = con.execute(
+                update(card_alarm_conditions)
+                .where(
+                    (card_alarm_conditions.c.card_type == card_type) &
+                    (card_alarm_conditions.c.card_id == card_id)
+                )
+                .values(enabled=enabled)
+            )
+            return result.rowcount > 0
+    except Exception as e:
+        print(f"Error updating enabled for {card_type}/{card_id}: {e}")
+        return False
+
+
+def get_card_conditions_enabled_for_subdash(subdash_id: int) -> dict:
+    """Lấy trạng thái enabled của tất cả card conditions trong subdashboard.
+    Trả về dict dạng {'qtag2_5': True, 'qtag3_2': False, ...}"""
+    try:
+        with init_engine().connect() as con:
+            # Thu thập tất cả card_keys theo subdash
+            card_keys = []
+
+            table_map = [
+                ('qtag6', subdash_qtag6_cards),
+                ('single3', subdash_qtag_single3_cards),
+                ('pv_only', subdash_qtag_pv_cards),
+                ('pv_dual', subdash_qtag_pv_dual_cards),
+                ('qtag2', subdash_qtag2_cards),
+                ('qtag3', subdash_qtag3_cards),
+                ('qtag4', subdash_qtag4_cards),
+            ]
+            for card_type, table in table_map:
+                rows = con.execute(
+                    select(table.c.id).select_from(
+                        table.join(subdash_tag_groups, table.c.group_id == subdash_tag_groups.c.id)
+                    ).where(subdash_tag_groups.c.dashboard_id == subdash_id)
+                ).fetchall()
+                for r in rows:
+                    card_keys.append((card_type, r[0]))
+
+            if not card_keys:
+                return {}
+
+            # Lấy enabled state cho tất cả cards trong một query
+            from sqlalchemy import or_
+            filters = [
+                and_(card_alarm_conditions.c.card_type == ct, card_alarm_conditions.c.card_id == cid)
+                for ct, cid in card_keys
+            ]
+            rows = con.execute(
+                select(
+                    card_alarm_conditions.c.card_type,
+                    card_alarm_conditions.c.card_id,
+                    card_alarm_conditions.c.enabled
+                ).where(or_(*filters))
+            ).fetchall()
+
+            states = {}
+            for r in rows:
+                key = f"{r[0]}_{r[1]}"
+                states[key] = bool(r[2])
+            return states
+    except Exception as e:
+        print(f"Error getting card conditions enabled for subdash {subdash_id}: {e}")
+        return {}
+
+
 def get_all_active_card_conditions():
     """Get all enabled card alarm conditions for alarm worker."""
     with init_engine().connect() as con:

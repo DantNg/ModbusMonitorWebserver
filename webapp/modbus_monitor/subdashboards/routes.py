@@ -1166,6 +1166,42 @@ def delete_card_condition(sid, card_type, card_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@subdash_bp.route("/<int:sid>/card_condition/<card_type>/<int:card_id>/toggle_enabled", methods=["POST"])
+def toggle_card_condition_enabled(sid, card_type, card_id):
+    """Bật/tắt nhanh alarm monitoring cho một card (không cần mở modal)."""
+    if card_type not in VALID_CARD_TYPES:
+        return jsonify({"success": False, "message": "Invalid card type"}), 400
+    try:
+        data = request.get_json() or {}
+        enabled = bool(data.get("enabled", False))
+        updated = db.update_card_condition_enabled(card_type, card_id, enabled)
+        if not updated:
+            return jsonify({"success": False, "message": "Condition not found — please set conditions first"}), 404
+        # Nếu disable → xóa alarm states đang active
+        if not enabled:
+            try:
+                cleared = db.clear_card_alarm_states(card_type, card_id)
+                print(f"🧹 Toggle disabled: cleared {cleared} alarm state(s) for {card_type}/{card_id}")
+            except Exception as e:
+                print(f"Warning: Could not clear card alarm states: {e}")
+        return jsonify({"success": True, "enabled": enabled})
+    except Exception as e:
+        print(f"Error toggling card condition enabled: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@subdash_bp.get("/<int:sid>/api/card_conditions_states")
+def api_card_conditions_states(sid):
+    """Trả về trạng thái enabled của tất cả card conditions trong subdashboard.
+    Dùng để khởi tạo toggle switch trên các card."""
+    try:
+        states = db.get_card_conditions_enabled_for_subdash(sid)
+        return jsonify({"success": True, "states": states})
+    except Exception as e:
+        print(f"Error getting card conditions states: {e}")
+        return jsonify({"success": False, "states": {}}), 500
+
+
 @subdash_bp.get("/<int:sid>/api/active_card_alarms")
 def api_active_card_alarms(sid):
     """API endpoint to fetch active card alarm states for a subdashboard."""
