@@ -796,7 +796,7 @@
 }
 
 .tag-alarm-high {
-  border-left: 3px solid #dc2626 !important;
+  /* border-left: 3px solid #dc2626 !important; */
 }
 
 .tag-alarm-high .qtag6-tag-value,
