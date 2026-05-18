@@ -945,18 +945,41 @@ def get_all_device_statuses_from_db() -> dict:
 
 def delete_device_row(device_id: int) -> int:
     with init_engine().begin() as con:
-        # Find all tag IDs for this device
-        tag_ids = [r["id"] for r in con.execute(select(tags.c.id).where(tags.c.device_id == device_id)).mappings().all()]
+        # Lấy tất cả tag IDs thuộc device này
+        tag_ids = [
+            r["id"] for r in con.execute(
+                select(tags.c.id).where(tags.c.device_id == device_id)
+            ).mappings().all()
+        ]
+
         if tag_ids:
-            # Find all logger IDs that only reference these tags
-            logger_ids = [r["logger_id"] for r in con.execute(
-                select(data_logger_tags.c.logger_id)
-                .where(data_logger_tags.c.tag_id.in_(tag_ids))
-            ).mappings().all()]
+            # Xóa alarm events (cascade sẽ tự xóa notifications liên quan)
+            con.execute(delete(alarm_events).where(alarm_events.c.target.in_(tag_ids)))
+            # Xóa alarm rules
+            con.execute(delete(alarm_rules).where(alarm_rules.c.target.in_(tag_ids)))
+            # Xóa giá trị tag
+            con.execute(delete(tag_values).where(tag_values.c.tag_id.in_(tag_ids)))
+            con.execute(delete(tag_latest_values).where(tag_latest_values.c.tag_id.in_(tag_ids)))
+            # Xóa tag_logs
+            con.execute(delete(tag_logs).where(tag_logs.c.tag_id.in_(tag_ids)))
+            # Xóa data logger associations và data loggers gắn với các tag này
+            logger_ids = [
+                r["logger_id"] for r in con.execute(
+                    select(data_logger_tags.c.logger_id)
+                    .where(data_logger_tags.c.tag_id.in_(tag_ids))
+                ).mappings().all()
+            ]
             if logger_ids:
-                # Delete loggers (will cascade to data_logger_tags)
+                # Xóa logger sẽ cascade xóa data_logger_tags
                 con.execute(delete(data_loggers).where(data_loggers.c.id.in_(logger_ids)))
-        # Delete device (will cascade to tags and tag_values)
+            # Xóa các mapping subdashboard / group
+            con.execute(delete(dashboard_tags).where(dashboard_tags.c.tag_id.in_(tag_ids)))
+            con.execute(delete(subdash_group_tags).where(subdash_group_tags.c.tag_id.in_(tag_ids)))
+            # Xóa tất cả tags của device này
+            # (Việc xóa tag sẽ cascade xóa các qtag card tham chiếu PV tag với ondelete=CASCADE)
+            con.execute(delete(tags).where(tags.c.device_id == device_id))
+
+        # Xóa device
         res = con.execute(delete(devices).where(devices.c.id == device_id))
         return res.rowcount
 
