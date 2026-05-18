@@ -353,13 +353,13 @@
 /* Quad Alarm States */
 .quad-sub-card.quad-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
-  border: 2px solid #dc2626 !important;
+  /* border: 2px solid #dc2626 !important; */
   animation: pulse-red 2s ease-in-out infinite;
 }
 
 .quad-sub-card.quad-alarm-low {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
-  border: 2px solid #f59e0b !important;
+  /* border: 2px solid #f59e0b !important; */
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
@@ -387,12 +387,12 @@
 /* Dark theme alarm states */
 [data-bs-theme="dark"] .quad-sub-card.quad-alarm-high {
   background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
-  border-color: #dc2626 !important;
+  /* border-color: #dc2626 !important; */
 }
 
 [data-bs-theme="dark"] .quad-sub-card.quad-alarm-low {
   background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
-  border-color: #f59e0b !important;
+  /* border-color: #f59e0b !important; */
 }
 
 [data-bs-theme="dark"] .quad-sub-card.quad-alarm-high .quad-tag-value {
@@ -406,24 +406,24 @@
 /* Card Alarm States (Qtag6, Single3, PV Only, PV Dual) */
 .card-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
-  border: 2px solid #dc2626 !important;
+  /* border: 2px solid #dc2626 !important; */
   animation: pulse-red 2s ease-in-out infinite;
 }
 
 .card-alarm-low {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
-  border: 2px solid #f59e0b !important;
+  /* border: 2px solid #f59e0b !important; */
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
 [data-bs-theme="dark"] .card-alarm-high {
   background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
-  border-color: #dc2626 !important;
+  /* border-color: #dc2626 !important; */
 }
 
 [data-bs-theme="dark"] .card-alarm-low {
   background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
-  border-color: #f59e0b !important;
+  /* border-color: #f59e0b !important; */
 }
 
 
@@ -493,6 +493,7 @@
 
 .qtag6-sub-head.qtag6-right-head {
   background: linear-gradient(135deg, #06b6d4 0%, #14b8a6 100%) !important;
+  border-radius: 12px 12px 0 0 !important;
 }
 
 .qtag6-sub-title {
@@ -747,13 +748,13 @@
 /* Alarm states for Qtag6 */
 .qtag6-sub-card.qtag6-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
-  border: 2px solid #dc2626 !important;
+  /* border: 2px solid #dc2626 !important; */
   animation: pulse-red 2s ease-in-out infinite;
 }
 
 .qtag6-sub-card.qtag6-alarm-low {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
-  border: 2px solid #f59e0b !important;
+  /* border: 2px solid #f59e0b !important; */
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
@@ -823,7 +824,7 @@
 
 /* Dark theme per-tag alarm */
 [data-bs-theme="dark"] .tag-alarm-high {
-  border-left-color: #fca5a5 !important;
+  /* border-left-color: #fca5a5 !important; */
 }
 
 [data-bs-theme="dark"] .tag-alarm-high .qtag6-tag-value,
@@ -1170,6 +1171,7 @@
 
 .qtag-pv-dual-sub-head.qtag-pv-dual-right-head {
   background: linear-gradient(135deg, #06b6d4 0%, #14b8a6 100%) !important;
+  border-radius: 12px 12px 0 0 !important;
 }
 
 .qtag-pv-dual-sub-title {
@@ -1278,13 +1280,13 @@
 /* Alarm states for Qtag Single */
 .qtag-single-sub-card.qtag-single-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
-  border: 2px solid #dc2626 !important;
+  /* border: 2px solid #dc2626 !important; */
   animation: pulse-red 2s ease-in-out infinite;
 }
 
 .qtag-single-sub-card.qtag-single-alarm-low {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
-  border: 2px solid #f59e0b !important;
+  /* border: 2px solid #f59e0b !important; */
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
