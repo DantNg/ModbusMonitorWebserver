@@ -533,18 +533,18 @@
 }
 
 .qtag6-tag-item {
-  background: #1a1f2e !important;
+  background: #f8fafc !important;
   border-radius: 8px !important;
   padding: 12px 14px !important;
   display: grid !important;
   grid-template-columns: auto 1fr !important;
   align-items: center !important;
   gap: 12px !important;
-  border: 1px solid #2d3748 !important;
+  border: 1px solid #e5e7eb !important;
 }
 
 .qtag6-tag-item:hover {
-  background: #242b3d !important;
+  background: #eef2ff !important;
 }
 
 .qtag6-tag-label {
@@ -575,7 +575,7 @@
 .qtag6-tag-value {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
-  color: #ffffff !important;
+  color: #111827 !important;
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
@@ -712,7 +712,7 @@
 .qtag2-sv-value {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
-  color: #ffffff !important;
+  color: #111827 !important;
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
@@ -747,6 +747,25 @@
   z-index: 2050 !important;
 }
 
+/* Qtag3 in light theme: PV box should be white in normal (non-alarm) state */
+.qtag3-card .qtag6-sub-card:not(.qtag6-alarm-high):not(.qtag6-alarm-low) .qtag6-tag-item[data-role="pv"] {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+}
+
+.qtag3-card .qtag6-sub-card:not(.qtag6-alarm-high):not(.qtag6-alarm-low) .qtag6-tag-item[data-role="pv"]:hover {
+  background: #f8fafc !important;
+}
+
+[data-bs-theme="dark"] .qtag3-card .qtag6-sub-card:not(.qtag6-alarm-high):not(.qtag6-alarm-low) .qtag6-tag-item[data-role="pv"] {
+  background: #0f1420 !important;
+  border-color: #1f2937 !important;
+}
+
+[data-bs-theme="dark"] .qtag3-card .qtag6-sub-card:not(.qtag6-alarm-high):not(.qtag6-alarm-low) .qtag6-tag-item[data-role="pv"]:hover {
+  background: #1a2030 !important;
+}
+
 /*
  * Sync qtag3 card-body padding with qtag4.
  * qtag4: card-body 16px (default) + qtag6-grid 8px = 24px/side.
@@ -761,7 +780,7 @@
 .qtag4-sv-value {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
-  color: #ffffff !important;
+  color: #111827 !important;
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
@@ -843,6 +862,18 @@
 
 [data-bs-theme="dark"] .qtag6-tag-item:hover {
   background: #1a2030 !important;
+}
+
+[data-bs-theme="dark"] .qtag6-tag-value,
+[data-bs-theme="dark"] .qtag2-sv-value,
+[data-bs-theme="dark"] .qtag4-sv-value {
+  color: #e5e7eb !important;
+}
+
+[data-bs-theme="dark"] .qtag6-tag-unit,
+[data-bs-theme="dark"] .qtag6-sv-separator,
+[data-bs-theme="dark"] .qtag6-update-time {
+  color: #9ca3af !important;
 }
 
 [data-bs-theme="dark"] .qtag6-sv-low {
@@ -1003,18 +1034,18 @@
 }
 
 .qtag-single-tag-item {
-  background: #1a1f2e !important;
+  background: #f8fafc !important;
   border-radius: 8px !important;
   padding: 12px 14px !important;
   display: grid !important;
   grid-template-columns: auto 1fr !important;
   align-items: center !important;
   gap: 12px !important;
-  border: 1px solid #2d3748 !important;
+  border: 1px solid #e5e7eb !important;
 }
 
 .qtag-single-tag-item:hover {
-  background: #242b3d !important;
+  background: #eef2ff !important;
 }
 
 /* Per-tag alarm state for the actual qtag-single-tag-item markup */
@@ -1145,7 +1176,7 @@
 .qtag-single-tag-value {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
-  color: #ffffff !important;
+  color: #111827 !important;
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
@@ -1296,6 +1327,19 @@
 .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-tag-value {
   font-size: 2.6rem !important;
   text-align: center !important;
+  color: #111827 !important;
+}
+
+/* PV Only in light theme: value text stays dark even when alarm background is active */
+.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high .qtag-single-tag-value,
+.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low .qtag-single-tag-value {
+  color: #111827 !important;
+}
+
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-tag-value,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high .qtag-single-tag-value,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low .qtag-single-tag-value {
+  color: #ffffff !important;
 }
 
 .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-tag-unit {
@@ -1564,6 +1608,16 @@
 
 [data-bs-theme="dark"] .qtag-single-tag-item:hover {
   background: #1a2030 !important;
+}
+
+[data-bs-theme="dark"] .qtag-single-tag-value {
+  color: #e5e7eb !important;
+}
+
+[data-bs-theme="dark"] .qtag-single-tag-unit,
+[data-bs-theme="dark"] .qtag-single-sv-separator,
+[data-bs-theme="dark"] .qtag-single-update-time {
+  color: #9ca3af !important;
 }
 
 [data-bs-theme="dark"] .qtag-single-tag-value.sv-value {
@@ -1839,4 +1893,39 @@
 [data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-label,
 [data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-label {
   color: #ffffff !important;
+}
+
+/* Single3 light-theme final override:
+   after realtime alarm sync (post-F5), keep PV/SV boxes in light palette instead of dark. */
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low {
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+  background-image: none !important;
+  border-color: #e5e7eb !important;
+  box-shadow: none !important;
+}
+
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-value,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-value {
+  color: #111827 !important;
+}
+
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-unit,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-unit {
+  color: #6b7280 !important;
+}
+
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-sv-low,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-low,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-arrow-low,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-arrow-low {
+  color: #38bdf8 !important;
+}
+
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-sv-high,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-high,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-arrow-high,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-arrow-high {
+  color: #fb923c !important;
 }
