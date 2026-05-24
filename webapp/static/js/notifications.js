@@ -39,6 +39,10 @@ window.NotificationSystem = {
   async loadServerNotifications() {
     try {
       const response = await fetch('/api/notifications');
+      if (response.status === 401) {
+        // No authenticated user yet; silently keep local notifications only.
+        return;
+      }
       if (response.ok) {
         const serverNotifications = await response.json();
         console.log('[Notifications] Loaded from server:', serverNotifications?.length ?? 0);
@@ -174,6 +178,9 @@ window.NotificationSystem = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
+      if (response.status === 401) {
+        return true;
+      }
       if (!response.ok) {
         console.error('Failed to clear notifications on server. Status:', response.status);
         return false;

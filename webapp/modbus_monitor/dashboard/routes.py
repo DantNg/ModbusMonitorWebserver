@@ -121,7 +121,7 @@ def api_notifications():
     """API endpoint to get user notifications"""
     try:
         if "username" not in session:
-            return jsonify({"error": "Not authenticated"}), 401
+            return jsonify([])
         
         user = get_user_by_username(session.get("username"))
         notifications = get_notifications(user['id'])
@@ -159,7 +159,7 @@ def api_mark_notifications_read():
     """API endpoint to mark user notifications as read"""
     try:
         if "username" not in session:
-            return jsonify({"error": "Not authenticated"}), 401
+            return jsonify({"success": True, "count": 0})
         
         user = get_user_by_username(session.get("username"))
         
@@ -177,7 +177,7 @@ def api_clear_notifications():
     """Dismiss all notifications for the current user (won't be returned next fetch)."""
     try:
         if "username" not in session:
-            return jsonify({"error": "Not authenticated"}), 401
+            return jsonify({"success": True, "count": 0})
 
         user = get_user_by_username(session.get("username"))
         db.mark_user_notifications_dismissed(user['id'])

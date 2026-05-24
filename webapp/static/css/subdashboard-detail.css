@@ -396,7 +396,7 @@
 }
 
 [data-bs-theme="dark"] .quad-sub-card.quad-alarm-high .quad-tag-value {
-  color: #fca5a5 !important;
+  color: #ffffff !important;
 }
 
 [data-bs-theme="dark"] .quad-sub-card.quad-alarm-low .quad-tag-value {
@@ -758,6 +758,43 @@
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
+/* Qtag3 alarm state should behave like Qtag2: alarm background on the card,
+   but PV/SV boxes remain dark. */
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-rows,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-rows {
+  background: transparent !important;
+}
+
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-item,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-item {
+  background: #1a1f2e !important;
+  border-color: #2d3748 !important;
+}
+
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-item:hover,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-item:hover {
+  background: #242b3d !important;
+}
+
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-label,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-label,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-value,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-value,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-unit,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-unit,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-sv-low,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-sv-low,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-sv-high,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-sv-high,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-sv-separator,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-sv-separator,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-arrow-low,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-arrow-low,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-arrow-high,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-arrow-high {
+  color: #ffffff !important;
+}
+
 /* Dark theme for Qtag6 */
 [data-bs-theme="dark"] .qtag6-sub-card {
   background: #1f2937 !important;
@@ -787,6 +824,12 @@
 
 [data-bs-theme="dark"] .qtag6-sub-card.qtag6-alarm-low {
   background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+}
+
+[data-bs-theme="dark"] .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-item,
+[data-bs-theme="dark"] .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-item {
+  background: #0f1420 !important;
+  border-color: #1f2937 !important;
 }
 
 /* ========== Per-Tag Alarm Indicators (all Qtag types) ========== */
@@ -926,6 +969,102 @@
   background: #242b3d !important;
 }
 
+/* Per-tag alarm state for the actual qtag-single-tag-item markup */
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low {
+  background: #1a1f2e !important;
+  position: relative;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high {
+  border-left: 0px solid #dc2626 !important;
+}
+
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low {
+  border-left: 0px solid #f59e0b !important;
+}
+
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-tag-label,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-tag-label,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-tag-unit,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-tag-unit {
+  color: #ffffff !important;
+}
+
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-tag-value,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-tag-value,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-sv-low,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-sv-low,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-sv-high,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-sv-high,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-sv-separator,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-sv-separator,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-arrow-low,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-arrow-low,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-arrow-high,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-arrow-high {
+  color: #ffffff !important;
+}
+
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-tag-value,
+.qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-tag-value {
+  font-weight: 800 !important;
+}
+
+/* Qtag3 / single3: do not paint the PV/SV blocks red; keep the inner boxes dark like Qtag2 */
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high,
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low {
+  background: #1f2937 !important;
+  animation: none !important;
+}
+
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-tag-item,
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-tag-item {
+  background: #1a1f2e !important;
+  background-color: #1a1f2e !important;
+  background-image: none !important;
+  border-color: #2d3748 !important;
+}
+
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low {
+  background: #1a1f2e !important;
+  background-color: #1a1f2e !important;
+  background-image: none !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-tag-value,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-tag-value,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-sv-low,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-sv-low,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-sv-high,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-sv-high,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-sv-separator,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-sv-separator,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-arrow-low,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-arrow-low,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high .qtag-single-arrow-high,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low .qtag-single-arrow-high,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-value,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-value,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-sv-low,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-low,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-sv-high,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-high,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-unit,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-unit,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-label,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-label {
+  color: #ffffff !important;
+}
+
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-value,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-value {
+  font-weight: 800 !important;
+}
+
 .qtag-single-tag-label {
   padding: 4px 10px !important;
   border-radius: 4px !important;
@@ -1045,6 +1184,12 @@
 .qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-rows {
   padding-left: 22px !important;
   padding-right: 22px !important;
+}
+
+/* Fine alignment: PV row in single3 appears slightly right-shifted; nudge it left */
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item[data-role="pv"] {
+  margin-left: -2px;
+  margin-right: 2px;
 }
 
 /* PV Only specific styles */
@@ -1534,4 +1679,97 @@
 /* SweetAlert2 must be above everything including open modals (1400) */
 .swal2-container {
   z-index: 1600 !important;
+}
+
+/* Qtag3 alarm: keep PV/SV boxes black like Qtag2, only the card body should show alarm color */
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-item,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-item {
+  background: #0f1420 !important;
+  background-color: #0f1420 !important;
+  background-image: none !important;
+  border-color: #2d3748 !important;
+  box-shadow: none !important;
+}
+
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-item:hover,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-item:hover {
+  background: #1a2030 !important;
+  background-color: #1a2030 !important;
+}
+
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-rows,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-rows {
+  background: transparent !important;
+}
+
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-value,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-value,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-sv-low,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-sv-low,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-sv-high,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-sv-high,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-unit,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-unit,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-label,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-label,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-sv-separator,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-sv-separator,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-arrow-low,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-arrow-low,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-arrow-high,
+.qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-arrow-high {
+  color: #ffffff !important;
+}
+
+/* Final override: Qtag3 / single3 stays dark even when per-tag alarm and dark theme rules are active */
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high,
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low {
+  background: #1f2937 !important;
+  background-color: #1f2937 !important;
+  animation: none !important;
+}
+
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-tag-item,
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-tag-item,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-tag-item,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-tag-item {
+  background: #1a1f2e !important;
+  background-color: #1a1f2e !important;
+  background-image: none !important;
+  border-color: #2d3748 !important;
+  box-shadow: none !important;
+}
+
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-high,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item.tag-alarm-active.tag-alarm-low {
+  background: #1a1f2e !important;
+  background-color: #1a1f2e !important;
+  background-image: none !important;
+}
+
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-value,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-value,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-sv-low,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-low,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-sv-high,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-high,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-unit,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-unit,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-label,
+.qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-label,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-value,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-value,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-sv-low,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-low,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-sv-high,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-high,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-unit,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-unit,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-tag-label,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-tag-label {
+  color: #ffffff !important;
 }
