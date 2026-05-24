@@ -1012,11 +1012,15 @@
   font-weight: 800 !important;
 }
 
-/* Qtag3 / single3: do not paint the PV/SV blocks red; keep the inner boxes dark like Qtag2 */
-.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high,
+/* Qtag3 / single3: card background should alarm like qtag2, while inner PV/SV boxes stay dark */
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
 .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low {
-  background: #1f2937 !important;
-  animation: none !important;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
 }
 
 .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-tag-item,
@@ -1721,14 +1725,29 @@
   color: #ffffff !important;
 }
 
-/* Final override: Qtag3 / single3 stays dark even when per-tag alarm and dark theme rules are active */
-.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high,
-.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low,
-[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high,
+/* Final override: Qtag3 / single3 should alarm at card level like qtag2 */
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  background-color: #fecaca !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
+.qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  background-color: #fde68a !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
+}
+
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high {
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
+  background-color: #991b1b !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
 [data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low {
-  background: #1f2937 !important;
-  background-color: #1f2937 !important;
-  animation: none !important;
+  background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+  background-color: #92400e !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
 }
 
 .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-tag-item,
