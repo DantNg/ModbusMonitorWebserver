@@ -185,6 +185,17 @@
   text-align: center !important;
 }
 
+/* Quad label colors by role: keep PV orange, force SV blue */
+.quad-tag-item.pv-item .quad-tag-label {
+  background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%) !important;
+  color: #1a1d23 !important;
+}
+
+.quad-tag-item.sv-item .quad-tag-label {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+}
+
 .quad-tag-value-row {
   display: flex !important;
   align-items: center !important;
@@ -562,7 +573,7 @@
 }
 
 .qtag6-tag-label.label-sv {
-  background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%) !important;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
 }
 
 .qtag6-value-row {
@@ -1928,4 +1939,20 @@
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-arrow-high,
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-arrow-high {
   color: #fb923c !important;
+}
+
+/* Final override: SV label for Qtag4/Qtag6 must stay blue gradient */
+.qtag4-card .qtag6-tag-label.label-sv,
+.qtag6-card .qtag6-tag-label.label-sv,
+.qtag4-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-label.label-sv,
+.qtag4-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-label.label-sv,
+.qtag6-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-label.label-sv,
+.qtag6-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-label.label-sv,
+[data-bs-theme="dark"] .qtag4-card .qtag6-tag-label.label-sv,
+[data-bs-theme="dark"] .qtag6-card .qtag6-tag-label.label-sv,
+[data-bs-theme="dark"] .qtag4-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-label.label-sv,
+[data-bs-theme="dark"] .qtag4-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-label.label-sv,
+[data-bs-theme="dark"] .qtag6-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-label.label-sv,
+[data-bs-theme="dark"] .qtag6-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-label.label-sv {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
 }
