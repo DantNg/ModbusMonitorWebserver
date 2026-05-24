@@ -1308,6 +1308,52 @@
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-rows,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-rows,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-item,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-item {
+  background: transparent !important;
+}
+
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-item,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-item {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sub-title,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sub-title,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-type-badge,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-type-badge,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-label,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-label,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-unit,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-unit,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-update-time,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-update-time,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-value,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-value,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sv-low,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sv-low,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sv-high,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sv-high,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sv-separator,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sv-separator,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-arrow-low,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-arrow-low,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-arrow-high,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-arrow-high {
+  color: #ffffff !important;
+}
+
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-value.sv-value,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-value.sv-value,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sv-low,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sv-low,
+.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sv-high,
+.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sv-high {
+  color: #ffffff !important;
+}
+
 /* Dark theme for Qtag Single */
 [data-bs-theme="dark"] .qtag-single-sub-card {
   background: #1f2937 !important;
@@ -1341,6 +1387,13 @@
 
 [data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low {
   background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+}
+
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-rows,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-rows,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-item,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-item {
+  background: transparent !important;
 }
 
 /* ==========================================================
