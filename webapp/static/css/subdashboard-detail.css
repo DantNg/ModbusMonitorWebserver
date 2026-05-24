@@ -363,6 +363,17 @@
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
+/* Quad dual-column sync: one alarming column should color both columns */
+.quad-tag-card:has(.quad-sub-card.quad-alarm-high) .quad-sub-card {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
+.quad-tag-card:has(.quad-sub-card.quad-alarm-low):not(:has(.quad-sub-card.quad-alarm-high)) .quad-sub-card {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
+}
+
 .quad-sub-card.quad-alarm-high .quad-tag-value {
   color: #dc2626 !important;
   font-weight: 900 !important;
@@ -393,6 +404,17 @@
 [data-bs-theme="dark"] .quad-sub-card.quad-alarm-low {
   background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
   /* border-color: #f59e0b !important; */
+}
+
+/* Quad dual-column sync in dark theme */
+[data-bs-theme="dark"] .quad-tag-card:has(.quad-sub-card.quad-alarm-high) .quad-sub-card {
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
+[data-bs-theme="dark"] .quad-tag-card:has(.quad-sub-card.quad-alarm-low):not(:has(.quad-sub-card.quad-alarm-high)) .quad-sub-card {
+  background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
 }
 
 [data-bs-theme="dark"] .quad-sub-card.quad-alarm-high .quad-tag-value {
@@ -758,6 +780,19 @@
   animation: pulse-yellow 2s ease-in-out infinite;
 }
 
+/* Dual-column sync safety: if one sub-column alarms, color both columns (Qtag6/Qtag4) */
+.qtag6-card:has(.qtag6-sub-card.qtag6-alarm-high) .qtag6-sub-card,
+.qtag4-card:has(.qtag6-sub-card.qtag6-alarm-high) .qtag6-sub-card {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
+.qtag6-card:has(.qtag6-sub-card.qtag6-alarm-low):not(:has(.qtag6-sub-card.qtag6-alarm-high)) .qtag6-sub-card,
+.qtag4-card:has(.qtag6-sub-card.qtag6-alarm-low):not(:has(.qtag6-sub-card.qtag6-alarm-high)) .qtag6-sub-card {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
+}
+
 /* Qtag3 alarm state should behave like Qtag2: alarm background on the card,
    but PV/SV boxes remain dark. */
 .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-rows,
@@ -824,6 +859,19 @@
 
 [data-bs-theme="dark"] .qtag6-sub-card.qtag6-alarm-low {
   background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+}
+
+/* Dark theme dual-column sync safety for Qtag6/Qtag4 */
+[data-bs-theme="dark"] .qtag6-card:has(.qtag6-sub-card.qtag6-alarm-high) .qtag6-sub-card,
+[data-bs-theme="dark"] .qtag4-card:has(.qtag6-sub-card.qtag6-alarm-high) .qtag6-sub-card {
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
+[data-bs-theme="dark"] .qtag6-card:has(.qtag6-sub-card.qtag6-alarm-low):not(:has(.qtag6-sub-card.qtag6-alarm-high)) .qtag6-sub-card,
+[data-bs-theme="dark"] .qtag4-card:has(.qtag6-sub-card.qtag6-alarm-low):not(:has(.qtag6-sub-card.qtag6-alarm-high)) .qtag6-sub-card {
+  background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
 }
 
 [data-bs-theme="dark"] .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-item,

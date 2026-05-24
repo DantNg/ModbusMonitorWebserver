@@ -1945,20 +1945,17 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     const isQtag3 = card.classList.contains('qtag3-card'); // single-column card-level
 
     if (isQtag6 || isQtag4) {
-      // For Qtag6/Qtag4: alarm goes on sub-cards (left/right columns)
+      // For Qtag6/Qtag4: if one column alarms, both sub-cards should share the same state.
+      // Priority stays high > low.
       const subCards = card.querySelectorAll('.qtag6-sub-card');
+      const hasHigh = card.querySelector('.tag-alarm-high');
+      const hasLow = card.querySelector('.tag-alarm-low');
       subCards.forEach(sub => {
-        const hasAlarmTag = sub.querySelector('.tag-alarm-active');
-        if (hasAlarmTag) {
-          const hasHigh = sub.querySelector('.tag-alarm-high');
-          if (hasHigh) {
-            sub.classList.remove('qtag6-alarm-low');
-            sub.classList.add('qtag6-alarm-high');
-          } else {
-            if (!sub.classList.contains('qtag6-alarm-high')) {
-              sub.classList.add('qtag6-alarm-low');
-            }
-          }
+        sub.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
+        if (hasHigh) {
+          sub.classList.add('qtag6-alarm-high');
+        } else if (hasLow || newAlarmClass === 'low') {
+          sub.classList.add('qtag6-alarm-low');
         }
       });
     } else if (isSingle) {
@@ -1997,10 +1994,10 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     const isQtag3 = card.classList.contains('qtag3-card');
 
     if (isQtag6 || isQtag4) {
+      const hasHigh = card.querySelector('.tag-alarm-high');
+      const hasLow = card.querySelector('.tag-alarm-low');
       card.querySelectorAll('.qtag6-sub-card').forEach(sub => {
         sub.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
-        const hasHigh = sub.querySelector('.tag-alarm-high');
-        const hasLow = sub.querySelector('.tag-alarm-low');
         if (hasHigh) {
           sub.classList.add('qtag6-alarm-high');
         } else if (hasLow) {
@@ -2200,20 +2197,18 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     let removeClass = alarmType === 'High' ? 'card-alarm-low' : 'card-alarm-high';
 
     if (cardType === 'qtag6') {
-      // Dual-column: find sub-card by column index
+      // Dual-column: color both columns together
       const card = document.querySelector(`.qtag6-card[data-qtag6-id="${cardId}"]`);
       if (card) {
-        const subCards = card.querySelectorAll('.qtag6-sub-card');
-        cardEl = column === 'left' ? subCards[0] : subCards[1];
+        cardEl = card;
         alarmClass = alarmType === 'High' ? 'qtag6-alarm-high' : 'qtag6-alarm-low';
         removeClass = alarmType === 'High' ? 'qtag6-alarm-low' : 'qtag6-alarm-high';
       }
     } else if (cardType === 'qtag4') {
-      // Dual-column: uses qtag6-sub-card structure
+      // Dual-column: color both columns together
       const card = document.querySelector(`.qtag4-card[data-qtag4-id="${cardId}"]`);
       if (card) {
-        const subCards = card.querySelectorAll('.qtag6-sub-card');
-        cardEl = column === 'left' ? subCards[0] : subCards[1];
+        cardEl = card;
         alarmClass = alarmType === 'High' ? 'qtag6-alarm-high' : 'qtag6-alarm-low';
         removeClass = alarmType === 'High' ? 'qtag6-alarm-low' : 'qtag6-alarm-high';
       }
@@ -2250,8 +2245,15 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     if (cardEl) {
       // Check if monitoring is enabled for this card
       if (!isCardMonitoringEnabled(cardEl)) return;
-      cardEl.classList.remove(removeClass);
-      cardEl.classList.add(alarmClass);
+      if (cardType === 'qtag6' || cardType === 'qtag4') {
+        cardEl.querySelectorAll('.qtag6-sub-card').forEach(sub => {
+          sub.classList.remove(removeClass);
+          sub.classList.add(alarmClass);
+        });
+      } else {
+        cardEl.classList.remove(removeClass);
+        cardEl.classList.add(alarmClass);
+      }
     }
   }
 
@@ -2262,15 +2264,13 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     if (cardType === 'qtag6') {
       const card = document.querySelector(`.qtag6-card[data-qtag6-id="${cardId}"]`);
       if (card) {
-        const subCards = card.querySelectorAll('.qtag6-sub-card');
-        cardEl = column === 'left' ? subCards[0] : subCards[1];
+        cardEl = card;
       }
       classesToRemove = ['qtag6-alarm-high', 'qtag6-alarm-low'];
     } else if (cardType === 'qtag4') {
       const card = document.querySelector(`.qtag4-card[data-qtag4-id="${cardId}"]`);
       if (card) {
-        const subCards = card.querySelectorAll('.qtag6-sub-card');
-        cardEl = column === 'left' ? subCards[0] : subCards[1];
+        cardEl = card;
       }
       classesToRemove = ['qtag6-alarm-high', 'qtag6-alarm-low'];
     } else if (cardType === 'pv_dual') {
@@ -2298,7 +2298,13 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     }
 
     if (cardEl) {
-      cardEl.classList.remove(...classesToRemove);
+      if (cardType === 'qtag6' || cardType === 'qtag4') {
+        cardEl.querySelectorAll('.qtag6-sub-card').forEach(sub => {
+          sub.classList.remove(...classesToRemove);
+        });
+      } else {
+        cardEl.classList.remove(...classesToRemove);
+      }
     }
   }
 
