@@ -1311,6 +1311,22 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     return `${hours}:${minutes}:${seconds}`;
   }
 
+  function updateLastUpdatedForElement(element, nowForTag) {
+    if (!element) return;
+
+    const card = element.closest(
+      '.qtag6-sub-card, .qtag-single-sub-card, .qtag-pv-dual-sub-card, .quad-sub-card'
+    );
+    if (!card) return;
+
+    const timeEl = card.querySelector(
+      '.qtag6-update-time, .qtag-single-update-time, .qtag-pv-dual-update-time, .quad-update-time'
+    );
+    if (timeEl) {
+      timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
+    }
+  }
+
   // Format quad tag values for better display
   function formatQuadTagValue(value) {
     if (value === null || value === undefined || value === '') {
@@ -2935,14 +2951,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
-            // Update last updated time for the sub-card
-            const subCard = el.closest('.qtag6-sub-card');
-            if (subCard) {
-              const timeEl = subCard.querySelector('.qtag6-update-time');
-              if (timeEl) {
-                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
-              }
-            }
+            updateLastUpdatedForElement(el, nowForTag);
           });
 
           // ✅ Update Qtag6 SV elements (tag-based only, fixed values are static)
@@ -2963,14 +2972,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
-            // Update last updated time for the sub-card
-            const subCard = el.closest('.qtag6-sub-card');
-            if (subCard) {
-              const timeEl = subCard.querySelector('.qtag6-update-time');
-              if (timeEl) {
-                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
-              }
-            }
+            updateLastUpdatedForElement(el, nowForTag);
           });
 
           // ✅ Update Qtag4 SV elements (tag-based only, fixed values are static)
@@ -2991,14 +2993,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
-            // Update last updated time
-            const subCard = el.closest('.qtag6-sub-card');
-            if (subCard) {
-              const timeEl = subCard.querySelector('.qtag6-update-time');
-              if (timeEl) {
-                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
-              }
-            }
+            updateLastUpdatedForElement(el, nowForTag);
           });
 
           // ✅ Update Qtag3 SV elements (tag-based only)
@@ -3019,13 +3014,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
-            const subCard = el.closest('.qtag6-sub-card');
-            if (subCard) {
-              const timeEl = subCard.querySelector('.qtag6-update-time');
-              if (timeEl) {
-                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
-              }
-            }
+            updateLastUpdatedForElement(el, nowForTag);
           });
 
           // ✅ Update Qtag2 SV elements (tag-based only)
@@ -3044,14 +3033,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
-            // Update last updated time
-            const card = el.closest('.qtag-single-sub-card');
-            if (card) {
-              const timeEl = card.querySelector('.qtag-single-update-time');
-              if (timeEl) {
-                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
-              }
-            }
+            updateLastUpdatedForElement(el, nowForTag);
           });
 
           // ✅ Update Qtag Single3 SV HIGH/LOW (matched by data-tag-id attribute)
@@ -3070,14 +3052,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
-            // Update last updated time
-            const card = el.closest('.qtag-single-sub-card');
-            if (card) {
-              const timeEl = card.querySelector('.qtag-single-update-time');
-              if (timeEl) {
-                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
-              }
-            }
+            updateLastUpdatedForElement(el, nowForTag);
           });
 
           // ✅ Update Qtag PV Dual values
@@ -3087,14 +3062,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
-            // Update last updated time for the correct column
-            const subCard = el.closest('.qtag-pv-dual-sub-card');
-            if (subCard) {
-              const timeEl = subCard.querySelector('.qtag-pv-dual-update-time');
-              if (timeEl) {
-                timeEl.textContent = `Last updated: ${formatTime24h(nowForTag)}`;
-              }
-            }
+            updateLastUpdatedForElement(el, nowForTag);
           });
 
           // Check if new card types also need timer reset
