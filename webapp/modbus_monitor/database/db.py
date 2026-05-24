@@ -4857,7 +4857,7 @@ def get_card_info_for_alarm(card_type: str, card_id: int):
             'qtag4': subdash_qtag4_cards,
         }
         table = table_map.get(card_type)
-        if not table:
+        if table is None:
             return None
         with init_engine().connect() as con:
             result = con.execute(

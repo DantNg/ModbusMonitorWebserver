@@ -16,6 +16,18 @@ from flask import jsonify
 from datetime import datetime
 from modbus_monitor.database.db import safe_datetime_now
 
+
+def _notify_alarm_runtime_reload() -> None:
+    """Notify in-process alarm runtime to reload notification config immediately."""
+    try:
+        from flask import current_app
+        command_queue = getattr(current_app, "alarm_command_queue", None)
+        if command_queue is not None:
+            command_queue.put({"type": "reload_config"}, block=False)
+    except Exception:
+        # Best effort only: worker also refreshes DB-driven conditions via TTL caches.
+        pass
+
 def _parse_alarm_dt(s):
     """Parse datetime string - hỗ trợ nhiều format:
     - dd/mm/yyyy HH:MM (flatpickr)
@@ -147,6 +159,7 @@ def add_alarm_rule():
             return render_template("alarms/alarm_form.html", form=request.form,tags= tags)
 
         new_id = add_alarm_rule_row(data)
+        _notify_alarm_runtime_reload()
         flash("Alarm created.", "success")
         return redirect(url_for("alarms_bp.alarm_settings"))
     # GET
@@ -171,6 +184,7 @@ def edit_alarm_rule(aid):
             # To:
             return render_template("alarms/alarm_form.html", form=dict(request.form), editing=True, alarm=alarm)
         update_alarm_rule_row(aid, data)
+        _notify_alarm_runtime_reload()
         flash("Alarm updated.", "success")
         return redirect(url_for("alarms_bp.alarm_settings"))
 
@@ -186,6 +200,7 @@ def edit_alarm_rule(aid):
 @alarms_bp.route("/alarms/<int:aid>/delete", methods=["POST"])
 def delete_alarm_rule(aid):
     cnt = delete_alarm_rule_row(aid)
+    _notify_alarm_runtime_reload()
     flash("Alarm deleted." if cnt else "Alarm not found.", "success" if cnt else "warning")
     return redirect(url_for("alarms_bp.alarm_settings"))
 

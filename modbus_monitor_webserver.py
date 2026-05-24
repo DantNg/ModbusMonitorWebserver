@@ -10,6 +10,9 @@ This imports the Socket.IO app from webapp/app.py and runs it.
 import os
 import sys
 import logging
+import queue
+import threading
+import atexit
 from logging.handlers import RotatingFileHandler
 
 # Ensure project root is on sys.path so `webapp` imports correctly
@@ -51,6 +54,103 @@ except Exception as e:
 		sys.exit(1)
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+	"""Parse boolean environment variable values safely."""
+	value = os.environ.get(name)
+	if value is None:
+		return default
+	return str(value).strip().lower() in ("1", "true", "yes", "on", "y")
+
+
+class InProcessAlarmService:
+	"""Run alarm worker inside the webserver process as a background thread."""
+
+	def __init__(self, app, logger):
+		self.app = app
+		self.logger = logger
+		self.config = None
+		self.worker = None
+		self.worker_thread = None
+		self.log_thread = None
+		self.running = False
+
+		# Use stdlib queues for in-process mode.
+		self.data_queue = queue.Queue()
+		self.command_queue = queue.Queue()
+		self.log_queue = queue.Queue()
+		self.shared_state = {}
+
+	def start(self):
+		if self.running:
+			return
+
+		from workers.alarm_worker import AlarmConfig, AlarmWorker
+
+		self.config = AlarmConfig(
+			check_interval=1.0,
+			enable_notifications=True,
+			database_timeout=5.0,
+		)
+		self.worker = AlarmWorker(
+			config=self.config,
+			data_queue=self.data_queue,
+			command_queue=self.command_queue,
+			log_queue=self.log_queue,
+			shared_state=self.shared_state,
+		)
+
+		self.worker_thread = threading.Thread(target=self.worker.run, name="InProcessAlarmWorker", daemon=True)
+		self.worker_thread.start()
+
+		self.log_thread = threading.Thread(target=self._drain_logs, name="InProcessAlarmLogPump", daemon=True)
+		self.log_thread.start()
+
+		# Expose queue for Flask routes to issue runtime commands (reload/stop/status).
+		self.app.alarm_command_queue = self.command_queue
+		self.app.inprocess_alarm_service = self
+		self.running = True
+		self.logger.info("Alarm service started in main process (ALARM_IN_MAIN_PROCESS=1)")
+
+	def stop(self):
+		if not self.running:
+			return
+		try:
+			self.command_queue.put({"type": "stop"}, block=False)
+		except Exception:
+			pass
+
+		if self.worker_thread is not None and self.worker_thread.is_alive():
+			self.worker_thread.join(timeout=5)
+
+		self.running = False
+		self.logger.info("In-process alarm service stopped")
+
+	def _drain_logs(self):
+		while True:
+			if not self.running and self.log_queue.empty():
+				return
+			try:
+				log_entry = self.log_queue.get(timeout=0.5)
+			except queue.Empty:
+				continue
+			except Exception:
+				continue
+
+			level = str(log_entry.get("level", "INFO")).upper()
+			message = log_entry.get("message", "")
+			worker_id = log_entry.get("worker_id", "alarm_worker")
+			log_line = f"[{worker_id}] {message}"
+
+			if level == "ERROR":
+				self.logger.error(log_line)
+			elif level == "WARNING":
+				self.logger.warning(log_line)
+			elif level == "DEBUG":
+				self.logger.debug(log_line)
+			else:
+				self.logger.info(log_line)
+
+
 def main():
 	# --- Single Instance Check ---
 	from utils.single_instance import ensure_single_instance
@@ -74,6 +174,18 @@ def main():
 		logger.info("Process manager initialized successfully")
 	except Exception as e:
 		logger.warning(f"Process manager initialization failed (may be normal): {e}")
+
+	# Default app hooks for alarm runtime control (used by Flask routes).
+	if not hasattr(app, "alarm_command_queue"):
+		app.alarm_command_queue = None
+
+	inprocess_alarm = None
+	if _env_flag("ALARM_IN_MAIN_PROCESS", default=False):
+		inprocess_alarm = InProcessAlarmService(app, logger)
+		inprocess_alarm.start()
+		atexit.register(inprocess_alarm.stop)
+	else:
+		logger.info("Alarm in-process mode disabled. Use standalone alarm worker as before.")
 
 	try:
 		# Run with socketio (eventlet/monkey_patch is handled inside webapp/app.py)

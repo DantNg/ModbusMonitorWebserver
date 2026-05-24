@@ -1154,6 +1154,24 @@
   /* Bloom/glow effects removed */
 }
 
+.qtag-pv-dual-sub-card.qtag-pv-dual-alarm-high {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  animation: pulse-red 2s ease-in-out infinite;
+}
+
+.qtag-pv-dual-sub-card.qtag-pv-dual-alarm-low {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  animation: pulse-yellow 2s ease-in-out infinite;
+}
+
+[data-bs-theme="dark"] .qtag-pv-dual-sub-card.qtag-pv-dual-alarm-high {
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
+}
+
+[data-bs-theme="dark"] .qtag-pv-dual-sub-card.qtag-pv-dual-alarm-low {
+  background: linear-gradient(135deg, #78350f 0%, #92400e 100%) !important;
+}
+
 .qtag-pv-dual-sub-head {
   display: flex !important;
   align-items: center !important;

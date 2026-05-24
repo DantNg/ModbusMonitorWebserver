@@ -2180,8 +2180,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   function applyCardAlarmVisual(cardType, cardId, column, alarmType) {
     // Find the card element based on card type using correct HTML data attributes
     let cardEl = null;
-    const alarmClass = alarmType === 'High' ? 'card-alarm-high' : 'card-alarm-low';
-    const removeClass = alarmType === 'High' ? 'card-alarm-low' : 'card-alarm-high';
+    let alarmClass = alarmType === 'High' ? 'card-alarm-high' : 'card-alarm-low';
+    let removeClass = alarmType === 'High' ? 'card-alarm-low' : 'card-alarm-high';
 
     if (cardType === 'qtag6') {
       // Dual-column: find sub-card by column index
@@ -2189,6 +2189,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       if (card) {
         const subCards = card.querySelectorAll('.qtag6-sub-card');
         cardEl = column === 'left' ? subCards[0] : subCards[1];
+        alarmClass = alarmType === 'High' ? 'qtag6-alarm-high' : 'qtag6-alarm-low';
+        removeClass = alarmType === 'High' ? 'qtag6-alarm-low' : 'qtag6-alarm-high';
       }
     } else if (cardType === 'qtag4') {
       // Dual-column: uses qtag6-sub-card structure
@@ -2196,6 +2198,8 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       if (card) {
         const subCards = card.querySelectorAll('.qtag6-sub-card');
         cardEl = column === 'left' ? subCards[0] : subCards[1];
+        alarmClass = alarmType === 'High' ? 'qtag6-alarm-high' : 'qtag6-alarm-low';
+        removeClass = alarmType === 'High' ? 'qtag6-alarm-low' : 'qtag6-alarm-high';
       }
     } else if (cardType === 'pv_dual') {
       // Dual-column: find sub-card by column index
@@ -2203,15 +2207,28 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       if (card) {
         const subCards = card.querySelectorAll('.qtag-pv-dual-sub-card');
         cardEl = column === 'left' ? subCards[0] : subCards[1];
+        alarmClass = alarmType === 'High' ? 'qtag-pv-dual-alarm-high' : 'qtag-pv-dual-alarm-low';
+        removeClass = alarmType === 'High' ? 'qtag-pv-dual-alarm-low' : 'qtag-pv-dual-alarm-high';
       }
     } else if (cardType === 'single3') {
       cardEl = document.querySelector(`[data-qtag-single3-id="${cardId}"]`);
+      alarmClass = alarmType === 'High' ? 'qtag-single-alarm-high' : 'qtag-single-alarm-low';
+      removeClass = alarmType === 'High' ? 'qtag-single-alarm-low' : 'qtag-single-alarm-high';
     } else if (cardType === 'pv_only') {
       cardEl = document.querySelector(`[data-qtag-pv-id="${cardId}"]`);
+      alarmClass = alarmType === 'High' ? 'qtag-single-alarm-high' : 'qtag-single-alarm-low';
+      removeClass = alarmType === 'High' ? 'qtag-single-alarm-low' : 'qtag-single-alarm-high';
     } else if (cardType === 'qtag2') {
       cardEl = document.querySelector(`[data-qtag2-id="${cardId}"]`);
+      alarmClass = alarmType === 'High' ? 'qtag-single-alarm-high' : 'qtag-single-alarm-low';
+      removeClass = alarmType === 'High' ? 'qtag-single-alarm-low' : 'qtag-single-alarm-high';
     } else if (cardType === 'qtag3') {
-      cardEl = document.querySelector(`.qtag3-card[data-qtag3-id="${cardId}"]`);
+      const card = document.querySelector(`.qtag3-card[data-qtag3-id="${cardId}"]`);
+      if (card) {
+        cardEl = card.querySelector('.qtag6-sub-card') || card;
+      }
+      alarmClass = alarmType === 'High' ? 'qtag6-alarm-high' : 'qtag6-alarm-low';
+      removeClass = alarmType === 'High' ? 'qtag6-alarm-low' : 'qtag6-alarm-high';
     }
 
     if (cardEl) {
@@ -2224,6 +2241,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
 
   function removeCardAlarmVisual(cardType, cardId, column) {
     let cardEl = null;
+    let classesToRemove = ['card-alarm-high', 'card-alarm-low'];
 
     if (cardType === 'qtag6') {
       const card = document.querySelector(`.qtag6-card[data-qtag6-id="${cardId}"]`);
@@ -2231,30 +2249,40 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         const subCards = card.querySelectorAll('.qtag6-sub-card');
         cardEl = column === 'left' ? subCards[0] : subCards[1];
       }
+      classesToRemove = ['qtag6-alarm-high', 'qtag6-alarm-low'];
     } else if (cardType === 'qtag4') {
       const card = document.querySelector(`.qtag4-card[data-qtag4-id="${cardId}"]`);
       if (card) {
         const subCards = card.querySelectorAll('.qtag6-sub-card');
         cardEl = column === 'left' ? subCards[0] : subCards[1];
       }
+      classesToRemove = ['qtag6-alarm-high', 'qtag6-alarm-low'];
     } else if (cardType === 'pv_dual') {
       const card = document.querySelector(`.qtag-pv-dual-card[data-qtag-pv-dual-id="${cardId}"]`);
       if (card) {
         const subCards = card.querySelectorAll('.qtag-pv-dual-sub-card');
         cardEl = column === 'left' ? subCards[0] : subCards[1];
       }
+      classesToRemove = ['qtag-pv-dual-alarm-high', 'qtag-pv-dual-alarm-low'];
     } else if (cardType === 'single3') {
       cardEl = document.querySelector(`[data-qtag-single3-id="${cardId}"]`);
+      classesToRemove = ['qtag-single-alarm-high', 'qtag-single-alarm-low'];
     } else if (cardType === 'pv_only') {
       cardEl = document.querySelector(`[data-qtag-pv-id="${cardId}"]`);
+      classesToRemove = ['qtag-single-alarm-high', 'qtag-single-alarm-low'];
     } else if (cardType === 'qtag2') {
       cardEl = document.querySelector(`[data-qtag2-id="${cardId}"]`);
+      classesToRemove = ['qtag-single-alarm-high', 'qtag-single-alarm-low'];
     } else if (cardType === 'qtag3') {
-      cardEl = document.querySelector(`.qtag3-card[data-qtag3-id="${cardId}"]`);
+      const card = document.querySelector(`.qtag3-card[data-qtag3-id="${cardId}"]`);
+      if (card) {
+        cardEl = card.querySelector('.qtag6-sub-card') || card;
+      }
+      classesToRemove = ['qtag6-alarm-high', 'qtag6-alarm-low'];
     }
 
     if (cardEl) {
-      cardEl.classList.remove('card-alarm-high', 'card-alarm-low');
+      cardEl.classList.remove(...classesToRemove);
     }
   }
 
@@ -2268,8 +2296,18 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         if (!data.success || !Array.isArray(data.alarms)) return;
 
         // Clear all existing card-level alarm visuals before re-applying
-        document.querySelectorAll('.card-alarm-high, .card-alarm-low').forEach(el => {
-          el.classList.remove('card-alarm-high', 'card-alarm-low');
+        document.querySelectorAll(
+          '.card-alarm-high, .card-alarm-low, ' +
+          '.qtag6-alarm-high, .qtag6-alarm-low, ' +
+          '.qtag-single-alarm-high, .qtag-single-alarm-low, ' +
+          '.qtag-pv-dual-alarm-high, .qtag-pv-dual-alarm-low'
+        ).forEach(el => {
+          el.classList.remove(
+            'card-alarm-high', 'card-alarm-low',
+            'qtag6-alarm-high', 'qtag6-alarm-low',
+            'qtag-single-alarm-high', 'qtag-single-alarm-low',
+            'qtag-pv-dual-alarm-high', 'qtag-pv-dual-alarm-low'
+          );
         });
 
         // Re-apply each active alarm using correct per-type selectors
@@ -3323,6 +3361,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       // Alarm events may have been missed while socket was disconnected.
       setTimeout(fetchAndApplyQuadAlarms, 1500);
       setTimeout(fetchAndApplyTagAlarms, 1500);
+      setTimeout(fetchAndApplyCardAlarms, 1500);
 
       // Restart polling check: if no socket data within 5s after connect, start polling
       _startPollingFallbackCheck();
@@ -3345,6 +3384,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       // Re-sync alarm colors from server after global reconnect
       setTimeout(fetchAndApplyQuadAlarms, 1500);
       setTimeout(fetchAndApplyTagAlarms, 1500);
+      setTimeout(fetchAndApplyCardAlarms, 1500);
     });
 
     // Update global heartbeat timestamp whenever we receive modbus data
