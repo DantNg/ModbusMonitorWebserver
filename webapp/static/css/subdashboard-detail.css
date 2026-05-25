@@ -1671,10 +1671,10 @@
   background: inherit !important;
 }
 /* For inline-header card types (Single3, PV Only, Qtag2) */
-.qtag-custom-bg.qtag-single-sub-card {
+.qtag-custom-bg.qtag-single-sub-card:not(.qtag-single-alarm-high):not(.qtag-single-alarm-low) {
   background: #fff !important;
 }
-[data-bs-theme="dark"] .qtag-custom-bg.qtag-single-sub-card {
+[data-bs-theme="dark"] .qtag-custom-bg.qtag-single-sub-card:not(.qtag-single-alarm-high):not(.qtag-single-alarm-low) {
   background: #1f2937 !important;
 }
 /* Left/single sub-header independent color */
