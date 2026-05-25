@@ -90,6 +90,7 @@
 <div id="tag-alarm-data" style="display: none;" data-active-alarms='{{ active_tag_alarms | default([]) | tojson }}'></div>
 <!-- Store active card alarms as JSON (for Qtag6, Single3, PV Only, PV Dual) -->
 <div id="card-alarm-data" style="display: none;" data-active-alarms='{{ active_card_alarms | default([]) | tojson }}'></div>
+<div id="tag-scale-data" style="display: none;" data-scale-map='{{ tag_scale_map | default({}) | tojson }}'></div>
 
 <div id="group-panels">
   {% if current_group == '__all__' %}
@@ -174,7 +175,7 @@
               </div>
               <div class="value-row d-flex align-items-center justify-content-center flex-column">
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
-                  {{ tag.value | format_value }}
+                  {{ tag.value | format_value(tag.scale, tag.offset) }}
                 </div>
                 <!-- <div class="small text-muted">
                   Status: 
@@ -373,7 +374,7 @@
                   <div class="quad-tag-item" data-tag-id="{{ quad_card.tag1_id }}" data-device-status="{{ quad_card.tag1.device_status or 'unknown' }}">
                     <div class="quad-tag-name">{{ quad_card.tag1.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-{{ quad_card.tag1_id }}" class="fw-bold">{{ quad_card.tag1.last_value | format_value }}</span>
+                      <span id="quad-tag-val-{{ quad_card.tag1_id }}" class="fw-bold">{{ quad_card.tag1.last_value | format_value(quad_card.tag1.scale, quad_card.tag1.offset) }}</span>
                       <small class="text-muted ms-auto">{{ quad_card.tag1.unit or '' }}</small>
                     </div>
                   </div>
@@ -382,7 +383,7 @@
                   <div class="quad-tag-item" data-tag-id="{{ quad_card.tag2_id }}" data-device-status="{{ quad_card.tag2.device_status or 'unknown' }}">
                     <div class="quad-tag-name">{{ quad_card.tag2.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-{{ quad_card.tag2_id }}" class="fw-bold">{{ quad_card.tag2.last_value | format_value }}</span>
+                      <span id="quad-tag-val-{{ quad_card.tag2_id }}" class="fw-bold">{{ quad_card.tag2.last_value | format_value(quad_card.tag2.scale, quad_card.tag2.offset) }}</span>
                       <small class="text-muted ms-auto">{{ quad_card.tag2.unit or '' }}</small>
                     </div>
                   </div>
@@ -391,7 +392,7 @@
                   <div class="quad-tag-item" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}" data-device-status="{{ quad_card.tag3.device_status or 'unknown' }}"{% endif %}>
                     <div class="quad-tag-name">{{ quad_card.tag3.name if quad_card.tag3 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-sv-left-{{ quad_card.id }}" class="fw-bold" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>{{ ( quad_card.tag3.last_value if quad_card.tag3 else (quad_card.tag3_sv_value if quad_card.tag3_sv_value is not none else '0')) | format_value }}</span>
+                      <span id="quad-tag-val-sv-left-{{ quad_card.id }}" class="fw-bold" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>{{ ( quad_card.tag3.last_value if quad_card.tag3 else (quad_card.tag3_sv_value if quad_card.tag3_sv_value is not none else '0')) | format_value((quad_card.tag3.scale if quad_card.tag3 else none), (quad_card.tag3.offset if quad_card.tag3 else 0)) }}</span>
                       <small class="text-muted ms-auto">{{ quad_card.tag3.unit if quad_card.tag3 else '' }}</small>
                     </div>
                   </div>
@@ -400,7 +401,7 @@
                   <div class="quad-tag-item" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}" data-device-status="{{ quad_card.tag4.device_status or 'unknown' }}"{% endif %}>
                     <div class="quad-tag-name">{{ quad_card.tag4.name if quad_card.tag4 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-sv-right-{{ quad_card.id }}" class="fw-bold" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>{{ ( quad_card.tag4.last_value if quad_card.tag4 else (quad_card.tag4_sv_value if quad_card.tag4_sv_value is not none else '0')) | format_value }}</span>
+                      <span id="quad-tag-val-sv-right-{{ quad_card.id }}" class="fw-bold" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>{{ ( quad_card.tag4.last_value if quad_card.tag4 else (quad_card.tag4_sv_value if quad_card.tag4_sv_value is not none else '0')) | format_value((quad_card.tag4.scale if quad_card.tag4 else none), (quad_card.tag4.offset if quad_card.tag4 else 0)) }}</span>
                       <small class="text-muted ms-auto">{{ quad_card.tag4.unit if quad_card.tag4 else '' }}</small>
                     </div>
                   </div>
@@ -513,7 +514,7 @@
               </div>
               <div class="value-row d-flex align-items-center justify-content-center flex-column">
                 <div class="value display-6 fw-bold" id="tag-val-{{ tag.id }}">
-                  {{ tag.value | format_value }}
+                  {{ tag.value | format_value(tag.scale, tag.offset) }}
                 </div>
                 <div class="unit position-relative">{% if session.get("role") == "admin" %}<span
                     id="tag-unit-{{ tag.id }}" class="unit-editable" data-tag-id="{{ tag.id }}"
@@ -645,7 +646,7 @@
                   <div class="quad-tag-item" data-tag-id="{{ quad_card.tag1_id }}">
                     <div class="quad-tag-name">{{ quad_card.tag1.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-{{ quad_card.tag1_id }}" class="fw-bold">{{ quad_card.tag1.last_value | format_value }}</span>
+                      <span id="quad-tag-val-{{ quad_card.tag1_id }}" class="fw-bold">{{ quad_card.tag1.last_value | format_value(quad_card.tag1.scale, quad_card.tag1.offset) }}</span>
                       <small class="text-muted">{{ quad_card.tag1.unit or '' }}</small>
                       {% if session.get('role') == 'admin' and quad_card.tag1.function_code|int in [1, 3] %}
                         <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
@@ -662,7 +663,7 @@
                   <div class="quad-tag-item" data-tag-id="{{ quad_card.tag2_id }}">
                     <div class="quad-tag-name">{{ quad_card.tag2.name }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-{{ quad_card.tag2_id }}" class="fw-bold">{{ quad_card.tag2.last_value | format_value }}</span>
+                      <span id="quad-tag-val-{{ quad_card.tag2_id }}" class="fw-bold">{{ quad_card.tag2.last_value | format_value(quad_card.tag2.scale, quad_card.tag2.offset) }}</span>
                       <small class="text-muted">{{ quad_card.tag2.unit or '' }}</small>
                       {% if session.get('role') == 'admin' and quad_card.tag2.function_code|int in [1, 3] %}
                         <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
@@ -679,7 +680,7 @@
                   <div class="quad-tag-item" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>
                     <div class="quad-tag-name">{{ quad_card.tag3.name if quad_card.tag3 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-sv-left-{{ quad_card.id }}-2" class="fw-bold" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>{{ ( quad_card.tag3.last_value if quad_card.tag3 else (quad_card.tag3_sv_value if quad_card.tag3_sv_value is not none else '0')) | format_value }}</span>
+                      <span id="quad-tag-val-sv-left-{{ quad_card.id }}-2" class="fw-bold" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>{{ ( quad_card.tag3.last_value if quad_card.tag3 else (quad_card.tag3_sv_value if quad_card.tag3_sv_value is not none else '0')) | format_value((quad_card.tag3.scale if quad_card.tag3 else none), (quad_card.tag3.offset if quad_card.tag3 else 0)) }}</span>
                       <small class="text-muted">{{ quad_card.tag3.unit if quad_card.tag3 else '' }}</small>
                       {% if session.get('role') == 'admin' and quad_card.tag3 and quad_card.tag3.function_code|int in [1, 3] %}
                         <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
@@ -696,7 +697,7 @@
                   <div class="quad-tag-item" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>
                     <div class="quad-tag-name">{{ quad_card.tag4.name if quad_card.tag4 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
-                      <span id="quad-tag-val-sv-right-{{ quad_card.id }}-2" class="fw-bold" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>{{ ( quad_card.tag4.last_value if quad_card.tag4 else (quad_card.tag4_sv_value if quad_card.tag4_sv_value is not none else '0')) | format_value }}</span>
+                      <span id="quad-tag-val-sv-right-{{ quad_card.id }}-2" class="fw-bold" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>{{ ( quad_card.tag4.last_value if quad_card.tag4 else (quad_card.tag4_sv_value if quad_card.tag4_sv_value is not none else '0')) | format_value((quad_card.tag4.scale if quad_card.tag4 else none), (quad_card.tag4.offset if quad_card.tag4 else 0)) }}</span>
                       <small class="text-muted">{{ quad_card.tag4.unit if quad_card.tag4 else '' }}</small>
                       {% if session.get('role') == 'admin' and quad_card.tag4 and quad_card.tag4.function_code|int in [1, 3] %}
                         <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 

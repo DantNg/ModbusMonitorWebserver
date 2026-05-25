@@ -6,6 +6,14 @@
 // Read configuration passed from Jinja2 template
 const currentSubdashId = window.SUBDASH_CONFIG.subdashId;
 const currentGroup = window.SUBDASH_CONFIG.currentGroup;
+let TAG_SCALE_MAP = {};
+try {
+  const scaleDataEl = document.getElementById('tag-scale-data');
+  const scaleRaw = scaleDataEl ? scaleDataEl.getAttribute('data-scale-map') : null;
+  TAG_SCALE_MAP = scaleRaw ? (JSON.parse(scaleRaw) || {}) : {};
+} catch (e) {
+  TAG_SCALE_MAP = {};
+}
 
 // Auto-refresh page at 3:00 AM daily to keep UI fresh after long uptime
 (function scheduleAutoRefreshAt3AM() {
@@ -114,7 +122,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             dimTagInitial(tagId);
             // Force quad values for this tag to 0 at load if offline
             document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]`).forEach(el => {
-              el.textContent = '0';
+              el.textContent = formatZeroByTagId(tagId);
             });
           }
         }
@@ -1378,6 +1386,79 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     }
   }
 
+  function scaleToDecimalPlaces(scaleValue) {
+    const raw = Number(scaleValue);
+    if (!Number.isFinite(raw)) return null;
+    const scale = Math.abs(raw);
+    if (scale === 0) return 0;
+    const scaleText = scale.toFixed(12).replace(/0+$/, '').replace(/\.$/, '');
+    if (!scaleText.includes('.')) return 0;
+    return Math.min(6, scaleText.split('.')[1].length);
+  }
+
+  function resolveTagScale(tagOrTagId) {
+    const normalizeScale = (entry) => {
+      if (entry && typeof entry === 'object' && entry.scale !== undefined) {
+        const objScale = Number(entry.scale);
+        if (Number.isFinite(objScale)) return objScale;
+      }
+      const raw = Number(entry);
+      return Number.isFinite(raw) ? raw : null;
+    };
+
+    if (tagOrTagId && typeof tagOrTagId === 'object') {
+      const directScale = Number(tagOrTagId.scale);
+      if (Number.isFinite(directScale)) return directScale;
+      const mapScale = normalizeScale(TAG_SCALE_MAP[String(tagOrTagId.id)]);
+      if (mapScale !== null) return mapScale;
+      return 1;
+    }
+    const mapScale = normalizeScale(TAG_SCALE_MAP[String(tagOrTagId)]);
+    return mapScale !== null ? mapScale : 1;
+  }
+
+  function resolveTagOffset(tagOrTagId) {
+    const resolveFromEntry = (entry) => {
+      if (entry && typeof entry === 'object' && entry.offset !== undefined) {
+        const objOffset = Number(entry.offset);
+        if (Number.isFinite(objOffset)) return objOffset;
+      }
+      return 0;
+    };
+
+    if (tagOrTagId && typeof tagOrTagId === 'object') {
+      const directOffset = Number(tagOrTagId.offset);
+      if (Number.isFinite(directOffset)) return directOffset;
+      return resolveFromEntry(TAG_SCALE_MAP[String(tagOrTagId.id)]);
+    }
+    return resolveFromEntry(TAG_SCALE_MAP[String(tagOrTagId)]);
+  }
+
+  function transformTagValue(rawValue, tagOrTagId) {
+    const num = Number(rawValue);
+    if (!Number.isFinite(num)) return rawValue;
+    const scale = resolveTagScale(tagOrTagId);
+    const offset = resolveTagOffset(tagOrTagId);
+    return (num * scale) + offset;
+  }
+
+  function formatZeroByTagId(tagId) {
+    return fmtVal(0, resolveTagScale(tagId));
+  }
+
+  function decimalsByDisplayRule(scaleValue) {
+    const scale = Math.abs(Number(scaleValue));
+    if (!Number.isFinite(scale)) return null;
+
+    // Explicit display policy requested by user.
+    if (Math.abs(scale - 1.0) < 1e-9) return null;
+    if (Math.abs(scale - 0.1) < 1e-9) return 1;
+    if (scale >= 0.2) return 2;
+
+    // Fallback for other uncommon scales.
+    return scaleToDecimalPlaces(scale);
+  }
+
 
   /**
    * Format a raw tag value for display:
@@ -1387,12 +1468,83 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
    *              e.g. 123.50  -> "123.5"
    *              e.g. 123.456 -> "123.46"
    */
-  function fmtVal(value) {
+  function fmtVal(value, scale = 1) {
     if (value === null || value === undefined || value === '') return '0';
     const num = parseFloat(value);
     if (isNaN(num)) return String(value);
-    // Round to max 2 decimal places, then strip trailing zeros
-    return parseFloat(num.toFixed(2)).toString();
+
+    const scaleNum = Math.abs(Number(scale));
+    if (Number.isFinite(scaleNum) && Math.abs(scaleNum - 1.0) < 1e-9) {
+      return Number.isInteger(num) ? String(Math.trunc(num)) : num.toFixed(2);
+    }
+
+    const decimalPlaces = decimalsByDisplayRule(scale);
+    if (decimalPlaces === null) {
+      // Fallback: max 2 decimals if scale is invalid/missing
+      return parseFloat(num.toFixed(2)).toString();
+    }
+    return num.toFixed(decimalPlaces);
+  }
+
+  function extractTagIdFromValueElement(el) {
+    if (!el) return null;
+    const dataTagId = Number(el.getAttribute('data-tag-id'));
+    if (Number.isFinite(dataTagId)) return dataTagId;
+
+    const parentWithTag = el.closest('[data-tag-id]');
+    if (parentWithTag) {
+      const parentTagId = Number(parentWithTag.getAttribute('data-tag-id'));
+      if (Number.isFinite(parentTagId)) return parentTagId;
+    }
+
+    const id = el.id || '';
+    const match = id.match(/-(\d+)$/);
+    if (!match) return null;
+    const parsed = Number(match[1]);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function formatValueByTagId(rawValue, tagId) {
+    const num = Number(rawValue);
+    if (!Number.isFinite(num)) return rawValue;
+    return fmtVal(num, resolveTagScale(tagId));
+  }
+
+  function normalizeAllCardValuesByScale() {
+    const selectors = [
+      '[id^="quad-tag-val-"]',
+      '[id^="qtag6-val-"]',
+      '[id^="qtag4-val-"]',
+      '[id^="qtag3-val-"]',
+      '[id^="qtag2-val-"]',
+      '[id^="qtag-single3-pv-"]',
+      '[id^="qtag-pv-val-"]',
+      '[id^="qtag-pv-dual-val-"]',
+      '.quad-tag-value',
+      '.qtag6-tag-value',
+      '.qtag-single-tag-value',
+      '.qtag-pv-dual-tag-value',
+      '.qtag6-sv-low[data-tag-id]',
+      '.qtag6-sv-high[data-tag-id]',
+      '.qtag4-sv-value[data-tag-id]',
+      '.qtag3-sv-low[data-tag-id]',
+      '.qtag3-sv-high[data-tag-id]',
+      '.qtag2-sv-value[data-tag-id]',
+      '.qtag-single-sv-low[data-tag-id]',
+      '.qtag-single-sv-high[data-tag-id]',
+      '[id^="quad-tag-val-sv-"][data-tag-id]'
+    ];
+
+    document.querySelectorAll(selectors.join(', ')).forEach((el) => {
+      const tagId = extractTagIdFromValueElement(el);
+      if (!Number.isFinite(tagId)) return;
+
+      const valueText = (el.textContent || '').trim();
+      const numeric = Number(valueText);
+      if (!Number.isFinite(numeric)) return;
+
+      el.textContent = fmtVal(numeric, resolveTagScale(tagId));
+    });
   }
 
   // Local title helpers to allow renaming headers and persisting in the browser
@@ -1430,7 +1582,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
 
   // ===== Quad Tag Layout Cache =====
   // Lưu layout HTML đã build vào localStorage, lần load sau inject trực tiếp → không flash
-  const QUAD_CACHE_PREFIX = `quad_layout_v2_${currentSubdashId}_`;
+  const QUAD_CACHE_PREFIX = `quad_layout_v3_${currentSubdashId}_`;
 
   function saveQuadGridCache(quadId, gridEl) {
     try {
@@ -1445,7 +1597,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
   }
 
   // Lưu giá trị mới nhất của từng quad tag vào cache riêng (cập nhật bởi socket)
-  const QUAD_VALUES_KEY = `quad_values_${currentSubdashId}`;
+  const QUAD_VALUES_KEY = `quad_values_v2_${currentSubdashId}`;
   let _quadValuesCache = {};
   try {
     _quadValuesCache = JSON.parse(localStorage.getItem(QUAD_VALUES_KEY)) || {};
@@ -1503,7 +1655,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // Áp dụng giá trị mới nhất từ value cache (nếu có)
           Object.keys(_quadValuesCache).forEach(tagId => {
             const el = grid.querySelector(`[id$="-${tagId}"]`);
-            if (el) el.textContent = _quadValuesCache[tagId];
+            if (el) el.textContent = formatValueByTagId(_quadValuesCache[tagId], tagId);
           });
           
           // Cập nhật thời gian
@@ -1567,7 +1719,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             // Extract current value and unit — ưu tiên value cache nếu có
             let value = valElement ? valElement.textContent.trim() : '0';
             if (_quadValuesCache[tagId] !== undefined) {
-              value = _quadValuesCache[tagId];
+              value = formatValueByTagId(_quadValuesCache[tagId], tagId);
             }
             const unit = unitElement ? unitElement.textContent.trim() : '';
             const name = nameElement ? nameElement.textContent.trim() : `Tag ${i + 1}`;
@@ -1752,6 +1904,12 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
     // Chạy fixQuadTagLayout ngay lập tức (KHÔNG dùng requestAnimationFrame)
     // để hoàn thành trước first paint, tránh nháy layout cũ → mới
     fixQuadTagLayout();
+
+    // Re-apply display rule for all Qtag/Quad values in case old localStorage cache
+    // still contains values formatted by previous rules.
+    normalizeAllCardValuesByScale();
+    setTimeout(normalizeAllCardValuesByScale, 250);
+    setTimeout(normalizeAllCardValuesByScale, 1500);
 
     // Keep original values without K/M formatting
     document.querySelectorAll('[id^="quad-tag-val-"]').forEach(element => {
@@ -2772,7 +2930,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         indicator.title = 'Device offline';
         // Force all quad tag values tied to this device to 0 when offline
         document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]`).forEach(el => {
-          el.textContent = '0';
+          el.textContent = formatZeroByTagId(tagId);
         });
       } else {
         indicator.classList.add('status-unknown');
@@ -2845,13 +3003,13 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
 
     if (valEl) {
       // Reset value to 0 and dim it
-      valEl.textContent = '0';
+      valEl.textContent = formatZeroByTagId(tagId);
       valEl.style.opacity = '0.5';
       valEl.style.color = '#6c757d';
     }
 
     // Đồng bộ giá trị về 0 cho tất cả quad tag hiển thị cùng tag này
-    setQuadTagValueByTagId(tagId, '0');
+    setQuadTagValueByTagId(tagId, formatZeroByTagId(tagId));
     // Khi mất kết nối cũng tắt trạng thái alarm của quad tag đó
     clearQuadAlarmByTag(tagId);
 
@@ -2999,9 +3157,12 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             });
           };
           
+          const tagScale = resolveTagScale(tag);
+          const transformedValue = transformTagValue(tag.value, tag);
+
           if (valEl) {
             const oldVal = valEl.textContent;
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value); // hoặc formatValue(tag.value, tag.datatype)
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale); // hoặc formatValue(tag.value, tag.datatype)
 
             if (oldVal !== newVal) {
               pending.push({ valEl, newVal, tag });
@@ -3012,7 +3173,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           quadValElements.forEach(quadValEl => {
             const oldQuadVal = quadValEl.textContent;
             // Khi offline thì ép về 0, tránh giữ giá trị cũ
-            const newQuadVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newQuadVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             
             if (oldQuadVal !== newQuadVal) {
               pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
@@ -3030,7 +3191,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             `[id^="quad-tag-val-sv-"][data-tag-id="${tag.id}"]`
           );
           quadSvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3039,7 +3200,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag6 values - PV elements with pattern qtag6-val-{cardId}-{tagId}
           const qtag6ValElements = document.querySelectorAll(`[id^="qtag6-val-"][id$="-${tag.id}"]`);
           qtag6ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3051,7 +3212,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             `.qtag6-sv-low[data-tag-id="${tag.id}"], .qtag6-sv-high[data-tag-id="${tag.id}"]`
           );
           qtag6SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3060,7 +3221,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag4 values - PV elements with pattern qtag4-val-{cardId}-{tagId}
           const qtag4ValElements = document.querySelectorAll(`[id^="qtag4-val-"][id$="-${tag.id}"]`);
           qtag4ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3072,7 +3233,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             `.qtag4-sv-value[data-tag-id="${tag.id}"]`
           );
           qtag4SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3081,7 +3242,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag3 PV values - pattern qtag3-val-{cardId}-{tagId}
           const qtag3ValElements = document.querySelectorAll(`[id^="qtag3-val-"][id$="-${tag.id}"]`);
           qtag3ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3093,7 +3254,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             `.qtag3-sv-low[data-tag-id="${tag.id}"], .qtag3-sv-high[data-tag-id="${tag.id}"]`
           );
           qtag3SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3102,7 +3263,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag2 PV values - pattern qtag2-val-{cardId}-{tagId}
           const qtag2ValElements = document.querySelectorAll(`[id^="qtag2-val-"][id$="-${tag.id}"]`);
           qtag2ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3112,7 +3273,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag2 SV elements (tag-based only)
           const qtag2SvElements = document.querySelectorAll(`.qtag2-sv-value[data-tag-id="${tag.id}"]`);
           qtag2SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3121,7 +3282,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag Single3 PV values
           const single3PvElements = document.querySelectorAll(`[id^="qtag-single3-pv-"][id$="-${tag.id}"]`);
           single3PvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3131,7 +3292,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag Single3 SV HIGH/LOW (matched by data-tag-id attribute)
           const single3SvElements = document.querySelectorAll(`.qtag-single-sv-low[data-tag-id="${tag.id}"], .qtag-single-sv-high[data-tag-id="${tag.id}"]`);
           single3SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3140,7 +3301,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag PV Only values
           const pvOnlyElements = document.querySelectorAll(`[id^="qtag-pv-val-"][id$="-${tag.id}"]`);
           pvOnlyElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3150,7 +3311,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // ✅ Update Qtag PV Dual values
           const pvDualElements = document.querySelectorAll(`[id^="qtag-pv-dual-val-"][id$="-${tag.id}"]`);
           pvDualElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? '0' : fmtVal(tag.value);
+            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }

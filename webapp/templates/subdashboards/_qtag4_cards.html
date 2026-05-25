@@ -78,7 +78,7 @@
               <div class="qtag6-tag-item" data-tag-id="{{ card.tag1_id }}" data-role="pv">
                 <div class="qtag6-tag-label label-pv">PV</div>
                 <div class="qtag6-value-row">
-                  <div class="qtag6-tag-value" id="qtag4-val-{{ card.id }}-{{ card.tag1_id }}">{{ ( card.tag1.last_value if card.tag1.last_value is not none else 0) | format_value }}</div>
+                  <div class="qtag6-tag-value" id="qtag4-val-{{ card.id }}-{{ card.tag1_id }}">{{ ( card.tag1.last_value if card.tag1.last_value is not none else 0) | format_value(card.tag1.scale, card.tag1.offset) }}</div>
                   <div class="qtag6-tag-unit">{{ card.tag1.unit or '' }}</div>
                 </div>
               </div>
@@ -86,7 +86,7 @@
               <div class="qtag6-tag-item" data-role="sv">
                 <div class="qtag6-tag-label label-sv">SV</div>
                 <div class="qtag6-value-row">
-                  <div class="qtag6-tag-value qtag4-sv-value" id="qtag4-sv-left-{{ card.id }}" {% if (card.left_sv_type or 'tag') == 'tag' and card.tag3_id %}data-tag-id="{{ card.tag3_id }}"{% endif %}>{{ ( card.tag3.last_value if card.tag3 else (card.tag3_sv_value if card.tag3_sv_value is not none else 0)) | format_value }}</div>
+                  <div class="qtag6-tag-value qtag4-sv-value" id="qtag4-sv-left-{{ card.id }}" {% if (card.left_sv_type or 'tag') == 'tag' and card.tag3_id %}data-tag-id="{{ card.tag3_id }}"{% endif %}>{{ ( card.tag3.last_value if card.tag3 else (card.tag3_sv_value if card.tag3_sv_value is not none else 0)) | format_value((card.tag3.scale if card.tag3 else none), (card.tag3.offset if card.tag3 else 0)) }}</div>
                   <div class="qtag6-tag-unit">{{ card.tag1.unit or '' }}</div>
                 </div>
               </div>
@@ -106,7 +106,7 @@
               <div class="qtag6-tag-item" data-tag-id="{{ card.tag2_id }}" data-role="pv">
                 <div class="qtag6-tag-label label-pv">PV</div>
                 <div class="qtag6-value-row">
-                  <div class="qtag6-tag-value" id="qtag4-val-{{ card.id }}-{{ card.tag2_id }}">{{ ( card.tag2.last_value if card.tag2.last_value is not none else 0) | format_value }}</div>
+                  <div class="qtag6-tag-value" id="qtag4-val-{{ card.id }}-{{ card.tag2_id }}">{{ ( card.tag2.last_value if card.tag2.last_value is not none else 0) | format_value(card.tag2.scale, card.tag2.offset) }}</div>
                   <div class="qtag6-tag-unit">{{ card.tag2.unit or '' }}</div>
                 </div>
               </div>
@@ -114,7 +114,7 @@
               <div class="qtag6-tag-item" data-role="sv">
                 <div class="qtag6-tag-label label-sv">SV</div>
                 <div class="qtag6-value-row">
-                  <div class="qtag6-tag-value qtag4-sv-value" id="qtag4-sv-right-{{ card.id }}" {% if (card.right_sv_type or 'tag') == 'tag' and card.tag4_id %}data-tag-id="{{ card.tag4_id }}"{% endif %}>{{ ( card.tag4.last_value if card.tag4 else (card.tag4_sv_value if card.tag4_sv_value is not none else 0)) | format_value }}</div>
+                  <div class="qtag6-tag-value qtag4-sv-value" id="qtag4-sv-right-{{ card.id }}" {% if (card.right_sv_type or 'tag') == 'tag' and card.tag4_id %}data-tag-id="{{ card.tag4_id }}"{% endif %}>{{ ( card.tag4.last_value if card.tag4 else (card.tag4_sv_value if card.tag4_sv_value is not none else 0)) | format_value((card.tag4.scale if card.tag4 else none), (card.tag4.offset if card.tag4 else 0)) }}</div>
                   <div class="qtag6-tag-unit">{{ card.tag2.unit or '' }}</div>
                 </div>
               </div>

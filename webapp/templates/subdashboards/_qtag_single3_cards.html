@@ -60,7 +60,7 @@
         <div class="qtag-single-tag-item" data-tag-id="{{ card.pv_tag_id }}" data-role="pv">
           <div class="qtag-single-tag-label label-pv">PV</div>
           <div class="qtag-single-value-row">
-            <div class="qtag-single-tag-value" id="qtag-single3-pv-{{ card.id }}-{{ card.pv_tag_id }}">{{ ( card.pv_tag.last_value if card.pv_tag.last_value is not none else 0) | format_value }}</div>
+            <div class="qtag-single-tag-value" id="qtag-single3-pv-{{ card.id }}-{{ card.pv_tag_id }}">{{ ( card.pv_tag.last_value if card.pv_tag.last_value is not none else 0) | format_value(card.pv_tag.scale, card.pv_tag.offset) }}</div>
             <div class="qtag-single-tag-unit">{{ card.pv_tag.unit or '' }}</div>
           </div>
         </div>

@@ -148,11 +148,16 @@ def create_app():
 
     # Custom Jinja filters
     @app.template_filter('format_value')
-    def format_value_filter(value, datatype=None):
-        """Format numeric values based on datatype rules:
-        - IEEE754 Float/Double: show with decimal places
-        - Display formats: Hex, Binary, Raw
-        - Integer types: show without decimals if whole number
+    def format_value_filter(value, arg1=None, arg2=None, arg3=None):
+        """Format numeric values.
+
+        Preferred behavior: decimal digits follow tag scale precision.
+        - scale 0.1  -> 1 decimal (e.g. 12.3)
+        - scale 0.01 -> 2 decimals (e.g. 12.34)
+
+        Backward compatibility:
+        - old call style: format_value(value, datatype)
+        - new call style: format_value(value, scale, datatype)
         """
         if value is None or value == '':
             return '—'
@@ -164,25 +169,104 @@ def create_app():
             return '—'
         if num_value == 0.0:
             num_value = 0.0
+
+        # Parse args with backward compatibility.
+        datatype = None
+        scale = None
+        offset = 0
+        known_datatypes = {
+            'float', 'float32', 'real', 'float_inverse', 'floatinverse', 'float-inverse',
+            'double', 'float64', 'double_inverse', 'doubleinverse', 'double-inverse',
+            'hex', 'binary', 'bit', 'bool', 'boolean', 'raw',
+            'signed', 'unsigned', 'word', 'short', 'dword', 'dint', 'long',
+            'long_inverse', 'longinverse', 'long-inverse', 'int16', 'int32',
+            'uint16', 'uint32', 'ushort', 'udint', 'int64'
+        }
+
+        if isinstance(arg1, str) and arg1.lower() in known_datatypes:
+            datatype = arg1
+            scale = arg2
+            offset = arg3
+        else:
+            scale = arg1
+            if isinstance(arg2, str) and arg2.lower() in known_datatypes:
+                datatype = arg2
+                offset = arg3
+            else:
+                offset = arg2
+                datatype = arg3
+
+        def _scale_decimals(scale_value):
+            try:
+                scale_float = abs(float(scale_value))
+                if scale_float == 0.0:
+                    return 0
+                # Keep precision from string representation without trailing zeros.
+                scale_text = f"{scale_float:.12f}".rstrip('0').rstrip('.')
+                if '.' not in scale_text:
+                    return 0
+                return min(6, len(scale_text.split('.', 1)[1]))
+            except Exception:
+                return None
+
+        def _display_decimals(scale_value):
+            try:
+                scale_float = abs(float(scale_value))
+            except Exception:
+                return None
+
+            # Explicit display policy requested by user.
+            if abs(scale_float - 1.0) < 1e-9:
+                return None
+            if abs(scale_float - 0.1) < 1e-9:
+                return 1
+            if scale_float >= 0.2:
+                return 2
+
+            # Fallback for other uncommon scales.
+            return _scale_decimals(scale_float)
+
+        # Datatypes with explicit non-decimal representations.
+        if datatype:
+            datatype_lower = datatype.lower()
+            if datatype_lower == 'hex':
+                int_val = int(abs(num_value))
+                return f"0x{int_val:X}"
+            if datatype_lower in ('binary', 'bit', 'bool', 'boolean'):
+                int_val = int(abs(num_value))
+                return f"0b{int_val:b}"
+            if datatype_lower == 'raw':
+                return str(num_value)
+
+        # Apply engineering transform first: display = raw * scale + offset.
+        if scale is not None:
+            try:
+                s = float(scale)
+                o = float(offset) if offset is not None else 0.0
+                num_value = (num_value * s) + o
+            except Exception:
+                pass
+
+        # Primary rule: decimals follow scale precision when scale is provided.
+        try:
+            scale_float = abs(float(scale)) if scale is not None else None
+        except Exception:
+            scale_float = None
+
+        if scale_float is not None and abs(scale_float - 1.0) < 1e-9:
+            return f"{int(num_value)}" if num_value.is_integer() else f"{num_value:.2f}"
+
+        decimals = _display_decimals(scale)
+        if decimals is not None:
+            return f"{num_value:.{decimals}f}"
+
+        # Fallback behavior when scale is absent.
         if datatype:
             datatype_lower = datatype.lower()
             if datatype_lower in ('float', 'float32', 'real', 'float_inverse', 'floatinverse', 'float-inverse'):
                 return f"{num_value:.2f}"
-            elif datatype_lower in ('double', 'float64', 'double_inverse', 'doubleinverse', 'double-inverse'):
+            if datatype_lower in ('double', 'float64', 'double_inverse', 'doubleinverse', 'double-inverse'):
                 return f"{num_value:.4f}"
-            elif datatype_lower == 'hex':
-                int_val = int(abs(num_value))
-                return f"0x{int_val:X}"
-            elif datatype_lower in ('binary', 'bit', 'bool', 'boolean'):
-                int_val = int(abs(num_value))
-                return f"0b{int_val:b}"
-            elif datatype_lower == 'raw':
-                return str(num_value)
-            elif datatype_lower in ('signed', 'unsigned', 'word', 'short', 'dword', 'dint', 'long', 'long_inverse', 'longinverse', 'long-inverse', 'int16', 'int32', 'uint16', 'uint32', 'ushort', 'udint', 'int64'):
-                if num_value.is_integer():
-                    return f"{int(num_value)}"
-                else:
-                    return f"{round(num_value, 2):g}"
         if num_value.is_integer():
             return f"{int(num_value)}"
         else:

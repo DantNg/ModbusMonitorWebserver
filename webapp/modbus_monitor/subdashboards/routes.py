@@ -265,6 +265,18 @@ def subdash_detail(sid):
 
     current_group = request.args.get('group', '__all__')
 
+    tag_transform_map = {}
+    try:
+        for t in all_tags:
+            tid = t.get('id') if isinstance(t, dict) else None
+            if tid is not None:
+                tag_transform_map[int(tid)] = {
+                    'scale': float(t.get('scale', 1) if t.get('scale') is not None else 1),
+                    'offset': float(t.get('offset', 0) if t.get('offset') is not None else 0)
+                }
+    except Exception:
+        tag_transform_map = {}
+
     response = make_response(render_template(
         "subdashboards/detail.html",
         subdash=subdash,
@@ -273,7 +285,8 @@ def subdash_detail(sid):
         current_group=current_group,
         active_quad_alarms=active_quad_alarms,
         active_tag_alarms=active_tag_alarms,
-        active_card_alarms=active_card_alarms
+        active_card_alarms=active_card_alarms,
+        tag_scale_map=tag_transform_map
     ))
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['Pragma'] = 'no-cache'

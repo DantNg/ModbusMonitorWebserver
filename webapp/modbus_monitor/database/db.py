@@ -844,6 +844,7 @@ def list_all_tags():
                 tags.c.device_id.label("device_id"),
                 devices.c.name.label("device_name"),
                 tags.c.address, tags.c.datatype, tags.c.unit,
+                tags.c.scale, tags.c.offset,
             ).select_from(tags.join(devices, tags.c.device_id == devices.c.id))
              .order_by(devices.c.name.asc(), tags.c.name.asc())
         ).mappings().all()
