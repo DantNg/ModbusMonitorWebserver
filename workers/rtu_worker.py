@@ -612,9 +612,19 @@ class RTUWorker:
     def _read_block(self, device, fc, tg_list):
         if not self.client: return {}
 
-        tg_sorted = sorted(tg_list, key=lambda x: int(x.address))
-        min_addr = int(tg_sorted[0].address)
-        max_addr = int(tg_sorted[-1].address)
+        # Build normalized addresses first so mixed notations (e.g. 1 and 40001)
+        # still generate a valid contiguous read range.
+        tg_with_norm = []
+        for t in tg_list:
+            raw_addr = int(t.address)
+            norm_addr = normalize_address(raw_addr, self.address_base)
+            tg_with_norm.append((t, raw_addr, norm_addr))
+
+        tg_with_norm.sort(key=lambda x: x[2])
+        tg_sorted = [x[0] for x in tg_with_norm]
+
+        min_addr = min(x[1] for x in tg_with_norm)
+        max_addr = max(x[1] for x in tg_with_norm)
 
         max_regs = 1
         for t in tg_sorted:
@@ -626,13 +636,13 @@ class RTUWorker:
                 n = 4 if dt in ("double","float64") else (2 if dt in ("float","float32","real","int32","uint32","dint","dword","long") else 1)
                 max_regs = max(max_regs, n)
 
-        start = normalize_address(min_addr, self.address_base)
-        end   = normalize_address(max_addr, self.address_base)
+        start = min(x[2] for x in tg_with_norm)
+        end   = max(x[2] for x in tg_with_norm)
         count = (end - start + 1) + (max_regs - 1)
         unit  = getattr(device, "unit_id", 1)
 
         if self.debug:
-            print(f"   🔍 FC{fc}: {min_addr}-{max_addr} -> start={start}, count={count}")
+            print(f"   🔍 FC{fc}: raw={min_addr}-{max_addr} -> start={start}, count={count}")
 
         try:
             def do_read():
