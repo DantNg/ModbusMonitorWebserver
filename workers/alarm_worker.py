@@ -317,6 +317,10 @@ class AlarmWorker:
         self._quad_card_cache_ttl = 30.0  # Quad card info changes rarely
         
         self._tag_value_cache: Dict[int, Optional[float]] = {}  # Per-cycle tag value cache
+        # Cache scale+offset cho từng tag để chuyển raw → engineering units khi so sánh alarm
+        self._tag_transform_cache: Dict[int, tuple] = {}  # tag_id -> (scale, offset)
+        self._tag_transform_cache_ts: Dict[int, float] = {}
+        self._tag_transform_cache_ttl = 60.0  # reload sau 60 giây
         
         # Cache for quad-managed tag IDs (to skip regular alarms for these tags)
         # DEPRECATED: dùng _managed_tag_ids thay thế (thống nhất quad + card)
@@ -954,8 +958,27 @@ class AlarmWorker:
             self.log("ERROR", f"Failed to load alarm rules: {e}")
             return self._cached_alarm_rules or []
     
+    def _get_tag_transform(self, tag_id: int):
+        """Trả về (scale, offset) cho tag, cache 60 giây để giảm query DB."""
+        now = time.time()
+        if (tag_id in self._tag_transform_cache and
+                now - self._tag_transform_cache_ts.get(tag_id, 0) < self._tag_transform_cache_ttl):
+            return self._tag_transform_cache[tag_id]
+        sf, off = 1.0, 0.0
+        try:
+            if self.db_available:
+                tag_info = self.db.get_tag(tag_id)
+                if tag_info:
+                    sf = float(tag_info.get('scale', 1) or 1)
+                    off = float(tag_info.get('offset', 0) or 0)
+        except Exception:
+            pass
+        self._tag_transform_cache[tag_id] = (sf, off)
+        self._tag_transform_cache_ts[tag_id] = now
+        return (sf, off)
+
     def _get_tag_value(self, tag_id: int) -> Optional[float]:
-        """Get current tag value from tag_latest_values table (per-cycle cache)"""
+        """Get current tag value in engineering units (raw × scale + offset) from tag_latest_values table (per-cycle cache)"""
         if not self.db_available:
             return None
         
@@ -974,6 +997,13 @@ class AlarmWorker:
                     value = result.get("value")
                 else:
                     value = result
+            # Apply scale+offset để chuyển raw register → engineering units trước khi so sánh threshold
+            if value is not None:
+                try:
+                    sf, off = self._get_tag_transform(tag_id)
+                    value = float(value) * sf + off
+                except Exception:
+                    pass
             self._tag_value_cache[tag_id] = value
             return value
         except Exception as e:

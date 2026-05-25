@@ -552,23 +552,19 @@ class RTUWorker:
                 if sf != 1.0: val *= sf
                 if off != 0.0: val += off
 
+                # Store RAW value in DB - alarm_worker sẽ áp scale+offset khi so sánh threshold
+                raw_float = float(raw)
                 try:
-                    update_tag_latest_value(t.id, val, datetime.now())
+                    update_tag_latest_value(t.id, raw_float, datetime.now())
                 except Exception as e:
                     last_error = str(e)
                     if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
 
-                if sf != 1.0:
-                    formatted_value = round(val, 1) if val == int(val) else round(val, 2)
-                else:
-                    formatted_value = round(val, 2)
-                if sf == 1.0 and isinstance(val, float) and val.is_integer():
-                    formatted_value = int(val)
-
+                # Emit giá trị RAW; JS transformTagValue sẽ nhân scale+offset để hiển thị đúng
                 all_rows.append({
                     "id": t.id,
                     "name": t.name,
-                    "value": str(formatted_value),
+                    "value": str(raw_float),
                     "datatype": getattr(t, "data_type", None) or getattr(t, "datatype", "Word"),
                     "unit": getattr(t, "unit", ""),
                     "ts": now_hms()

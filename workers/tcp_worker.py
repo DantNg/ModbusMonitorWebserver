@@ -387,30 +387,26 @@ class TCPWorker:
                 if sf != 1.0: val *= sf
                 if off != 0.0: val += off
 
-                # DB write latest
+                # DB write latest - lưu giá trị RAW (chưa qua scale/offset).
+                # format_value filter (Jinja2) và transformTagValue (JS) sẽ áp dụng
+                # scale+offset một lần duy nhất khi hiển thị.
+                raw_float = float(raw)
                 try:
                     if update_tag_latest_value:
-                        update_tag_latest_value(t.id, val, datetime.now())
+                        update_tag_latest_value(t.id, raw_float, datetime.now())
                     elif self.db:
-                        self.db.update_tag_latest_value(t.id, val, datetime.now())
+                        self.db.update_tag_latest_value(t.id, raw_float, datetime.now())
                 except Exception as e:
                     last_error = str(e)
                     if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
 
-                # format hiển thị
-                if sf != 1.0:
-                    formatted_value = round(val, 1) if val == int(val) else round(val, 2)
-                else:
-                    formatted_value = round(val, 2)
-                if sf == 1.0 and isinstance(val, float) and val.is_integer():
-                    formatted_value = int(val)
-
                 if self.debug:
-                    print(f"   - {t.name} (addr={t.address}, fc={fc}) = {formatted_value} {getattr(t,'unit','')}")
+                    print(f"   - {t.name} (addr={t.address}, fc={fc}) = {val} {getattr(t,'unit','')}")
+                # Emit giá trị RAW; JS transformTagValue sẽ nhân scale+offset để hiển thị đúng
                 all_rows.append({
                     "id": t.id,
                     "name": t.name,
-                    "value": str(formatted_value),
+                    "value": str(raw_float),
                     "datatype": getattr(t, "data_type", None) or getattr(t, "datatype", "Word"),
                     "unit": getattr(t, "unit", ""),
                     "ts": now_hms()
