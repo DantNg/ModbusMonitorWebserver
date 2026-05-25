@@ -58,8 +58,8 @@
 /* Quad Tag Card Styles - Dashboard Style */
 .quad-tag-card {
   border-radius: 14px !important;
-  /* Ẩn ban đầu để tránh flash layout cũ trước khi JS rebuild */
-  visibility: hidden;
+  /* Keep visible by default to avoid blank cards if JS rebuild is interrupted */
+  visibility: visible;
   /* Allow dropdown menus to overflow card bounds */
   overflow: visible !important;
   position: relative !important;
@@ -104,7 +104,7 @@
 
 /* Sub-card styling */
 .quad-sub-card {
-  padding: 14px 14px 32px 14px !important;
+  padding: 0 !important;
   transition: all 0.3s ease !important;
   position: relative !important;
   margin: 0 !important;
@@ -118,9 +118,9 @@
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  margin: -14px -14px 12px -14px !important;
+  margin: 0 !important;
   padding: 10px 14px !important;
-  border-radius: 12px 12px 8px 8px !important;
+  border-radius: 12px 12px 0 0 !important;
   color: #fff !important;
   font-weight: 700 !important;
   font-size: 0.95rem !important;
@@ -149,6 +149,7 @@
 }
 
 .quad-tag-row {
+  padding: 8px 14px 4px 14px !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 14px !important;
@@ -159,7 +160,8 @@
   border-radius: 8px !important;
   padding: 12px 14px !important;
   display: grid !important;
-  grid-template-columns: auto 1fr auto !important;
+  grid-template-columns: auto 1fr !important;
+  visibility: visible;
   align-items: center !important;
   transition: all 0.3s ease !important;
   position: relative !important;
@@ -174,13 +176,12 @@
 }
 
 .quad-tag-label {
-  background: rgba(255,255,255,0.9) !important;
   background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%) !important;
-  color: #1a1d23 !important;
-  padding: 4px 8px !important;
+  color: #ffffff !important;
+  padding: 4px 10px !important;
   border-radius: 4px !important;
   font-size: 0.875rem !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   min-width: 50px !important;
   text-align: center !important;
 }
@@ -188,7 +189,7 @@
 /* Quad label colors by role: keep PV orange, force SV blue */
 .quad-tag-item.pv-item .quad-tag-label {
   background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%) !important;
-  color: #1a1d23 !important;
+  color: #ffffff !important;
 }
 
 .quad-tag-item.sv-item .quad-tag-label {
@@ -202,8 +203,7 @@
   gap: 8px !important;
   justify-content: space-between !important;
   flex: 1 1 auto !important;
-  text-align: center !important;
-  position: relative !important;
+  text-align: left !important;
 }
 
 .quad-sub-card .quad-tag-value {
@@ -218,18 +218,14 @@
 .quad-sub-card .quad-tag-unit {
   font-size: 0.875rem !important;
   font-weight: 500 !important;
-  color: #4b5563 !important;
+  color: #9ca3af !important;
   text-transform: uppercase !important;
-  position: absolute !important;
-  right: 8px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
+  white-space: nowrap !important;
 }
 
 .quad-update-time {
-  position: absolute !important;
-  bottom: 8px !important;
-  left: 16px !important;
+  position: static !important;
+  padding: 2px 14px 8px !important;
   font-size: 0.75rem !important;
   color: #6b7280 !important;
   display: flex !important;
@@ -2030,4 +2026,54 @@
 [data-bs-theme="dark"] .qtag6-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-label.label-sv,
 [data-bs-theme="dark"] .qtag6-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-label.label-sv {
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+}
+
+/* Final override: PV Only alarm border colors (only PV Only cards). */
+.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high {
+  border: 3px solid #dc2626 !important;
+  --pvonly-alarm-border-color: #dc2626;
+  --pvonly-alarm-border-width: 3px;
+}
+
+.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low {
+  border: 3px solid #f59e0b !important;
+  --pvonly-alarm-border-color: #f59e0b;
+  --pvonly-alarm-border-width: 3px;
+}
+
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high {
+  border: 3px solid #dc2626 !important;
+  --pvonly-alarm-border-color: #dc2626;
+  --pvonly-alarm-border-width: 3px;
+}
+
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low {
+  border: 3px solid #f59e0b !important;
+  --pvonly-alarm-border-color: #f59e0b;
+  --pvonly-alarm-border-width: 3px;
+}
+
+.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high .qtag-single-update-time,
+.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low .qtag-single-update-time {
+  border-top: var(--pvonly-alarm-border-width, 0) solid var(--pvonly-alarm-border-color, transparent) !important;
+  /* Extend divider to meet outer border so the stroke looks continuous. */
+  margin-left: calc(0 * var(--pvonly-alarm-border-width, 0));
+  margin-right: calc(-1 * var(--pvonly-alarm-border-width, 0));
+  padding-left: calc(14px + var(--pvonly-alarm-border-width, 0));
+  padding-right: calc(14px + var(--pvonly-alarm-border-width, 0));
+}
+
+/* PV Only alarm behavior: keep card background unchanged, only border color changes. */
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low {
+  background: #fff !important;
+  background-image: none !important;
+  animation: none !important;
+}
+
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high,
+[data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low {
+  background: #1f2937 !important;
+  background-image: none !important;
+  animation: none !important;
 }

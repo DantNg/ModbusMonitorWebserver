@@ -3329,20 +3329,37 @@ def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int,
                        sv_right_type='tag', sv_right_fixed=None) -> int:
     """Add a new quad tag card to a group. SV tags support fix value mode."""
     with init_engine().begin() as con:
-        res = con.execute(
-            insert(subdash_quad_cards).values(
-                group_id=group_id,
-                tag1_id=tag1_id,
-                tag2_id=tag2_id,
-                tag3_id=tag3_id,
-                tag4_id=tag4_id,
-                sv_left_type=sv_left_type, sv_left_fixed=sv_left_fixed,
-                sv_right_type=sv_right_type, sv_right_fixed=sv_right_fixed,
-                card_title=card_title,
-                left_title=left_title,
-                right_title=right_title
-            )
-        )
+        values_dict = {
+            'group_id': group_id,
+            'tag1_id': tag1_id,
+            'tag2_id': tag2_id,
+            'tag3_id': tag3_id,
+            'tag4_id': tag4_id,
+            'sv_left_type': sv_left_type,
+            'sv_left_fixed': sv_left_fixed,
+            'sv_right_type': sv_right_type,
+            'sv_right_fixed': sv_right_fixed,
+            'card_title': card_title,
+            'left_title': left_title,
+            'right_title': right_title,
+        }
+        try:
+            res = con.execute(insert(subdash_quad_cards).values(**values_dict))
+        except IntegrityError as e:
+            # Compatibility fallback for legacy DBs where tag3_id/tag4_id are still NOT NULL.
+            # In fixed SV mode these columns are semantically unused, so map to PV tag ids.
+            msg = str(e).lower()
+            is_not_null_tag3 = ("tag3_id" in msg and ("cannot be null" in msg or "null" in msg))
+            is_not_null_tag4 = ("tag4_id" in msg and ("cannot be null" in msg or "null" in msg))
+            if (tag3_id is None and is_not_null_tag3) or (tag4_id is None and is_not_null_tag4):
+                fallback_values = dict(values_dict)
+                if fallback_values.get('tag3_id') is None:
+                    fallback_values['tag3_id'] = tag1_id
+                if fallback_values.get('tag4_id') is None:
+                    fallback_values['tag4_id'] = tag2_id
+                res = con.execute(insert(subdash_quad_cards).values(**fallback_values))
+            else:
+                raise
         return res.inserted_primary_key[0]
 
 def get_quad_cards_for_group(group_id: int):
@@ -3437,11 +3454,30 @@ def update_quad_card(quad_card_id: int, tag1_id: int, tag2_id: int,
             if right_title is not None:
                 values_dict['right_title'] = right_title
             
-            result = con.execute(
-                update(subdash_quad_cards)
-                .where(subdash_quad_cards.c.id == quad_card_id)
-                .values(**values_dict)
-            )
+            try:
+                result = con.execute(
+                    update(subdash_quad_cards)
+                    .where(subdash_quad_cards.c.id == quad_card_id)
+                    .values(**values_dict)
+                )
+            except IntegrityError as e:
+                # Compatibility fallback for legacy DBs where tag3_id/tag4_id are still NOT NULL.
+                msg = str(e).lower()
+                is_not_null_tag3 = ("tag3_id" in msg and ("cannot be null" in msg or "null" in msg))
+                is_not_null_tag4 = ("tag4_id" in msg and ("cannot be null" in msg or "null" in msg))
+                if (values_dict.get('tag3_id') is None and is_not_null_tag3) or (values_dict.get('tag4_id') is None and is_not_null_tag4):
+                    fallback_values = dict(values_dict)
+                    if fallback_values.get('tag3_id') is None:
+                        fallback_values['tag3_id'] = tag1_id
+                    if fallback_values.get('tag4_id') is None:
+                        fallback_values['tag4_id'] = tag2_id
+                    result = con.execute(
+                        update(subdash_quad_cards)
+                        .where(subdash_quad_cards.c.id == quad_card_id)
+                        .values(**fallback_values)
+                    )
+                else:
+                    raise
             return result.rowcount > 0
     except Exception as e:
         print(f"Error updating quad card {quad_card_id}: {e}")

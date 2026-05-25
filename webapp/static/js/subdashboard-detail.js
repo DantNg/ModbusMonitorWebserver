@@ -443,7 +443,14 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
               icon: 'success',
               timer: 2000
             }).then(() => {
-              location.reload();
+              const targetGroupId = data.group_id || groupId;
+              if (targetGroupId) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('group', String(targetGroupId));
+                window.location.href = url.toString();
+              } else {
+                location.reload();
+              }
             });
           } else {
             Swal.fire({
@@ -1423,7 +1430,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
 
   // ===== Quad Tag Layout Cache =====
   // Lưu layout HTML đã build vào localStorage, lần load sau inject trực tiếp → không flash
-  const QUAD_CACHE_PREFIX = `quad_layout_${currentSubdashId}_`;
+  const QUAD_CACHE_PREFIX = `quad_layout_v2_${currentSubdashId}_`;
 
   function saveQuadGridCache(quadId, gridEl) {
     try {
@@ -1512,6 +1519,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
       console.log(`Processing quad card ${cardIndex + 1} (full rebuild)`);
       
       if (items.length >= 4) {
+        const originalBodyHTML = body.innerHTML;
         // Get the grid container
         let grid = card.querySelector('.quad-tag-grid');
         if (!grid) {
@@ -1525,60 +1533,72 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           }
         }
         
-        // Clear existing content
-        grid.innerHTML = '';
-        
-        // Extract data from existing items - MUST BE IN ORDER
-        const itemsData = [];
-        for (let i = 0; i < 4; i++) {
-          const item = items[i];
-          if (!item) {
-            console.warn(`Quad tag ${i} not found!`);
-            continue;
-          }
-          
-          // Get tag ID from data attribute
-          const tagId = item.getAttribute('data-tag-id');
-          if (!tagId) {
-            console.warn(`Tag ID not found for item ${i}`);
-            continue;
+        try {
+          // Extract data from existing items - MUST BE IN ORDER
+          const itemsData = [];
+          for (let i = 0; i < 4; i++) {
+            const item = items[i];
+            if (!item) {
+              console.warn(`Quad tag ${i} not found!`);
+              continue;
+            }
+
+            // Get tag ID from data attribute.
+            // For fixed SV rows, data-tag-id may be absent, so fallback to existing value element ID.
+            let tagId = item.getAttribute('data-tag-id');
+            if (!tagId) {
+              const existingValEl = item.querySelector('[id^="quad-tag-val-"]');
+              if (existingValEl && existingValEl.id) {
+                const m = existingValEl.id.match(/(\d+)$/);
+                tagId = m ? m[1] : `fixed-${cardId}-${i}`;
+              } else {
+                tagId = `fixed-${cardId}-${i}`;
+              }
+            }
+
+            // Preserve device status so quad-only dashboards know current state
+            const deviceStatus = item.getAttribute('data-device-status') || 'unknown';
+
+            // Read value/unit directly from this item to support both tag-SV and fixed-SV markup.
+            const valElement = item.querySelector('[id^="quad-tag-val-"]') || item.querySelector('.quad-tag-value span') || item.querySelector('.quad-tag-value .fw-bold') || item.querySelector('.fw-bold');
+            const unitElement = item.querySelector('.quad-tag-unit, small.text-muted, small');
+            const nameElement = item.querySelector('.quad-tag-name');
+
+            // Extract current value and unit — ưu tiên value cache nếu có
+            let value = valElement ? valElement.textContent.trim() : '0';
+            if (_quadValuesCache[tagId] !== undefined) {
+              value = _quadValuesCache[tagId];
+            }
+            const unit = unitElement ? unitElement.textContent.trim() : '';
+            const name = nameElement ? nameElement.textContent.trim() : `Tag ${i + 1}`;
+
+            // ✅ Use UNIQUE ID format: cardId + tagId để tránh duplicate IDs
+            const id = `quad-tag-val-${cardId}-${tagId}`;
+
+            console.log(`Quad tag ${i}: ID=${id}, CardID=${cardId}, TagID=${tagId}, Value=${value}, Unit=${unit}, Status=${deviceStatus}`);
+
+            itemsData.push({
+              value: value, // Keep original value without K/M formatting
+              unit: unit,
+              id: id,
+              tagId: tagId,
+              name: name,
+              deviceStatus: deviceStatus
+            });
           }
 
-          // Preserve device status so quad-only dashboards know current state
-          const deviceStatus = item.getAttribute('data-device-status') || 'unknown';
-          
-          // Find the value element by exact ID
-          const valElement = document.getElementById(`quad-tag-val-${tagId}`);
-          const unitElement = item.querySelector('small, .text-muted');
-          const nameElement = item.querySelector('.quad-tag-name');
-          
-          // Extract current value and unit — ưu tiên value cache nếu có
-          let value = valElement ? valElement.textContent.trim() : '0';
-          if (_quadValuesCache[tagId] !== undefined) {
-            value = _quadValuesCache[tagId];
+          if (itemsData.length < 4) {
+            console.warn(`Skipping quad rebuild for card ${cardId}: insufficient item data (${itemsData.length}/4)`);
+            return;
           }
-          const unit = unitElement ? unitElement.textContent.trim() : 'Kwh';
-          const name = nameElement ? nameElement.textContent.trim() : `Tag ${i + 1}`;
-          
-          // ✅ Use UNIQUE ID format: cardId + tagId để tránh duplicate IDs
-          const id = `quad-tag-val-${cardId}-${tagId}`;
-          
-          console.log(`Quad tag ${i}: ID=${id}, CardID=${cardId}, TagID=${tagId}, Value=${value}, Unit=${unit}, Status=${deviceStatus}`);
-          
-          itemsData.push({
-            value: value, // Keep original value without K/M formatting
-            unit: unit,
-            id: id,
-            tagId: tagId,
-            name: name,
-            deviceStatus: deviceStatus
-          });
-        }
+
+          // Clear existing content only after data extraction succeeded.
+          grid.innerHTML = '';
         
-        // ✅ REMOVE all original items completely to avoid duplicate IDs
-        items.forEach(item => {
-          item.remove();  // Xóa hoàn toàn khỏi DOM thay vì chỉ hide
-        });
+          // ✅ REMOVE all original items completely to avoid duplicate IDs
+          items.forEach(item => {
+            item.remove();  // Xóa hoàn toàn khỏi DOM thay vì chỉ hide
+          });
         
         // Get titles from data attributes (from database) with fallback to default names
         const cardTitleFromDB = card.getAttribute('data-card-title') || 'Quad Tag Card';
@@ -1588,12 +1608,12 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         const title1 = leftTitleFromDB;
         const title2 = rightTitleFromDB;
 
-        // Create first sub-card (Items 1 & 2)
-        const subCard1 = document.createElement('div');
-        subCard1.className = 'quad-sub-card';
-        subCard1.setAttribute('data-quad-id', cardId);
-        subCard1.setAttribute('data-column', 'left');
-        subCard1.innerHTML = `
+          // Create first sub-card (Items 1 & 2)
+          const subCard1 = document.createElement('div');
+          subCard1.className = 'quad-sub-card';
+          subCard1.setAttribute('data-quad-id', cardId);
+          subCard1.setAttribute('data-column', 'left');
+          subCard1.innerHTML = `
           <div class="quad-sub-card-head quad-group-1">
             <div class="quad-sub-card-title" data-title-slot="left">${title1}</div>
           </div>
@@ -1614,14 +1634,14 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             </div>
           </div>
           <div class="quad-update-time">Last updated: ${formatTime24h(new Date())}</div>
-        `;
+          `;
         
-        // Create second sub-card (Items 3 & 4)
-        const subCard2 = document.createElement('div');
-        subCard2.className = 'quad-sub-card';
-        subCard2.setAttribute('data-quad-id', cardId);
-        subCard2.setAttribute('data-column', 'right');
-        subCard2.innerHTML = `
+          // Create second sub-card (Items 3 & 4)
+          const subCard2 = document.createElement('div');
+          subCard2.className = 'quad-sub-card';
+          subCard2.setAttribute('data-quad-id', cardId);
+          subCard2.setAttribute('data-column', 'right');
+          subCard2.innerHTML = `
           <div class="quad-sub-card-head quad-group-2">
             <div class="quad-sub-card-title" data-title-slot="right">${title2}</div>
           </div>
@@ -1642,44 +1662,50 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             </div>
           </div>
           <div class="quad-update-time">Last updated: ${formatTime24h(new Date())}</div>
-        `;
+          `;
         
-        // Add sub-cards to grid
-        grid.appendChild(subCard1);
-        grid.appendChild(subCard2);
+          // Add sub-cards to grid
+          grid.appendChild(subCard1);
+          grid.appendChild(subCard2);
         
-        // ★ Lưu layout HTML vào cache cho lần load sau
-        saveQuadGridCache(cardId, grid);
+          // ★ Lưu layout HTML vào cache cho lần load sau
+          saveQuadGridCache(cardId, grid);
         
-        // Update card header title from database
-        const cardTitle = cardTitleFromDB;
+          // Update card header title from database
+          const cardTitle = cardTitleFromDB;
 
-        let cardHeader = card.querySelector('.card-header');
-        if (!cardHeader) {
-          cardHeader = document.createElement('div');
-          cardHeader.className = 'card-header bg-dark text-white d-flex justify-content-between align-items-center py-2';
-          const cardBody = card.querySelector('.card-body');
-          if (cardBody) {
-            cardBody.className = 'card-body p-0';
-            card.insertBefore(cardHeader, cardBody);
+          let cardHeader = card.querySelector('.card-header');
+          if (!cardHeader) {
+            cardHeader = document.createElement('div');
+            cardHeader.className = 'card-header bg-dark text-white d-flex justify-content-between align-items-center py-2';
+            const cardBody = card.querySelector('.card-body');
+            if (cardBody) {
+              cardBody.className = 'card-body p-0';
+              card.insertBefore(cardHeader, cardBody);
+            }
           }
-        }
 
-        let headerTitleEl = cardHeader.querySelector('.quad-card-title') || cardHeader.querySelector('.quad-card-header-title');
-        if (!headerTitleEl) {
-          headerTitleEl = document.createElement('span');
-          headerTitleEl.className = 'quad-card-title fw-semibold';
-          headerTitleEl.textContent = cardTitle;
-          // Prepend to keep the gear icon on the right
-          const flexWrapper = document.createElement('div');
-          flexWrapper.className = 'd-flex align-items-center gap-2';
-          flexWrapper.appendChild(headerTitleEl);
-          cardHeader.prepend(flexWrapper);
-        } else {
-          headerTitleEl.textContent = cardTitle;
+          let headerTitleEl = cardHeader.querySelector('.quad-card-title') || cardHeader.querySelector('.quad-card-header-title');
+          if (!headerTitleEl) {
+            headerTitleEl = document.createElement('span');
+            headerTitleEl.className = 'quad-card-title fw-semibold';
+            headerTitleEl.textContent = cardTitle;
+            // Prepend to keep the gear icon on the right
+            const flexWrapper = document.createElement('div');
+            flexWrapper.className = 'd-flex align-items-center gap-2';
+            flexWrapper.appendChild(headerTitleEl);
+            cardHeader.prepend(flexWrapper);
+          } else {
+            headerTitleEl.textContent = cardTitle;
+          }
+
+          console.log(`✅ Successfully restructured quad card ${cardIndex + 1}`);
+        } catch (err) {
+          console.error(`❌ Quad rebuild failed for card ${cardId}:`, err);
+          // Fallback to server-rendered HTML instead of leaving blank body.
+          const cardBody = card.querySelector('.card-body');
+          if (cardBody) cardBody.innerHTML = originalBodyHTML;
         }
-        
-        console.log(`✅ Successfully restructured quad card ${cardIndex + 1}`);
       }
     });
     

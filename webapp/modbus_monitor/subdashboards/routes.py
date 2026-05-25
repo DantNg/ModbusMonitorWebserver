@@ -749,19 +749,21 @@ def add_quad_tag_card(sid):
             tag4_id = int(tag4_id_raw)
             
         # Handle group assignment
-        if new_group_name and new_group_name.strip():
+        # Priority: use selected existing group first.
+        # Only create new group when no existing group is selected.
+        if group_id:
+            group_id = int(group_id)
+            group = db.get_subdash_group(group_id)
+            group_name = group.get("name", "Unknown") if group else "Unknown"
+            message_suffix = f" in group '{group_name}'"
+        elif new_group_name and new_group_name.strip():
             group_data = {
                 "dashboard_id": sid,
                 "name": new_group_name.strip(),
                 "order": 0
             }
             group_id = db.add_subdash_group(group_data)
-            message_suffix = f" in new group '{new_group_name}'"
-        elif group_id:
-            group_id = int(group_id)
-            group = db.get_subdash_group(group_id)
-            group_name = group.get("name", "Unknown") if group else "Unknown"
-            message_suffix = f" in group '{group_name}'"
+            message_suffix = f" in new group '{new_group_name.strip()}'"
         else:
             return jsonify({"success": False, "message": "Please select a group or enter a new group name"}), 400
         
@@ -785,7 +787,8 @@ def add_quad_tag_card(sid):
         return jsonify({
             "success": True, 
             "message": f"Quad tag card added successfully{message_suffix}",
-            "quad_card_id": quad_card_id
+            "quad_card_id": quad_card_id,
+            "group_id": group_id
         })
         
     except Exception as e:
