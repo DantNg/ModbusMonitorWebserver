@@ -749,6 +749,7 @@ try {
         }
         if (svLeftType === 'fixed') {
           document.getElementById('edit_sv_left_fixed').value = btn.dataset.svLeftFixed || '';
+          document.getElementById('edit_sv_left_fixed_unit').value = btn.dataset.svLeftFixedUnit || '';
         } else {
           document.getElementById('edit_tag3_select').value = btn.dataset.tag3Id || '';
         }
@@ -764,6 +765,7 @@ try {
         }
         if (svRightType === 'fixed') {
           document.getElementById('edit_sv_right_fixed').value = btn.dataset.svRightFixed || '';
+          document.getElementById('edit_sv_right_fixed_unit').value = btn.dataset.svRightFixedUnit || '';
         } else {
           document.getElementById('edit_tag4_select').value = btn.dataset.tag4Id || '';
         }
@@ -4013,8 +4015,8 @@ try {
 
     // SV fields
     const svFields = [
-      { prefix: 'left_sv', typeEl: 'editQtag4LeftSvType', fixedEl: 'editQtag4LeftSvFixed', tagEl: 'editQtag4Tag3', dataType: 'leftSvType', dataFixed: 'leftSvFixed', dataTag: 'tag3Id' },
-      { prefix: 'right_sv', typeEl: 'editQtag4RightSvType', fixedEl: 'editQtag4RightSvFixed', tagEl: 'editQtag4Tag4', dataType: 'rightSvType', dataFixed: 'rightSvFixed', dataTag: 'tag4Id' },
+      { prefix: 'left_sv', typeEl: 'editQtag4LeftSvType', fixedEl: 'editQtag4LeftSvFixed', fixedUnitEl: 'editQtag4LeftSvFixedUnit', tagEl: 'editQtag4Tag3', dataType: 'leftSvType', dataFixed: 'leftSvFixed', dataFixedUnit: 'leftSvFixedUnit', dataTag: 'tag3Id' },
+      { prefix: 'right_sv', typeEl: 'editQtag4RightSvType', fixedEl: 'editQtag4RightSvFixed', fixedUnitEl: 'editQtag4RightSvFixedUnit', tagEl: 'editQtag4Tag4', dataType: 'rightSvType', dataFixed: 'rightSvFixed', dataFixedUnit: 'rightSvFixedUnit', dataTag: 'tag4Id' },
     ];
     svFields.forEach(f => {
       const svType = btn.dataset[f.dataType] || 'tag';
@@ -4028,6 +4030,8 @@ try {
       }
       if (svType === 'fixed') {
         document.getElementById(f.fixedEl).value = btn.dataset[f.dataFixed] || '';
+        const fixedUnitEl = document.getElementById(f.fixedUnitEl);
+        if (fixedUnitEl) fixedUnitEl.value = btn.dataset[f.dataFixedUnit] || '';
       } else {
         document.getElementById(f.tagEl).value = btn.dataset[f.dataTag] || '';
       }
@@ -4227,6 +4231,7 @@ try {
     }
     if (svHighType === 'fixed') {
       document.getElementById('editQtag3SvHighFixed').value = btn.dataset.svHighFixed || '';
+      document.getElementById('editQtag3SvHighFixedUnit').value = btn.dataset.svHighFixedUnit || '';
     } else {
       document.getElementById('editQtag3Tag2').value = btn.dataset.tag2Id || '';
     }
@@ -4242,6 +4247,7 @@ try {
     }
     if (svLowType === 'fixed') {
       document.getElementById('editQtag3SvLowFixed').value = btn.dataset.svLowFixed || '';
+      document.getElementById('editQtag3SvLowFixedUnit').value = btn.dataset.svLowFixedUnit || '';
     } else {
       document.getElementById('editQtag3Tag3').value = btn.dataset.tag3Id || '';
     }
@@ -4438,6 +4444,7 @@ try {
     }
     if (svType === 'fixed') {
       document.getElementById('editQtag2SvFixed').value = btn.dataset.svFixed || '';
+      document.getElementById('editQtag2SvFixedUnit').value = btn.dataset.svFixedUnit || '';
     } else {
       document.getElementById('editQtag2Tag2').value = btn.dataset.tag2Id || '';
     }
@@ -4716,10 +4723,10 @@ try {
 
     // SV type/fixed/tag population helper
     const svFields = [
-      { prefix: 'left_sv_high', typeEl: 'editQtag6LeftSvHighType', fixedEl: 'editQtag6LeftSvHighFixed', tagEl: 'editQtag6Tag3', dataType: 'leftSvHighType', dataFixed: 'leftSvHighFixed', dataTag: 'tag3Id' },
-      { prefix: 'right_sv_high', typeEl: 'editQtag6RightSvHighType', fixedEl: 'editQtag6RightSvHighFixed', tagEl: 'editQtag6Tag4', dataType: 'rightSvHighType', dataFixed: 'rightSvHighFixed', dataTag: 'tag4Id' },
-      { prefix: 'left_sv_low', typeEl: 'editQtag6LeftSvLowType', fixedEl: 'editQtag6LeftSvLowFixed', tagEl: 'editQtag6Tag5', dataType: 'leftSvLowType', dataFixed: 'leftSvLowFixed', dataTag: 'tag5Id' },
-      { prefix: 'right_sv_low', typeEl: 'editQtag6RightSvLowType', fixedEl: 'editQtag6RightSvLowFixed', tagEl: 'editQtag6Tag6', dataType: 'rightSvLowType', dataFixed: 'rightSvLowFixed', dataTag: 'tag6Id' },
+      { prefix: 'left_sv_high', typeEl: 'editQtag6LeftSvHighType', fixedEl: 'editQtag6LeftSvHighFixed', fixedUnitEl: 'editQtag6LeftSvHighFixedUnit', tagEl: 'editQtag6Tag3', dataType: 'leftSvHighType', dataFixed: 'leftSvHighFixed', dataFixedUnit: 'leftSvHighFixedUnit', dataTag: 'tag3Id' },
+      { prefix: 'right_sv_high', typeEl: 'editQtag6RightSvHighType', fixedEl: 'editQtag6RightSvHighFixed', fixedUnitEl: 'editQtag6RightSvHighFixedUnit', tagEl: 'editQtag6Tag4', dataType: 'rightSvHighType', dataFixed: 'rightSvHighFixed', dataFixedUnit: 'rightSvHighFixedUnit', dataTag: 'tag4Id' },
+      { prefix: 'left_sv_low', typeEl: 'editQtag6LeftSvLowType', fixedEl: 'editQtag6LeftSvLowFixed', fixedUnitEl: 'editQtag6LeftSvLowFixedUnit', tagEl: 'editQtag6Tag5', dataType: 'leftSvLowType', dataFixed: 'leftSvLowFixed', dataFixedUnit: 'leftSvLowFixedUnit', dataTag: 'tag5Id' },
+      { prefix: 'right_sv_low', typeEl: 'editQtag6RightSvLowType', fixedEl: 'editQtag6RightSvLowFixed', fixedUnitEl: 'editQtag6RightSvLowFixedUnit', tagEl: 'editQtag6Tag6', dataType: 'rightSvLowType', dataFixed: 'rightSvLowFixed', dataFixedUnit: 'rightSvLowFixedUnit', dataTag: 'tag6Id' },
     ];
     svFields.forEach(f => {
       const svType = btn.dataset[f.dataType] || 'tag';
@@ -4733,6 +4740,8 @@ try {
       }
       if (svType === 'fixed') {
         document.getElementById(f.fixedEl).value = btn.dataset[f.dataFixed] || '';
+        const fixedUnitEl = document.getElementById(f.fixedUnitEl);
+        if (fixedUnitEl) fixedUnitEl.value = btn.dataset[f.dataFixedUnit] || '';
       } else {
         document.getElementById(f.tagEl).value = btn.dataset[f.dataTag] || '';
       }
@@ -4801,6 +4810,7 @@ try {
       document.querySelector('.edit-sv-high-fixed-group').style.display = '';
       document.querySelector('.edit-sv-high-tag-group').style.display = 'none';
       document.getElementById('editSingle3SvHighFixed').value = btn.dataset.svHighFixed || '';
+      document.getElementById('editSingle3SvHighFixedUnit').value = btn.dataset.svHighFixedUnit || '';
     }
 
     // SV LOW
@@ -4814,6 +4824,7 @@ try {
       document.querySelector('.edit-sv-low-fixed-group').style.display = '';
       document.querySelector('.edit-sv-low-tag-group').style.display = 'none';
       document.getElementById('editSingle3SvLowFixed').value = btn.dataset.svLowFixed || '';
+      document.getElementById('editSingle3SvLowFixedUnit').value = btn.dataset.svLowFixedUnit || '';
     }
 
     const modal = new bootstrap.Modal(document.getElementById('editQtagSingle3Modal'));

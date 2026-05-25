@@ -34,9 +34,11 @@
                         data-sv-high-type="{{ card.sv_high_type or 'fixed' }}"
                         data-sv-high-tag-id="{{ card.sv_high_tag_id or '' }}"
                         data-sv-high-fixed="{{ card.sv_high_fixed or '' }}"
+                        data-sv-high-fixed-unit="{{ card.sv_high_fixed_unit or '' }}"
                         data-sv-low-type="{{ card.sv_low_type or 'fixed' }}"
                         data-sv-low-tag-id="{{ card.sv_low_tag_id or '' }}"
-                        data-sv-low-fixed="{{ card.sv_low_fixed or '' }}">
+                        data-sv-low-fixed="{{ card.sv_low_fixed or '' }}"
+                        data-sv-low-fixed-unit="{{ card.sv_low_fixed_unit or '' }}">
               <i class="bi bi-pencil me-2"></i>Edit Tags</button></li>
             <li><button class="dropdown-item text-danger delete-qtag-single3-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
             <li><hr class="dropdown-divider"></li>
@@ -83,7 +85,7 @@
                 {{ ( card.sv_high_value if card.sv_high_value is not none else 0) | format_value }}
               </span>
             </div>
-            <div class="qtag-single-tag-unit">{{ card.pv_tag.unit or '' }}</div>
+            <div class="qtag-single-tag-unit">{{ (card.sv_high_tag.unit if card.sv_high_type == 'tag' and card.sv_high_tag else (card.sv_low_tag.unit if card.sv_low_type == 'tag' and card.sv_low_tag else (card.sv_high_fixed_unit or card.sv_low_fixed_unit))) or card.pv_tag.unit or '' }}</div>
           </div>
         </div>
       </div>

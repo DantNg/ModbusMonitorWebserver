@@ -39,8 +39,10 @@
                         data-tag3-id="{{ card.tag3_id or '' }}"
                         data-sv-high-type="{{ card.sv_high_type or 'tag' }}"
                         data-sv-high-fixed="{{ card.sv_high_fixed if card.sv_high_fixed is not none else '' }}"
+                        data-sv-high-fixed-unit="{{ card.sv_high_fixed_unit or '' }}"
                         data-sv-low-type="{{ card.sv_low_type or 'tag' }}"
-                        data-sv-low-fixed="{{ card.sv_low_fixed if card.sv_low_fixed is not none else '' }}">
+                        data-sv-low-fixed="{{ card.sv_low_fixed if card.sv_low_fixed is not none else '' }}"
+                        data-sv-low-fixed-unit="{{ card.sv_low_fixed_unit or '' }}">
               <i class="bi bi-pencil me-2"></i>Edit Tags</button></li>
             <li><button class="dropdown-item text-danger delete-qtag3-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
             <li><hr class="dropdown-divider"></li>
@@ -88,7 +90,7 @@
                     <span class="qtag6-sv-separator">-</span>
                     <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag3-sv-high" id="qtag3-sv-high-{{ card.id }}" {% if (card.sv_high_type or 'tag') == 'tag' and card.tag2_id %}data-tag-id="{{ card.tag2_id }}"{% endif %}>{{ ( card.tag2.last_value if card.tag2 else (card.tag2_sv_value if card.tag2_sv_value is not none else 0)) | format_value((card.tag2.scale if card.tag2 else none), (card.tag2.offset if card.tag2 else 0)) }}</span>
                   </div>
-                  <div class="qtag6-tag-unit">{{ card.tag1.unit or '' }}</div>
+                  <div class="qtag6-tag-unit">{{ (card.tag2.unit if (card.sv_high_type or 'tag') == 'tag' and card.tag2 else (card.tag3.unit if (card.sv_low_type or 'tag') == 'tag' and card.tag3 else (card.sv_high_fixed_unit or card.sv_low_fixed_unit))) or card.tag1.unit or '' }}</div>
                 </div>
               </div>
             </div>

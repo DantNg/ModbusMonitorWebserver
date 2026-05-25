@@ -325,8 +325,10 @@
                               data-tag4-id="{{ quad_card.tag4_id or '' }}"
                               data-sv-left-type="{{ quad_card.sv_left_type or 'tag' }}"
                               data-sv-left-fixed="{{ quad_card.sv_left_fixed if quad_card.sv_left_fixed is not none else '' }}"
+                              data-sv-left-fixed-unit="{{ quad_card.sv_left_fixed_unit or '' }}"
                               data-sv-right-type="{{ quad_card.sv_right_type or 'tag' }}"
                               data-sv-right-fixed="{{ quad_card.sv_right_fixed if quad_card.sv_right_fixed is not none else '' }}"
+                              data-sv-right-fixed-unit="{{ quad_card.sv_right_fixed_unit or '' }}"
                               title="Edit Tags in Quad Card">
                         <i class="bi bi-pencil-square me-2"></i>Edit Tags
                       </button>
@@ -393,7 +395,7 @@
                     <div class="quad-tag-name">{{ quad_card.tag3.name if quad_card.tag3 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-sv-left-{{ quad_card.id }}" class="fw-bold" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>{{ ( quad_card.tag3.last_value if quad_card.tag3 else (quad_card.tag3_sv_value if quad_card.tag3_sv_value is not none else '0')) | format_value((quad_card.tag3.scale if quad_card.tag3 else none), (quad_card.tag3.offset if quad_card.tag3 else 0)) }}</span>
-                      <small class="text-muted ms-auto">{{ quad_card.tag3.unit if quad_card.tag3 else '' }}</small>
+                      <small class="text-muted ms-auto">{{ (quad_card.tag3.unit if quad_card.tag3 else quad_card.sv_left_fixed_unit) or '' }}</small>
                     </div>
                   </div>
                   
@@ -402,7 +404,7 @@
                     <div class="quad-tag-name">{{ quad_card.tag4.name if quad_card.tag4 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-sv-right-{{ quad_card.id }}" class="fw-bold" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>{{ ( quad_card.tag4.last_value if quad_card.tag4 else (quad_card.tag4_sv_value if quad_card.tag4_sv_value is not none else '0')) | format_value((quad_card.tag4.scale if quad_card.tag4 else none), (quad_card.tag4.offset if quad_card.tag4 else 0)) }}</span>
-                      <small class="text-muted ms-auto">{{ quad_card.tag4.unit if quad_card.tag4 else '' }}</small>
+                      <small class="text-muted ms-auto">{{ (quad_card.tag4.unit if quad_card.tag4 else quad_card.sv_right_fixed_unit) or '' }}</small>
                     </div>
                   </div>
                 </div>
@@ -681,7 +683,7 @@
                     <div class="quad-tag-name">{{ quad_card.tag3.name if quad_card.tag3 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-sv-left-{{ quad_card.id }}-2" class="fw-bold" {% if quad_card.tag3 and (quad_card.sv_left_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag3_id }}"{% endif %}>{{ ( quad_card.tag3.last_value if quad_card.tag3 else (quad_card.tag3_sv_value if quad_card.tag3_sv_value is not none else '0')) | format_value((quad_card.tag3.scale if quad_card.tag3 else none), (quad_card.tag3.offset if quad_card.tag3 else 0)) }}</span>
-                      <small class="text-muted">{{ quad_card.tag3.unit if quad_card.tag3 else '' }}</small>
+                      <small class="text-muted">{{ (quad_card.tag3.unit if quad_card.tag3 else quad_card.sv_left_fixed_unit) or '' }}</small>
                       {% if session.get('role') == 'admin' and quad_card.tag3 and quad_card.tag3.function_code|int in [1, 3] %}
                         <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
                                 data-tag-id="{{ quad_card.tag3_id }}" 
@@ -698,7 +700,7 @@
                     <div class="quad-tag-name">{{ quad_card.tag4.name if quad_card.tag4 else 'SV Fixed' }}</div>
                     <div class="quad-tag-value d-flex align-items-center gap-2">
                       <span id="quad-tag-val-sv-right-{{ quad_card.id }}-2" class="fw-bold" {% if quad_card.tag4 and (quad_card.sv_right_type or 'tag') == 'tag' %}data-tag-id="{{ quad_card.tag4_id }}"{% endif %}>{{ ( quad_card.tag4.last_value if quad_card.tag4 else (quad_card.tag4_sv_value if quad_card.tag4_sv_value is not none else '0')) | format_value((quad_card.tag4.scale if quad_card.tag4 else none), (quad_card.tag4.offset if quad_card.tag4 else 0)) }}</span>
-                      <small class="text-muted">{{ quad_card.tag4.unit if quad_card.tag4 else '' }}</small>
+                      <small class="text-muted">{{ (quad_card.tag4.unit if quad_card.tag4 else quad_card.sv_right_fixed_unit) or '' }}</small>
                       {% if session.get('role') == 'admin' and quad_card.tag4 and quad_card.tag4.function_code|int in [1, 3] %}
                         <button class="btn btn-sm btn-outline-primary write-btn ms-auto" 
                                 data-tag-id="{{ quad_card.tag4_id }}" 
@@ -883,6 +885,7 @@
                   </div>
                   <div class="quad-sv-left-fixed-group" style="display:none;">
                     <input type="number" name="sv_left_fixed" class="form-control" step="any" placeholder="Fixed value">
+                    <input type="text" name="sv_left_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
                   </div>
                 </div>
                 
@@ -904,6 +907,7 @@
                   </div>
                   <div class="quad-sv-right-fixed-group" style="display:none;">
                     <input type="number" name="sv_right_fixed" class="form-control" step="any" placeholder="Fixed value">
+                    <input type="text" name="sv_right_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
                   </div>
                 </div>
               </div>
@@ -1087,6 +1091,7 @@
               </div>
               <div class="edit-quad-sv-left-fixed-group" style="display:none;">
                 <input type="number" id="edit_sv_left_fixed" name="sv_left_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="edit_sv_left_fixed_unit" name="sv_left_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
             </div>
 
@@ -1110,6 +1115,7 @@
               </div>
               <div class="edit-quad-sv-right-fixed-group" style="display:none;">
                 <input type="number" id="edit_sv_right_fixed" name="sv_right_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="edit_sv_right_fixed_unit" name="sv_right_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
             </div>
           </div>
@@ -1188,6 +1194,7 @@
               </select>
               <div class="qtag6-left-sv-high-fixed-group mt-2">
                 <input type="number" name="left_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" name="left_sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag6-left-sv-high-tag-group mt-2" style="display:none;">
                 <select name="tag3_id" class="form-select">
@@ -1206,6 +1213,7 @@
               </select>
               <div class="qtag6-right-sv-high-fixed-group mt-2">
                 <input type="number" name="right_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" name="right_sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag6-right-sv-high-tag-group mt-2" style="display:none;">
                 <select name="tag4_id" class="form-select">
@@ -1228,6 +1236,7 @@
               </select>
               <div class="qtag6-left-sv-low-fixed-group mt-2">
                 <input type="number" name="left_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" name="left_sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag6-left-sv-low-tag-group mt-2" style="display:none;">
                 <select name="tag5_id" class="form-select">
@@ -1246,6 +1255,7 @@
               </select>
               <div class="qtag6-right-sv-low-fixed-group mt-2">
                 <input type="number" name="right_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" name="right_sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag6-right-sv-low-tag-group mt-2" style="display:none;">
                 <select name="tag6_id" class="form-select">
@@ -1325,6 +1335,7 @@
             <div class="col-md-4 sv-high-fixed-group">
               <label class="form-label">Fixed Value</label>
               <input type="number" step="any" name="sv_high_fixed" class="form-control" placeholder="e.g. 30.0">
+              <input type="text" name="sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
             <div class="col-md-4 sv-high-tag-group" style="display:none;">
               <label class="form-label">Tag</label>
@@ -1348,6 +1359,7 @@
             <div class="col-md-4 sv-low-fixed-group">
               <label class="form-label">Fixed Value</label>
               <input type="number" step="any" name="sv_low_fixed" class="form-control" placeholder="e.g. 18.0">
+              <input type="text" name="sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
             <div class="col-md-4 sv-low-tag-group" style="display:none;">
               <label class="form-label">Tag</label>
@@ -1634,6 +1646,7 @@
               </select>
               <div class="edit-qtag6-left-sv-high-fixed-group mt-2">
                 <input type="number" id="editQtag6LeftSvHighFixed" name="left_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="editQtag6LeftSvHighFixedUnit" name="left_sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag6-left-sv-high-tag-group mt-2" style="display:none;">
                 <select id="editQtag6Tag3" name="tag3_id" class="form-select">
@@ -1652,6 +1665,7 @@
               </select>
               <div class="edit-qtag6-right-sv-high-fixed-group mt-2">
                 <input type="number" id="editQtag6RightSvHighFixed" name="right_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="editQtag6RightSvHighFixedUnit" name="right_sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag6-right-sv-high-tag-group mt-2" style="display:none;">
                 <select id="editQtag6Tag4" name="tag4_id" class="form-select">
@@ -1674,6 +1688,7 @@
               </select>
               <div class="edit-qtag6-left-sv-low-fixed-group mt-2">
                 <input type="number" id="editQtag6LeftSvLowFixed" name="left_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="editQtag6LeftSvLowFixedUnit" name="left_sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag6-left-sv-low-tag-group mt-2" style="display:none;">
                 <select id="editQtag6Tag5" name="tag5_id" class="form-select">
@@ -1692,6 +1707,7 @@
               </select>
               <div class="edit-qtag6-right-sv-low-fixed-group mt-2">
                 <input type="number" id="editQtag6RightSvLowFixed" name="right_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="editQtag6RightSvLowFixedUnit" name="right_sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag6-right-sv-low-tag-group mt-2" style="display:none;">
                 <select id="editQtag6Tag6" name="tag6_id" class="form-select">
@@ -1775,6 +1791,7 @@
               </select>
               <div class="qtag4-left-sv-fixed-group">
                 <input type="number" name="left_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" name="left_sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag4-left-sv-tag-group" style="display:none;">
                 <select name="tag3_id" class="form-select">
@@ -1793,6 +1810,7 @@
               </select>
               <div class="qtag4-right-sv-fixed-group">
                 <input type="number" name="right_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" name="right_sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag4-right-sv-tag-group" style="display:none;">
                 <select name="tag4_id" class="form-select">
@@ -1894,6 +1912,7 @@
               </select>
               <div class="edit-qtag4-left-sv-fixed-group mt-2">
                 <input type="number" id="editQtag4LeftSvFixed" name="left_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="editQtag4LeftSvFixedUnit" name="left_sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag4-left-sv-tag-group mt-2" style="display:none;">
                 <select id="editQtag4Tag3" name="tag3_id" class="form-select">
@@ -1912,6 +1931,7 @@
               </select>
               <div class="edit-qtag4-right-sv-fixed-group mt-2">
                 <input type="number" id="editQtag4RightSvFixed" name="right_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="editQtag4RightSvFixedUnit" name="right_sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag4-right-sv-tag-group mt-2" style="display:none;">
                 <select id="editQtag4Tag4" name="tag4_id" class="form-select">
@@ -1985,6 +2005,7 @@
             </div>
             <div class="col-md-8 qtag3-sv-high-fixed-group" style="display:none;">
               <input type="number" name="sv_high_fixed" class="form-control" step="any" placeholder="Fixed SV HIGH value">
+              <input type="text" name="sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
           </div>
           <!-- SV LOW -->
@@ -2006,6 +2027,7 @@
             </div>
             <div class="col-md-8 qtag3-sv-low-fixed-group" style="display:none;">
               <input type="number" name="sv_low_fixed" class="form-control" step="any" placeholder="Fixed SV LOW value">
+              <input type="text" name="sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
           </div>
           <hr>
@@ -2068,6 +2090,7 @@
               </select>
               <div class="edit-qtag3-sv-high-fixed-group mt-2">
                 <input type="number" id="editQtag3SvHighFixed" name="sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="editQtag3SvHighFixedUnit" name="sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag3-sv-high-tag-group mt-2" style="display:none;">
                 <select id="editQtag3Tag2" name="tag2_id" class="form-select">
@@ -2087,6 +2110,7 @@
               </select>
               <div class="edit-qtag3-sv-low-fixed-group mt-2">
                 <input type="number" id="editQtag3SvLowFixed" name="sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="editQtag3SvLowFixedUnit" name="sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag3-sv-low-tag-group mt-2" style="display:none;">
                 <select id="editQtag3Tag3" name="tag3_id" class="form-select">
@@ -2148,6 +2172,7 @@
             <div class="col-md-6">
               <div class="qtag2-sv-fixed-group mt-4" style="display:none;">
                 <input type="number" name="sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" name="sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag2-sv-tag-group mt-4">
                 <select name="tag2_id" class="form-select">
@@ -2217,6 +2242,7 @@
               </select>
               <div class="edit-qtag2-sv-fixed-group mt-2">
                 <input type="number" id="editQtag2SvFixed" name="sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" id="editQtag2SvFixedUnit" name="sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag2-sv-tag-group mt-2" style="display:none;">
                 <select id="editQtag2Tag2" name="tag2_id" class="form-select">
@@ -2271,6 +2297,7 @@
             <div class="col-md-4 edit-sv-high-fixed-group">
               <label class="form-label">Fixed Value</label>
               <input type="number" step="any" id="editSingle3SvHighFixed" name="sv_high_fixed" class="form-control">
+              <input type="text" id="editSingle3SvHighFixedUnit" name="sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
             <div class="col-md-4 edit-sv-high-tag-group" style="display:none;">
               <label class="form-label">Tag</label>
@@ -2294,6 +2321,7 @@
             <div class="col-md-4 edit-sv-low-fixed-group">
               <label class="form-label">Fixed Value</label>
               <input type="number" step="any" id="editSingle3SvLowFixed" name="sv_low_fixed" class="form-control">
+              <input type="text" id="editSingle3SvLowFixedUnit" name="sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
             <div class="col-md-4 edit-sv-low-tag-group" style="display:none;">
               <label class="form-label">Tag</label>
