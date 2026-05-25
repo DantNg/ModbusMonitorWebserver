@@ -1578,6 +1578,36 @@
   color: #ffffff !important;
 }
 
+/* Dark-theme normalization for Single3/Qtag Single alarm text:
+   match Qtag6 tone mapping (primary white, secondary gray-400). */
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sub-title,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sub-title,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-type-badge,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-type-badge,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-label,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-label,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-value,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-value,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sv-low,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sv-low,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sv-high,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sv-high,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-arrow-low,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-arrow-low,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-arrow-high,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-arrow-high {
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-unit,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-unit,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sv-separator,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sv-separator,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-update-time,
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-update-time {
+  color: #9ca3af !important;
+}
+
 /* Dark theme for Qtag Single */
 [data-bs-theme="dark"] .qtag-single-sub-card {
   background: #1f2937 !important;
