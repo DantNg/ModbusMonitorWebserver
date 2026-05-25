@@ -2292,25 +2292,26 @@ try {
           serverAlarmMap.set(alarm.tag_id, alarm);
         });
 
-        // Clear all existing tag alarm visuals first
-        document.querySelectorAll('.tag-alarm-active').forEach(el => {
-          el.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
-          el.removeAttribute('title');
+        // Delta sync: remove alarms that are no longer active
+        _lastSyncedTagAlarms.forEach((_snapshot, tagId) => {
+          if (!serverAlarmMap.has(tagId)) {
+            removeTagAlarmVisual(tagId);
+          }
         });
 
-        // Clear card-level alarm classes
-        document.querySelectorAll('.qtag6-sub-card').forEach(el => {
-          el.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
-        });
-        document.querySelectorAll('.qtag-single-sub-card').forEach(el => {
-          el.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
-        });
-
-        // Re-apply from server data
+        // Delta sync: apply only new/changed alarms
+        const nextSnapshot = new Map();
         data.alarms.forEach(alarm => {
+          const snapshot = `${alarm.level || ''}|${alarm.value ?? ''}|${alarm.operator || ''}|${alarm.threshold ?? ''}`;
+          nextSnapshot.set(alarm.tag_id, snapshot);
+          if (_lastSyncedTagAlarms.get(alarm.tag_id) === snapshot) {
+            return;
+          }
           const alarmClass = getAlarmClassForLevel(alarm.level);
           applyTagAlarmVisual(alarm.tag_id, alarmClass, alarm);
         });
+
+        _lastSyncedTagAlarms = nextSnapshot;
 
         // After system alarms applied, run Single3 PV vs SV fallback check
         evaluateSingle3PvSvFallback(serverAlarmMap);
@@ -2383,6 +2384,8 @@ try {
       }
     });
   }
+
+  let _lastSyncedTagAlarms = new Map();
 
   // Expose for external use
   window.fetchAndApplyTagAlarms = fetchAndApplyTagAlarms;
@@ -2554,6 +2557,27 @@ try {
     }
   }
 
+  function buildCardAlarmKey(cardType, cardId, column) {
+    let normalizedColumn = column;
+    if (cardType === 'qtag6' || cardType === 'qtag4') {
+      normalizedColumn = normalizeDualAlarmColumn(column) || '';
+    } else if (cardType === 'pv_dual') {
+      normalizedColumn = (column === 'left' || column === 'right') ? column : '';
+    } else {
+      normalizedColumn = '';
+    }
+    return `${cardType}|${cardId}|${normalizedColumn}`;
+  }
+
+  function parseCardAlarmKey(key) {
+    const [cardType, cardIdRaw, columnRaw] = key.split('|');
+    return {
+      cardType,
+      cardId: parseInt(cardIdRaw, 10),
+      column: columnRaw || null
+    };
+  }
+
   function fetchAndApplyCardAlarms() {
     const subdashId = currentSubdashId;
     if (!subdashId) return;
@@ -2563,25 +2587,35 @@ try {
       .then(data => {
         if (!data.success || !Array.isArray(data.alarms)) return;
 
-        // Clear all existing card-level alarm visuals before re-applying
-        document.querySelectorAll(
-          '.card-alarm-high, .card-alarm-low, ' +
-          '.qtag6-alarm-high, .qtag6-alarm-low, ' +
-          '.qtag-single-alarm-high, .qtag-single-alarm-low, ' +
-          '.qtag-pv-dual-alarm-high, .qtag-pv-dual-alarm-low'
-        ).forEach(el => {
-          el.classList.remove(
-            'card-alarm-high', 'card-alarm-low',
-            'qtag6-alarm-high', 'qtag6-alarm-low',
-            'qtag-single-alarm-high', 'qtag-single-alarm-low',
-            'qtag-pv-dual-alarm-high', 'qtag-pv-dual-alarm-low'
-          );
+        const serverAlarmMap = new Map();
+
+        // Build current server snapshot
+        data.alarms.forEach(alarm => {
+          const key = buildCardAlarmKey(alarm.card_type, alarm.card_id, alarm.column);
+          serverAlarmMap.set(key, alarm.alarm_type);
         });
 
-        // Re-apply each active alarm using correct per-type selectors
+        // Delta sync: remove alarms no longer active
+        _lastSyncedCardAlarms.forEach((_alarmType, key) => {
+          if (!serverAlarmMap.has(key)) {
+            const parsed = parseCardAlarmKey(key);
+            if (!Number.isNaN(parsed.cardId)) {
+              removeCardAlarmVisual(parsed.cardType, parsed.cardId, parsed.column);
+            }
+          }
+        });
+
+        // Delta sync: apply only new/changed alarms
         data.alarms.forEach(alarm => {
+          const key = buildCardAlarmKey(alarm.card_type, alarm.card_id, alarm.column);
+          const previousType = _lastSyncedCardAlarms.get(key);
+          if (previousType === alarm.alarm_type) {
+            return;
+          }
           applyCardAlarmVisual(alarm.card_type, alarm.card_id, alarm.column, alarm.alarm_type);
         });
+
+        _lastSyncedCardAlarms = serverAlarmMap;
 
         console.log(`[CardAlarmSync] Synced ${data.alarms.length} active card alarms`);
       })
@@ -2589,6 +2623,8 @@ try {
         console.warn('[CardAlarmSync] Failed to fetch active card alarms:', err);
       });
   }
+
+  let _lastSyncedCardAlarms = new Map();
 
   window.fetchAndApplyCardAlarms = fetchAndApplyCardAlarms;
   const _cardAlarmSyncInterval = setInterval(fetchAndApplyCardAlarms, 10000);
