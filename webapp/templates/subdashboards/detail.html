@@ -711,47 +711,7 @@
                 </div>
                 
                 {% if session.get('role') == 'admin' %}
-                <div class="quad-tag-actions mt-2 text-end">
-                  <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Quad Card Settings">
-                      <i class="bi bi-gear"></i>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                      <li>
-                        <button class="dropdown-item rename-quad-btn" 
-                                data-quad-id="{{ quad_card.id }}" 
-                                data-target="card" 
-                                title="Rename Quad Card">
-                          <i class="bi bi-pencil-square me-2"></i>Rename Card Title
-                        </button>
-                      </li>
-                      <li>
-                        <button class="dropdown-item rename-quad-btn" 
-                                data-quad-id="{{ quad_card.id }}" 
-                                data-target="left" 
-                                title="Rename Left Column">
-                          <i class="bi bi-columns me-2"></i>Rename Left Column
-                        </button>
-                      </li>
-                      <li>
-                        <button class="dropdown-item rename-quad-btn" 
-                                data-quad-id="{{ quad_card.id }}" 
-                                data-target="right" 
-                                title="Rename Right Column">
-                          <i class="bi bi-columns me-2"></i>Rename Right Column
-                        </button>
-                      </li>
-                      <li><hr class="dropdown-divider"></li>
-                      <li>
-                        <button class="dropdown-item text-danger delete-quad-btn" 
-                                data-quad-id="{{ quad_card.id }}" 
-                                title="Delete Quad Card">
-                          <i class="bi bi-trash me-2"></i>Delete Quad Card
-                        </button>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
+                {# Actions are rendered in card header; body dropdown removed to prevent duplicate gear button #}
                 {% endif %}
               </div>
             </div>

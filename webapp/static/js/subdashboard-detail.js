@@ -1674,7 +1674,15 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
           // Update card header title from database
           const cardTitle = cardTitleFromDB;
 
-          let cardHeader = card.querySelector('.card-header');
+          // Normalize header: keep only one top-level header to avoid duplicate gear/actions.
+          const allCardHeaders = card.querySelectorAll('.card-header');
+          let cardHeader = allCardHeaders[0] || null;
+          if (allCardHeaders.length > 1) {
+            allCardHeaders.forEach((hdr, idx) => {
+              if (idx > 0) hdr.remove();
+            });
+          }
+
           if (!cardHeader) {
             cardHeader = document.createElement('div');
             cardHeader.className = 'card-header bg-dark text-white d-flex justify-content-between align-items-center py-2';
@@ -1697,6 +1705,14 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
             cardHeader.prepend(flexWrapper);
           } else {
             headerTitleEl.textContent = cardTitle;
+          }
+
+          // Keep only one gear dropdown/actions container in header.
+          const dropdowns = cardHeader.querySelectorAll('.dropdown');
+          if (dropdowns.length > 1) {
+            dropdowns.forEach((dd, idx) => {
+              if (idx > 0) dd.remove();
+            });
           }
 
           console.log(`✅ Successfully restructured quad card ${cardIndex + 1}`);
