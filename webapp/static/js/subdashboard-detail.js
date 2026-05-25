@@ -1165,6 +1165,28 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         id: id,
         name: name
       })).sort((a, b) => a.name.localeCompare(b.name));
+
+      // Exclude PV tags of the current quad card to avoid self-compare selection.
+      const quadId = document.getElementById('conditionQuadId')?.value || '';
+      const excludedPvTagIds = new Set();
+      if (quadId) {
+        const quadCard = document.querySelector(`.quad-tag-card[data-quad-id="${quadId}"]`);
+        if (quadCard) {
+          quadCard.querySelectorAll('.quad-tag-item.pv-item[data-tag-id], .quad-tag-item[data-role="pv"][data-tag-id]').forEach(el => {
+            const id = el.getAttribute('data-tag-id');
+            if (id) excludedPvTagIds.add(String(id));
+          });
+
+          // Fallback for legacy markup: first tag-item in each sub-card is PV.
+          if (excludedPvTagIds.size === 0) {
+            quadCard.querySelectorAll('.quad-sub-card').forEach(sub => {
+              const firstItem = sub.querySelector('.quad-tag-item[data-tag-id]');
+              const id = firstItem?.getAttribute('data-tag-id');
+              if (id) excludedPvTagIds.add(String(id));
+            });
+          }
+        }
+      }
       
       console.log(`📋 Loaded ${tags.length} tags for comparison:`, tags);
       
@@ -1179,6 +1201,7 @@ const currentGroup = window.SUBDASH_CONFIG.currentGroup;
         
         // Add tag options
         tags.forEach(tag => {
+          if (excludedPvTagIds.has(String(tag.id))) return;
           const option = document.createElement('option');
           option.value = tag.id;
           option.textContent = tag.name;

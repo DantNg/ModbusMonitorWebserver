@@ -141,6 +141,11 @@ async function loadCardAvailableTags() {
       return;
     }
 
+    // Exclude PV tags that belong to the current card to prevent self-comparison.
+    const cardType = document.getElementById('cardCondCardType')?.value || '';
+    const cardId = document.getElementById('cardCondCardId')?.value || '';
+    const excludedPvTagIds = getCardPvTagIds(cardType, cardId);
+
     // Giữ value đang chọn (nếu đang edit condition cũ)
     const savedValues = tagSelects.map(sel => sel ? sel.value : '');
 
@@ -148,6 +153,7 @@ async function loadCardAvailableTags() {
       if (!sel) return;
       while (sel.options.length > 1) sel.remove(1);
       data.tags.forEach(tag => {
+        if (excludedPvTagIds.has(String(tag.id))) return;
         const opt = document.createElement('option');
         opt.value = tag.id;
         opt.textContent = tag.name;
@@ -159,6 +165,42 @@ async function loadCardAvailableTags() {
   } catch (err) {
     console.error('[CardConditions] Failed to load tags from API:', err);
   }
+}
+
+function getCardElementByType(cardType, cardId) {
+  const map = {
+    qtag6: `.qtag6-card[data-qtag6-id="${cardId}"]`,
+    qtag4: `.qtag4-card[data-qtag4-id="${cardId}"]`,
+    qtag3: `.qtag3-card[data-qtag3-id="${cardId}"]`,
+    qtag2: `.qtag2-card[data-qtag2-id="${cardId}"]`,
+    single3: `[data-qtag-single3-id="${cardId}"]`,
+    pv_only: `[data-qtag-pv-id="${cardId}"]`,
+    pv_dual: `.qtag-pv-dual-card[data-qtag-pv-dual-id="${cardId}"]`
+  };
+
+  const selector = map[cardType];
+  return selector ? document.querySelector(selector) : null;
+}
+
+function getCardPvTagIds(cardType, cardId) {
+  const excluded = new Set();
+  if (!cardType || !cardId) return excluded;
+
+  const cardEl = getCardElementByType(cardType, cardId);
+  if (!cardEl) return excluded;
+
+  cardEl.querySelectorAll('[data-role="pv"][data-tag-id]').forEach(el => {
+    const id = el.getAttribute('data-tag-id');
+    if (id) excluded.add(String(id));
+  });
+
+  // Some cards expose PV tag id on status indicator.
+  cardEl.querySelectorAll('.quad-status-indicator[data-pv-tag-id]').forEach(el => {
+    const id = el.getAttribute('data-pv-tag-id');
+    if (id) excluded.add(String(id));
+  });
+
+  return excluded;
 }
 
 async function loadCardConditionsFromAPI(cardType, cardId) {
