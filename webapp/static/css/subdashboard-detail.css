@@ -376,12 +376,12 @@
 
 
 .quad-sub-card.quad-alarm-high .quad-tag-value {
-  color: #dc2626 !important;
+  color: #111827 !important;
   font-weight: 900 !important;
 }
 
 .quad-sub-card.quad-alarm-low .quad-tag-value {
-  color: #f59e0b !important;
+  color: #111827 !important;
   font-weight: 900 !important;
 }
 
@@ -413,7 +413,7 @@
 }
 
 [data-bs-theme="dark"] .quad-sub-card.quad-alarm-low .quad-tag-value {
-  color: #fcd34d !important;
+  color: #ffffff !important;
 }
 
 /* Card Alarm States (Qtag6, Single3, PV Only, PV Dual) */
@@ -906,19 +906,19 @@
 
 .tag-alarm-high .qtag6-tag-value,
 .tag-alarm-high .qtag-single-tag-value {
-  color: #dc2626 !important;
+  color: #111827 !important;
   font-weight: 900 !important;
 }
 
 /* Alarm icon indicator for tag items */
 
 .tag-alarm-low {
-  border-left: 3px solid #f59e0b !important;
+  border-left: 3px solid #111827 !important;
 }
 
 .tag-alarm-low .qtag6-tag-value,
 .tag-alarm-low .qtag-single-tag-value {
-  color: #f59e0b !important;
+  color: #111827 !important;
   font-weight: 900 !important;
 }
 
@@ -938,12 +938,12 @@
 }
 
 [data-bs-theme="dark"] .tag-alarm-low {
-  border-left-color: #fcd34d !important;
+  border-left-color: #ffffff !important;
 }
 
 [data-bs-theme="dark"] .tag-alarm-low .qtag6-tag-value,
 [data-bs-theme="dark"] .tag-alarm-low .qtag-single-tag-value {
-  color: #fcd34d !important;
+  color: #ffffff !important;
 }
 
 
@@ -1566,7 +1566,7 @@
 .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-arrow-low,
 .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-arrow-high,
 .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-arrow-high {
-  color: #ffffff !important;
+  color: #6b7280 !important;
 }
 
 .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-value.sv-value,
@@ -1810,6 +1810,49 @@
   color: #ffffff !important;
 }
 
+/* Light-theme final override for Qtag3:
+   keep alarm on card background only, but PV/SV rows stay in light palette. */
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-item,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-item {
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+  background-image: none !important;
+  border-color: #e5e7eb !important;
+  box-shadow: none !important;
+}
+
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-item:hover,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-item:hover {
+  background: #eef2ff !important;
+  background-color: #eef2ff !important;
+}
+
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-value,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-value {
+  color: #111827 !important;
+}
+
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-tag-unit,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-tag-unit,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-sv-separator,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-sv-separator {
+  color: #6b7280 !important;
+}
+
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-sv-low,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-sv-low,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-arrow-low,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-arrow-low {
+  color: #111827 !important;
+}
+
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-sv-high,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-sv-high,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-high .qtag6-arrow-high,
+:root:not([data-bs-theme="dark"]) .qtag3-card .qtag6-sub-card.qtag6-alarm-low .qtag6-arrow-high {
+  color: #111827 !important;
+}
+
 /* Final override: Qtag3 / single3 should alarm at card level like qtag2 */
 .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
@@ -1843,6 +1886,16 @@
   background-color: #1a1f2e !important;
   background-image: none !important;
   border-color: #2d3748 !important;
+  box-shadow: none !important;
+}
+
+/* Light-theme final override for Single3 base alarm rows (before per-tag class is added). */
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-tag-item,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-tag-item {
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+  background-image: none !important;
+  border-color: #e5e7eb !important;
   box-shadow: none !important;
 }
 
@@ -1903,14 +1956,34 @@
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-low,
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-arrow-low,
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-arrow-low {
-  color: #38bdf8 !important;
+  color: #111827 !important;
 }
 
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-sv-high,
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-sv-high,
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-high .qtag-single-arrow-high,
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"] .tag-alarm-low .qtag-single-arrow-high {
-  color: #fb923c !important;
+  color: #111827 !important;
+}
+
+/* Single3 light-theme card-level alarm override:
+   when only qtag-single-alarm-* is present (without tag-alarm-*),
+   keep SV row text/icons dark for readability. */
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-sv-low,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-sv-low,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-sv-high,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-sv-high,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-sv-separator,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-sv-separator,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-arrow-low,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-arrow-low,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-arrow-high,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-arrow-high,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-tag-value,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-tag-value,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-high .qtag-single-tag-unit,
+:root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="single3"].qtag-single-alarm-low .qtag-single-tag-unit {
+  color: #111827 !important;
 }
 
 /* Final override: SV label for Qtag4/Qtag6 must stay blue gradient */

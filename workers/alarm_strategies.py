@@ -295,6 +295,10 @@ class Qtag3Strategy(_CardAlarmStateMixin, CardAlarmStrategy):
         tid = card_info.get("tag1_id")
         return [ColumnDef("left", int(tid))] if tid else []
 
+    def get_column_display(self, column: str, card_info: dict) -> str:
+        # Single-column card: avoid generic "Left" label in notifications.
+        return (card_info.get("column_title") or "").strip()
+
     def build_event(self, card_id, column, alarm_type, status, pv_tag_id, pv_value, sv_value, threshold, operator, timestamp):
         return _card_event(self.card_type, card_id, column, alarm_type, status, pv_tag_id, pv_value, threshold, operator, timestamp)
 
@@ -313,6 +317,10 @@ class Qtag2Strategy(_CardAlarmStateMixin, CardAlarmStrategy):
     def get_columns(self, card_info: dict) -> List[ColumnDef]:
         tid = card_info.get("tag1_id")
         return [ColumnDef("left", int(tid))] if tid else []
+
+    def get_column_display(self, column: str, card_info: dict) -> str:
+        # Single-column card: avoid generic "Left" label in notifications.
+        return (card_info.get("column_title") or "").strip()
 
     def build_event(self, card_id, column, alarm_type, status, pv_tag_id, pv_value, sv_value, threshold, operator, timestamp):
         return _card_event(self.card_type, card_id, column, alarm_type, status, pv_tag_id, pv_value, threshold, operator, timestamp)
@@ -333,6 +341,10 @@ class Single3Strategy(_CardAlarmStateMixin, CardAlarmStrategy):
         tid = card_info.get("pv_tag_id")
         return [ColumnDef("left", int(tid))] if tid else []
 
+    def get_column_display(self, column: str, card_info: dict) -> str:
+        # Single-column card: do not prepend "Left" in alarm message.
+        return ""
+
     def build_event(self, card_id, column, alarm_type, status, pv_tag_id, pv_value, sv_value, threshold, operator, timestamp):
         return _card_event(self.card_type, card_id, column, alarm_type, status, pv_tag_id, pv_value, threshold, operator, timestamp)
 
@@ -351,6 +363,10 @@ class PVOnlyStrategy(_CardAlarmStateMixin, CardAlarmStrategy):
     def get_columns(self, card_info: dict) -> List[ColumnDef]:
         tid = card_info.get("pv_tag_id")
         return [ColumnDef("left", int(tid))] if tid else []
+
+    def get_column_display(self, column: str, card_info: dict) -> str:
+        # Single-column card: do not prepend "Left" in alarm message.
+        return ""
 
     def build_event(self, card_id, column, alarm_type, status, pv_tag_id, pv_value, sv_value, threshold, operator, timestamp):
         return _card_event(self.card_type, card_id, column, alarm_type, status, pv_tag_id, pv_value, threshold, operator, timestamp)

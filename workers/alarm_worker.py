@@ -1604,10 +1604,11 @@ class AlarmWorker:
                 # Lưu vào DB sau (chậm hơn nhưng UI đã update rồi)
                 if self.db_available:
                     try:
+                        note_prefix = f"{column_display} - " if column_display else ""
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now, name=alarm_name, level="Critical",
                             target=pv_tag_id, value=pv_value,
-                            note=f"{column_display} - Alarm activated ({alarm_type}): {operator} {threshold}",
+                            note=f"{note_prefix}Alarm activated ({alarm_type}): {operator} {threshold}",
                             event_type="INCOMING", operator=operator, threshold=threshold,
                         )
                         state_id = strategy.save_alarm_state(
@@ -1653,10 +1654,11 @@ class AlarmWorker:
 
                 if self.db_available:
                     try:
+                        note_prefix = f"{column_display} - " if column_display else ""
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now, name=alarm_name, level="Warning",
                             target=pv_tag_id, value=pv_value,
-                            note=f"{column_display} - Alarm cleared ({alarm_type}): {stored_operator} {stored_threshold}",
+                            note=f"{note_prefix}Alarm cleared ({alarm_type}): {stored_operator} {stored_threshold}",
                             event_type="OUTGOING", operator=stored_operator, threshold=stored_threshold,
                         )
                         deleted = strategy.delete_alarm_state(self.db, card_id, column)
