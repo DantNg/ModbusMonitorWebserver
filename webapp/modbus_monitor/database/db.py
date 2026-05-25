@@ -416,9 +416,11 @@ subdash_quad_cards = Table(
     # SV type/fixed value columns (fix value mode support)
     Column("sv_left_type", String(10), nullable=True, default="tag"),     # 'tag' or 'fixed'
     Column("sv_left_fixed", Float, nullable=True),
+    Column("sv_left_fixed_dp", Integer, nullable=True),
     Column("sv_left_fixed_unit", String(20), nullable=True),
     Column("sv_right_type", String(10), nullable=True, default="tag"),
     Column("sv_right_fixed", Float, nullable=True),
+    Column("sv_right_fixed_dp", Integer, nullable=True),
     Column("sv_right_fixed_unit", String(20), nullable=True),
     Column("card_title", String(200), nullable=True),
     Column("left_title", String(200), nullable=True),
@@ -493,15 +495,19 @@ subdash_qtag6_cards = Table(
     # SV type/fixed value columns (fix value mode support)
     Column("left_sv_high_type", String(10), nullable=True, default="tag"),    # 'tag' or 'fixed'
     Column("left_sv_high_fixed", Float, nullable=True),
+    Column("left_sv_high_fixed_dp", Integer, nullable=True),
     Column("left_sv_high_fixed_unit", String(20), nullable=True),
     Column("right_sv_high_type", String(10), nullable=True, default="tag"),
     Column("right_sv_high_fixed", Float, nullable=True),
+    Column("right_sv_high_fixed_dp", Integer, nullable=True),
     Column("right_sv_high_fixed_unit", String(20), nullable=True),
     Column("left_sv_low_type", String(10), nullable=True, default="tag"),
     Column("left_sv_low_fixed", Float, nullable=True),
+    Column("left_sv_low_fixed_dp", Integer, nullable=True),
     Column("left_sv_low_fixed_unit", String(20), nullable=True),
     Column("right_sv_low_type", String(10), nullable=True, default="tag"),
     Column("right_sv_low_fixed", Float, nullable=True),
+    Column("right_sv_low_fixed_dp", Integer, nullable=True),
     Column("right_sv_low_fixed_unit", String(20), nullable=True),
     Column("card_title", String(200), nullable=True),
     Column("left_title", String(200), nullable=True),
@@ -523,9 +529,11 @@ subdash_qtag4_cards = Table(
     Column("tag4_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # Right SV (nullable for fixed)
     Column("left_sv_type", String(10), nullable=True, default="tag"),    # 'tag' or 'fixed'
     Column("left_sv_fixed", Float, nullable=True),
+    Column("left_sv_fixed_dp", Integer, nullable=True),
     Column("left_sv_fixed_unit", String(20), nullable=True),
     Column("right_sv_type", String(10), nullable=True, default="tag"),
     Column("right_sv_fixed", Float, nullable=True),
+    Column("right_sv_fixed_dp", Integer, nullable=True),
     Column("right_sv_fixed_unit", String(20), nullable=True),
     Column("card_title", String(200), nullable=True),
     Column("left_title", String(200), nullable=True),
@@ -545,6 +553,7 @@ subdash_qtag2_cards = Table(
     Column("tag2_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # SV (nullable for fixed)
     Column("sv_type", String(10), nullable=True, default="tag"),    # 'tag' or 'fixed'
     Column("sv_fixed", Float, nullable=True),
+    Column("sv_fixed_dp", Integer, nullable=True),
     Column("sv_fixed_unit", String(20), nullable=True),
     Column("card_title", String(200), nullable=True),
     Column("column_title", String(200), nullable=True),
@@ -562,9 +571,11 @@ subdash_qtag3_cards = Table(
     Column("tag3_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),   # SV LOW
     Column("sv_high_type", String(10), nullable=True, default="tag"),    # 'tag' or 'fixed'
     Column("sv_high_fixed", Float, nullable=True),
+    Column("sv_high_fixed_dp", Integer, nullable=True),
     Column("sv_high_fixed_unit", String(20), nullable=True),
     Column("sv_low_type", String(10), nullable=True, default="tag"),     # 'tag' or 'fixed'
     Column("sv_low_fixed", Float, nullable=True),
+    Column("sv_low_fixed_dp", Integer, nullable=True),
     Column("sv_low_fixed_unit", String(20), nullable=True),
     Column("card_title", String(200), nullable=True),
     Column("column_title", String(200), nullable=True),
@@ -583,10 +594,12 @@ subdash_qtag_single3_cards = Table(
     Column("sv_high_type", String(10), nullable=False, default="fixed"),   # 'tag' or 'fixed'
     Column("sv_high_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
     Column("sv_high_fixed", Float, nullable=True),
+    Column("sv_high_fixed_dp", Integer, nullable=True),
     Column("sv_high_fixed_unit", String(20), nullable=True),
     Column("sv_low_type", String(10), nullable=False, default="fixed"),    # 'tag' or 'fixed'
     Column("sv_low_tag_id", Integer, ForeignKey("tags.id", ondelete="SET NULL"), nullable=True),
     Column("sv_low_fixed", Float, nullable=True),
+    Column("sv_low_fixed_dp", Integer, nullable=True),
     Column("sv_low_fixed_unit", String(20), nullable=True),
     Column("card_color", String(20), nullable=True),  # Background color (hex)
     Column("created_at", DateTime, server_default=func.now()),
@@ -788,52 +801,65 @@ def _migrate_sv_fix_value(engine):
         'subdash_quad_cards': [
             ('sv_left_type', 'VARCHAR(10)'),
             ('sv_left_fixed', 'REAL'),
+            ('sv_left_fixed_dp', 'INTEGER'),
             ('sv_left_fixed_unit', 'VARCHAR(20)'),
             ('sv_right_type', 'VARCHAR(10)'),
             ('sv_right_fixed', 'REAL'),
+            ('sv_right_fixed_dp', 'INTEGER'),
             ('sv_right_fixed_unit', 'VARCHAR(20)'),
         ],
         'subdash_qtag6_cards': [
             ('left_sv_high_type', 'VARCHAR(10)'),
             ('left_sv_high_fixed', 'REAL'),
+            ('left_sv_high_fixed_dp', 'INTEGER'),
             ('left_sv_high_fixed_unit', 'VARCHAR(20)'),
             ('right_sv_high_type', 'VARCHAR(10)'),
             ('right_sv_high_fixed', 'REAL'),
+            ('right_sv_high_fixed_dp', 'INTEGER'),
             ('right_sv_high_fixed_unit', 'VARCHAR(20)'),
             ('left_sv_low_type', 'VARCHAR(10)'),
             ('left_sv_low_fixed', 'REAL'),
+            ('left_sv_low_fixed_dp', 'INTEGER'),
             ('left_sv_low_fixed_unit', 'VARCHAR(20)'),
             ('right_sv_low_type', 'VARCHAR(10)'),
             ('right_sv_low_fixed', 'REAL'),
+            ('right_sv_low_fixed_dp', 'INTEGER'),
             ('right_sv_low_fixed_unit', 'VARCHAR(20)'),
         ],
         'subdash_qtag4_cards': [
             ('left_sv_type', 'VARCHAR(10)'),
             ('left_sv_fixed', 'REAL'),
+            ('left_sv_fixed_dp', 'INTEGER'),
             ('left_sv_fixed_unit', 'VARCHAR(20)'),
             ('right_sv_type', 'VARCHAR(10)'),
             ('right_sv_fixed', 'REAL'),
+            ('right_sv_fixed_dp', 'INTEGER'),
             ('right_sv_fixed_unit', 'VARCHAR(20)'),
         ],
         'subdash_qtag3_cards': [
             ('sv_high_type', 'VARCHAR(10)'),
             ('sv_high_fixed', 'REAL'),
+            ('sv_high_fixed_dp', 'INTEGER'),
             ('sv_high_fixed_unit', 'VARCHAR(20)'),
             ('sv_low_type', 'VARCHAR(10)'),
             ('sv_low_fixed', 'REAL'),
+            ('sv_low_fixed_dp', 'INTEGER'),
             ('sv_low_fixed_unit', 'VARCHAR(20)'),
         ],
         'subdash_qtag2_cards': [
             ('sv_type', 'VARCHAR(10)'),
             ('sv_fixed', 'REAL'),
+            ('sv_fixed_dp', 'INTEGER'),
             ('sv_fixed_unit', 'VARCHAR(20)'),
         ],
         'subdash_qtag_single3_cards': [
             ('sv_high_type', 'VARCHAR(10)'),
             ('sv_high_fixed', 'REAL'),
+            ('sv_high_fixed_dp', 'INTEGER'),
             ('sv_high_fixed_unit', 'VARCHAR(20)'),
             ('sv_low_type', 'VARCHAR(10)'),
             ('sv_low_fixed', 'REAL'),
+            ('sv_low_fixed_dp', 'INTEGER'),
             ('sv_low_fixed_unit', 'VARCHAR(20)'),
         ],
     }
@@ -3376,6 +3402,7 @@ def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int,
                        card_title: str = None, left_title: str = None, right_title: str = None,
                        sv_left_type='tag', sv_left_fixed=None,
                        sv_right_type='tag', sv_right_fixed=None,
+                       sv_left_fixed_dp=None, sv_right_fixed_dp=None,
                        sv_left_fixed_unit=None, sv_right_fixed_unit=None) -> int:
     """Add a new quad tag card to a group. SV tags support fix value mode."""
     with init_engine().begin() as con:
@@ -3387,9 +3414,11 @@ def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int,
             'tag4_id': tag4_id,
             'sv_left_type': sv_left_type,
             'sv_left_fixed': sv_left_fixed,
+            'sv_left_fixed_dp': sv_left_fixed_dp,
             'sv_left_fixed_unit': sv_left_fixed_unit,
             'sv_right_type': sv_right_type,
             'sv_right_fixed': sv_right_fixed,
+            'sv_right_fixed_dp': sv_right_fixed_dp,
             'sv_right_fixed_unit': sv_right_fixed_unit,
             'card_title': card_title,
             'left_title': left_title,
@@ -3485,6 +3514,7 @@ def update_quad_card(quad_card_id: int, tag1_id: int, tag2_id: int,
                      card_title: str = None, left_title: str = None, right_title: str = None,
                      sv_left_type='tag', sv_left_fixed=None,
                      sv_right_type='tag', sv_right_fixed=None,
+                     sv_left_fixed_dp=None, sv_right_fixed_dp=None,
                      sv_left_fixed_unit=None, sv_right_fixed_unit=None) -> bool:
     """Update a quad tag card. SV tags support fix value mode."""
     try:
@@ -3496,9 +3526,11 @@ def update_quad_card(quad_card_id: int, tag1_id: int, tag2_id: int,
                 'tag4_id': tag4_id,
                 'sv_left_type': sv_left_type,
                 'sv_left_fixed': sv_left_fixed,
+                'sv_left_fixed_dp': sv_left_fixed_dp,
                 'sv_left_fixed_unit': sv_left_fixed_unit,
                 'sv_right_type': sv_right_type,
                 'sv_right_fixed': sv_right_fixed,
+                'sv_right_fixed_dp': sv_right_fixed_dp,
                 'sv_right_fixed_unit': sv_right_fixed_unit,
             }
 
@@ -3574,6 +3606,10 @@ def add_qtag6_card(group_id: int, tag1_id: int, tag2_id: int,
                    right_sv_high_type='tag', right_sv_high_fixed=None,
                    left_sv_low_type='tag', left_sv_low_fixed=None,
                    right_sv_low_type='tag', right_sv_low_fixed=None,
+                   left_sv_high_fixed_dp=None,
+                   right_sv_high_fixed_dp=None,
+                   left_sv_low_fixed_dp=None,
+                   right_sv_low_fixed_dp=None,
                    left_sv_high_fixed_unit=None,
                    right_sv_high_fixed_unit=None,
                    left_sv_low_fixed_unit=None,
@@ -3587,12 +3623,16 @@ def add_qtag6_card(group_id: int, tag1_id: int, tag2_id: int,
                 tag3_id=tag3_id, tag4_id=tag4_id,
                 tag5_id=tag5_id, tag6_id=tag6_id,
                 left_sv_high_type=left_sv_high_type, left_sv_high_fixed=left_sv_high_fixed,
+                left_sv_high_fixed_dp=left_sv_high_fixed_dp,
                 left_sv_high_fixed_unit=left_sv_high_fixed_unit,
                 right_sv_high_type=right_sv_high_type, right_sv_high_fixed=right_sv_high_fixed,
+                right_sv_high_fixed_dp=right_sv_high_fixed_dp,
                 right_sv_high_fixed_unit=right_sv_high_fixed_unit,
                 left_sv_low_type=left_sv_low_type, left_sv_low_fixed=left_sv_low_fixed,
+                left_sv_low_fixed_dp=left_sv_low_fixed_dp,
                 left_sv_low_fixed_unit=left_sv_low_fixed_unit,
                 right_sv_low_type=right_sv_low_type, right_sv_low_fixed=right_sv_low_fixed,
+                right_sv_low_fixed_dp=right_sv_low_fixed_dp,
                 right_sv_low_fixed_unit=right_sv_low_fixed_unit,
                 card_title=card_title,
                 left_title=left_title,
@@ -3668,10 +3708,10 @@ def update_qtag6_card(card_id: int, **kwargs) -> bool:
     try:
         allowed = {'tag1_id', 'tag2_id', 'tag3_id', 'tag4_id', 'tag5_id', 'tag6_id',
                     'card_title', 'left_title', 'right_title', 'card_color',
-                    'left_sv_high_type', 'left_sv_high_fixed', 'left_sv_high_fixed_unit',
-                    'right_sv_high_type', 'right_sv_high_fixed', 'right_sv_high_fixed_unit',
-                    'left_sv_low_type', 'left_sv_low_fixed', 'left_sv_low_fixed_unit',
-                    'right_sv_low_type', 'right_sv_low_fixed', 'right_sv_low_fixed_unit'}
+                    'left_sv_high_type', 'left_sv_high_fixed', 'left_sv_high_fixed_dp', 'left_sv_high_fixed_unit',
+                    'right_sv_high_type', 'right_sv_high_fixed', 'right_sv_high_fixed_dp', 'right_sv_high_fixed_unit',
+                    'left_sv_low_type', 'left_sv_low_fixed', 'left_sv_low_fixed_dp', 'left_sv_low_fixed_unit',
+                    'right_sv_low_type', 'right_sv_low_fixed', 'right_sv_low_fixed_dp', 'right_sv_low_fixed_unit'}
         values_dict = {k: v for k, v in kwargs.items() if k in allowed}
         if not values_dict:
             return True
@@ -3707,6 +3747,8 @@ def add_qtag4_card(group_id: int, tag1_id: int, tag2_id: int,
                    card_title: str = None, left_title: str = None, right_title: str = None,
                    left_sv_type='tag', left_sv_fixed=None,
                    right_sv_type='tag', right_sv_fixed=None,
+                   left_sv_fixed_dp=None,
+                   right_sv_fixed_dp=None,
                    left_sv_fixed_unit=None,
                    right_sv_fixed_unit=None) -> int:
     """Add a new qtag4 card (4 tags: 2 PV + 2 SV) to a group."""
@@ -3717,8 +3759,10 @@ def add_qtag4_card(group_id: int, tag1_id: int, tag2_id: int,
                 tag1_id=tag1_id, tag2_id=tag2_id,
                 tag3_id=tag3_id, tag4_id=tag4_id,
                 left_sv_type=left_sv_type, left_sv_fixed=left_sv_fixed,
+                left_sv_fixed_dp=left_sv_fixed_dp,
                 left_sv_fixed_unit=left_sv_fixed_unit,
                 right_sv_type=right_sv_type, right_sv_fixed=right_sv_fixed,
+                right_sv_fixed_dp=right_sv_fixed_dp,
                 right_sv_fixed_unit=right_sv_fixed_unit,
                 card_title=card_title,
                 left_title=left_title,
@@ -3787,8 +3831,8 @@ def update_qtag4_card(card_id: int, **kwargs) -> bool:
     try:
         allowed = {'tag1_id', 'tag2_id', 'tag3_id', 'tag4_id',
                     'card_title', 'left_title', 'right_title', 'card_color',
-                    'left_sv_type', 'left_sv_fixed', 'left_sv_fixed_unit',
-                    'right_sv_type', 'right_sv_fixed', 'right_sv_fixed_unit'}
+                    'left_sv_type', 'left_sv_fixed', 'left_sv_fixed_dp', 'left_sv_fixed_unit',
+                    'right_sv_type', 'right_sv_fixed', 'right_sv_fixed_dp', 'right_sv_fixed_unit'}
         values_dict = {k: v for k, v in kwargs.items() if k in allowed}
         if not values_dict:
             return True
@@ -3824,6 +3868,8 @@ def add_qtag3_card(group_id: int, tag1_id: int,
                    card_title: str = None, column_title: str = None,
                    sv_high_type='tag', sv_high_fixed=None,
                    sv_low_type='tag', sv_low_fixed=None,
+                   sv_high_fixed_dp=None,
+                   sv_low_fixed_dp=None,
                    sv_high_fixed_unit=None,
                    sv_low_fixed_unit=None) -> int:
     """Add a new qtag3 card (1 column: PV + SV HIGH + SV LOW)."""
@@ -3833,8 +3879,10 @@ def add_qtag3_card(group_id: int, tag1_id: int,
                 group_id=group_id,
                 tag1_id=tag1_id, tag2_id=tag2_id, tag3_id=tag3_id,
                 sv_high_type=sv_high_type, sv_high_fixed=sv_high_fixed,
+                sv_high_fixed_dp=sv_high_fixed_dp,
                 sv_high_fixed_unit=sv_high_fixed_unit,
                 sv_low_type=sv_low_type, sv_low_fixed=sv_low_fixed,
+                sv_low_fixed_dp=sv_low_fixed_dp,
                 sv_low_fixed_unit=sv_low_fixed_unit,
                 card_title=card_title, column_title=column_title
             )
@@ -3904,8 +3952,8 @@ def update_qtag3_card(card_id: int, **kwargs) -> bool:
     try:
         allowed = {'tag1_id', 'tag2_id', 'tag3_id',
                     'card_title', 'column_title', 'card_color',
-                    'sv_high_type', 'sv_high_fixed', 'sv_high_fixed_unit',
-                    'sv_low_type', 'sv_low_fixed', 'sv_low_fixed_unit'}
+                    'sv_high_type', 'sv_high_fixed', 'sv_high_fixed_dp', 'sv_high_fixed_unit',
+                    'sv_low_type', 'sv_low_fixed', 'sv_low_fixed_dp', 'sv_low_fixed_unit'}
         values_dict = {k: v for k, v in kwargs.items() if k in allowed}
         if not values_dict:
             return True
@@ -3939,14 +3987,14 @@ def delete_qtag3_card(card_id: int) -> bool:
 def add_qtag2_card(group_id: int, tag1_id: int,
                    tag2_id=None, card_title: str = None,
                    column_title: str = None,
-                   sv_type='tag', sv_fixed=None, sv_fixed_unit=None) -> int:
+                   sv_type='tag', sv_fixed=None, sv_fixed_dp=None, sv_fixed_unit=None) -> int:
     """Add a new qtag2 card (1 column: PV + SV)."""
     with init_engine().begin() as con:
         res = con.execute(
             insert(subdash_qtag2_cards).values(
                 group_id=group_id,
                 tag1_id=tag1_id, tag2_id=tag2_id,
-                sv_type=sv_type, sv_fixed=sv_fixed, sv_fixed_unit=sv_fixed_unit,
+                sv_type=sv_type, sv_fixed=sv_fixed, sv_fixed_dp=sv_fixed_dp, sv_fixed_unit=sv_fixed_unit,
                 card_title=card_title, column_title=column_title
             )
         )
@@ -4002,7 +4050,7 @@ def update_qtag2_card(card_id: int, **kwargs) -> bool:
     try:
         allowed = {'tag1_id', 'tag2_id',
                     'card_title', 'column_title', 'card_color',
-                    'sv_type', 'sv_fixed', 'sv_fixed_unit'}
+                    'sv_type', 'sv_fixed', 'sv_fixed_dp', 'sv_fixed_unit'}
         values_dict = {k: v for k, v in kwargs.items() if k in allowed}
         if not values_dict:
             return True
@@ -4048,6 +4096,8 @@ def add_qtag_single3_card(group_id: int, pv_tag_id: int, card_title: str = None,
                           sv_high_fixed: float = None,
                           sv_low_type: str = 'fixed', sv_low_tag_id: int = None,
                           sv_low_fixed: float = None,
+                          sv_high_fixed_dp: int = None,
+                          sv_low_fixed_dp: int = None,
                           sv_high_fixed_unit: str = None,
                           sv_low_fixed_unit: str = None) -> int:
     """Add a new qtag single3 card (PV + SV HIGH/LOW) to a group."""
@@ -4060,10 +4110,12 @@ def add_qtag_single3_card(group_id: int, pv_tag_id: int, card_title: str = None,
                 sv_high_type=sv_high_type,
                 sv_high_tag_id=sv_high_tag_id,
                 sv_high_fixed=sv_high_fixed,
+                sv_high_fixed_dp=sv_high_fixed_dp,
                 sv_high_fixed_unit=sv_high_fixed_unit,
                 sv_low_type=sv_low_type,
                 sv_low_tag_id=sv_low_tag_id,
                 sv_low_fixed=sv_low_fixed,
+                sv_low_fixed_dp=sv_low_fixed_dp,
                 sv_low_fixed_unit=sv_low_fixed_unit,
             )
         )
@@ -4123,8 +4175,8 @@ def update_qtag_single3_card(card_id: int, **kwargs) -> bool:
     """Update a qtag single3 card."""
     try:
         allowed = {'card_title', 'pv_tag_id', 'card_color',
-                    'sv_high_type', 'sv_high_tag_id', 'sv_high_fixed', 'sv_high_fixed_unit',
-                    'sv_low_type', 'sv_low_tag_id', 'sv_low_fixed', 'sv_low_fixed_unit'}
+                    'sv_high_type', 'sv_high_tag_id', 'sv_high_fixed', 'sv_high_fixed_dp', 'sv_high_fixed_unit',
+                    'sv_low_type', 'sv_low_tag_id', 'sv_low_fixed', 'sv_low_fixed_dp', 'sv_low_fixed_unit'}
         values_dict = {k: v for k, v in kwargs.items() if k in allowed}
         if not values_dict:
             return True

@@ -42,16 +42,16 @@
                         data-tag3-id="{{ card.tag3_id or '' }}" data-tag4-id="{{ card.tag4_id or '' }}"
                         data-tag5-id="{{ card.tag5_id or '' }}" data-tag6-id="{{ card.tag6_id or '' }}"
                         data-left-sv-high-type="{{ card.left_sv_high_type or 'tag' }}"
-                        data-left-sv-high-fixed="{{ card.left_sv_high_fixed if card.left_sv_high_fixed is not none else '' }}"
+                        data-left-sv-high-fixed="{{ card.left_sv_high_fixed | format_fixed_value(card.left_sv_high_fixed_dp) if card.left_sv_high_fixed is not none else '' }}"
                         data-left-sv-high-fixed-unit="{{ card.left_sv_high_fixed_unit or '' }}"
                         data-right-sv-high-type="{{ card.right_sv_high_type or 'tag' }}"
-                        data-right-sv-high-fixed="{{ card.right_sv_high_fixed if card.right_sv_high_fixed is not none else '' }}"
+                        data-right-sv-high-fixed="{{ card.right_sv_high_fixed | format_fixed_value(card.right_sv_high_fixed_dp) if card.right_sv_high_fixed is not none else '' }}"
                         data-right-sv-high-fixed-unit="{{ card.right_sv_high_fixed_unit or '' }}"
                         data-left-sv-low-type="{{ card.left_sv_low_type or 'tag' }}"
-                        data-left-sv-low-fixed="{{ card.left_sv_low_fixed if card.left_sv_low_fixed is not none else '' }}"
+                        data-left-sv-low-fixed="{{ card.left_sv_low_fixed | format_fixed_value(card.left_sv_low_fixed_dp) if card.left_sv_low_fixed is not none else '' }}"
                         data-left-sv-low-fixed-unit="{{ card.left_sv_low_fixed_unit or '' }}"
                         data-right-sv-low-type="{{ card.right_sv_low_type or 'tag' }}"
-                        data-right-sv-low-fixed="{{ card.right_sv_low_fixed if card.right_sv_low_fixed is not none else '' }}"
+                        data-right-sv-low-fixed="{{ card.right_sv_low_fixed | format_fixed_value(card.right_sv_low_fixed_dp) if card.right_sv_low_fixed is not none else '' }}"
                         data-right-sv-low-fixed-unit="{{ card.right_sv_low_fixed_unit or '' }}">
               <i class="bi bi-pencil me-2"></i>Edit Tags (6 tags)</button></li>
             <li><button class="dropdown-item text-danger delete-qtag6-btn" data-card-id="{{ card.id }}"><i class="bi bi-trash me-2"></i>Delete Card</button></li>
@@ -96,9 +96,9 @@
                 <div class="qtag6-tag-label label-sv">SV</div>
                 <div class="qtag6-value-row">
                   <div class="qtag6-sv-inline">
-                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-left-{{ card.id }}" {% if (card.left_sv_low_type or 'tag') == 'tag' and card.tag5_id %}data-tag-id="{{ card.tag5_id }}"{% endif %}>{{ ( card.tag5.last_value if card.tag5 else (card.tag5_sv_value if card.tag5_sv_value is not none else 0)) | format_value((card.tag5.scale if card.tag5 else none), (card.tag5.offset if card.tag5 else 0)) }}</span>
+                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-left-{{ card.id }}" {% if (card.left_sv_low_type or 'tag') == 'tag' and card.tag5_id %}data-tag-id="{{ card.tag5_id }}"{% endif %}>{% if (card.left_sv_low_type or 'tag') == 'fixed' %}{{ card.tag5_sv_value | format_fixed_value(card.left_sv_low_fixed_dp) }}{% else %}{{ ( card.tag5.last_value if card.tag5 else (card.tag5_sv_value if card.tag5_sv_value is not none else 0)) | format_value((card.tag5.scale if card.tag5 else none), (card.tag5.offset if card.tag5 else 0)) }}{% endif %}</span>
                     <span class="qtag6-sv-separator">-</span>
-                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-left-{{ card.id }}" {% if (card.left_sv_high_type or 'tag') == 'tag' and card.tag3_id %}data-tag-id="{{ card.tag3_id }}"{% endif %}>{{ ( card.tag3.last_value if card.tag3 else (card.tag3_sv_value if card.tag3_sv_value is not none else 0)) | format_value((card.tag3.scale if card.tag3 else none), (card.tag3.offset if card.tag3 else 0)) }}</span>
+                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-left-{{ card.id }}" {% if (card.left_sv_high_type or 'tag') == 'tag' and card.tag3_id %}data-tag-id="{{ card.tag3_id }}"{% endif %}>{% if (card.left_sv_high_type or 'tag') == 'fixed' %}{{ card.tag3_sv_value | format_fixed_value(card.left_sv_high_fixed_dp) }}{% else %}{{ ( card.tag3.last_value if card.tag3 else (card.tag3_sv_value if card.tag3_sv_value is not none else 0)) | format_value((card.tag3.scale if card.tag3 else none), (card.tag3.offset if card.tag3 else 0)) }}{% endif %}</span>
                   </div>
                   <div class="qtag6-tag-unit">{{ (card.tag5.unit if (card.left_sv_low_type or 'tag') == 'tag' and card.tag5 else (card.tag3.unit if (card.left_sv_high_type or 'tag') == 'tag' and card.tag3 else (card.left_sv_low_fixed_unit or card.left_sv_high_fixed_unit))) or card.tag1.unit or '' }}</div>
                 </div>
@@ -128,9 +128,9 @@
                 <div class="qtag6-tag-label label-sv">SV</div>
                 <div class="qtag6-value-row">
                   <div class="qtag6-sv-inline">
-                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-right-{{ card.id }}" {% if (card.right_sv_low_type or 'tag') == 'tag' and card.tag6_id %}data-tag-id="{{ card.tag6_id }}"{% endif %}>{{ ( card.tag6.last_value if card.tag6 else (card.tag6_sv_value if card.tag6_sv_value is not none else 0)) | format_value((card.tag6.scale if card.tag6 else none), (card.tag6.offset if card.tag6 else 0)) }}</span>
+                    <i class="bi bi-arrow-down qtag6-arrow-low"></i><span class="qtag6-sv-low" id="qtag6-sv-low-right-{{ card.id }}" {% if (card.right_sv_low_type or 'tag') == 'tag' and card.tag6_id %}data-tag-id="{{ card.tag6_id }}"{% endif %}>{% if (card.right_sv_low_type or 'tag') == 'fixed' %}{{ card.tag6_sv_value | format_fixed_value(card.right_sv_low_fixed_dp) }}{% else %}{{ ( card.tag6.last_value if card.tag6 else (card.tag6_sv_value if card.tag6_sv_value is not none else 0)) | format_value((card.tag6.scale if card.tag6 else none), (card.tag6.offset if card.tag6 else 0)) }}{% endif %}</span>
                     <span class="qtag6-sv-separator">-</span>
-                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-right-{{ card.id }}" {% if (card.right_sv_high_type or 'tag') == 'tag' and card.tag4_id %}data-tag-id="{{ card.tag4_id }}"{% endif %}>{{ ( card.tag4.last_value if card.tag4 else (card.tag4_sv_value if card.tag4_sv_value is not none else 0)) | format_value((card.tag4.scale if card.tag4 else none), (card.tag4.offset if card.tag4 else 0)) }}</span>
+                    <i class="bi bi-arrow-up qtag6-arrow-high"></i><span class="qtag6-sv-high" id="qtag6-sv-high-right-{{ card.id }}" {% if (card.right_sv_high_type or 'tag') == 'tag' and card.tag4_id %}data-tag-id="{{ card.tag4_id }}"{% endif %}>{% if (card.right_sv_high_type or 'tag') == 'fixed' %}{{ card.tag4_sv_value | format_fixed_value(card.right_sv_high_fixed_dp) }}{% else %}{{ ( card.tag4.last_value if card.tag4 else (card.tag4_sv_value if card.tag4_sv_value is not none else 0)) | format_value((card.tag4.scale if card.tag4 else none), (card.tag4.offset if card.tag4 else 0)) }}{% endif %}</span>
                   </div>
                   <div class="qtag6-tag-unit">{{ (card.tag6.unit if (card.right_sv_low_type or 'tag') == 'tag' and card.tag6 else (card.tag4.unit if (card.right_sv_high_type or 'tag') == 'tag' and card.tag4 else (card.right_sv_low_fixed_unit or card.right_sv_high_fixed_unit))) or card.tag2.unit or '' }}</div>
                 </div>

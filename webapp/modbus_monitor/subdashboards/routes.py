@@ -2,8 +2,41 @@ from flask import jsonify, render_template, request, redirect, url_for, flash, s
 from sqlalchemy import select
 from . import subdash_bp
 from datetime import datetime,timedelta
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from ..database import db
 from ..services.socket_emission_manager import get_emission_manager
+
+
+def _parse_fixed_numeric_input(raw_value):
+    """Return normalized numeric fixed value and decimal places metadata (0..2)."""
+    if raw_value is None:
+        return None, None
+    text = str(raw_value).strip()
+    if text == '':
+        return None, None
+
+    try:
+        number = Decimal(text)
+    except (InvalidOperation, ValueError):
+        raise ValueError(f"Invalid fixed value: {raw_value}")
+
+    decimal_places = 0
+    if '.' in text:
+        fraction = text.split('.', 1)[1]
+        meaningful_fraction = fraction.rstrip('0')
+        if meaningful_fraction:
+            decimal_places = min(2, len(meaningful_fraction))
+        else:
+            # Preserve x.0 style explicitly typed by user.
+            decimal_places = 1
+
+    # Round to at most 2 decimals (expected behavior: 111.268 -> 111.27).
+    quantize_pattern = Decimal('1') if decimal_places == 0 else Decimal('0.' + ('0' * (decimal_places - 1)) + '1')
+    normalized = number.quantize(quantize_pattern, rounding=ROUND_HALF_UP)
+
+    if decimal_places == 0:
+        return int(normalized), 0
+    return float(normalized), decimal_places
 
 @subdash_bp.get("/")
 def list_subdash():
@@ -741,10 +774,11 @@ def add_quad_tag_card(sid):
 
         tag3_id = None
         sv_left_fixed = None
+        sv_left_fixed_dp = None
         sv_left_fixed_unit = None
         if sv_left_type == 'fixed':
             fv = request.form.get("sv_left_fixed")
-            sv_left_fixed = float(fv) if fv else None
+            sv_left_fixed, sv_left_fixed_dp = _parse_fixed_numeric_input(fv)
             sv_left_fixed_unit = request.form.get("sv_left_fixed_unit", "").strip() or None
         else:
             tag3_id_raw = request.form.get("tag3_id")
@@ -754,10 +788,11 @@ def add_quad_tag_card(sid):
 
         tag4_id = None
         sv_right_fixed = None
+        sv_right_fixed_dp = None
         sv_right_fixed_unit = None
         if sv_right_type == 'fixed':
             fv = request.form.get("sv_right_fixed")
-            sv_right_fixed = float(fv) if fv else None
+            sv_right_fixed, sv_right_fixed_dp = _parse_fixed_numeric_input(fv)
             sv_right_fixed_unit = request.form.get("sv_right_fixed_unit", "").strip() or None
         else:
             tag4_id_raw = request.form.get("tag4_id")
@@ -793,6 +828,7 @@ def add_quad_tag_card(sid):
             right_title=right_title if right_title else None,
             sv_left_type=sv_left_type, sv_left_fixed=sv_left_fixed,
             sv_right_type=sv_right_type, sv_right_fixed=sv_right_fixed,
+            sv_left_fixed_dp=sv_left_fixed_dp, sv_right_fixed_dp=sv_right_fixed_dp,
             sv_left_fixed_unit=sv_left_fixed_unit, sv_right_fixed_unit=sv_right_fixed_unit,
         )
         
@@ -867,10 +903,11 @@ def update_quad_tags(sid, quad_id):
 
         tag3_id = None
         sv_left_fixed = None
+        sv_left_fixed_dp = None
         sv_left_fixed_unit = None
         if sv_left_type == 'fixed':
             fv = request.form.get("sv_left_fixed")
-            sv_left_fixed = float(fv) if fv else None
+            sv_left_fixed, sv_left_fixed_dp = _parse_fixed_numeric_input(fv)
             sv_left_fixed_unit = request.form.get("sv_left_fixed_unit", "").strip() or None
         else:
             t = request.form.get("tag3_id")
@@ -880,10 +917,11 @@ def update_quad_tags(sid, quad_id):
 
         tag4_id = None
         sv_right_fixed = None
+        sv_right_fixed_dp = None
         sv_right_fixed_unit = None
         if sv_right_type == 'fixed':
             fv = request.form.get("sv_right_fixed")
-            sv_right_fixed = float(fv) if fv else None
+            sv_right_fixed, sv_right_fixed_dp = _parse_fixed_numeric_input(fv)
             sv_right_fixed_unit = request.form.get("sv_right_fixed_unit", "").strip() or None
         else:
             t = request.form.get("tag4_id")
@@ -900,6 +938,7 @@ def update_quad_tags(sid, quad_id):
             tag3_id=tag3_id, tag4_id=tag4_id,
             sv_left_type=sv_left_type, sv_left_fixed=sv_left_fixed,
             sv_right_type=sv_right_type, sv_right_fixed=sv_right_fixed,
+            sv_left_fixed_dp=sv_left_fixed_dp, sv_right_fixed_dp=sv_right_fixed_dp,
             sv_left_fixed_unit=sv_left_fixed_unit, sv_right_fixed_unit=sv_right_fixed_unit,
         )
         
@@ -939,10 +978,11 @@ def update_quad_tag_card(sid, quad_id):
 
         tag3_id = None
         sv_left_fixed = None
+        sv_left_fixed_dp = None
         sv_left_fixed_unit = None
         if sv_left_type == 'fixed':
             fv = request.form.get("sv_left_fixed")
-            sv_left_fixed = float(fv) if fv else None
+            sv_left_fixed, sv_left_fixed_dp = _parse_fixed_numeric_input(fv)
             sv_left_fixed_unit = request.form.get("sv_left_fixed_unit", "").strip() or None
         else:
             t = request.form.get("tag3_id")
@@ -952,10 +992,11 @@ def update_quad_tag_card(sid, quad_id):
 
         tag4_id = None
         sv_right_fixed = None
+        sv_right_fixed_dp = None
         sv_right_fixed_unit = None
         if sv_right_type == 'fixed':
             fv = request.form.get("sv_right_fixed")
-            sv_right_fixed = float(fv) if fv else None
+            sv_right_fixed, sv_right_fixed_dp = _parse_fixed_numeric_input(fv)
             sv_right_fixed_unit = request.form.get("sv_right_fixed_unit", "").strip() or None
         else:
             t = request.form.get("tag4_id")
@@ -977,6 +1018,7 @@ def update_quad_tag_card(sid, quad_id):
             card_title=card_title, left_title=left_title, right_title=right_title,
             sv_left_type=sv_left_type, sv_left_fixed=sv_left_fixed,
             sv_right_type=sv_right_type, sv_right_fixed=sv_right_fixed,
+            sv_left_fixed_dp=sv_left_fixed_dp, sv_right_fixed_dp=sv_right_fixed_dp,
             sv_left_fixed_unit=sv_left_fixed_unit, sv_right_fixed_unit=sv_right_fixed_unit,
         )
         
@@ -1354,7 +1396,9 @@ def add_qtag6_card(sid):
             sv_kwargs[type_col] = sv_type
             if sv_type == 'fixed':
                 fv = request.form.get(f"{prefix}_fixed")
-                sv_kwargs[fixed_col] = float(fv) if fv else None
+                fixed_value, fixed_dp = _parse_fixed_numeric_input(fv)
+                sv_kwargs[fixed_col] = fixed_value
+                sv_kwargs[f"{fixed_col}_dp"] = fixed_dp
                 sv_kwargs[fixed_unit_col] = request.form.get(f"{prefix}_fixed_unit", "").strip() or None
                 sv_tag_ids[pos] = None
             else:
@@ -1363,6 +1407,7 @@ def add_qtag6_card(sid):
                     return jsonify({"success": False, "message": f"SV Tag {pos} is required when mode is 'tag'"}), 400
                 sv_tag_ids[pos] = int(t)
                 sv_kwargs[fixed_col] = None
+                sv_kwargs[f"{fixed_col}_dp"] = None
                 sv_kwargs[fixed_unit_col] = None
 
         group_id = request.form.get("group_id")
@@ -1427,13 +1472,16 @@ def update_qtag6_card_route(sid, card_id):
                 kwargs[type_col] = sv_type
                 if sv_type == 'fixed':
                     fv = request.form.get(f"{prefix}_fixed")
-                    kwargs[fixed_col] = float(fv) if fv else None
+                    fixed_value, fixed_dp = _parse_fixed_numeric_input(fv)
+                    kwargs[fixed_col] = fixed_value
+                    kwargs[f"{fixed_col}_dp"] = fixed_dp
                     kwargs[fixed_unit_col] = request.form.get(f"{prefix}_fixed_unit", "").strip() or None
                     kwargs[f'tag{pos}_id'] = None
                 else:
                     t = request.form.get(f"tag{pos}_id")
                     kwargs[f'tag{pos}_id'] = int(t) if t else None
                     kwargs[fixed_col] = None
+                    kwargs[f"{fixed_col}_dp"] = None
                     kwargs[fixed_unit_col] = None
 
         for field in ('card_title', 'left_title', 'right_title'):
@@ -1536,7 +1584,9 @@ def add_qtag4_card(sid):
             sv_kwargs[type_col] = sv_type
             if sv_type == 'fixed':
                 fv = request.form.get(f"{prefix}_fixed")
-                sv_kwargs[fixed_col] = float(fv) if fv else None
+                fixed_value, fixed_dp = _parse_fixed_numeric_input(fv)
+                sv_kwargs[fixed_col] = fixed_value
+                sv_kwargs[f"{fixed_col}_dp"] = fixed_dp
                 sv_kwargs[fixed_unit_col] = request.form.get(f"{prefix}_fixed_unit", "").strip() or None
                 sv_tag_ids[pos] = None
             else:
@@ -1545,6 +1595,7 @@ def add_qtag4_card(sid):
                     return jsonify({"success": False, "message": f"SV Tag {pos} is required when mode is 'tag'"}), 400
                 sv_tag_ids[pos] = int(t)
                 sv_kwargs[fixed_col] = None
+                sv_kwargs[f"{fixed_col}_dp"] = None
                 sv_kwargs[fixed_unit_col] = None
 
         group_id = request.form.get("group_id")
@@ -1603,13 +1654,16 @@ def update_qtag4_card_route(sid, card_id):
                 kwargs[type_col] = sv_type
                 if sv_type == 'fixed':
                     fv = request.form.get(f"{prefix}_fixed")
-                    kwargs[fixed_col] = float(fv) if fv else None
+                    fixed_value, fixed_dp = _parse_fixed_numeric_input(fv)
+                    kwargs[fixed_col] = fixed_value
+                    kwargs[f"{fixed_col}_dp"] = fixed_dp
                     kwargs[fixed_unit_col] = request.form.get(f"{prefix}_fixed_unit", "").strip() or None
                     kwargs[f'tag{pos}_id'] = None
                 else:
                     t = request.form.get(f"tag{pos}_id")
                     kwargs[f'tag{pos}_id'] = int(t) if t else None
                     kwargs[fixed_col] = None
+                    kwargs[f"{fixed_col}_dp"] = None
                     kwargs[fixed_unit_col] = None
 
         for field in ('card_title', 'left_title', 'right_title'):
@@ -1701,11 +1755,12 @@ def add_qtag3_card(sid):
         # SV HIGH (tag2)
         sv_high_type = request.form.get("sv_high_type", "tag")
         sv_high_fixed = None
+        sv_high_fixed_dp = None
         sv_high_fixed_unit = None
         tag2_id = None
         if sv_high_type == 'fixed':
             fv = request.form.get("sv_high_fixed")
-            sv_high_fixed = float(fv) if fv else None
+            sv_high_fixed, sv_high_fixed_dp = _parse_fixed_numeric_input(fv)
             sv_high_fixed_unit = request.form.get("sv_high_fixed_unit", "").strip() or None
         else:
             t = request.form.get("tag2_id")
@@ -1714,11 +1769,12 @@ def add_qtag3_card(sid):
         # SV LOW (tag3)
         sv_low_type = request.form.get("sv_low_type", "tag")
         sv_low_fixed = None
+        sv_low_fixed_dp = None
         sv_low_fixed_unit = None
         tag3_id = None
         if sv_low_type == 'fixed':
             fv = request.form.get("sv_low_fixed")
-            sv_low_fixed = float(fv) if fv else None
+            sv_low_fixed, sv_low_fixed_dp = _parse_fixed_numeric_input(fv)
             sv_low_fixed_unit = request.form.get("sv_low_fixed_unit", "").strip() or None
         else:
             t = request.form.get("tag3_id")
@@ -1740,8 +1796,8 @@ def add_qtag3_card(sid):
             group_id, tag1_id=tag1_id,
             tag2_id=tag2_id, tag3_id=tag3_id,
             card_title=card_title, column_title=column_title,
-            sv_high_type=sv_high_type, sv_high_fixed=sv_high_fixed, sv_high_fixed_unit=sv_high_fixed_unit,
-            sv_low_type=sv_low_type, sv_low_fixed=sv_low_fixed, sv_low_fixed_unit=sv_low_fixed_unit
+            sv_high_type=sv_high_type, sv_high_fixed=sv_high_fixed, sv_high_fixed_dp=sv_high_fixed_dp, sv_high_fixed_unit=sv_high_fixed_unit,
+            sv_low_type=sv_low_type, sv_low_fixed=sv_low_fixed, sv_low_fixed_dp=sv_low_fixed_dp, sv_low_fixed_unit=sv_low_fixed_unit
         )
         try:
             get_emission_manager().force_refresh_subdash_cache()
@@ -1774,13 +1830,16 @@ def update_qtag3_card_route(sid, card_id):
             kwargs['sv_high_type'] = sv_high_type
             if sv_high_type == 'fixed':
                 fv = request.form.get("sv_high_fixed")
-                kwargs['sv_high_fixed'] = float(fv) if fv else None
+                fixed_value, fixed_dp = _parse_fixed_numeric_input(fv)
+                kwargs['sv_high_fixed'] = fixed_value
+                kwargs['sv_high_fixed_dp'] = fixed_dp
                 kwargs['sv_high_fixed_unit'] = request.form.get("sv_high_fixed_unit", "").strip() or None
                 kwargs['tag2_id'] = None
             else:
                 t = request.form.get("tag2_id")
                 kwargs['tag2_id'] = int(t) if t else None
                 kwargs['sv_high_fixed'] = None
+                kwargs['sv_high_fixed_dp'] = None
                 kwargs['sv_high_fixed_unit'] = None
 
         # SV LOW
@@ -1789,13 +1848,16 @@ def update_qtag3_card_route(sid, card_id):
             kwargs['sv_low_type'] = sv_low_type
             if sv_low_type == 'fixed':
                 fv = request.form.get("sv_low_fixed")
-                kwargs['sv_low_fixed'] = float(fv) if fv else None
+                fixed_value, fixed_dp = _parse_fixed_numeric_input(fv)
+                kwargs['sv_low_fixed'] = fixed_value
+                kwargs['sv_low_fixed_dp'] = fixed_dp
                 kwargs['sv_low_fixed_unit'] = request.form.get("sv_low_fixed_unit", "").strip() or None
                 kwargs['tag3_id'] = None
             else:
                 t = request.form.get("tag3_id")
                 kwargs['tag3_id'] = int(t) if t else None
                 kwargs['sv_low_fixed'] = None
+                kwargs['sv_low_fixed_dp'] = None
                 kwargs['sv_low_fixed_unit'] = None
 
         for field in ('card_title', 'column_title'):
@@ -1885,11 +1947,12 @@ def add_qtag2_card(sid):
         # SV (tag2)
         sv_type = request.form.get("sv_type", "tag")
         sv_fixed = None
+        sv_fixed_dp = None
         sv_fixed_unit = None
         tag2_id = None
         if sv_type == 'fixed':
             fv = request.form.get("sv_fixed")
-            sv_fixed = float(fv) if fv else None
+            sv_fixed, sv_fixed_dp = _parse_fixed_numeric_input(fv)
             sv_fixed_unit = request.form.get("sv_fixed_unit", "").strip() or None
         else:
             t = request.form.get("tag2_id")
@@ -1911,7 +1974,7 @@ def add_qtag2_card(sid):
             group_id, tag1_id=tag1_id,
             tag2_id=tag2_id,
             card_title=card_title, column_title=column_title,
-            sv_type=sv_type, sv_fixed=sv_fixed, sv_fixed_unit=sv_fixed_unit
+            sv_type=sv_type, sv_fixed=sv_fixed, sv_fixed_dp=sv_fixed_dp, sv_fixed_unit=sv_fixed_unit
         )
         try:
             get_emission_manager().force_refresh_subdash_cache()
@@ -1944,13 +2007,16 @@ def update_qtag2_card_route(sid, card_id):
             kwargs['sv_type'] = sv_type
             if sv_type == 'fixed':
                 fv = request.form.get("sv_fixed")
-                kwargs['sv_fixed'] = float(fv) if fv else None
+                fixed_value, fixed_dp = _parse_fixed_numeric_input(fv)
+                kwargs['sv_fixed'] = fixed_value
+                kwargs['sv_fixed_dp'] = fixed_dp
                 kwargs['sv_fixed_unit'] = request.form.get("sv_fixed_unit", "").strip() or None
                 kwargs['tag2_id'] = None
             else:
                 t = request.form.get("tag2_id")
                 kwargs['tag2_id'] = int(t) if t else None
                 kwargs['sv_fixed'] = None
+                kwargs['sv_fixed_dp'] = None
                 kwargs['sv_fixed_unit'] = None
 
         for field in ('card_title', 'column_title'):
@@ -2043,10 +2109,18 @@ def add_qtag_single3_card(sid):
         sv_high_type = request.form.get("sv_high_type", "fixed")
         sv_high_tag_id = request.form.get("sv_high_tag_id")
         sv_high_fixed = request.form.get("sv_high_fixed")
+        sv_high_fixed_value = None
+        sv_high_fixed_dp = None
+        if sv_high_type == 'fixed':
+            sv_high_fixed_value, sv_high_fixed_dp = _parse_fixed_numeric_input(sv_high_fixed)
         sv_high_fixed_unit = (request.form.get("sv_high_fixed_unit", "").strip() or None) if sv_high_type == 'fixed' else None
         sv_low_type = request.form.get("sv_low_type", "fixed")
         sv_low_tag_id = request.form.get("sv_low_tag_id")
         sv_low_fixed = request.form.get("sv_low_fixed")
+        sv_low_fixed_value = None
+        sv_low_fixed_dp = None
+        if sv_low_type == 'fixed':
+            sv_low_fixed_value, sv_low_fixed_dp = _parse_fixed_numeric_input(sv_low_fixed)
         sv_low_fixed_unit = (request.form.get("sv_low_fixed_unit", "").strip() or None) if sv_low_type == 'fixed' else None
 
         # Priority: existing group > new group name (avoid duplicate groups)
@@ -2063,11 +2137,13 @@ def add_qtag_single3_card(sid):
             card_title=card_title,
             sv_high_type=sv_high_type,
             sv_high_tag_id=int(sv_high_tag_id) if sv_high_tag_id else None,
-            sv_high_fixed=float(sv_high_fixed) if sv_high_fixed else None,
+            sv_high_fixed=sv_high_fixed_value,
+            sv_high_fixed_dp=sv_high_fixed_dp,
             sv_high_fixed_unit=sv_high_fixed_unit,
             sv_low_type=sv_low_type,
             sv_low_tag_id=int(sv_low_tag_id) if sv_low_tag_id else None,
-            sv_low_fixed=float(sv_low_fixed) if sv_low_fixed else None,
+            sv_low_fixed=sv_low_fixed_value,
+            sv_low_fixed_dp=sv_low_fixed_dp,
             sv_low_fixed_unit=sv_low_fixed_unit,
         )
         try:
@@ -2104,10 +2180,13 @@ def update_qtag_single3_card_route(sid, card_id):
             tid = request.form.get(f"{prefix}_tag_id")
             kwargs[f'{prefix}_tag_id'] = int(tid) if tid else None
             fv = request.form.get(f"{prefix}_fixed")
-            kwargs[f'{prefix}_fixed'] = float(fv) if fv else None
+            fixed_value, fixed_dp = _parse_fixed_numeric_input(fv)
+            kwargs[f'{prefix}_fixed'] = fixed_value
+            kwargs[f'{prefix}_fixed_dp'] = fixed_dp
             if t == 'fixed':
                 kwargs[f'{prefix}_fixed_unit'] = request.form.get(f"{prefix}_fixed_unit", "").strip() or None
             elif t == 'tag':
+                kwargs[f'{prefix}_fixed_dp'] = None
                 kwargs[f'{prefix}_fixed_unit'] = None
 
         result = db.update_qtag_single3_card(card_id, **kwargs)

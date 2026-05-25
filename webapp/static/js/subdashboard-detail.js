@@ -120,8 +120,9 @@ try {
           if (!isNaN(tagId)) {
             // Dim without overwriting existing displayed value
             dimTagInitial(tagId);
-            // Force quad values for this tag to 0 at load if offline
-            document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]`).forEach(el => {
+            // Force quad values for this tag to 0 at load if offline.
+            // Exclude fixed-SV rows to prevent overwriting static values.
+            document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]:not([id^="quad-tag-val-fixed-"])`).forEach(el => {
               el.textContent = formatZeroByTagId(tagId);
             });
           }
@@ -1477,7 +1478,7 @@ try {
 
     const scaleNum = Math.abs(Number(scale));
     if (Number.isFinite(scaleNum) && Math.abs(scaleNum - 1.0) < 1e-9) {
-      return Number.isInteger(num) ? String(Math.trunc(num)) : num.toFixed(2);
+      return Number.isInteger(num) ? String(Math.trunc(num)) : parseFloat(num.toFixed(2)).toString();
     }
 
     const decimalPlaces = decimalsByDisplayRule(scale);
@@ -1500,6 +1501,24 @@ try {
     }
 
     const id = el.id || '';
+
+    // Only fallback to parsing ID for value elements whose id format
+    // is known to end with a real tag id (not card id).
+    const tagIdTailPatterns = [
+      /^quad-tag-val-\d+-\d+$/,
+      /^qtag6-val-\d+-\d+$/,
+      /^qtag4-val-\d+-\d+$/,
+      /^qtag3-val-\d+-\d+$/,
+      /^qtag2-val-\d+-\d+$/,
+      /^qtag-single3-pv-\d+-\d+$/,
+      /^qtag-pv-val-\d+-\d+$/,
+      /^qtag-pv-dual-val-\d+-\d+$/
+    ];
+
+    if (!tagIdTailPatterns.some((pattern) => pattern.test(id))) {
+      return null;
+    }
+
     const match = id.match(/-(\d+)$/);
     if (!match) return null;
     const parsed = Number(match[1]);
@@ -1510,6 +1529,21 @@ try {
     const num = Number(rawValue);
     if (!Number.isFinite(num)) return rawValue;
     return fmtVal(num, resolveTagScale(tagId));
+  }
+
+  function normalizeFixedDisplayText(rawValue) {
+    const text = String(rawValue ?? '').trim();
+    if (!text || !text.includes('.')) return text;
+
+    const num = Number(text);
+    if (!Number.isFinite(num)) return text;
+
+    const [intPart, fracPart = ''] = text.split('.', 2);
+    const trimmed = fracPart.replace(/0+$/, '');
+    if (trimmed.length === 0) {
+      return `${intPart}.0`;
+    }
+    return `${intPart}.${trimmed}`;
   }
 
   function normalizeAllCardValuesByScale() {
@@ -1659,6 +1693,11 @@ try {
             const el = grid.querySelector(`[id$="-${tagId}"]`);
             if (el) el.textContent = formatValueByTagId(_quadValuesCache[tagId], tagId);
           });
+
+          // Ensure fixed SV values from legacy cache are not shown with forced trailing zeros.
+          grid.querySelectorAll('[id^="quad-tag-val-fixed-"]').forEach((el) => {
+            el.textContent = normalizeFixedDisplayText(el.textContent);
+          });
           
           // Cập nhật thời gian
           grid.querySelectorAll('.quad-update-time').forEach(el => {
@@ -1697,18 +1736,11 @@ try {
               continue;
             }
 
-            // Get tag ID from data attribute.
-            // For fixed SV rows, data-tag-id may be absent, so fallback to existing value element ID.
-            let tagId = item.getAttribute('data-tag-id');
-            if (!tagId) {
-              const existingValEl = item.querySelector('[id^="quad-tag-val-"]');
-              if (existingValEl && existingValEl.id) {
-                const m = existingValEl.id.match(/(\d+)$/);
-                tagId = m ? m[1] : `fixed-${cardId}-${i}`;
-              } else {
-                tagId = `fixed-${cardId}-${i}`;
-              }
-            }
+            // Get real tag ID only from data-tag-id.
+            // If missing (fixed SV), keep it as null to avoid fake tag mapping.
+            const rawTagId = item.getAttribute('data-tag-id');
+            const hasRealTagId = rawTagId !== null && rawTagId !== '';
+            const tagId = hasRealTagId ? String(rawTagId) : null;
 
             // Preserve device status so quad-only dashboards know current state
             const deviceStatus = item.getAttribute('data-device-status') || 'unknown';
@@ -1720,14 +1752,18 @@ try {
 
             // Extract current value and unit — ưu tiên value cache nếu có
             let value = valElement ? valElement.textContent.trim() : '0';
-            if (_quadValuesCache[tagId] !== undefined) {
+            if (hasRealTagId && _quadValuesCache[tagId] !== undefined) {
               value = formatValueByTagId(_quadValuesCache[tagId], tagId);
+            } else if (!hasRealTagId) {
+              value = normalizeFixedDisplayText(value);
             }
             const unit = unitElement ? unitElement.textContent.trim() : '';
             const name = nameElement ? nameElement.textContent.trim() : `Tag ${i + 1}`;
 
-            // ✅ Use UNIQUE ID format: cardId + tagId để tránh duplicate IDs
-            const id = `quad-tag-val-${cardId}-${tagId}`;
+            // ✅ Use unique ID; fixed SV rows must not end with numeric tag-id pattern.
+            const id = hasRealTagId
+              ? `quad-tag-val-${cardId}-${tagId}`
+              : `quad-tag-val-fixed-${cardId}-${i}`;
 
             console.log(`Quad tag ${i}: ID=${id}, CardID=${cardId}, TagID=${tagId}, Value=${value}, Unit=${unit}, Status=${deviceStatus}`);
 
@@ -1736,6 +1772,7 @@ try {
               unit: unit,
               id: id,
               tagId: tagId,
+              hasRealTagId: hasRealTagId,
               name: name,
               deviceStatus: deviceStatus
             });
@@ -1772,14 +1809,14 @@ try {
             <div class="quad-sub-card-title" data-title-slot="left">${title1}</div>
           </div>
           <div class="quad-tag-row">
-            <div class="quad-tag-item pv-item" data-tag-id="${itemsData[0].tagId}" data-device-status="${itemsData[0].deviceStatus}">
+            <div class="quad-tag-item pv-item" ${itemsData[0].hasRealTagId ? `data-tag-id="${itemsData[0].tagId}"` : ''} data-device-status="${itemsData[0].deviceStatus}">
               <div class="quad-tag-label">PV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[0].id}">${itemsData[0].value}</div>
                 <div class="quad-tag-unit">${itemsData[0].unit}</div>
               </div>
             </div>
-            <div class="quad-tag-item sv-item" data-tag-id="${itemsData[2].tagId}" data-device-status="${itemsData[2].deviceStatus}">
+            <div class="quad-tag-item sv-item" ${itemsData[2].hasRealTagId ? `data-tag-id="${itemsData[2].tagId}"` : ''} data-device-status="${itemsData[2].deviceStatus}">
               <div class="quad-tag-label">SV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[2].id}">${itemsData[2].value}</div>
@@ -1800,14 +1837,14 @@ try {
             <div class="quad-sub-card-title" data-title-slot="right">${title2}</div>
           </div>
           <div class="quad-tag-row">
-            <div class="quad-tag-item pv-item" data-tag-id="${itemsData[1].tagId}" data-device-status="${itemsData[1].deviceStatus}">
+            <div class="quad-tag-item pv-item" ${itemsData[1].hasRealTagId ? `data-tag-id="${itemsData[1].tagId}"` : ''} data-device-status="${itemsData[1].deviceStatus}">
               <div class="quad-tag-label">PV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[1].id}">${itemsData[1].value}</div>
                 <div class="quad-tag-unit">${itemsData[1].unit}</div>
               </div>
             </div>
-            <div class="quad-tag-item sv-item" data-tag-id="${itemsData[3].tagId}" data-device-status="${itemsData[3].deviceStatus}">
+            <div class="quad-tag-item sv-item" ${itemsData[3].hasRealTagId ? `data-tag-id="${itemsData[3].tagId}"` : ''} data-device-status="${itemsData[3].deviceStatus}">
               <div class="quad-tag-label">SV</div>
               <div class="quad-tag-value-row">
                 <div class="quad-tag-value" id="${itemsData[3].id}">${itemsData[3].value}</div>
@@ -2966,8 +3003,9 @@ try {
       } else if (normalizedStatus === 'disconnected') {
         indicator.classList.add('status-offline');
         indicator.title = 'Device offline';
-        // Force all quad tag values tied to this device to 0 when offline
-        document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]`).forEach(el => {
+        // Force all quad tag values tied to this device to 0 when offline.
+        // Exclude fixed-SV rows to prevent overwriting static values.
+        document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]:not([id^="quad-tag-val-fixed-"])`).forEach(el => {
           el.textContent = formatZeroByTagId(tagId);
         });
       } else {
@@ -3012,8 +3050,8 @@ try {
       span.textContent = valueText;
     });
 
-    // Fallback cho id kết thúc bằng -tagId
-    document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]`).forEach(span => {
+    // Fallback cho id kết thúc bằng -tagId (exclude fixed-SV rows).
+    document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]:not([id^="quad-tag-val-fixed-"])`).forEach(span => {
       span.textContent = valueText;
     });
   }
@@ -3182,7 +3220,8 @@ try {
           const valEl = document.getElementById('tag-val-' + tag.id);
 
           // ✅ Update quad tags - tìm TẤT CẢ elements với pattern này
-          const quadValElements = document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tag.id}"]`);
+          // Exclude fixed-SV rows (id^="quad-tag-val-fixed-") to prevent overwriting static values.
+          const quadValElements = document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tag.id}"]:not([id^="quad-tag-val-fixed-"])`);
 
           const updateQuadLastUpdated = () => {
             quadValElements.forEach(quadValEl => {

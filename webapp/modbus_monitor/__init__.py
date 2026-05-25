@@ -254,7 +254,7 @@ def create_app():
             scale_float = None
 
         if scale_float is not None and abs(scale_float - 1.0) < 1e-9:
-            return f"{int(num_value)}" if num_value.is_integer() else f"{num_value:.2f}"
+            return f"{int(num_value)}" if num_value.is_integer() else f"{round(num_value, 2):g}"
 
         decimals = _display_decimals(scale)
         if decimals is not None:
@@ -271,6 +271,46 @@ def create_app():
             return f"{int(num_value)}"
         else:
             return f"{round(num_value, 2):g}"
+
+    @app.template_filter('format_fixed_value')
+    def format_fixed_value_filter(value, decimal_places=None):
+        """Format fixed SV values with max 2 decimals while preserving typed style.
+
+        decimal_places should be metadata captured from the user input (0, 1, or 2).
+        """
+        if value is None or value == '':
+            return '—'
+        try:
+            num_value = float(value)
+        except (ValueError, TypeError):
+            return str(value)
+
+        # Avoid rendering -0 / -0.0 in UI.
+        if abs(num_value) < 1e-12:
+            num_value = 0.0
+
+        try:
+            dp = int(decimal_places) if decimal_places is not None else None
+        except (ValueError, TypeError):
+            dp = None
+
+        if dp is None:
+            # Backward compatibility for old records without metadata:
+            # show up to 2 decimals but do not force trailing zeros.
+            return str(int(num_value)) if float(num_value).is_integer() else str(float(f"{num_value:.2f}"))
+
+        dp = max(0, min(2, dp))
+        if dp == 0:
+            return f"{int(round(num_value))}"
+
+        # Render with requested precision, then remove redundant trailing zeros.
+        rendered = f"{num_value:.{dp}f}"
+        if '.' in rendered:
+            rendered = rendered.rstrip('0').rstrip('.')
+        # Keep at least one decimal when user originally used decimal input.
+        if '.' not in rendered:
+            rendered = f"{rendered}.0"
+        return rendered
 
     @app.template_filter('contrast_color')
     def contrast_color_filter(hex_color):
