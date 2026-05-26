@@ -1438,11 +1438,11 @@ try {
   }
 
   function transformTagValue(rawValue, tagOrTagId) {
+    // Giá trị từ worker đã là engineering units (scale+offset đã áp tại nguồn).
+    // Chỉ đảm bảo trả về số, không nhân scale+offset nữa để tránh double-apply.
     const num = Number(rawValue);
     if (!Number.isFinite(num)) return rawValue;
-    const scale = resolveTagScale(tagOrTagId);
-    const offset = resolveTagOffset(tagOrTagId);
-    return (num * scale) + offset;
+    return num;
   }
 
   function formatZeroByTagId(tagId) {

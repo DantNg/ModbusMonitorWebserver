@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(current_dir, 'webapp'))
 try:
     from webapp.modbus_monitor.database.db import (
         init_engine, get_latest_tag_values_batch, bulk_insert_tag_logs, 
-        purge_tag_logs_by_logger, get_data_logger, list_data_logger_tags,
+        purge_tag_logs_by_logger, get_data_logger, list_data_logger_tags, list_all_tags,
         safe_datetime_now
     )
 except ImportError as e:
@@ -41,6 +41,7 @@ class LoggerWorker:
         # Configuration
         self.interval_sec = 60.0  # Default interval
         self.tag_ids: List[int] = []
+        self.tag_meta: Dict[int, Dict[str, object]] = {}
         self.enabled = True
         
         # Runtime state
@@ -92,6 +93,7 @@ class LoggerWorker:
             
             # Get associated tag IDs
             self.tag_ids = list_data_logger_tags(self.logger_id)
+            self.tag_meta = self._load_tag_metadata(self.tag_ids)
             
             self.log_message("INFO", f"Loaded config: interval={self.interval_sec}s, tags={len(self.tag_ids)}, enabled={self.enabled}")
             return True
@@ -99,6 +101,62 @@ class LoggerWorker:
         except Exception as e:
             self.log_message("ERROR", f"Failed to load configuration: {e}")
             return False
+
+    def _load_tag_metadata(self, tag_ids: List[int]) -> Dict[int, Dict[str, object]]:
+        """Load datatype/scale/offset metadata for current logger tags"""
+        if not tag_ids:
+            return {}
+
+        try:
+            selected_tag_ids = set(tag_ids)
+            meta_map: Dict[int, Dict[str, object]] = {}
+            for tag in list_all_tags():
+                tag_id = tag.get('id')
+                if tag_id in selected_tag_ids:
+                    scale_raw = tag.get('scale', 1.0)
+                    offset_raw = tag.get('offset', 0.0)
+                    datatype_raw = tag.get('datatype', '')
+                    try:
+                        scale_value = float(scale_raw) if scale_raw is not None else 1.0
+                    except (TypeError, ValueError):
+                        scale_value = 1.0
+
+                    try:
+                        offset_value = float(offset_raw) if offset_raw is not None else 0.0
+                    except (TypeError, ValueError):
+                        offset_value = 0.0
+
+                    meta_map[int(tag_id)] = {
+                        'datatype': str(datatype_raw or ''),
+                        'scale': scale_value,
+                        'offset': offset_value
+                    }
+            return meta_map
+        except Exception as e:
+            self.log_message("WARNING", f"Failed to load tag metadata, fallback to default formatting: {e}")
+            return {}
+
+    def _format_tag_value_for_log(self, tag_id: int, value: float) -> str:
+        """Format value for logging based on tag datatype/scale/offset rules"""
+        meta = self.tag_meta.get(tag_id, {})
+        try:
+            raw_value = float(value)
+            scale_value = float(meta.get('scale', 1.0))
+            offset_value = float(meta.get('offset', 0.0))
+            display_value = (raw_value * scale_value) + offset_value
+
+            # Hard display rules by scale.
+            if abs(scale_value - 0.1) < 1e-9:
+                return f"{display_value:.1f}"
+            if abs(scale_value - 0.2) < 1e-9:
+                return f"{display_value:.2f}"
+
+            # For scales other than 0.1 and 0.2: keep integers, else 2 decimals.
+            if float(display_value).is_integer():
+                return f"{int(display_value)}"
+            return f"{display_value:.2f}"
+        except Exception:
+            return str(value)
     
     def fetch_tag_values(self) -> List[Tuple[int, float, datetime]]:
         """Fetch current values for all configured tags"""
@@ -242,11 +300,16 @@ class LoggerWorker:
                 # Insert into database
                 rows_inserted = self.insert_log_entries(tag_values)
                 
+                tag_display = ", ".join([
+                    f"tag_{tag_id}={self._format_tag_value_for_log(tag_id, value)}"
+                    for tag_id, value, _ in tag_values
+                ])
                 self.log_message("INFO", 
                     f"Cycle {self.sequence}: {len(tag_values)} tags → {rows_inserted} rows "
                     f"(fetch: {self.stats['last_fetch_ms']:.1f}ms, "
                     f"insert: {self.stats['last_insert_ms']:.1f}ms, "
-                    f"lag: {self.stats['last_lag_ms']:.1f}ms)")
+                    f"lag: {self.stats['last_lag_ms']:.1f}ms) "
+                    f"[{tag_display}]")
             else:
                 self.log_message("WARNING", f"Cycle {self.sequence}: No tag values fetched")
             

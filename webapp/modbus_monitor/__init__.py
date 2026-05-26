@@ -239,13 +239,9 @@ def create_app():
                 return str(num_value)
 
         # Apply engineering transform first: display = raw * scale + offset.
-        if scale is not None:
-            try:
-                s = float(scale)
-                o = float(offset) if offset is not None else 0.0
-                num_value = (num_value * s) + o
-            except Exception:
-                pass
+        # NOTE: Giá trị trong DB đã là engineering units (worker đã áp scale+offset tại nguồn).
+        # Khối này được giữ lại nhưng KHÔNG thực hiện transform nữa để tránh double-apply.
+        # (scale/offset vẫn được dùng bên dưới để xác định số chữ số thập phân.)
 
         # Primary rule: decimals follow scale precision when scale is provided.
         try:

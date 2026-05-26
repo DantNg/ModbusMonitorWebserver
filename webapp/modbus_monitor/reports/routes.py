@@ -120,14 +120,17 @@ def get_reports_data():
     try:
         if current_logger_id == "all":
             items, columns, total_count = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
+            tag_meta = db.get_all_logger_tag_scales()
         else:
             items, columns, total_count = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
+            tag_meta = db.get_logger_tag_scales(current_logger_id)
         
         print(f"Reports API: Loaded {len(items)} rows of {total_count} total (offset={offset}, limit={limit})")
         return jsonify({
             "success": True,
             "items": items,
             "columns": columns,
+            "tag_meta": tag_meta,
             "offset": offset,
             "limit": limit,
             "total": total_count,

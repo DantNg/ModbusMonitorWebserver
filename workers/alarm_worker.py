@@ -997,13 +997,13 @@ class AlarmWorker:
                     value = result.get("value")
                 else:
                     value = result
-            # Apply scale+offset để chuyển raw register → engineering units trước khi so sánh threshold
+            # Giá trị trong DB đã là engineering units (worker đã áp scale+offset tại nguồn).
+            # Chỉ cần chuyển sang float, không cần nhân scale+offset nữa.
             if value is not None:
                 try:
-                    sf, off = self._get_tag_transform(tag_id)
-                    value = float(value) * sf + off
+                    value = float(value)
                 except Exception:
-                    pass
+                    value = None
             self._tag_value_cache[tag_id] = value
             return value
         except Exception as e:

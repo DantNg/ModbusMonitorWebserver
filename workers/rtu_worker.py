@@ -100,6 +100,23 @@ def _fallback_unpack(regs, offset, datatype="Word", byte_order="BigEndian", word
         return (hi<<16)|lo
     return regs[offset]
 
+# ---------- Decimal-places helper ----------
+def _calc_decimal_places(scale):
+    """Tính số chữ số thập phân từ giá trị scale.
+    Ví dụ: scale=0.1 → 1, scale=0.01 → 2, scale=1 hoặc scale=10 → 0.
+    Trả về None nếu không xác định được.
+    """
+    try:
+        s = abs(float(scale))
+        if s == 0.0:
+            return 0
+        scale_text = f"{s:.12f}".rstrip('0').rstrip('.')
+        if '.' not in scale_text:
+            return 0
+        return min(6, len(scale_text.split('.', 1)[1]))
+    except Exception:
+        return None
+
 # ---------- Worker ----------
 class RTUWorker:
     def __init__(self, worker_id, serial_port, baudrate=9600, timeout=1.0,
@@ -546,25 +563,37 @@ class RTUWorker:
 
                 any_success = True
 
+                # Apply scale+offset → engineering units, round theo độ chính xác của scale
                 val = float(raw)
                 sf = getattr(t, "scale", 1.0) or 1.0
                 off = getattr(t, "offset", 0.0) or 0.0
                 if sf != 1.0: val *= sf
                 if off != 0.0: val += off
+                dp = _calc_decimal_places(sf)
+                if dp is not None:
+                    val = round(val, dp)
 
-                # Store RAW value in DB - alarm_worker sẽ áp scale+offset khi so sánh threshold
-                raw_float = float(raw)
+                # DB write latest - lưu giá trị đã qua scale+offset+round (engineering unit).
+                # UI và datalogger chỉ cần hiển thị y nguyên, không cần transform thêm.
                 try:
-                    update_tag_latest_value(t.id, raw_float, datetime.now())
+                    update_tag_latest_value(t.id, val, datetime.now())
                 except Exception as e:
                     last_error = str(e)
                     if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
 
-                # Emit giá trị RAW; JS transformTagValue sẽ nhân scale+offset để hiển thị đúng
+                # Format string với đúng số chữ số thập phân để log và emit
+                if dp is not None and dp > 0:
+                    val_str = f"{val:.{dp}f}"
+                elif dp == 0:
+                    val_str = str(int(round(val)))
+                else:
+                    val_str = str(val)
+
+                # Emit giá trị đã format đúng số thập phân; UI hiển thị trực tiếp
                 all_rows.append({
                     "id": t.id,
                     "name": t.name,
-                    "value": str(raw_float),
+                    "value": val_str,
                     "datatype": getattr(t, "data_type", None) or getattr(t, "datatype", "Word"),
                     "unit": getattr(t, "unit", ""),
                     "ts": now_hms()

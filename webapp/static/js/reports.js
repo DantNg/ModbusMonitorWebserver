@@ -6,6 +6,72 @@
 // Read configuration passed from Jinja2 template
 const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
 
+  // ===== Tag scale metadata (column_name → scale) loaded from API =====
+  let reportTagMeta = {};
+
+  function _normalizeTagKey(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .replace(/[^a-z0-9_.]/g, '');
+  }
+
+  // ===== Decimal formatting helpers (giống logic subdashboard-detail.js) =====
+  function _reportDecimalsByScale(scaleValue) {
+    const normalizedScale = typeof scaleValue === 'string' ? scaleValue.replace(',', '.') : scaleValue;
+    const s = Math.abs(Number(normalizedScale));
+    if (!Number.isFinite(s)) return null;
+    // Hard rule: only scale 0.1 and 0.2 force decimal digits.
+    if (Math.abs(s - 0.1) < 1e-9) return 1;
+    if (Math.abs(s - 0.2) < 1e-9) return 2;
+    if (s === 0) return 0;
+
+    // For other scales, let value-based default formatting handle display.
+    return null;
+  }
+
+  function getReportScaleForColumn(columnName) {
+    if (!columnName) return undefined;
+    const candidates = [
+      String(columnName),
+      String(columnName).toLowerCase(),
+      _normalizeTagKey(columnName)
+    ];
+
+    for (const key of candidates) {
+      if (Object.prototype.hasOwnProperty.call(reportTagMeta, key)) {
+        return reportTagMeta[key];
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Format giá trị số trong report theo scale của tag.
+   * Giá trị đã là engineering units (đã qua scale+offset tại worker).
+   * Scale chỉ dùng để xác định số chữ số thập phân hiển thị.
+   */
+  function fmtReportVal(rawVal, scale) {
+    if (rawVal === null || rawVal === undefined || rawVal === '') return '';
+    const num = Number(rawVal);
+    if (!Number.isFinite(num)) return rawVal; // chuỗi không phải số (hex, v.v.)
+    // No scale metadata: keep integer as integer, decimal as 2 digits.
+    if (scale === null || scale === undefined) {
+      return Number.isInteger(num) ? String(num) : num.toFixed(2);
+    }
+
+    const dp = _reportDecimalsByScale(scale);
+    // For scale=0.1/0.2/0, always respect forced decimals.
+    if (dp === 2) return num.toFixed(2);
+    if (dp === 1) return num.toFixed(1);
+    if (dp === 0) return String(Math.round(num));
+
+    // Scales outside hard rules: keep integer if integer, else 2 decimals.
+    return Number.isInteger(num) ? String(num) : num.toFixed(2);
+  }
+
   // ===== Pagination Variables =====
   let currentPage = 1;
   const pageSize = 100;
@@ -150,6 +216,16 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
         if (tbody) tbody.innerHTML = '';
         
         if (data.items.length > 0) {
+          // Lưu tag_meta TRƯỚC khi render bảng để fmtReportVal có scale khi format
+          if (data.tag_meta) {
+            // Build case-insensitive key map to avoid column/tag name casing mismatch.
+            reportTagMeta = {};
+            Object.entries(data.tag_meta).forEach(([k, v]) => {
+              reportTagMeta[k] = v;
+              reportTagMeta[String(k).toLowerCase()] = v;
+              reportTagMeta[_normalizeTagKey(k)] = v;
+            });
+          }
           appendRowsToTable(data.items, data.columns);
           allLoadedRows = data.items;
           
@@ -285,7 +361,10 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
         if (col !== 'timestamp') {
           const td = document.createElement('td');
           td.className = 'text-center';
-          td.textContent = row[col] !== null && row[col] !== undefined ? row[col] : '';
+          const rawVal = row[col] !== null && row[col] !== undefined ? row[col] : '';
+          // Áp dụng format số thập phân theo scale của tag
+          const scale = getReportScaleForColumn(col);
+          td.textContent = rawVal === '' ? '' : fmtReportVal(rawVal, scale);
           tr.appendChild(td);
         }
       });
