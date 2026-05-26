@@ -1182,6 +1182,12 @@
   gap: 4px;
 }
 
+/* Only PV Only cards get colored/styled Last updated footer area. */
+.qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-update-time {
+  border-radius: 0 0 14px 14px;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
 .qtag-single-type-badge {
   font-size: 0.65rem;
   padding: 2px 8px;
@@ -1538,6 +1544,17 @@
 .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-item,
 .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-item {
   border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+/* Last updated footer follows alarm border color (high/low) for PV Only only. */
+.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high .qtag-single-update-time {
+  background: rgba(220, 38, 38, 0.14) !important;
+  border-top: 1px solid rgba(220, 38, 38, 0.45) !important;
+}
+
+.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low .qtag-single-update-time {
+  background: rgba(245, 158, 11, 0.16) !important;
+  border-top: 1px solid rgba(245, 158, 11, 0.45) !important;
 }
 
 .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sub-title,
