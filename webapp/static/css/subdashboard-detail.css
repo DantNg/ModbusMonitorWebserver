@@ -1786,6 +1786,22 @@
   z-index: 1400 !important;
 }
 
+/* Fix: form wrapping modal-body + modal-footer inside modal-dialog-scrollable
+   Bootstrap expects direct children of .modal-content to be header/body/footer.
+   When a <form> wraps both, it must act as a flex column so the footer stays visible. */
+.modal-dialog-scrollable .modal-content > form {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+.modal-dialog-scrollable .modal-content > form .modal-body {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 /* Backdrop between toolbar (1200) and modal (1400) — dims the toolbar */
 .modal-backdrop {
   z-index: 1390 !important;

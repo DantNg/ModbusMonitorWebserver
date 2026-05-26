@@ -122,9 +122,14 @@ class CardAlarmStrategy(ABC):
         return card_info.get("card_title", f"{self.card_type} {card_id}")
 
     def get_column_display(self, column: str, card_info: dict) -> str:
-        """Nhãn cột (Left / Right) dùng trong ghi chú alarm."""
+        """Nhãn cột (Left / Right) dùng trong ghi chú alarm.
+        Trả về empty string nếu card không có custom title, tránh hiển thị 'Left'/'Right' generic.
+        """
         key = "left_title" if column == "left" else "right_title"
-        return card_info.get(key, column.capitalize())
+        title = card_info.get(key)
+        if title and str(title).strip():
+            return str(title).strip()
+        return ""
 
     # ── Alarm state key ───────────────────────────────────────────────────────
 

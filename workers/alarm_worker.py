@@ -1635,10 +1635,12 @@ class AlarmWorker:
                 if self.db_available:
                     try:
                         note_prefix = f"{column_display} - " if column_display else ""
+                        # Format threshold để tránh floating point noise (vd: 2713.6000000000004 → 2713.6)
+                        threshold_display = f"{float(threshold):.10g}" if threshold is not None else "N/A"
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now, name=alarm_name, level="Critical",
                             target=pv_tag_id, value=pv_value,
-                            note=f"{note_prefix}Alarm activated ({alarm_type}): {operator} {threshold}",
+                            note=f"{note_prefix}Alarm activated ({alarm_type}): {operator} {threshold_display}",
                             event_type="INCOMING", operator=operator, threshold=threshold,
                         )
                         state_id = strategy.save_alarm_state(
@@ -1685,10 +1687,12 @@ class AlarmWorker:
                 if self.db_available:
                     try:
                         note_prefix = f"{column_display} - " if column_display else ""
+                        # Format threshold để tránh floating point noise
+                        stored_threshold_display = f"{float(stored_threshold):.10g}" if stored_threshold is not None else "N/A"
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now, name=alarm_name, level="Warning",
                             target=pv_tag_id, value=pv_value,
-                            note=f"{note_prefix}Alarm cleared ({alarm_type}): {stored_operator} {stored_threshold}",
+                            note=f"{note_prefix}Alarm cleared ({alarm_type}): {stored_operator} {stored_threshold_display}",
                             event_type="OUTGOING", operator=stored_operator, threshold=stored_threshold,
                         )
                         deleted = strategy.delete_alarm_state(self.db, card_id, column)
