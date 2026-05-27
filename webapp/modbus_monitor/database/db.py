@@ -1747,12 +1747,14 @@ def list_alarm_report(alarm_name=None):
 
             out = con.execute(q_out).mappings().first()
 
-            # Prefer quad title if tag belongs to quad, else tag name, else stored event name
+            # Export should match the alarm Name shown in Alarm Events.
             display_name = quad_titles.get(inc["target"]) or tag_names.get(inc["target"], inc["name"] or "")
+            export_name = inc["name"] or display_name
 
             items.append({
                 "acknowledged": False,
-                "code": display_name,
+                "code": export_name,
+                "name": export_name,
                 "level": inc["level"],
                 "incoming_date": inc["incoming_date"].strftime("%d/%m/%Y %H:%M:%S"),
                 "incoming_value": inc["incoming_value"],
@@ -1838,10 +1840,12 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
             out = con.execute(q_out).mappings().first()
 
             display_name = quad_titles.get(inc["target"]) or tag_names.get(inc["target"], inc["name"] or "")
+            export_name = inc["name"] or display_name
 
             items.append({
                 "acknowledged": False,
-                "code": display_name,
+                "code": export_name,
+                "name": export_name,
                 "level": inc["level"],
                 "incoming_date": inc["incoming_date"].strftime("%d/%m/%Y %H:%M:%S"),
                 "incoming_value": inc["incoming_value"],
