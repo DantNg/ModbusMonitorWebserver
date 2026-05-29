@@ -1686,12 +1686,16 @@ def list_alarm_report(alarm_name=None):
     items = []
     tag_names = {}
     quad_titles = {}
-    # Preload tag names and quad card titles for export naming
+    # Preload tag names and dual-column card titles for export naming
     try:
         with init_engine().connect() as con:
             tag_rows = con.execute(select(tags.c.id, tags.c.name)).mappings().all()
             tag_names = {r["id"]: r["name"] for r in tag_rows}
 
+            # Map tag_id -> "{card_title} - {column_title}" for all dual-column card types
+            # so that export ALARM CODE includes the column name (e.g. "Zone1 - Temp")
+
+            # --- Quad cards ---
             quad_rows = con.execute(
                 select(
                     subdash_quad_cards.c.card_title,
@@ -1703,17 +1707,84 @@ def list_alarm_report(alarm_name=None):
                     subdash_quad_cards.c.tag4_id,
                 )
             ).mappings().all()
-
             for qr in quad_rows:
-                # Map tag to quad card title + column title
-                if qr.get("tag1_id") is not None:
-                    quad_titles[qr["tag1_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('left_title') or 'Left'}"
-                if qr.get("tag3_id") is not None:
-                    quad_titles[qr["tag3_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('left_title') or 'Left'}"
-                if qr.get("tag2_id") is not None:
-                    quad_titles[qr["tag2_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('right_title') or 'Right'}"
-                if qr.get("tag4_id") is not None:
-                    quad_titles[qr["tag4_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('right_title') or 'Right'}"
+                card = qr.get('card_title') or 'Quad'
+                left = qr.get('left_title') or 'Left'
+                right = qr.get('right_title') or 'Right'
+                for tid in (qr.get("tag1_id"), qr.get("tag3_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {left}"
+                for tid in (qr.get("tag2_id"), qr.get("tag4_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {right}"
+
+            # --- Qtag4 cards (dual-column: tag1/tag3 = left, tag2/tag4 = right) ---
+            qtag4_rows = con.execute(
+                select(
+                    subdash_qtag4_cards.c.card_title,
+                    subdash_qtag4_cards.c.left_title,
+                    subdash_qtag4_cards.c.right_title,
+                    subdash_qtag4_cards.c.tag1_id,
+                    subdash_qtag4_cards.c.tag2_id,
+                    subdash_qtag4_cards.c.tag3_id,
+                    subdash_qtag4_cards.c.tag4_id,
+                )
+            ).mappings().all()
+            for qr in qtag4_rows:
+                card = qr.get('card_title') or 'Qtag4'
+                left = qr.get('left_title') or 'Left'
+                right = qr.get('right_title') or 'Right'
+                for tid in (qr.get("tag1_id"), qr.get("tag3_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {left}"
+                for tid in (qr.get("tag2_id"), qr.get("tag4_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {right}"
+
+            # --- Qtag6 cards (dual-column: tag1/tag3/tag5 = left, tag2/tag4/tag6 = right) ---
+            qtag6_rows = con.execute(
+                select(
+                    subdash_qtag6_cards.c.card_title,
+                    subdash_qtag6_cards.c.left_title,
+                    subdash_qtag6_cards.c.right_title,
+                    subdash_qtag6_cards.c.tag1_id,
+                    subdash_qtag6_cards.c.tag2_id,
+                    subdash_qtag6_cards.c.tag3_id,
+                    subdash_qtag6_cards.c.tag4_id,
+                    subdash_qtag6_cards.c.tag5_id,
+                    subdash_qtag6_cards.c.tag6_id,
+                )
+            ).mappings().all()
+            for qr in qtag6_rows:
+                card = qr.get('card_title') or 'Qtag6'
+                left = qr.get('left_title') or 'Left'
+                right = qr.get('right_title') or 'Right'
+                for tid in (qr.get("tag1_id"), qr.get("tag3_id"), qr.get("tag5_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {left}"
+                for tid in (qr.get("tag2_id"), qr.get("tag4_id"), qr.get("tag6_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {right}"
+
+            # --- PV Dual cards (dual-column: left_tag_id = left, right_tag_id = right) ---
+            pv_dual_rows = con.execute(
+                select(
+                    subdash_qtag_pv_dual_cards.c.card_title,
+                    subdash_qtag_pv_dual_cards.c.left_title,
+                    subdash_qtag_pv_dual_cards.c.right_title,
+                    subdash_qtag_pv_dual_cards.c.left_tag_id,
+                    subdash_qtag_pv_dual_cards.c.right_tag_id,
+                )
+            ).mappings().all()
+            for qr in pv_dual_rows:
+                card = qr.get('card_title') or 'PV Dual'
+                left = qr.get('left_title') or 'Left'
+                right = qr.get('right_title') or 'Right'
+                if qr.get("left_tag_id") is not None:
+                    quad_titles[qr["left_tag_id"]] = f"{card} - {left}"
+                if qr.get("right_tag_id") is not None:
+                    quad_titles[qr["right_tag_id"]] = f"{card} - {right}"
+
     except Exception as e:
         print(f"⚠️ Cannot preload tag/quad names: {e}")
     with init_engine().connect() as con:
@@ -1747,9 +1818,10 @@ def list_alarm_report(alarm_name=None):
 
             out = con.execute(q_out).mappings().first()
 
-            # Export should match the alarm Name shown in Alarm Events.
-            display_name = quad_titles.get(inc["target"]) or tag_names.get(inc["target"], inc["name"] or "")
-            export_name = inc["name"] or display_name
+            # Prefer column-aware name for dual-column cards (qtag4, qtag6, quad, pv_dual)
+            # so that ALARM CODE includes the column title (e.g. "Zone1 - Temp")
+            column_aware_name = quad_titles.get(inc["target"])
+            export_name = column_aware_name or inc["name"] or tag_names.get(inc["target"], "")
 
             items.append({
                 "acknowledged": False,
@@ -1773,12 +1845,16 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
     items = []
     tag_names = {}
     quad_titles = {}
-    # Preload tag and quad names for correct export labels
+    # Preload tag and dual-column card names for correct export labels
     try:
         with init_engine().connect() as con:
             tag_rows = con.execute(select(tags.c.id, tags.c.name)).mappings().all()
             tag_names = {r["id"]: r["name"] for r in tag_rows}
 
+            # Map tag_id -> "{card_title} - {column_title}" for all dual-column card types
+            # so that export ALARM CODE includes the column name (e.g. "Zone1 - Temp")
+
+            # --- Quad cards ---
             quad_rows = con.execute(
                 select(
                     subdash_quad_cards.c.card_title,
@@ -1790,16 +1866,84 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
                     subdash_quad_cards.c.tag4_id,
                 )
             ).mappings().all()
-
             for qr in quad_rows:
-                if qr.get("tag1_id") is not None:
-                    quad_titles[qr["tag1_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('left_title') or 'Left'}"
-                if qr.get("tag3_id") is not None:
-                    quad_titles[qr["tag3_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('left_title') or 'Left'}"
-                if qr.get("tag2_id") is not None:
-                    quad_titles[qr["tag2_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('right_title') or 'Right'}"
-                if qr.get("tag4_id") is not None:
-                    quad_titles[qr["tag4_id"]] = f"{qr.get('card_title') or 'Quad'} - {qr.get('right_title') or 'Right'}"
+                card = qr.get('card_title') or 'Quad'
+                left = qr.get('left_title') or 'Left'
+                right = qr.get('right_title') or 'Right'
+                for tid in (qr.get("tag1_id"), qr.get("tag3_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {left}"
+                for tid in (qr.get("tag2_id"), qr.get("tag4_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {right}"
+
+            # --- Qtag4 cards (dual-column: tag1/tag3 = left, tag2/tag4 = right) ---
+            qtag4_rows = con.execute(
+                select(
+                    subdash_qtag4_cards.c.card_title,
+                    subdash_qtag4_cards.c.left_title,
+                    subdash_qtag4_cards.c.right_title,
+                    subdash_qtag4_cards.c.tag1_id,
+                    subdash_qtag4_cards.c.tag2_id,
+                    subdash_qtag4_cards.c.tag3_id,
+                    subdash_qtag4_cards.c.tag4_id,
+                )
+            ).mappings().all()
+            for qr in qtag4_rows:
+                card = qr.get('card_title') or 'Qtag4'
+                left = qr.get('left_title') or 'Left'
+                right = qr.get('right_title') or 'Right'
+                for tid in (qr.get("tag1_id"), qr.get("tag3_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {left}"
+                for tid in (qr.get("tag2_id"), qr.get("tag4_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {right}"
+
+            # --- Qtag6 cards (dual-column: tag1/tag3/tag5 = left, tag2/tag4/tag6 = right) ---
+            qtag6_rows = con.execute(
+                select(
+                    subdash_qtag6_cards.c.card_title,
+                    subdash_qtag6_cards.c.left_title,
+                    subdash_qtag6_cards.c.right_title,
+                    subdash_qtag6_cards.c.tag1_id,
+                    subdash_qtag6_cards.c.tag2_id,
+                    subdash_qtag6_cards.c.tag3_id,
+                    subdash_qtag6_cards.c.tag4_id,
+                    subdash_qtag6_cards.c.tag5_id,
+                    subdash_qtag6_cards.c.tag6_id,
+                )
+            ).mappings().all()
+            for qr in qtag6_rows:
+                card = qr.get('card_title') or 'Qtag6'
+                left = qr.get('left_title') or 'Left'
+                right = qr.get('right_title') or 'Right'
+                for tid in (qr.get("tag1_id"), qr.get("tag3_id"), qr.get("tag5_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {left}"
+                for tid in (qr.get("tag2_id"), qr.get("tag4_id"), qr.get("tag6_id")):
+                    if tid is not None:
+                        quad_titles[tid] = f"{card} - {right}"
+
+            # --- PV Dual cards (dual-column: left_tag_id = left, right_tag_id = right) ---
+            pv_dual_rows = con.execute(
+                select(
+                    subdash_qtag_pv_dual_cards.c.card_title,
+                    subdash_qtag_pv_dual_cards.c.left_title,
+                    subdash_qtag_pv_dual_cards.c.right_title,
+                    subdash_qtag_pv_dual_cards.c.left_tag_id,
+                    subdash_qtag_pv_dual_cards.c.right_tag_id,
+                )
+            ).mappings().all()
+            for qr in pv_dual_rows:
+                card = qr.get('card_title') or 'PV Dual'
+                left = qr.get('left_title') or 'Left'
+                right = qr.get('right_title') or 'Right'
+                if qr.get("left_tag_id") is not None:
+                    quad_titles[qr["left_tag_id"]] = f"{card} - {left}"
+                if qr.get("right_tag_id") is not None:
+                    quad_titles[qr["right_tag_id"]] = f"{card} - {right}"
+
     except Exception as e:
         print(f"⚠️ Cannot preload tag/quad names: {e}")
     with init_engine().connect() as con:
@@ -1839,8 +1983,10 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
 
             out = con.execute(q_out).mappings().first()
 
-            display_name = quad_titles.get(inc["target"]) or tag_names.get(inc["target"], inc["name"] or "")
-            export_name = inc["name"] or display_name
+            # Prefer column-aware name for dual-column cards (qtag4, qtag6, quad, pv_dual)
+            # so that ALARM CODE includes the column title (e.g. "Zone1 - Temp")
+            column_aware_name = quad_titles.get(inc["target"])
+            export_name = column_aware_name or inc["name"] or tag_names.get(inc["target"], "")
 
             items.append({
                 "acknowledged": False,
