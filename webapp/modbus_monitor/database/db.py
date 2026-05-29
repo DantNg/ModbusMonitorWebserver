@@ -37,7 +37,7 @@ import sys
 import threading
 from sqlalchemy import (
     create_engine, MetaData, Table, Column, Integer, String, Float, Boolean,
-    DateTime, Enum, ForeignKey, select, insert, update, delete, func,cast,and_, asc, text,
+    DateTime, Enum, ForeignKey, select, insert, update, delete, func,cast,and_, or_, asc, text,
     Index, UniqueConstraint
 )
 from sqlalchemy.engine import Engine
@@ -718,7 +718,63 @@ def create_schema():
     _migrate_sv_fix_value(engine)
     # Migrate: add description columns to PV Only and PV Dual tables
     _migrate_pv_description(engine)
+    # Migrate: add event_type, operator, threshold to alarm_events (backfill NULLs → INCOMING)
+    _migrate_alarm_events_columns(engine)
     # create_performance_indexes()
+
+
+def _migrate_alarm_events_columns(engine):
+    """Add event_type, operator, threshold columns to alarm_events if missing.
+    Backfill existing rows: NULL event_type → 'INCOMING' so they appear in export.
+    Safe for repeated calls (idempotent).
+    """
+    with engine.connect() as con:
+        # --- event_type ---
+        try:
+            con.execute(text("SELECT event_type FROM alarm_events LIMIT 1"))
+        except Exception:
+            try:
+                # Add with default 'INCOMING' so existing rows are treated as alarm-triggered events
+                con.execute(text(
+                    "ALTER TABLE alarm_events ADD COLUMN event_type ENUM('INCOMING','OUTGOING') NOT NULL DEFAULT 'INCOMING'"
+                ))
+                con.commit()
+                print("[migrate] Added event_type to alarm_events with DEFAULT 'INCOMING'")
+            except Exception as e:
+                print(f"[migrate] Could not add event_type to alarm_events: {e}")
+
+        # Backfill any NULL event_type rows (from databases that had the column added without a default)
+        try:
+            result = con.execute(text(
+                "UPDATE alarm_events SET event_type = 'INCOMING' WHERE event_type IS NULL"
+            ))
+            con.commit()
+            if result.rowcount:
+                print(f"[migrate] Backfilled {result.rowcount} alarm_events rows: event_type NULL → 'INCOMING'")
+        except Exception as e:
+            print(f"[migrate] Could not backfill event_type in alarm_events: {e}")
+
+        # --- operator ---
+        try:
+            con.execute(text("SELECT operator FROM alarm_events LIMIT 1"))
+        except Exception:
+            try:
+                con.execute(text("ALTER TABLE alarm_events ADD COLUMN operator VARCHAR(10)"))
+                con.commit()
+                print("[migrate] Added operator to alarm_events")
+            except Exception as e:
+                print(f"[migrate] Could not add operator to alarm_events: {e}")
+
+        # --- threshold ---
+        try:
+            con.execute(text("SELECT threshold FROM alarm_events LIMIT 1"))
+        except Exception:
+            try:
+                con.execute(text("ALTER TABLE alarm_events ADD COLUMN threshold FLOAT"))
+                con.commit()
+                print("[migrate] Added threshold to alarm_events")
+            except Exception as e:
+                print(f"[migrate] Could not add threshold to alarm_events: {e}")
 
 
 def _migrate_card_color(engine):
@@ -1685,6 +1741,8 @@ def list_alarm_report(alarm_name=None):
     print("Generating alarm report...")
     items = []
     tag_names = {}
+    # quad_titles: key = (card_title, tag_id) -> "{card_title} - {column_title}"
+    # Using tuple key prevents collision when multiple cards share the same PV tag
     quad_titles = {}
     # Preload tag names and dual-column card titles for export naming
     try:
@@ -1692,8 +1750,8 @@ def list_alarm_report(alarm_name=None):
             tag_rows = con.execute(select(tags.c.id, tags.c.name)).mappings().all()
             tag_names = {r["id"]: r["name"] for r in tag_rows}
 
-            # Map tag_id -> "{card_title} - {column_title}" for all dual-column card types
-            # so that export ALARM CODE includes the column name (e.g. "Zone1 - Temp")
+            # Map (card_title, tag_id) -> "{card_title} - {column_title}" for dual-column cards
+            # Key includes card_title to avoid overriding single-column cards that share the same tag
 
             # --- Quad cards ---
             quad_rows = con.execute(
@@ -1713,10 +1771,10 @@ def list_alarm_report(alarm_name=None):
                 right = qr.get('right_title') or 'Right'
                 for tid in (qr.get("tag1_id"), qr.get("tag3_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {left}"
+                        quad_titles[(card, tid)] = f"{card} - {left}"
                 for tid in (qr.get("tag2_id"), qr.get("tag4_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {right}"
+                        quad_titles[(card, tid)] = f"{card} - {right}"
 
             # --- Qtag4 cards (dual-column: tag1/tag3 = left, tag2/tag4 = right) ---
             qtag4_rows = con.execute(
@@ -1736,10 +1794,10 @@ def list_alarm_report(alarm_name=None):
                 right = qr.get('right_title') or 'Right'
                 for tid in (qr.get("tag1_id"), qr.get("tag3_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {left}"
+                        quad_titles[(card, tid)] = f"{card} - {left}"
                 for tid in (qr.get("tag2_id"), qr.get("tag4_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {right}"
+                        quad_titles[(card, tid)] = f"{card} - {right}"
 
             # --- Qtag6 cards (dual-column: tag1/tag3/tag5 = left, tag2/tag4/tag6 = right) ---
             qtag6_rows = con.execute(
@@ -1761,10 +1819,10 @@ def list_alarm_report(alarm_name=None):
                 right = qr.get('right_title') or 'Right'
                 for tid in (qr.get("tag1_id"), qr.get("tag3_id"), qr.get("tag5_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {left}"
+                        quad_titles[(card, tid)] = f"{card} - {left}"
                 for tid in (qr.get("tag2_id"), qr.get("tag4_id"), qr.get("tag6_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {right}"
+                        quad_titles[(card, tid)] = f"{card} - {right}"
 
             # --- PV Dual cards (dual-column: left_tag_id = left, right_tag_id = right) ---
             pv_dual_rows = con.execute(
@@ -1781,9 +1839,9 @@ def list_alarm_report(alarm_name=None):
                 left = qr.get('left_title') or 'Left'
                 right = qr.get('right_title') or 'Right'
                 if qr.get("left_tag_id") is not None:
-                    quad_titles[qr["left_tag_id"]] = f"{card} - {left}"
+                    quad_titles[(card, qr["left_tag_id"])] = f"{card} - {left}"
                 if qr.get("right_tag_id") is not None:
-                    quad_titles[qr["right_tag_id"]] = f"{card} - {right}"
+                    quad_titles[(card, qr["right_tag_id"])] = f"{card} - {right}"
 
     except Exception as e:
         print(f"⚠️ Cannot preload tag/quad names: {e}")
@@ -1797,7 +1855,14 @@ def list_alarm_report(alarm_name=None):
             alarm_events.c.level,
             alarm_events.c.operator.label("op"),
             alarm_events.c.threshold.label("th"),
-        ).where(alarm_events.c.event_type == "INCOMING")
+        ).where(
+            # Include legacy rows where event_type is NULL (created before the column was added)
+            # treating them as INCOMING events
+            or_(
+                alarm_events.c.event_type == "INCOMING",
+                alarm_events.c.event_type.is_(None),
+            )
+        )
 
         # Filter by alarm name at SQL level if specified
         if alarm_name:
@@ -1805,23 +1870,27 @@ def list_alarm_report(alarm_name=None):
 
         incoming_rows = con.execute(q_in).mappings().all()
         for inc in incoming_rows:
+            # Match OUTGOING by both name + target to avoid cross-card pairing
+            # when multiple cards share the same PV tag
+            out_conditions = [
+                alarm_events.c.target == inc["target"],
+                alarm_events.c.event_type == "OUTGOING",
+                alarm_events.c.ts > inc["incoming_date"],
+            ]
+            if inc["name"]:
+                out_conditions.append(alarm_events.c.name == inc["name"])
             q_out = select(
                 alarm_events.c.ts.label("outgoing_date"),
                 alarm_events.c.value.label("outgoing_value")
-            ).where(
-                and_(
-                    alarm_events.c.target == inc["target"],
-                    alarm_events.c.event_type == "OUTGOING",
-                    alarm_events.c.ts > inc["incoming_date"]
-                )
-            ).order_by(alarm_events.c.ts.asc()).limit(1)
+            ).where(and_(*out_conditions)).order_by(alarm_events.c.ts.asc()).limit(1)
 
             out = con.execute(q_out).mappings().first()
 
             # Prefer column-aware name for dual-column cards (qtag4, qtag6, quad, pv_dual)
-            # so that ALARM CODE includes the column title (e.g. "Zone1 - Temp")
-            column_aware_name = quad_titles.get(inc["target"])
-            export_name = column_aware_name or inc["name"] or tag_names.get(inc["target"], "")
+            # Key = (card_title, tag_id) ensures single-column cards with the same tag are not affected
+            event_name = inc["name"] or ""
+            column_aware_name = quad_titles.get((event_name, inc["target"]))
+            export_name = column_aware_name or event_name or tag_names.get(inc["target"], "")
 
             items.append({
                 "acknowledged": False,
@@ -1844,6 +1913,8 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
     print(f"Generating alarm report for range: {start_date} -> {end_date}")
     items = []
     tag_names = {}
+    # quad_titles: key = (card_title, tag_id) -> "{card_title} - {column_title}"
+    # Using tuple key prevents collision when multiple cards share the same PV tag
     quad_titles = {}
     # Preload tag and dual-column card names for correct export labels
     try:
@@ -1851,8 +1922,8 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
             tag_rows = con.execute(select(tags.c.id, tags.c.name)).mappings().all()
             tag_names = {r["id"]: r["name"] for r in tag_rows}
 
-            # Map tag_id -> "{card_title} - {column_title}" for all dual-column card types
-            # so that export ALARM CODE includes the column name (e.g. "Zone1 - Temp")
+            # Map (card_title, tag_id) -> "{card_title} - {column_title}" for dual-column cards
+            # Key includes card_title to avoid overriding single-column cards that share the same tag
 
             # --- Quad cards ---
             quad_rows = con.execute(
@@ -1872,10 +1943,10 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
                 right = qr.get('right_title') or 'Right'
                 for tid in (qr.get("tag1_id"), qr.get("tag3_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {left}"
+                        quad_titles[(card, tid)] = f"{card} - {left}"
                 for tid in (qr.get("tag2_id"), qr.get("tag4_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {right}"
+                        quad_titles[(card, tid)] = f"{card} - {right}"
 
             # --- Qtag4 cards (dual-column: tag1/tag3 = left, tag2/tag4 = right) ---
             qtag4_rows = con.execute(
@@ -1895,10 +1966,10 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
                 right = qr.get('right_title') or 'Right'
                 for tid in (qr.get("tag1_id"), qr.get("tag3_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {left}"
+                        quad_titles[(card, tid)] = f"{card} - {left}"
                 for tid in (qr.get("tag2_id"), qr.get("tag4_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {right}"
+                        quad_titles[(card, tid)] = f"{card} - {right}"
 
             # --- Qtag6 cards (dual-column: tag1/tag3/tag5 = left, tag2/tag4/tag6 = right) ---
             qtag6_rows = con.execute(
@@ -1920,10 +1991,10 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
                 right = qr.get('right_title') or 'Right'
                 for tid in (qr.get("tag1_id"), qr.get("tag3_id"), qr.get("tag5_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {left}"
+                        quad_titles[(card, tid)] = f"{card} - {left}"
                 for tid in (qr.get("tag2_id"), qr.get("tag4_id"), qr.get("tag6_id")):
                     if tid is not None:
-                        quad_titles[tid] = f"{card} - {right}"
+                        quad_titles[(card, tid)] = f"{card} - {right}"
 
             # --- PV Dual cards (dual-column: left_tag_id = left, right_tag_id = right) ---
             pv_dual_rows = con.execute(
@@ -1940,9 +2011,9 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
                 left = qr.get('left_title') or 'Left'
                 right = qr.get('right_title') or 'Right'
                 if qr.get("left_tag_id") is not None:
-                    quad_titles[qr["left_tag_id"]] = f"{card} - {left}"
+                    quad_titles[(card, qr["left_tag_id"])] = f"{card} - {left}"
                 if qr.get("right_tag_id") is not None:
-                    quad_titles[qr["right_tag_id"]] = f"{card} - {right}"
+                    quad_titles[(card, qr["right_tag_id"])] = f"{card} - {right}"
 
     except Exception as e:
         print(f"⚠️ Cannot preload tag/quad names: {e}")
@@ -1958,7 +2029,11 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
             alarm_events.c.threshold.label("th"),
         ).where(
             and_(
-                alarm_events.c.event_type == "INCOMING",
+                # Include legacy rows where event_type is NULL (created before the column was added)
+                or_(
+                    alarm_events.c.event_type == "INCOMING",
+                    alarm_events.c.event_type.is_(None),
+                ),
                 alarm_events.c.ts >= start_date,
                 alarm_events.c.ts <= end_date,
             )
@@ -1970,23 +2045,27 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
 
         incoming_rows = con.execute(q_in).mappings().all()
         for inc in incoming_rows:
+            # Match OUTGOING by both name + target to avoid cross-card pairing
+            # when multiple cards share the same PV tag
+            out_conditions = [
+                alarm_events.c.target == inc["target"],
+                alarm_events.c.event_type == "OUTGOING",
+                alarm_events.c.ts > inc["incoming_date"],
+            ]
+            if inc["name"]:
+                out_conditions.append(alarm_events.c.name == inc["name"])
             q_out = select(
                 alarm_events.c.ts.label("outgoing_date"),
                 alarm_events.c.value.label("outgoing_value")
-            ).where(
-                and_(
-                    alarm_events.c.target == inc["target"],
-                    alarm_events.c.event_type == "OUTGOING",
-                    alarm_events.c.ts > inc["incoming_date"]
-                )
-            ).order_by(alarm_events.c.ts.asc()).limit(1)
+            ).where(and_(*out_conditions)).order_by(alarm_events.c.ts.asc()).limit(1)
 
             out = con.execute(q_out).mappings().first()
 
             # Prefer column-aware name for dual-column cards (qtag4, qtag6, quad, pv_dual)
-            # so that ALARM CODE includes the column title (e.g. "Zone1 - Temp")
-            column_aware_name = quad_titles.get(inc["target"])
-            export_name = column_aware_name or inc["name"] or tag_names.get(inc["target"], "")
+            # Key = (card_title, tag_id) ensures single-column cards with the same tag are not affected
+            event_name = inc["name"] or ""
+            column_aware_name = quad_titles.get((event_name, inc["target"]))
+            export_name = column_aware_name or event_name or tag_names.get(inc["target"], "")
 
             items.append({
                 "acknowledged": False,
