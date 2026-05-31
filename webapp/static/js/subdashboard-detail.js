@@ -2208,14 +2208,42 @@ try {
 
     if (isQtag6 || isQtag4) {
       // Qtag6/Qtag4: each sub-column has independent alarm state.
-      card.querySelectorAll('.qtag6-sub-card').forEach(sub => {
+      // Xác định card type và card ID để kiểm tra card alarm state (nguồn chân thực).
+      const cardType = isQtag6 ? 'qtag6' : 'qtag4';
+      const cardId = parseInt(card.getAttribute('data-qtag6-id') || card.getAttribute('data-qtag4-id') || '0');
+
+      card.querySelectorAll('.qtag6-sub-card').forEach((sub, subIdx) => {
         const hasHigh = sub.querySelector('.tag-alarm-high');
         const hasLow = sub.querySelector('.tag-alarm-low');
+
+        // Lấy column name từ data attribute hoặc index (0 = left, 1 = right)
+        const columnAttr = sub.getAttribute('data-column');
+        const column = columnAttr || (subIdx === 0 ? 'left' : 'right');
+
         sub.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
-        if (hasHigh) {
-          sub.classList.add('qtag6-alarm-high');
-        } else if (hasLow) {
-          sub.classList.add('qtag6-alarm-low');
+
+        if (hasHigh || hasLow) {
+          // Chỉ tô màu sub-card nếu card alarm state server-side cũng xác nhận
+          // cột này đang alarm. Điều này tránh stale tag alarm (từ alarm_events cũ)
+          // tô màu sai cột khi cột đó thực sự không còn alarm.
+          const cardAlarmKey = cardId > 0 ? buildCardAlarmKey(cardType, cardId, column) : null;
+          const serverConfirmed = cardAlarmKey ? _lastSyncedCardAlarms.has(cardAlarmKey) : false;
+
+          if (serverConfirmed) {
+            const confirmedType = _lastSyncedCardAlarms.get(cardAlarmKey);
+            if (confirmedType === 'High' || hasHigh) {
+              sub.classList.add('qtag6-alarm-high');
+            } else if (confirmedType === 'Low' || hasLow) {
+              sub.classList.add('qtag6-alarm-low');
+            }
+          }
+          // Nếu server chưa sync (_lastSyncedCardAlarms chưa load),
+          // fallback về logic dựa trên tag-alarm class như trước.
+          else if (_lastSyncedCardAlarms.size === 0) {
+            if (hasHigh) sub.classList.add('qtag6-alarm-high');
+            else if (hasLow) sub.classList.add('qtag6-alarm-low');
+          }
+          // Nếu server đã sync nhưng không có entry cho cột này → không tô màu.
         }
       });
     } else if (isSingle) {
@@ -2254,14 +2282,29 @@ try {
     const isQtag3 = card.classList.contains('qtag3-card');
 
     if (isQtag6 || isQtag4) {
-      card.querySelectorAll('.qtag6-sub-card').forEach(sub => {
+      // Khi alarm bị xóa: chỉ giữ lại màu cho các cột vẫn còn được xác nhận bởi server.
+      const cardType = isQtag6 ? 'qtag6' : 'qtag4';
+      const cardId = parseInt(card.getAttribute('data-qtag6-id') || card.getAttribute('data-qtag4-id') || '0');
+
+      card.querySelectorAll('.qtag6-sub-card').forEach((sub, subIdx) => {
         const hasHigh = sub.querySelector('.tag-alarm-high');
         const hasLow = sub.querySelector('.tag-alarm-low');
+        const columnAttr = sub.getAttribute('data-column');
+        const column = columnAttr || (subIdx === 0 ? 'left' : 'right');
         sub.classList.remove('qtag6-alarm-high', 'qtag6-alarm-low');
-        if (hasHigh) {
-          sub.classList.add('qtag6-alarm-high');
-        } else if (hasLow) {
-          sub.classList.add('qtag6-alarm-low');
+
+        if (hasHigh || hasLow) {
+          const cardAlarmKey = cardId > 0 ? buildCardAlarmKey(cardType, cardId, column) : null;
+          const serverConfirmed = cardAlarmKey ? _lastSyncedCardAlarms.has(cardAlarmKey) : false;
+          if (serverConfirmed) {
+            const confirmedType = _lastSyncedCardAlarms.get(cardAlarmKey);
+            if (confirmedType === 'High' || hasHigh) sub.classList.add('qtag6-alarm-high');
+            else if (confirmedType === 'Low' || hasLow) sub.classList.add('qtag6-alarm-low');
+          } else if (_lastSyncedCardAlarms.size === 0) {
+            // Fallback khi chưa có dữ liệu từ server
+            if (hasHigh) sub.classList.add('qtag6-alarm-high');
+            else if (hasLow) sub.classList.add('qtag6-alarm-low');
+          }
         }
       });
     } else if (isSingle) {
@@ -2448,6 +2491,10 @@ try {
     if (!activeAlarms || activeAlarms.length === 0) return;
 
     activeAlarms.forEach(alarm => {
+      // Pre-populate _lastSyncedCardAlarms từ page data để applyCardAlarmState
+      // có thể tham chiếu ngay khi applyActiveTagAlarms chạy (DOMContentLoaded).
+      const key = buildCardAlarmKey(alarm.card_type, alarm.card_id, alarm.column);
+      _lastSyncedCardAlarms.set(key, alarm.alarm_type);
       applyCardAlarmVisual(alarm.card_type, alarm.card_id, alarm.column, alarm.alarm_type);
     });
     console.log(`[CardAlarm] Applied ${activeAlarms.length} active card alarms`);

@@ -1603,7 +1603,9 @@ def get_active_tag_alarms_for_subdash(subdash_id: int):
             # Step 1: Collect all tag IDs used in qtag6, single3, pv cards for this subdashboard
             all_tag_ids = set()
 
-            # Qtag6: 6 tags per card
+            # Qtag6: chỉ include PV tags (tag1/tag2) nếu cột tương ứng đang có active alarm
+            # trong card_alarm_states.  Tránh tình trạng stale INCOMING event trong
+            # alarm_events (từ lần alarm trước khi restart server) làm tô màu sai cột.
             qtag6_rows = con.execute(
                 select(subdash_qtag6_cards)
                 .select_from(
@@ -1614,11 +1616,33 @@ def get_active_tag_alarms_for_subdash(subdash_id: int):
                 )
                 .where(subdash_tag_groups.c.dashboard_id == subdash_id)
             ).mappings().all()
+
+            # Load active card_alarm_states cho qtag6 trong subdash này
+            qtag6_card_ids = [card['id'] for card in qtag6_rows if card.get('id')]
+            active_qtag6_cols: set = set()  # set of (card_id, column)
+            if qtag6_card_ids:
+                from sqlalchemy import or_ as _or
+                _qtag6_state_rows = con.execute(
+                    select(
+                        card_alarm_states.c.card_id,
+                        card_alarm_states.c.column
+                    ).where(
+                        (card_alarm_states.c.card_type == 'qtag6') &
+                        (card_alarm_states.c.card_id.in_(qtag6_card_ids))
+                    )
+                ).fetchall()
+                active_qtag6_cols = {(r[0], r[1]) for r in _qtag6_state_rows}
+
             for card in qtag6_rows:
-                for pos in range(1, 7):
-                    tid = card.get(f'tag{pos}_id')
-                    if tid:
-                        all_tag_ids.add(tid)
+                cid = card.get('id')
+                # PV left (tag1) – chỉ add nếu cột left đang alarm
+                if card.get('tag1_id') and (cid, 'left') in active_qtag6_cols:
+                    all_tag_ids.add(card['tag1_id'])
+                # PV right (tag2) – chỉ add nếu cột right đang alarm
+                if card.get('tag2_id') and (cid, 'right') in active_qtag6_cols:
+                    all_tag_ids.add(card['tag2_id'])
+                # SV tags (3-6) không cần thiết cho per-tag indicator vì HTML không có
+                # .qtag6-tag-item[data-tag-id] cho các span SV
 
             # Single3: PV tag + optional SV HIGH/LOW tags
             single3_rows = con.execute(
