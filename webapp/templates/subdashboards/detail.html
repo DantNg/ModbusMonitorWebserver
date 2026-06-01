@@ -884,7 +884,7 @@
                     </select>
                   </div>
                   <div class="quad-sv-left-fixed-group" style="display:none;">
-                    <input type="number" name="sv_left_fixed" class="form-control" step="any" placeholder="Fixed value">
+                    <input type="text" inputmode="decimal" name="sv_left_fixed" class="form-control" placeholder="Fixed value">
                     <input type="text" name="sv_left_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
                   </div>
                 </div>
@@ -906,7 +906,7 @@
                     </select>
                   </div>
                   <div class="quad-sv-right-fixed-group" style="display:none;">
-                    <input type="number" name="sv_right_fixed" class="form-control" step="any" placeholder="Fixed value">
+                    <input type="text" inputmode="decimal" name="sv_right_fixed" class="form-control" placeholder="Fixed value">
                     <input type="text" name="sv_right_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
                   </div>
                 </div>
@@ -1090,7 +1090,7 @@
                 </select>
               </div>
               <div class="edit-quad-sv-left-fixed-group" style="display:none;">
-                <input type="number" id="edit_sv_left_fixed" name="sv_left_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="edit_sv_left_fixed" name="sv_left_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="edit_sv_left_fixed_unit" name="sv_left_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
             </div>
@@ -1114,7 +1114,7 @@
                 </select>
               </div>
               <div class="edit-quad-sv-right-fixed-group" style="display:none;">
-                <input type="number" id="edit_sv_right_fixed" name="sv_right_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="edit_sv_right_fixed" name="sv_right_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="edit_sv_right_fixed_unit" name="sv_right_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
             </div>
@@ -1193,7 +1193,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="qtag6-left-sv-high-fixed-group mt-2">
-                <input type="number" name="left_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" name="left_sv_high_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" name="left_sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag6-left-sv-high-tag-group mt-2" style="display:none;">
@@ -1212,7 +1212,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="qtag6-right-sv-high-fixed-group mt-2">
-                <input type="number" name="right_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" name="right_sv_high_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" name="right_sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag6-right-sv-high-tag-group mt-2" style="display:none;">
@@ -1235,7 +1235,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="qtag6-left-sv-low-fixed-group mt-2">
-                <input type="number" name="left_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" name="left_sv_low_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" name="left_sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag6-left-sv-low-tag-group mt-2" style="display:none;">
@@ -1254,7 +1254,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="qtag6-right-sv-low-fixed-group mt-2">
-                <input type="number" name="right_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" name="right_sv_low_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" name="right_sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag6-right-sv-low-tag-group mt-2" style="display:none;">
@@ -1334,7 +1334,7 @@
             </div>
             <div class="col-md-4 sv-high-fixed-group">
               <label class="form-label">Fixed Value</label>
-              <input type="number" step="any" name="sv_high_fixed" class="form-control" placeholder="e.g. 30.0">
+              <input type="text" inputmode="decimal" name="sv_high_fixed" class="form-control" placeholder="e.g. 30.0">
               <input type="text" name="sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
             <div class="col-md-4 sv-high-tag-group" style="display:none;">
@@ -1358,7 +1358,7 @@
             </div>
             <div class="col-md-4 sv-low-fixed-group">
               <label class="form-label">Fixed Value</label>
-              <input type="number" step="any" name="sv_low_fixed" class="form-control" placeholder="e.g. 18.0">
+              <input type="text" inputmode="decimal" name="sv_low_fixed" class="form-control" placeholder="e.g. 18.0">
               <input type="text" name="sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
             <div class="col-md-4 sv-low-tag-group" style="display:none;">
@@ -1645,7 +1645,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="edit-qtag6-left-sv-high-fixed-group mt-2">
-                <input type="number" id="editQtag6LeftSvHighFixed" name="left_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="editQtag6LeftSvHighFixed" name="left_sv_high_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="editQtag6LeftSvHighFixedUnit" name="left_sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag6-left-sv-high-tag-group mt-2" style="display:none;">
@@ -1664,7 +1664,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="edit-qtag6-right-sv-high-fixed-group mt-2">
-                <input type="number" id="editQtag6RightSvHighFixed" name="right_sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="editQtag6RightSvHighFixed" name="right_sv_high_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="editQtag6RightSvHighFixedUnit" name="right_sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag6-right-sv-high-tag-group mt-2" style="display:none;">
@@ -1687,7 +1687,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="edit-qtag6-left-sv-low-fixed-group mt-2">
-                <input type="number" id="editQtag6LeftSvLowFixed" name="left_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="editQtag6LeftSvLowFixed" name="left_sv_low_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="editQtag6LeftSvLowFixedUnit" name="left_sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag6-left-sv-low-tag-group mt-2" style="display:none;">
@@ -1706,7 +1706,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="edit-qtag6-right-sv-low-fixed-group mt-2">
-                <input type="number" id="editQtag6RightSvLowFixed" name="right_sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="editQtag6RightSvLowFixed" name="right_sv_low_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="editQtag6RightSvLowFixedUnit" name="right_sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag6-right-sv-low-tag-group mt-2" style="display:none;">
@@ -1790,7 +1790,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="qtag4-left-sv-fixed-group">
-                <input type="number" name="left_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" name="left_sv_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" name="left_sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag4-left-sv-tag-group" style="display:none;">
@@ -1809,7 +1809,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="qtag4-right-sv-fixed-group">
-                <input type="number" name="right_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" name="right_sv_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" name="right_sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag4-right-sv-tag-group" style="display:none;">
@@ -1911,7 +1911,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="edit-qtag4-left-sv-fixed-group mt-2">
-                <input type="number" id="editQtag4LeftSvFixed" name="left_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="editQtag4LeftSvFixed" name="left_sv_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="editQtag4LeftSvFixedUnit" name="left_sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag4-left-sv-tag-group mt-2" style="display:none;">
@@ -1930,7 +1930,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="edit-qtag4-right-sv-fixed-group mt-2">
-                <input type="number" id="editQtag4RightSvFixed" name="right_sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="editQtag4RightSvFixed" name="right_sv_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="editQtag4RightSvFixedUnit" name="right_sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag4-right-sv-tag-group mt-2" style="display:none;">
@@ -2004,7 +2004,7 @@
               </select>
             </div>
             <div class="col-md-8 qtag3-sv-high-fixed-group" style="display:none;">
-              <input type="number" name="sv_high_fixed" class="form-control" step="any" placeholder="Fixed SV HIGH value">
+              <input type="text" inputmode="decimal" name="sv_high_fixed" class="form-control" placeholder="Fixed SV HIGH value">
               <input type="text" name="sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
           </div>
@@ -2026,7 +2026,7 @@
               </select>
             </div>
             <div class="col-md-8 qtag3-sv-low-fixed-group" style="display:none;">
-              <input type="number" name="sv_low_fixed" class="form-control" step="any" placeholder="Fixed SV LOW value">
+              <input type="text" inputmode="decimal" name="sv_low_fixed" class="form-control" placeholder="Fixed SV LOW value">
               <input type="text" name="sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
           </div>
@@ -2089,7 +2089,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="edit-qtag3-sv-high-fixed-group mt-2">
-                <input type="number" id="editQtag3SvHighFixed" name="sv_high_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="editQtag3SvHighFixed" name="sv_high_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="editQtag3SvHighFixedUnit" name="sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag3-sv-high-tag-group mt-2" style="display:none;">
@@ -2109,7 +2109,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="edit-qtag3-sv-low-fixed-group mt-2">
-                <input type="number" id="editQtag3SvLowFixed" name="sv_low_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="editQtag3SvLowFixed" name="sv_low_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="editQtag3SvLowFixedUnit" name="sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag3-sv-low-tag-group mt-2" style="display:none;">
@@ -2171,7 +2171,7 @@
             </div>
             <div class="col-md-6">
               <div class="qtag2-sv-fixed-group mt-4" style="display:none;">
-                <input type="number" name="sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" name="sv_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" name="sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="qtag2-sv-tag-group mt-4">
@@ -2241,7 +2241,7 @@
                 <option value="tag">From Tag</option>
               </select>
               <div class="edit-qtag2-sv-fixed-group mt-2">
-                <input type="number" id="editQtag2SvFixed" name="sv_fixed" class="form-control" step="any" placeholder="Fixed value">
+                <input type="text" inputmode="decimal" id="editQtag2SvFixed" name="sv_fixed" class="form-control" placeholder="Fixed value">
                 <input type="text" id="editQtag2SvFixedUnit" name="sv_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
               </div>
               <div class="edit-qtag2-sv-tag-group mt-2" style="display:none;">
@@ -2296,7 +2296,7 @@
             </div>
             <div class="col-md-4 edit-sv-high-fixed-group">
               <label class="form-label">Fixed Value</label>
-              <input type="number" step="any" id="editSingle3SvHighFixed" name="sv_high_fixed" class="form-control">
+              <input type="text" inputmode="decimal" id="editSingle3SvHighFixed" name="sv_high_fixed" class="form-control">
               <input type="text" id="editSingle3SvHighFixedUnit" name="sv_high_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
             <div class="col-md-4 edit-sv-high-tag-group" style="display:none;">
@@ -2320,7 +2320,7 @@
             </div>
             <div class="col-md-4 edit-sv-low-fixed-group">
               <label class="form-label">Fixed Value</label>
-              <input type="number" step="any" id="editSingle3SvLowFixed" name="sv_low_fixed" class="form-control">
+              <input type="text" inputmode="decimal" id="editSingle3SvLowFixed" name="sv_low_fixed" class="form-control">
               <input type="text" id="editSingle3SvLowFixedUnit" name="sv_low_fixed_unit" class="form-control mt-2" placeholder="Unit (e.g. °C, %, bar)">
             </div>
             <div class="col-md-4 edit-sv-low-tag-group" style="display:none;">

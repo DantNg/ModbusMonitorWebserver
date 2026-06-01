@@ -1614,6 +1614,10 @@ class AlarmWorker:
                 alarm_type = "High" if high_met else "Low"
                 self._alarm_states[alarm_key] = True
                 self._alarm_types[alarm_key] = alarm_type
+                # Reset timer ngay sau khi INCOMING fires để OUTGOING timer
+                # đếm từ thời điểm condition CLEAR, không phải từ khi condition trigger.
+                # Nếu không reset, off_stable sẽ không có tác dụng khi on_stable >= off_stable.
+                self._alarm_since.pop(alarm_key, None)
 
                 self.log("INFO", f"⚠️ Alarm TRIGGERED: {alarm_name} ({strategy.card_type}) - {alarm_type} - {column_display} PV: {pv_value} (threshold: {threshold})")
 

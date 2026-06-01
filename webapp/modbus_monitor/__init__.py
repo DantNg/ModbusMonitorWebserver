@@ -299,14 +299,9 @@ def create_app():
         if dp == 0:
             return f"{int(round(num_value))}"
 
-        # Render with requested precision, then remove redundant trailing zeros.
-        rendered = f"{num_value:.{dp}f}"
-        if '.' in rendered:
-            rendered = rendered.rstrip('0').rstrip('.')
-        # Keep at least one decimal when user originally used decimal input.
-        if '.' not in rendered:
-            rendered = f"{rendered}.0"
-        return rendered
+        # Render with exact requested precision — preserve trailing zeros as typed by user.
+        # e.g. dp=2 -> "1000.00", dp=1 -> "1000.0"
+        return f"{num_value:.{dp}f}"
 
     @app.template_filter('contrast_color')
     def contrast_color_filter(hex_color):

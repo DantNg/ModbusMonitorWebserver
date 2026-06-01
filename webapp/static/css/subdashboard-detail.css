@@ -587,45 +587,69 @@
   display: flex !important;
   align-items: baseline !important;
   justify-content: center !important;
-  gap: 14px !important;
+  gap: 6px !important;
   flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
 }
 
 .qtag6-sv-low {
-  font-size: 1.5rem !important;
+  font-size: clamp(0.85rem, 1.3rem, 1.3rem) !important;
   font-weight: 700 !important;
   color: #38bdf8 !important;
   line-height: 1 !important;
+  white-space: nowrap !important;
 }
 
 .qtag6-arrow-low {
-  font-size: 1.1rem !important;
+  font-size: 0.95rem !important;
   font-weight: 900 !important;
   color: #38bdf8 !important;
-  margin-right: 2px !important;
+  margin-right: 1px !important;
+  flex-shrink: 0 !important;
   -webkit-text-stroke: 0.5px currentColor;
 }
 
 .qtag6-sv-separator {
-  font-size: 1.5rem !important;
+  font-size: 1.3rem !important;
   font-weight: 700 !important;
   color: #6b7280 !important;
   line-height: 1 !important;
+  flex-shrink: 0 !important;
 }
 
 .qtag6-sv-high {
-  font-size: 1.5rem !important;
+  font-size: clamp(0.85rem, 1.3rem, 1.3rem) !important;
   font-weight: 700 !important;
   color: #fb923c !important;
   line-height: 1 !important;
+  white-space: nowrap !important;
 }
 
 .qtag6-arrow-high {
-  font-size: 1.1rem !important;
+  font-size: 0.95rem !important;
   font-weight: 900 !important;
   color: #fb923c !important;
-  margin-right: 2px !important;
+  margin-right: 1px !important;
+  flex-shrink: 0 !important;
   -webkit-text-stroke: 0.5px currentColor;
+}
+
+/* qtag3 SV inline values (dùng chung .qtag6-sv-inline container đã fix, chỉ cần định nghĩa màu/size) */
+.qtag3-sv-low {
+  font-size: 1.3rem !important;
+  font-weight: 700 !important;
+  color: #38bdf8 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.qtag3-sv-high {
+  font-size: 1.3rem !important;
+  font-weight: 700 !important;
+  color: #fb923c !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
 }
 
 .qtag6-update-time {
@@ -703,6 +727,9 @@
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
+  white-space: nowrap !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
 }
 
 /*
@@ -771,6 +798,9 @@
   line-height: 1 !important;
   flex: 1 1 auto !important;
   text-align: center !important;
+  white-space: nowrap !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
 }
 
 /* Alarm states for Qtag6 */
@@ -1203,44 +1233,51 @@
   display: flex !important;
   align-items: baseline !important;
   justify-content: center !important;
-  gap: 14px !important;
+  gap: 6px !important;
   flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
 }
 
 .qtag-single-sv-low {
-  font-size: 1.5rem !important;
+  font-size: 1.3rem !important;
   font-weight: 700 !important;
   color: #38bdf8 !important;
   line-height: 1 !important;
+  white-space: nowrap !important;
 }
 
 .qtag-single-sv-high {
-  font-size: 1.5rem !important;
+  font-size: 1.3rem !important;
   font-weight: 700 !important;
   color: #fb923c !important;
   line-height: 1 !important;
+  white-space: nowrap !important;
 }
 
 .qtag-single-sv-separator {
-  font-size: 1.5rem !important;
+  font-size: 1.3rem !important;
   font-weight: 700 !important;
   color: #6b7280 !important;
   line-height: 1 !important;
+  flex-shrink: 0 !important;
 }
 
 .qtag-single-arrow-low {
-  font-size: 1.1rem !important;
+  font-size: 0.95rem !important;
   font-weight: 900 !important;
   color: #38bdf8 !important;
-  margin-right: 2px !important;
+  margin-right: 1px !important;
+  flex-shrink: 0 !important;
   -webkit-text-stroke: 0.5px currentColor;
 }
 
 .qtag-single-arrow-high {
-  font-size: 1.1rem !important;
+  font-size: 0.95rem !important;
   font-weight: 900 !important;
   color: #fb923c !important;
-  margin-right: 2px !important;
+  margin-right: 1px !important;
+  flex-shrink: 0 !important;
   -webkit-text-stroke: 0.5px currentColor;
 }
 

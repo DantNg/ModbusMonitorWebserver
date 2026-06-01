@@ -23,12 +23,9 @@ def _parse_fixed_numeric_input(raw_value):
     decimal_places = 0
     if '.' in text:
         fraction = text.split('.', 1)[1]
-        meaningful_fraction = fraction.rstrip('0')
-        if meaningful_fraction:
-            decimal_places = min(2, len(meaningful_fraction))
-        else:
-            # Preserve x.0 style explicitly typed by user.
-            decimal_places = 1
+        # Luôn dùng độ dài fraction gốc để giữ đúng số chữ số thập phân người dùng nhập.
+        # Ví dụ: 500.10 -> dp=2, 1000.0 -> dp=1, 1000.00 -> dp=2, 500.1 -> dp=1
+        decimal_places = min(2, len(fraction))
 
     # Round to at most 2 decimals (expected behavior: 111.268 -> 111.27).
     quantize_pattern = Decimal('1') if decimal_places == 0 else Decimal('0.' + ('0' * (decimal_places - 1)) + '1')

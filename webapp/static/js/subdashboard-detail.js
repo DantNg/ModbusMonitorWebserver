@@ -3637,11 +3637,15 @@ try {
           operator: null,
           threshold: null
         });
-
+        // Cập nhật snapshot để fetchAndApplyTagAlarms có thể detect và xóa khi alarm clear
+        const tagSnapshot = `${level || ''}|${data.value ?? ''}||`;
+        _lastSyncedTagAlarms.set(tagId, tagSnapshot);
         console.log(`✅ Tag alarm applied: tag ${tagId} - ${level}`);
 
       } else if (status === 'OUTGOING') {
         removeTagAlarmVisual(tagId);
+        // Xóa khỏi snapshot để periodic sync không re-apply
+        _lastSyncedTagAlarms.delete(tagId);
         console.log(`✅ Tag alarm cleared: tag ${tagId}`);
       }
     });
@@ -3658,9 +3662,16 @@ try {
 
       if (status === 'INCOMING') {
         applyCardAlarmVisual(cardType, cardId, column, alarmType);
+        // Cập nhật _lastSyncedCardAlarms để fetchAndApplyCardAlarms có thể
+        // detect và xóa alarm color khi alarm đã clear trên server
+        const cardKey = buildCardAlarmKey(cardType, cardId, column);
+        _lastSyncedCardAlarms.set(cardKey, alarmType);
         console.log(`✅ Card alarm applied: ${cardType}/${cardId} ${column} (${alarmType})`);
       } else if (status === 'OUTGOING') {
         removeCardAlarmVisual(cardType, cardId, column);
+        // Xóa khỏi snapshot để periodic sync không re-apply
+        const cardKey = buildCardAlarmKey(cardType, cardId, column);
+        _lastSyncedCardAlarms.delete(cardKey);
         console.log(`✅ Card alarm cleared: ${cardType}/${cardId} ${column}`);
       }
     });
