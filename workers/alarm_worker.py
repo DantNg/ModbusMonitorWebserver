@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import socketio
+from shared.runtime import MySQLRuntimeStore
 
 # Strategy + Factory pattern cho qtag alarm evaluation
 from workers.alarm_strategies import AlarmStrategyFactory, CardAlarmStrategy, ColumnDef
@@ -271,6 +272,8 @@ class AlarmWorker:
                 self.db = None
                 self.db_available = False
                 self.log("ERROR", f"Failed to load database module: {e}")
+
+            self.runtime_store = MySQLRuntimeStore(self.db) if self.db_available and self.db is not None else None
         
         # Alarm state tracking
         self._alarm_states: Dict[int, bool] = {}  # rule_id -> active
@@ -979,7 +982,7 @@ class AlarmWorker:
 
     def _get_tag_value(self, tag_id: int) -> Optional[float]:
         """Get current tag value in engineering units (raw × scale + offset) from tag_latest_values table (per-cycle cache)"""
-        if not self.db_available:
+        if not self.db_available or self.runtime_store is None:
             return None
         
         # Per-cycle cache: avoid querying same tag multiple times within one alarm loop cycle
@@ -987,23 +990,8 @@ class AlarmWorker:
             return self._tag_value_cache[tag_id]
             
         try:
-            result = self.db.get_latest_tag_value(tag_id)
-            value = None
-            if result:
-                # get_latest_tag_value returns tuple (value, timestamp)
-                if isinstance(result, tuple) and len(result) >= 1:
-                    value = result[0]  # Return value part
-                elif isinstance(result, dict):
-                    value = result.get("value")
-                else:
-                    value = result
-            # Giá trị trong DB đã là engineering units (worker đã áp scale+offset tại nguồn).
-            # Chỉ cần chuyển sang float, không cần nhân scale+offset nữa.
-            if value is not None:
-                try:
-                    value = float(value)
-                except Exception:
-                    value = None
+            state = self.runtime_store.get_tag_state(tag_id)
+            value = state.value if state is not None else None
             self._tag_value_cache[tag_id] = value
             return value
         except Exception as e:

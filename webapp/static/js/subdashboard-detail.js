@@ -1464,29 +1464,33 @@ try {
 
 
   /**
-   * Format a raw tag value for display:
-   * - integer (or whole float) -> no decimal     e.g. 123.0   -> "123"
-   * - decimal -> up to 2 decimal places, no trailing zeros
-   *              e.g. 123.5   -> "123.5"
-   *              e.g. 123.50  -> "123.5"
-   *              e.g. 123.456 -> "123.46"
+   * Format a raw tag value for display.
+   * Policy mirrors shared/services/formatting_service.py:format_tag_value() on the backend:
+   * - scale=1 (integer)         -> "123"
+   * - scale=1 (non-integer)     -> "123.46"  (2 decimals, no trailing zeros via parseFloat)
+   * - scale=0.1                 -> "123.3"   (1 decimal, toFixed — may keep trailing zero)
+   * - scale>=0.2 (not 1)       -> "123.46"  (2 decimals, toFixed)
+   * - scale=null / no scale     -> integer: "123", non-integer: "123.46" (parseFloat)
    */
   function fmtVal(value, scale = 1) {
     if (value === null || value === undefined || value === '') return '0';
     const num = parseFloat(value);
     if (isNaN(num)) return String(value);
 
-    const scaleNum = Math.abs(Number(scale));
-    if (Number.isFinite(scaleNum) && Math.abs(scaleNum - 1.0) < 1e-9) {
+    const scaleNum = scale !== null && scale !== undefined ? Math.abs(Number(scale)) : null;
+
+    // scale=1: integer stays integer, else 2 decimals (no trailing zeros via parseFloat)
+    if (scaleNum !== null && Number.isFinite(scaleNum) && Math.abs(scaleNum - 1.0) < 1e-9) {
       return Number.isInteger(num) ? String(Math.trunc(num)) : parseFloat(num.toFixed(2)).toString();
     }
 
     const decimalPlaces = decimalsByDisplayRule(scale);
-    if (decimalPlaces === null) {
-      // Fallback: max 2 decimals if scale is invalid/missing
-      return parseFloat(num.toFixed(2)).toString();
+    if (decimalPlaces !== null) {
+      return num.toFixed(decimalPlaces);
     }
-    return num.toFixed(decimalPlaces);
+
+    // No valid scale / scale missing: mirror Python fallback — integer or 2 decimals no trailing zero
+    return Number.isInteger(num) ? String(Math.trunc(num)) : parseFloat(num.toFixed(2)).toString();
   }
 
   function extractTagIdFromValueElement(el) {

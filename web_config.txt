@@ -1,1 +1,12 @@
-{"brand_name": "Plant Monitor", "login_name": "ACME SCADA", "footer_name": "ACME Industrial"}
+{
+  "brand_name": "Plant Monitor",
+  "login_name": "ACME SCADA",
+  "footer_name": "ACME Industrial",
+
+  "USE_FORMATTING_SERVICE": true,
+  "USE_RUNTIME_STORE": true,
+  "USE_COMPATIBILITY_PUBLISHER": true,
+  "USE_CARD_SCHEMA_PRESENTERS": false,
+  "USE_GENERIC_ALARM_RULES": false,
+  "USE_GENERIC_ALARM_ENGINE": false
+}

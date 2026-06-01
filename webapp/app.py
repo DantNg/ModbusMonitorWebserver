@@ -34,6 +34,31 @@ logger = _get_app_logger("webapp", log_filename="webapp_errors.log")
 # Log absolute static folder path for diagnostics
 logger.info("Static folder: %s (exists=%s)", app.static_folder, os.path.isdir(app.static_folder or ''))
 
+# --------------------------------------------------
+# Compatibility Publisher — register socketio instance so publisher
+# can be used by other modules when USE_COMPATIBILITY_PUBLISHER=true.
+# This call is always safe (no behavior change when flag is false).
+# --------------------------------------------------
+try:
+    from modbus_monitor.services.socket_emission_manager import publisher as _compat_publisher
+    _compat_publisher.set_socketio(socketio)
+    logger.info("CompatibilityPublisher: socketio instance registered")
+except Exception as _cp_exc:
+    logger.warning("CompatibilityPublisher init failed (non-fatal): %s", _cp_exc)
+
+# Import feature flags and publisher for use in route/event handlers below
+try:
+    from shared.feature_flags import flags as _flags
+    from modbus_monitor.services.socket_emission_manager import publisher as _publisher
+except Exception as _ff_exc:
+    logger.warning("feature_flags/publisher import failed (non-fatal): %s", _ff_exc)
+
+    class _FlagsFallback:
+        USE_COMPATIBILITY_PUBLISHER = False
+
+    _flags = _FlagsFallback()
+    _publisher = None
+
 # ProcessManager disabled in webapp-only mode
 process_manager = None
 data_queue_thread = None
@@ -120,12 +145,15 @@ def emit_tag_update():
         except:
             pass
         
-        # Emit modbus_update to specific rooms
-        for room in rooms_to_emit:
-            socketio.emit('modbus_update', socket_data, room=room)
-            
-        # Also emit general tag_update for broader listeners
-        socketio.emit('tag_update', socket_data, broadcast=True)
+        # Emit modbus_update to specific rooms + tag_update broadcast
+        if _flags.USE_COMPATIBILITY_PUBLISHER and _publisher:
+            _publisher.publish_modbus_update(socket_data, rooms=rooms_to_emit if rooms_to_emit else None)
+            _publisher.publish_tag_update(socket_data)
+        else:
+            for room in rooms_to_emit:
+                socketio.emit('modbus_update', socket_data, room=room)
+            # Also emit general tag_update for broader listeners
+            socketio.emit('tag_update', socket_data, broadcast=True)
         
         return jsonify({
             "success": True, 
@@ -174,22 +202,25 @@ def modbus_update():
         
         # Determine target rooms
         rooms_emitted = []
-        
+
         # 1. Dashboard device room
         if device_id:
             dashboard_room = f"dashboard_device_{device_id}"
-            socketio.emit('modbus_update', modbus_data, room=dashboard_room)
             rooms_emitted.append(dashboard_room)
-        
+
         # 2. Get subdashboard rooms for this tag
         try:
-            # Query database to find which subdashboards contain this tag
             subdash_rooms = db.get_subdashboard_rooms_for_tag(tag_id) if hasattr(db, 'get_subdashboard_rooms_for_tag') else []
-            for subdash_room in subdash_rooms:
-                socketio.emit('modbus_update', modbus_data, room=subdash_room)
-                rooms_emitted.append(subdash_room)
+            rooms_emitted.extend(subdash_rooms)
         except Exception as subdash_error:
             logger.warning("Could not get subdashboard rooms: %s", subdash_error)
+
+        # Emit via publisher or direct socketio
+        if _flags.USE_COMPATIBILITY_PUBLISHER and _publisher:
+            _publisher.publish_modbus_update(modbus_data, rooms=rooms_emitted if rooms_emitted else None)
+        else:
+            for room in rooms_emitted:
+                socketio.emit('modbus_update', modbus_data, room=room)
         
         return jsonify({
             "success": True, 
@@ -312,7 +343,22 @@ def on_modbus_update(data):
 
         # For TCP worker emissions, broadcast to all rooms for now
         # Later we can implement more sophisticated room filtering
-        if source == 'tcp_worker':
+        if _flags.USE_COMPATIBILITY_PUBLISHER and _publisher:
+            # Resolve target rooms from payload, then publish via canonical publisher
+            if source == 'tcp_worker':
+                _publisher.publish_modbus_update(data)
+            else:
+                target_rooms = data.get("target_rooms") or []
+                if not target_rooms:
+                    room = data.get("room")
+                    if not room:
+                        subdash_id = data.get("subdash_id")
+                        if subdash_id:
+                            room = f"subdashboard_{subdash_id}"
+                    if room:
+                        target_rooms = [room]
+                _publisher.publish_modbus_update(data, rooms=target_rooms if target_rooms else None)
+        elif source == 'tcp_worker':
             # Broadcast to all connected clients
             socketio.emit('modbus_update', data)
         else:
@@ -470,8 +516,10 @@ def on_modbus_write_response(data):
 @socketio.on('alarm_event')
 def handle_alarm_event(data):
     print('Received alarm_event from client:', data)
-    # Optionally: broadcast lại cho các client khác
-    socketio.emit('alarm_event', data)
+    if _flags.USE_COMPATIBILITY_PUBLISHER and _publisher:
+        _publisher.publish_alarm_event(data)
+    else:
+        socketio.emit('alarm_event', data)
 
 @socketio.on('quad_alarm_event')
 def handle_quad_alarm_event(data):
@@ -486,7 +534,10 @@ def handle_quad_alarm_event(data):
         quad_id = data.get('quad_id')
         
         # Broadcast to all clients (they will filter by quad_id on frontend)
-        socketio.emit('quad_alarm_event', data)
+        if _flags.USE_COMPATIBILITY_PUBLISHER and _publisher:
+            _publisher.publish_quad_alarm_event(data)
+        else:
+            socketio.emit('quad_alarm_event', data)
         print(f'✅ Broadcasted quad_alarm_event to all clients: quad_id={quad_id}')
         
     except Exception as e:
@@ -508,7 +559,10 @@ def handle_card_alarm_event(data):
         print(f'📡 Received card_alarm_event from worker: {card_type}/{card_id} [{status}]')
 
         # Broadcast to all clients (frontend filters by card_type/card_id)
-        socketio.emit('card_alarm_event', data)
+        if _flags.USE_COMPATIBILITY_PUBLISHER and _publisher:
+            _publisher.publish_card_alarm_event(data)
+        else:
+            socketio.emit('card_alarm_event', data)
         print(f'✅ Broadcasted card_alarm_event to all clients: {card_type}/{card_id}')
 
     except Exception as e:

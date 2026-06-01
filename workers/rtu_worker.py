@@ -24,6 +24,16 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils'
 # DB helpers (trực tiếp)
 from webapp.modbus_monitor.database.db import update_device_row, update_tag_latest_value
 
+try:
+    from shared.runtime import MySQLRuntimeStore
+    try:
+        from webapp.modbus_monitor.database import db as runtime_db
+    except Exception:
+        runtime_db = None
+except Exception:
+    MySQLRuntimeStore = None
+    runtime_db = None
+
 # ---- Optional: Socket.IO
 try:
     import socketio
@@ -184,6 +194,7 @@ class RTUWorker:
         self.bus_lock = threading.RLock()
         self.INTER_DEVICE_GAP_MS = 50  # Gap giữa 2 thiết bị trên cùng cổng
         self.bus_free_at = 0.0
+        self.runtime_store = MySQLRuntimeStore(runtime_db) if (MySQLRuntimeStore is not None and runtime_db is not None) else None
 
     # ---- lifecycle
     def start(self):
@@ -271,7 +282,16 @@ class RTUWorker:
             "updated_at": datetime.now(),
         }
         try:
-            update_device_row(device.id, data)
+            if self.runtime_store is not None:
+                persisted = self.runtime_store.upsert_device_state(
+                    device.id,
+                    is_online=ok,
+                    updated_at=data["updated_at"],
+                )
+                if not persisted:
+                    update_device_row(device.id, data)
+            else:
+                update_device_row(device.id, data)
         except Exception as e:
             if self.debug:
                 print(f"⚠️ DB update device {getattr(device,'name',device.id)} err: {e}")
@@ -576,7 +596,13 @@ class RTUWorker:
                 # DB write latest - lưu giá trị đã qua scale+offset+round (engineering unit).
                 # UI và datalogger chỉ cần hiển thị y nguyên, không cần transform thêm.
                 try:
-                    update_tag_latest_value(t.id, val, datetime.now())
+                    now_ts = datetime.now()
+                    if self.runtime_store is not None:
+                        persisted = self.runtime_store.upsert_tag_state(t.id, val, now_ts)
+                        if not persisted:
+                            update_tag_latest_value(t.id, val, now_ts)
+                    else:
+                        update_tag_latest_value(t.id, val, now_ts)
                 except Exception as e:
                     last_error = str(e)
                     if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")

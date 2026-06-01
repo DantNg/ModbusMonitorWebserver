@@ -30,6 +30,16 @@ except Exception:
     update_device_row = None
     update_tag_latest_value = None
 
+try:
+    from shared.runtime import MySQLRuntimeStore
+    try:
+        from webapp.modbus_monitor.database import db as runtime_db
+    except Exception:
+        runtime_db = None
+except Exception:
+    MySQLRuntimeStore = None
+    runtime_db = None
+
 # ---- Optional: DB wrapper (nếu bạn có dùng DatabaseManager)
 try:
     from shared.database_manager import DatabaseManager
@@ -167,6 +177,7 @@ class TCPWorker:
 
         # DB wrapper (tuỳ có dùng hay không)
         self.db = DatabaseManager() if DB_AVAILABLE else None
+        self.runtime_store = MySQLRuntimeStore(runtime_db) if (MySQLRuntimeStore is not None and runtime_db is not None) else None
 
         # Socket.IO (sync) - dùng reconnection=False để tự quản lý reconnection
         self.sio = None
@@ -410,10 +421,18 @@ class TCPWorker:
                 # DB write latest - lưu giá trị đã qua scale+offset+round (engineering unit).
                 # UI và datalogger chỉ cần hiển thị y nguyên, không cần transform thêm.
                 try:
-                    if update_tag_latest_value:
-                        update_tag_latest_value(t.id, val, datetime.now())
+                    now_ts = datetime.now()
+                    if self.runtime_store is not None:
+                        persisted = self.runtime_store.upsert_tag_state(t.id, val, now_ts)
+                        if not persisted:
+                            if update_tag_latest_value:
+                                update_tag_latest_value(t.id, val, now_ts)
+                            elif self.db:
+                                self.db.update_tag_latest_value(t.id, val, now_ts)
+                    elif update_tag_latest_value:
+                        update_tag_latest_value(t.id, val, now_ts)
                     elif self.db:
-                        self.db.update_tag_latest_value(t.id, val, datetime.now())
+                        self.db.update_tag_latest_value(t.id, val, now_ts)
                 except Exception as e:
                     last_error = str(e)
                     if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
@@ -710,7 +729,17 @@ class TCPWorker:
             "updated_at": datetime.now(),
         }
         try:
-            if update_device_row:
+            if self.runtime_store is not None:
+                persisted = self.runtime_store.upsert_device_state(
+                    device.id,
+                    is_online=ok,
+                    updated_at=data["updated_at"],
+                )
+                if not persisted and update_device_row:
+                    update_device_row(device.id, data)
+                elif not persisted and self.db:
+                    self.db.update_device_row(device.id, data)
+            elif update_device_row:
                 update_device_row(device.id, data)
             elif self.db:
                 self.db.update_device_row(device.id, data)

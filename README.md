@@ -14,6 +14,7 @@ Xây dựng bằng **Flask + Socket.IO**, giao diện HTML/CSS/JS, lưu trữ d�
 5. [Hệ thống Alarm](#hệ-thống-alarm)
 6. [Cách chạy dự án](#cách-chạy-dự-án)
 7. [Tech Stack](#tech-stack)
+8. [Tài liệu refactor tăng dần](#tài-liệu-refactor-tăng-dần)
 
 ---
 
@@ -460,6 +461,53 @@ stop_all_services.bat
 ---
 
 ## Tech Stack
+
+## Tài liệu refactor tăng dần
+
+- Xem blueprint chi tiết tại [INCREMENTAL_REFACTOR_BLUEPRINT.md](INCREMENTAL_REFACTOR_BLUEPRINT.md)
+
+## Trạng thái refactor hiện tại
+
+### Đã làm
+
+- Đã thêm blueprint refactor tăng dần tại [INCREMENTAL_REFACTOR_BLUEPRINT.md](INCREMENTAL_REFACTOR_BLUEPRINT.md).
+- Đã tách backend formatting thành shared service tại [shared/services/formatting_service.py](shared/services/formatting_service.py).
+- Jinja filters hiện dùng shared formatting service trong [webapp/modbus_monitor/__init__.py](webapp/modbus_monitor/__init__.py).
+- Logger worker đã dùng shared formatting service trong [workers/logger_worker.py](workers/logger_worker.py).
+- **PR2d**: Đồng bộ `fmtVal` frontend realtime trong [webapp/static/js/subdashboard-detail.js](webapp/static/js/subdashboard-detail.js) để fallback khi scale=null/undefined khớp đúng với policy backend: integer → không thập phân, non-integer → 2 chữ số không trailing zero.
+- Đã thêm Runtime Store facade tại [shared/runtime/interfaces.py](shared/runtime/interfaces.py) và [shared/runtime/mysql_store.py](shared/runtime/mysql_store.py).
+- Alarm worker và logger worker đã đọc runtime state qua Runtime Store facade trong [workers/alarm_worker.py](workers/alarm_worker.py) và [workers/logger_worker.py](workers/logger_worker.py).
+- TCP worker và RTU worker đã ghi tag/device runtime state qua Runtime Store facade, có fallback về đường cũ nếu facade không khả dụng, trong [workers/tcp_worker.py](workers/tcp_worker.py) và [workers/rtu_worker.py](workers/rtu_worker.py).
+- **PR3e**: Thêm module feature flags tại [shared/feature_flags.py](shared/feature_flags.py) đọc từ [web_config.txt](web_config.txt). Flags hiện tại: `USE_FORMATTING_SERVICE=true`, `USE_RUNTIME_STORE=true`, còn lại `false`.
+- **PR4**: `CompatibilityPublisher` đã được wire hoàn toàn vào [webapp/app.py](webapp/app.py). Tất cả emit `modbus_update`, `tag_update`, `alarm_event`, `card_alarm_event`, `quad_alarm_event` trong `app.py` đều đi qua `publisher.publish_*()` khi `USE_COMPATIBILITY_PUBLISHER=true`. Flag đã bật trong [web_config.txt](web_config.txt). Fallback về `socketio.emit()` trực tiếp vẫn còn nếu flag tắt.
+
+### Chưa làm xong
+
+- Chưa chuyển visualization sang schema registry + presenter layer.
+- Chưa chuyển alarm sang canonical rule adapters và generic alarm engine.
+
+### Việc nên làm tiếp theo
+
+1. **PR5 — Card Repository**: Tách logic resolve SV (tag hoặc fixed value) thành utility chung. Loại bỏ lặp lại trong các hàm `get_qtag*_cards_for_group` ở [webapp/modbus_monitor/database/db.py](webapp/modbus_monitor/database/db.py).
+2. **PR6 — Card Schema Registry + Presenter layer** (feature-flagged bằng `USE_CARD_SCHEMA_PRESENTERS`).
+3. **PR7 — Generic Alarm Rule Adapters**.
+4. **PR8–PR10 — Generic Alarm Engine** (shadow mode trước, sau đó switch).
+
+### Ràng buộc bắt buộc khi tiếp tục
+
+- Không đổi tên Socket.IO events hiện có: `modbus_update`, `tag_update`, `alarm_event`, `card_alarm_event`, `quad_alarm_event`.
+- Không đổi API hiện có, không đổi schema DB hiện có theo kiểu breaking change.
+- Không đổi layout UI, CSS classes quan trọng, DOM id pattern mà JS hiện tại đang dựa vào.
+- Mọi refactor mới phải ưu tiên adapter/facade/feature flag trước, không rewrite một lần.
+
+### Kiểm tra đã chạy
+
+- Shared formatting service đã được smoke test bằng `.venv`.
+- Runtime Store facade đã được smoke test theo kiểu import path của worker.
+- `workers/tcp_worker.py`, `workers/rtu_worker.py`, `shared/runtime/mysql_store.py` đã pass `py_compile`.
+- `shared/feature_flags.py` đã smoke test: đọc đúng flags từ `web_config.txt` (`USE_FORMATTING_SERVICE=True`, `USE_RUNTIME_STORE=True`, `USE_COMPATIBILITY_PUBLISHER=True`).
+- `webapp/modbus_monitor/services/socket_emission_manager.py` và `webapp/app.py` đã pass `py_compile`.
+- `CompatibilityPublisher` đã smoke test: tất cả 5 methods `publish_*` đều có mặt, import đúng.
 
 | Thành phần | Công nghệ |
 |---|---|

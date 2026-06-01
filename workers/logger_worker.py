@@ -24,6 +24,9 @@ try:
         purge_tag_logs_by_logger, get_data_logger, list_data_logger_tags, list_all_tags,
         safe_datetime_now
     )
+    from webapp.modbus_monitor.database import db as runtime_db
+    from shared.services.formatting_service import format_logger_value
+    from shared.runtime import MySQLRuntimeStore
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure you're running from the flask_modbus_monitor directory")
@@ -64,6 +67,7 @@ class LoggerWorker:
         # Setup logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(f"logger_worker_{logger_id}")
+        self.runtime_store = MySQLRuntimeStore(runtime_db)
     
     def log_message(self, level: str, message: str):
         """Send log message to parent process"""
@@ -139,24 +143,11 @@ class LoggerWorker:
     def _format_tag_value_for_log(self, tag_id: int, value: float) -> str:
         """Format value for logging based on tag datatype/scale/offset rules"""
         meta = self.tag_meta.get(tag_id, {})
-        try:
-            raw_value = float(value)
-            scale_value = float(meta.get('scale', 1.0))
-            offset_value = float(meta.get('offset', 0.0))
-            display_value = (raw_value * scale_value) + offset_value
-
-            # Hard display rules by scale.
-            if abs(scale_value - 0.1) < 1e-9:
-                return f"{display_value:.1f}"
-            if abs(scale_value - 0.2) < 1e-9:
-                return f"{display_value:.2f}"
-
-            # For scales other than 0.1 and 0.2: keep integers, else 2 decimals.
-            if float(display_value).is_integer():
-                return f"{int(display_value)}"
-            return f"{display_value:.2f}"
-        except Exception:
-            return str(value)
+        return format_logger_value(
+            value,
+            scale=meta.get('scale', 1.0),
+            offset=meta.get('offset', 0.0),
+        )
     
     def fetch_tag_values(self) -> List[Tuple[int, float, datetime]]:
         """Fetch current values for all configured tags"""
@@ -167,13 +158,15 @@ class LoggerWorker:
         
         try:
             # Get latest values for all tags in batch
-            tag_values = get_latest_tag_values_batch(self.tag_ids)
+            tag_values = self.runtime_store.get_tag_states(self.tag_ids)
             
             # Convert to list of tuples (tag_id, value, timestamp)
             result = []
             for tag_id in self.tag_ids:
                 if tag_id in tag_values:
-                    value, timestamp = tag_values[tag_id]
+                    state = tag_values[tag_id]
+                    value = state.value
+                    timestamp = state.timestamp
                     
                     # Skip tags with None values or timestamps
                     if value is not None and timestamp is not None:
