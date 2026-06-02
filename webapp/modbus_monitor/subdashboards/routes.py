@@ -2,38 +2,22 @@ from flask import jsonify, render_template, request, redirect, url_for, flash, s
 from sqlalchemy import select
 from . import subdash_bp
 from datetime import datetime,timedelta
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from shared.formatting import format_fixed_value
 from ..database import db
 from ..services.socket_emission_manager import get_emission_manager
 
 
 def _parse_fixed_numeric_input(raw_value):
-    """Return normalized numeric fixed value and decimal places metadata (0..2)."""
-    if raw_value is None:
+    """Return normalized numeric fixed value and decimal places metadata (0..2).
+    Delegates to shared.formatting.format_fixed_value (Rule C).
+    Giữ nguyên contract: None/''/invalid input → (None, None) hoặc ValueError.
+    """
+    if raw_value is None or str(raw_value).strip() == '':
         return None, None
-    text = str(raw_value).strip()
-    if text == '':
-        return None, None
-
-    try:
-        number = Decimal(text)
-    except (InvalidOperation, ValueError):
+    dv = format_fixed_value(raw_value)
+    if dv.numeric_value is None:
         raise ValueError(f"Invalid fixed value: {raw_value}")
-
-    decimal_places = 0
-    if '.' in text:
-        fraction = text.split('.', 1)[1]
-        # Luôn dùng độ dài fraction gốc để giữ đúng số chữ số thập phân người dùng nhập.
-        # Ví dụ: 500.10 -> dp=2, 1000.0 -> dp=1, 1000.00 -> dp=2, 500.1 -> dp=1
-        decimal_places = min(2, len(fraction))
-
-    # Round to at most 2 decimals (expected behavior: 111.268 -> 111.27).
-    quantize_pattern = Decimal('1') if decimal_places == 0 else Decimal('0.' + ('0' * (decimal_places - 1)) + '1')
-    normalized = number.quantize(quantize_pattern, rounding=ROUND_HALF_UP)
-
-    if decimal_places == 0:
-        return int(normalized), 0
-    return float(normalized), decimal_places
+    return dv.numeric_value, dv.decimal_places
 
 @subdash_bp.get("/")
 def list_subdash():

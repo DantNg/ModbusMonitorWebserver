@@ -4,6 +4,41 @@ from datetime import datetime,timedelta
 from modbus_monitor.database import db
 from modbus_monitor.database.db import safe_datetime_now, get_data_logger, get_data_logger_tag_ids, get_tag_values_with_interval
 
+# Import shared formatting để format giá trị trên BE (single source of truth)
+_FORMATTER_AVAILABLE = False
+try:
+    from shared.formatting import format_tag_value, TagFormatMetadata as _TagFmtMeta
+    _FORMATTER_AVAILABLE = True
+except ImportError:
+    pass
+
+
+def _format_report_items(items: list, tag_meta_full: dict) -> list:
+    """Format tất cả giá trị số trong report items theo shared/formatting rules.
+    Tag values trong DB là raw float, cần format đúng số thập phân trước khi gửi FE.
+    """
+    if not _FORMATTER_AVAILABLE:
+        return items
+    for item in items:
+        for col, val in item.items():
+            if col == 'timestamp' or val is None or val == '':
+                continue
+            meta = tag_meta_full.get(col)
+            if not meta:
+                continue
+            try:
+                fmt_meta = _TagFmtMeta(
+                    tag_id=0,
+                    scale=float(meta['scale']),
+                    offset=0.0,   # đã áp tại nguồn (worker), không áp lại
+                    unit=str(meta['unit']),
+                    datatype=str(meta['datatype']),
+                )
+                item[col] = format_tag_value(float(val), fmt_meta).display_text
+            except Exception:
+                item[col] = str(val)
+    return items
+
 @reports_bp.get("/reports")
 def reports():
     loggers = db.list_data_loggers()
@@ -120,17 +155,19 @@ def get_reports_data():
     try:
         if current_logger_id == "all":
             items, columns, total_count = db.get_all_datalogger_data(dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
-            tag_meta = db.get_all_logger_tag_scales()
+            tag_meta_full = db.get_all_logger_tag_full_metadata()
         else:
             items, columns, total_count = db.get_datalogger_data(current_logger_id, dt_from=from_dt, dt_to=to_dt, offset=offset, limit=limit)
-            tag_meta = db.get_logger_tag_scales(current_logger_id)
-        
+            tag_meta_full = db.get_logger_tag_full_metadata(current_logger_id)
+
+        # Format giá trị trên BE — FE chỉ hiển thị string đã được format
+        items = _format_report_items(items, tag_meta_full)
+
         print(f"Reports API: Loaded {len(items)} rows of {total_count} total (offset={offset}, limit={limit})")
         return jsonify({
             "success": True,
             "items": items,
             "columns": columns,
-            "tag_meta": tag_meta,
             "offset": offset,
             "limit": limit,
             "total": total_count,

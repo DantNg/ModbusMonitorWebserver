@@ -311,9 +311,9 @@ def _validate_alarm_form(data: dict):
     if data["threshold"] == "":
         errors["threshold"] = "Threshold is required."
 
-    allowed = {">","<",">=","<=","==","!="}
+    allowed = {">","<",">=","<=","==","!=","between","not_between"}
     if data["operator"] not in allowed:
-        errors["operator"] = "Operator must be one of >,<,>=,<=,==,!=."
+        errors["operator"] = "Operator must be one of >,<,>=,<=,==,!=,between,not_between."
     if data["level"] not in {"Low","Medium","High","Critical"}:
         errors["level"] = "Level must be one of Low/Medium/High/Critical."
     return errors

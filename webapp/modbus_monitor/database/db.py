@@ -3453,6 +3453,64 @@ def get_all_logger_tag_scales() -> dict:
         ).mappings().all()
         return {f"{r['logger_name']}.{r['tag_name']}": r['scale'] for r in rows}
 
+
+def get_logger_tag_full_metadata(logger_id: int) -> dict:
+    """Trả về dict {tag_name: {scale, offset, datatype, unit}} cho logger cụ thể.
+    Dùng để format giá trị report trên backend theo đúng shared/formatting rules.
+    """
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(
+                tags.c.name,
+                tags.c.scale,
+                tags.c.offset,
+                tags.c.datatype,
+                tags.c.unit,
+            )
+            .select_from(tags.join(data_logger_tags, tags.c.id == data_logger_tags.c.tag_id))
+            .where(data_logger_tags.c.logger_id == logger_id)
+        ).mappings().all()
+        return {
+            r['name']: {
+                'scale': r['scale'] or 1.0,
+                'offset': r['offset'] or 0.0,
+                'datatype': r['datatype'] or 'unsigned',
+                'unit': r['unit'] or '',
+            }
+            for r in rows
+        }
+
+
+def get_all_logger_tag_full_metadata() -> dict:
+    """Trả về dict {'logger_name.tag_name': metadata} cho tất cả loggers.
+    Dùng khi chế độ xem 'all loggers' trên trang report.
+    """
+    with init_engine().connect() as con:
+        rows = con.execute(
+            select(
+                data_loggers.c.name.label('logger_name'),
+                tags.c.name.label('tag_name'),
+                tags.c.scale,
+                tags.c.offset,
+                tags.c.datatype,
+                tags.c.unit,
+            )
+            .select_from(
+                data_logger_tags
+                .join(data_loggers, data_logger_tags.c.logger_id == data_loggers.c.id)
+                .join(tags, data_logger_tags.c.tag_id == tags.c.id)
+            )
+        ).mappings().all()
+        return {
+            f"{r['logger_name']}.{r['tag_name']}": {
+                'scale': r['scale'] or 1.0,
+                'offset': r['offset'] or 0.0,
+                'datatype': r['datatype'] or 'unsigned',
+                'unit': r['unit'] or '',
+            }
+            for r in rows
+        }
+
 def get_all_datalogger_data(dt_from: datetime, dt_to: datetime, offset: int = 0, limit: int = None):
     """
     Load dữ liệu cho tất cả dataloggers từ bảng tag_logs

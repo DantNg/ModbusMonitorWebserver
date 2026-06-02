@@ -17,6 +17,13 @@ current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, current_dir)
 sys.path.insert(0, os.path.join(current_dir, 'webapp'))
 
+# Centralized value formatter
+try:
+    from shared.formatting import format_tag_value, TagFormatMetadata as _TagFmtMeta
+    _FORMATTER_AVAILABLE = True
+except ImportError:
+    _FORMATTER_AVAILABLE = False
+
 # Import database functions
 try:
     from webapp.modbus_monitor.database.db import (
@@ -137,24 +144,34 @@ class LoggerWorker:
             return {}
 
     def _format_tag_value_for_log(self, tag_id: int, value: float) -> str:
-        """Format value for logging based on tag datatype/scale/offset rules"""
+        """Format value for logging based on tag datatype/scale rules.
+        Delegates to shared.formatting.format_tag_value (Rule A/B).
+        Note: value is already in engineering units (scale+offset applied at source).
+        """
         meta = self.tag_meta.get(tag_id, {})
+        if _FORMATTER_AVAILABLE:
+            try:
+                fmt_meta = _TagFmtMeta(
+                    tag_id=tag_id,
+                    scale=float(meta.get('scale', 1.0)),
+                    offset=0.0,  # đã áp tại nguồn, không áp lại
+                    unit=str(meta.get('unit', '')),
+                    datatype=str(meta.get('datatype', 'unsigned')),
+                )
+                return format_tag_value(float(value), fmt_meta).display_text
+            except Exception:
+                return str(value)
+        # Fallback nếu shared.formatting không load được
         try:
             raw_value = float(value)
             scale_value = float(meta.get('scale', 1.0))
-            offset_value = float(meta.get('offset', 0.0))
-            display_value = (raw_value * scale_value) + offset_value
-
-            # Hard display rules by scale.
             if abs(scale_value - 0.1) < 1e-9:
-                return f"{display_value:.1f}"
+                return f"{raw_value:.1f}"
             if abs(scale_value - 0.2) < 1e-9:
-                return f"{display_value:.2f}"
-
-            # For scales other than 0.1 and 0.2: keep integers, else 2 decimals.
-            if float(display_value).is_integer():
-                return f"{int(display_value)}"
-            return f"{display_value:.2f}"
+                return f"{raw_value:.2f}"
+            if float(raw_value).is_integer():
+                return f"{int(raw_value)}"
+            return f"{raw_value:.2f}"
         except Exception:
             return str(value)
     

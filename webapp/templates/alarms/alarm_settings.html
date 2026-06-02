@@ -38,7 +38,17 @@
         <tr>
           <td>{{ a.code or '—' }}</td>
           <td class="fw-semibold">{{ a.name or '—' }}</td>
-          <td><span class="badge text-bg-secondary">{{ a.level }}</span></td>
+          <td>
+            {% if a.level == 'Critical' %}
+              <span class="badge text-bg-danger">{{ a.level }}</span>
+            {% elif a.level == 'High' %}
+              <span class="badge text-bg-warning text-dark">{{ a.level }}</span>
+            {% elif a.level == 'Medium' %}
+              <span class="badge text-bg-info text-dark">{{ a.level }}</span>
+            {% else %}
+              <span class="badge text-bg-secondary">{{ a.level }}</span>
+            {% endif %}
+          </td>
           <td>{{ a.target }}</td>
           <td>{{ a.operator }}</td>
           <td>{{ a.threshold }}</td>

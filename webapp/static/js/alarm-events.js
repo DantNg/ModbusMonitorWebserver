@@ -124,26 +124,37 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
         tbody.innerHTML = "";
 
         if (data.items.length === 0) {
-          const colCount = (window.ALARM_EVENTS_CONFIG && window.ALARM_EVENTS_CONFIG.isAdmin) ? 5 : 4;
+          const colCount = (window.ALARM_EVENTS_CONFIG && window.ALARM_EVENTS_CONFIG.isAdmin) ? 7 : 6;
           tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center text-muted py-4">No alarm events.</td></tr>`;
         } else {
           data.items.forEach(e => {
             const checked = selectedIds.has(String(e.id)) ? "checked" : "";
-            const note = (e.note || "").toLowerCase();
+            const eventType = (e.event_type || "").toUpperCase();
 
-            // 🌈 Màu nền cho cả row dựa trên note
-            const rowClass =
-              note.includes("clear") ? "table-success" :
-                note.includes("activated") ? "table-danger" : "";
+            // Màu nền cả hàng dựa trên event_type (đáng tin hơn so với text trong note)
+            const rowClass = eventType === 'OUTGOING' ? "table-success" :
+                             eventType === 'INCOMING' ? "table-danger" : "";
 
-            // 🎯 Màu badge riêng cho note
-            const noteBadgeClass =
-              note.includes("clear") ? "text-bg-success" :
-                note.includes("activated") ? "text-bg-danger" :
-                  "text-bg-secondary";
+            // Badge màu cho Note
+            const noteBadgeClass = eventType === 'OUTGOING' ? "text-bg-success" :
+                                   eventType === 'INCOMING' ? "text-bg-danger" :
+                                   "text-bg-secondary";
+
+            // Badge màu cho Level
+            const level = (e.level || "");
+            const levelBadgeClass =
+              level === 'Critical' ? "text-bg-danger" :
+              level === 'High'     ? "text-bg-warning text-dark" :
+              level === 'Medium'   ? "text-bg-info text-dark" :
+                                     "text-bg-secondary";
+
+            // Badge màu cho Status (INCOMING / OUTGOING)
+            const statusBadgeClass = eventType === 'INCOMING' ? "text-bg-danger" :
+                                     eventType === 'OUTGOING' ? "text-bg-success" :
+                                     "text-bg-secondary";
 
             const row = document.createElement("tr");
-            row.className = rowClass; // 👈 Nền của cả hàng
+            row.className = rowClass;
 
             const isAdmin = window.ALARM_EVENTS_CONFIG && window.ALARM_EVENTS_CONFIG.isAdmin;
             const checkboxTd = isAdmin
@@ -153,7 +164,9 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
             ${checkboxTd}
             <td>${escapeHtml(e.ts || "")}</td>
             <td>${escapeHtml(e.name || "")}</td>
+            <td class="text-center"><span class="badge ${levelBadgeClass}">${escapeHtml(level || "—")}</span></td>
             <td class="text-center">${escapeHtml(String(e.value ?? ""))}</td>
+            <td class="text-center"><span class="badge ${statusBadgeClass}">${escapeHtml(eventType || "—")}</span></td>
             <td><span class="badge ${noteBadgeClass}">${escapeHtml(e.note || "")}</span></td>
           `;
 

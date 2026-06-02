@@ -68,24 +68,41 @@
         <div class="col-md-6">
           <label class="form-label">Operator *</label>
           {% set op = (form.get('operator') or '') %}
-          <select name="operator" class="form-select" required>
-            <option value="== " {{ 'selected' if op=='==' else '' }}>Equal</option>
-            <option value="!=" {{ 'selected' if op=='!=' else '' }}>Not Equal</option>
-            <option value=">" {{ 'selected' if op=='>' else '' }}>Greater Than</option>
-            <option value=">=" {{ 'selected' if op=='>=' else '' }}>Greater Or Equal</option>
-            <option value="<" {{ 'selected' if op=='<' else '' }}>Less Than</option>
-            <option value="<=" {{ 'selected' if op=='<=' else '' }}>Less Or Equal</option>
+          <select name="operator" class="form-select" required id="operatorSelect">
+            <option value="=="  {{ 'selected' if op=='==' else '' }}>Equal (==)</option>
+            <option value="!="  {{ 'selected' if op=='!=' else '' }}>Not Equal (!=)</option>
+            <option value=">"   {{ 'selected' if op=='>' else '' }}>Greater Than (&gt;)</option>
+            <option value=">="  {{ 'selected' if op=='>=' else '' }}>Greater Or Equal (&gt;=)</option>
+            <option value="<"   {{ 'selected' if op=='<' else '' }}>Less Than (&lt;)</option>
+            <option value="<="  {{ 'selected' if op=='<=' else '' }}>Less Or Equal (&lt;=)</option>
+            <option value="between"     {{ 'selected' if op=='between' else '' }}>In Range</option>
+            <option value="not_between" {{ 'selected' if op=='not_between' else '' }}>Not In Range</option>
           </select>
-
         </div>
 
         <!-- Compare Value -->
         <div class="col-12">
           <label class="form-label">Compare Value *</label>
-          <input name="threshold" class="form-control" placeholder="Compare Value" 
+          <input name="threshold" class="form-control" id="thresholdInput" placeholder="Compare Value" 
             value="{{ form.get('threshold', '') if form else '' }}" required>
-          <div class="form-text">Nếu chọn "In Range / Not In Range" hãy nhập dạng <code>min,max</code>.</div>
+          <div class="form-text" id="thresholdHint">Nhập một số. Nếu chọn <b>In Range / Not In Range</b> hãy nhập dạng <code>min,max</code>.</div>
         </div>
+        <script>
+        (function() {
+          var sel = document.getElementById('operatorSelect');
+          var hint = document.getElementById('thresholdHint');
+          var input = document.getElementById('thresholdInput');
+          function updateHint() {
+            var isRange = sel.value === 'between' || sel.value === 'not_between';
+            hint.innerHTML = isRange
+              ? 'Nhập dạng <code>min,max</code> — ví dụ: <code>10,100</code>'
+              : 'Nhập một giá trị số — ví dụ: <code>50</code>';
+            input.placeholder = isRange ? 'min,max (vd: 10,100)' : 'Compare Value';
+          }
+          sel.addEventListener('change', updateHint);
+          updateHint();
+        })();
+        </script>
 
         <!-- Stable times -->
         <div class="col-md-6">

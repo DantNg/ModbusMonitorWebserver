@@ -14,6 +14,13 @@ from ..database.db import (
 from datetime import datetime, timedelta
 from ..extensions import socketio
 
+# Import shared formatting để tạo display_value nhất quán với workers
+try:
+    from shared.formatting import format_tag_value as _fmt_tag_value, TagFormatMetadata as _TagFmtMeta
+    _FORMATTER_AVAILABLE = True
+except ImportError:
+    _FORMATTER_AVAILABLE = False
+
 @dashboard_bp.route("/dashboard")
 def dashboard():
     # Thêm logic để track user access
@@ -72,11 +79,28 @@ def api_tags():
         for tag in all_tags:
             tag_id = tag["id"]
             value, ts = latest_values.get(tag_id, (None, None))
-            
+
+            # Tạo display_value qua shared/formatting (nhất quán với workers)
+            if _FORMATTER_AVAILABLE and value is not None:
+                try:
+                    _meta = _TagFmtMeta(
+                        tag_id=tag_id,
+                        scale=float(tag.get("scale") or 1.0),
+                        offset=float(tag.get("offset") or 0.0),
+                        unit=tag.get("unit") or "",
+                        datatype=tag.get("datatype") or "unsigned",
+                    )
+                    display_value = _fmt_tag_value(float(value), _meta).display_text
+                except Exception:
+                    display_value = str(value) if value is not None else "--"
+            else:
+                display_value = str(value) if value is not None else "--"
+
             tags.append({
                 "id": tag_id,
                 "name": tag["name"],
                 "value": value,
+                "display_value": display_value,
                 "ts": ts.strftime("%H:%M") if ts else "--:--"
             })
         

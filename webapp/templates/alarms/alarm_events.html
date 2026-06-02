@@ -128,7 +128,9 @@
           {% endif %}
           <th>Time</th>
           <th>Name</th>
+          <th class="text-center">Level</th>
           <th class="text-center">Value</th>
+          <th class="text-center">Status</th>
           <th>Note</th>
         </tr>
       </thead>
@@ -140,12 +142,14 @@
           {% endif %}
           <td>{{ e.ts }}</td>
           <td>{{ e.name }}</td>
+          <td class="text-center">{{ e.level }}</td>
           <td class="text-center">{{ e.value }}</td>
+          <td class="text-center">{{ e.event_type }}</td>
           <td>{{ e.note }}</td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="6" class="text-center text-muted py-4">No alarm events.</td>
+          <td colspan="{% if session.get('role') == 'admin' %}7{% else %}6{% endif %}" class="text-center text-muted py-4">No alarm events.</td>
         </tr>
         {% endfor %}
       </tbody>

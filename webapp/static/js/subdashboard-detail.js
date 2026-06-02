@@ -123,7 +123,7 @@ try {
             // Force quad values for this tag to 0 at load if offline.
             // Exclude fixed-SV rows to prevent overwriting static values.
             document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]:not([id^="quad-tag-val-fixed-"])`).forEach(el => {
-              el.textContent = formatZeroByTagId(tagId);
+              el.textContent = '0';
             });
           }
         }
@@ -1532,55 +1532,14 @@ try {
   }
 
   function normalizeFixedDisplayText(rawValue) {
-    const text = String(rawValue ?? '').trim();
-    if (!text || !text.includes('.')) return text;
-
-    const num = Number(text);
-    if (!Number.isFinite(num)) return text;
-
-    const [intPart, fracPart = ''] = text.split('.', 2);
-    const trimmed = fracPart.replace(/0+$/, '');
-    if (trimmed.length === 0) {
-      return `${intPart}.0`;
-    }
-    return `${intPart}.${trimmed}`;
+    // Giá trị fixed đã được template Jinja2 format đúng qua filter format_fixed_value.
+    // Trả về nguyên văn để không làm mất trailing zeros người dùng nhập (vd: "12.00" → "12.00").
+    return String(rawValue ?? '').trim();
   }
 
   function normalizeAllCardValuesByScale() {
-    const selectors = [
-      '[id^="quad-tag-val-"]',
-      '[id^="qtag6-val-"]',
-      '[id^="qtag4-val-"]',
-      '[id^="qtag3-val-"]',
-      '[id^="qtag2-val-"]',
-      '[id^="qtag-single3-pv-"]',
-      '[id^="qtag-pv-val-"]',
-      '[id^="qtag-pv-dual-val-"]',
-      '.quad-tag-value',
-      '.qtag6-tag-value',
-      '.qtag-single-tag-value',
-      '.qtag-pv-dual-tag-value',
-      '.qtag6-sv-low[data-tag-id]',
-      '.qtag6-sv-high[data-tag-id]',
-      '.qtag4-sv-value[data-tag-id]',
-      '.qtag3-sv-low[data-tag-id]',
-      '.qtag3-sv-high[data-tag-id]',
-      '.qtag2-sv-value[data-tag-id]',
-      '.qtag-single-sv-low[data-tag-id]',
-      '.qtag-single-sv-high[data-tag-id]',
-      '[id^="quad-tag-val-sv-"][data-tag-id]'
-    ];
-
-    document.querySelectorAll(selectors.join(', ')).forEach((el) => {
-      const tagId = extractTagIdFromValueElement(el);
-      if (!Number.isFinite(tagId)) return;
-
-      const valueText = (el.textContent || '').trim();
-      const numeric = Number(valueText);
-      if (!Number.isFinite(numeric)) return;
-
-      el.textContent = fmtVal(numeric, resolveTagScale(tagId));
-    });
+    // No-op: giá trị đã được format sẵn trên BE qua shared/formatting.
+    // FE không được tự format lại để tránh mất trailing zeros và sai quy tắc hiển thị.
   }
 
   // Local title helpers to allow renaming headers and persisting in the browser
@@ -1689,9 +1648,10 @@ try {
           items.forEach(item => item.remove());
           
           // Áp dụng giá trị mới nhất từ value cache (nếu có)
+          // Cache chứa formatted string từ BE — chỉ set trực tiếp, không format lại
           Object.keys(_quadValuesCache).forEach(tagId => {
             const el = grid.querySelector(`[id$="-${tagId}"]`);
-            if (el) el.textContent = formatValueByTagId(_quadValuesCache[tagId], tagId);
+            if (el) el.textContent = String(_quadValuesCache[tagId] ?? '0');
           });
 
           // Ensure fixed SV values from legacy cache are not shown with forced trailing zeros.
@@ -1753,7 +1713,8 @@ try {
             // Extract current value and unit — ưu tiên value cache nếu có
             let value = valElement ? valElement.textContent.trim() : '0';
             if (hasRealTagId && _quadValuesCache[tagId] !== undefined) {
-              value = formatValueByTagId(_quadValuesCache[tagId], tagId);
+              // Cache chứa formatted string từ BE — hiển thị trực tiếp
+              value = String(_quadValuesCache[tagId]);
             } else if (!hasRealTagId) {
               value = normalizeFixedDisplayText(value);
             }
@@ -2154,7 +2115,8 @@ try {
       const parentCard = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
       if (!isCardMonitoringEnabled(parentCard)) return;
 
-      // Add per-tag alarm indicator
+      // Remove opposite class first to prevent stale DOM state causing wrong card color
+      tagEl.classList.remove('tag-alarm-high', 'tag-alarm-low');
       tagEl.classList.add('tag-alarm-active', `tag-alarm-${alarmClass}`);
 
       // Add tooltip with alarm info
@@ -2231,9 +2193,10 @@ try {
 
           if (serverConfirmed) {
             const confirmedType = _lastSyncedCardAlarms.get(cardAlarmKey);
-            if (confirmedType === 'High' || hasHigh) {
+            // Trust server exclusively – stale hasHigh/hasLow DOM must not override confirmed type
+            if (confirmedType === 'High') {
               sub.classList.add('qtag6-alarm-high');
-            } else if (confirmedType === 'Low' || hasLow) {
+            } else if (confirmedType === 'Low') {
               sub.classList.add('qtag6-alarm-low');
             }
           }
@@ -2247,26 +2210,44 @@ try {
         }
       });
     } else if (isSingle) {
-      // For Single3/PV Only/Qtag2: alarm goes on the card itself
-      const hasHigh = card.querySelector('.tag-alarm-high');
-      if (hasHigh) {
-        card.classList.remove('qtag-single-alarm-low');
-        card.classList.add('qtag-single-alarm-high');
+      // For Single3/PV Only/Qtag2: alarm goes on the card itself.
+      card.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
+      // tag-alarm-high reflects rule SEVERITY (Critical/High), NOT threshold direction.
+      // card_alarm_event carries alarm_type (High/Low = threshold direction) which is authoritative.
+      // When server has confirmed a card alarm, use its type instead of DOM-derived tag severity.
+      let singleCardType = null, singleCardId = 0;
+      if (card.hasAttribute('data-qtag-single3-id')) {
+        singleCardType = 'single3'; singleCardId = parseInt(card.getAttribute('data-qtag-single3-id') || '0');
+      } else if (card.hasAttribute('data-qtag-pv-id')) {
+        singleCardType = 'pv_only'; singleCardId = parseInt(card.getAttribute('data-qtag-pv-id') || '0');
+      } else if (card.hasAttribute('data-qtag2-id')) {
+        singleCardType = 'qtag2'; singleCardId = parseInt(card.getAttribute('data-qtag2-id') || '0');
+      }
+      const singleCardKey = (singleCardType && singleCardId > 0) ? buildCardAlarmKey(singleCardType, singleCardId, null) : null;
+      if (singleCardKey && _lastSyncedCardAlarms.has(singleCardKey)) {
+        const confirmedType = _lastSyncedCardAlarms.get(singleCardKey);
+        if (confirmedType === 'High') card.classList.add('qtag-single-alarm-high');
+        else if (confirmedType === 'Low') card.classList.add('qtag-single-alarm-low');
       } else {
-        if (!card.classList.contains('qtag-single-alarm-high')) {
-          card.classList.add('qtag-single-alarm-low');
-        }
+        const hasHigh = card.querySelector('.tag-alarm-high');
+        const hasLow = card.querySelector('.tag-alarm-low');
+        if (hasHigh) card.classList.add('qtag-single-alarm-high');
+        else if (hasLow) card.classList.add('qtag-single-alarm-low');
       }
     } else if (isQtag3) {
-      // For Qtag3: card-level alarm
-      const hasHigh = card.querySelector('.tag-alarm-high');
-      if (hasHigh) {
-        card.classList.remove('card-alarm-low');
-        card.classList.add('card-alarm-high');
+      // For Qtag3: card-level alarm.
+      card.classList.remove('card-alarm-high', 'card-alarm-low');
+      const qtag3Id = parseInt(card.getAttribute('data-qtag3-id') || '0');
+      const qtag3Key = qtag3Id > 0 ? buildCardAlarmKey('qtag3', qtag3Id, null) : null;
+      if (qtag3Key && _lastSyncedCardAlarms.has(qtag3Key)) {
+        const confirmedType = _lastSyncedCardAlarms.get(qtag3Key);
+        if (confirmedType === 'High') card.classList.add('card-alarm-high');
+        else if (confirmedType === 'Low') card.classList.add('card-alarm-low');
       } else {
-        if (!card.classList.contains('card-alarm-high')) {
-          card.classList.add('card-alarm-low');
-        }
+        const hasHigh = card.querySelector('.tag-alarm-high');
+        const hasLow = card.querySelector('.tag-alarm-low');
+        if (hasHigh) card.classList.add('card-alarm-high');
+        else if (hasLow) card.classList.add('card-alarm-low');
       }
     }
   }
@@ -2298,8 +2279,9 @@ try {
           const serverConfirmed = cardAlarmKey ? _lastSyncedCardAlarms.has(cardAlarmKey) : false;
           if (serverConfirmed) {
             const confirmedType = _lastSyncedCardAlarms.get(cardAlarmKey);
-            if (confirmedType === 'High' || hasHigh) sub.classList.add('qtag6-alarm-high');
-            else if (confirmedType === 'Low' || hasLow) sub.classList.add('qtag6-alarm-low');
+            // Trust server exclusively – stale hasHigh/hasLow must not override confirmed type
+            if (confirmedType === 'High') sub.classList.add('qtag6-alarm-high');
+            else if (confirmedType === 'Low') sub.classList.add('qtag6-alarm-low');
           } else if (_lastSyncedCardAlarms.size === 0) {
             // Fallback khi chưa có dữ liệu từ server
             if (hasHigh) sub.classList.add('qtag6-alarm-high');
@@ -2309,21 +2291,38 @@ try {
       });
     } else if (isSingle) {
       card.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
-      const hasHigh = card.querySelector('.tag-alarm-high');
-      const hasLow = card.querySelector('.tag-alarm-low');
-      if (hasHigh) {
-        card.classList.add('qtag-single-alarm-high');
-      } else if (hasLow) {
-        card.classList.add('qtag-single-alarm-low');
+      let singleCardType = null, singleCardId = 0;
+      if (card.hasAttribute('data-qtag-single3-id')) {
+        singleCardType = 'single3'; singleCardId = parseInt(card.getAttribute('data-qtag-single3-id') || '0');
+      } else if (card.hasAttribute('data-qtag-pv-id')) {
+        singleCardType = 'pv_only'; singleCardId = parseInt(card.getAttribute('data-qtag-pv-id') || '0');
+      } else if (card.hasAttribute('data-qtag2-id')) {
+        singleCardType = 'qtag2'; singleCardId = parseInt(card.getAttribute('data-qtag2-id') || '0');
+      }
+      const singleCardKey = (singleCardType && singleCardId > 0) ? buildCardAlarmKey(singleCardType, singleCardId, null) : null;
+      if (singleCardKey && _lastSyncedCardAlarms.has(singleCardKey)) {
+        const confirmedType = _lastSyncedCardAlarms.get(singleCardKey);
+        if (confirmedType === 'High') card.classList.add('qtag-single-alarm-high');
+        else if (confirmedType === 'Low') card.classList.add('qtag-single-alarm-low');
+      } else {
+        const hasHigh = card.querySelector('.tag-alarm-high');
+        const hasLow = card.querySelector('.tag-alarm-low');
+        if (hasHigh) card.classList.add('qtag-single-alarm-high');
+        else if (hasLow) card.classList.add('qtag-single-alarm-low');
       }
     } else if (isQtag3) {
       card.classList.remove('card-alarm-high', 'card-alarm-low');
-      const hasHigh = card.querySelector('.tag-alarm-high');
-      const hasLow = card.querySelector('.tag-alarm-low');
-      if (hasHigh) {
-        card.classList.add('card-alarm-high');
-      } else if (hasLow) {
-        card.classList.add('card-alarm-low');
+      const qtag3Id = parseInt(card.getAttribute('data-qtag3-id') || '0');
+      const qtag3Key = qtag3Id > 0 ? buildCardAlarmKey('qtag3', qtag3Id, null) : null;
+      if (qtag3Key && _lastSyncedCardAlarms.has(qtag3Key)) {
+        const confirmedType = _lastSyncedCardAlarms.get(qtag3Key);
+        if (confirmedType === 'High') card.classList.add('card-alarm-high');
+        else if (confirmedType === 'Low') card.classList.add('card-alarm-low');
+      } else {
+        const hasHigh = card.querySelector('.tag-alarm-high');
+        const hasLow = card.querySelector('.tag-alarm-low');
+        if (hasHigh) card.classList.add('card-alarm-high');
+        else if (hasLow) card.classList.add('card-alarm-low');
       }
     }
   }
@@ -2421,6 +2420,20 @@ try {
       // Skip if PV tag already has a system alarm active
       if (systemAlarmMap && systemAlarmMap.has(parseInt(pvTagId))) return;
 
+      // Skip if card_alarm_event has already confirmed an alarm type for this card –
+      // card_alarm_event uses threshold direction (High/Low) which is authoritative.
+      const single3Id = parseInt(card.getAttribute('data-qtag-single3-id') || '0');
+      if (single3Id > 0) {
+        const s3Key = buildCardAlarmKey('single3', single3Id, null);
+        if (_lastSyncedCardAlarms.has(s3Key)) {
+          const confirmedType = _lastSyncedCardAlarms.get(s3Key);
+          card.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
+          if (confirmedType === 'High') card.classList.add('qtag-single-alarm-high');
+          else if (confirmedType === 'Low') card.classList.add('qtag-single-alarm-low');
+          return;
+        }
+      }
+
       // Get PV value
       const pvEl = card.querySelector('.qtag-single-tag-value');
       if (!pvEl) return;
@@ -2446,20 +2459,20 @@ try {
       // Apply or remove fallback alarm visual
       const pvTagItem = card.querySelector(`.qtag-single-tag-item[data-tag-id="${pvTagId}"]`);
       if (fallbackAlarm && pvTagItem) {
+        // Remove opposite tag class first so stale class doesn't corrupt card color logic
+        pvTagItem.classList.remove('tag-alarm-high', 'tag-alarm-low');
         pvTagItem.classList.add('tag-alarm-active', `tag-alarm-${fallbackAlarm}`);
         const condText = fallbackAlarm === 'high'
           ? `PV (${pvVal}) > SV HIGH (${svHighVal})`
           : `PV (${pvVal}) < SV LOW (${svLowVal})`;
         pvTagItem.setAttribute('title', `⚠️ PV vs SV: ${condText}`);
 
-        // Apply to card
+        // Apply to card – always remove both classes first so LOW doesn't stay red
+        card.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
         if (fallbackAlarm === 'high') {
-          card.classList.remove('qtag-single-alarm-low');
           card.classList.add('qtag-single-alarm-high');
         } else {
-          if (!card.classList.contains('qtag-single-alarm-high')) {
-            card.classList.add('qtag-single-alarm-low');
-          }
+          card.classList.add('qtag-single-alarm-low');
         }
       }
     });
@@ -3053,7 +3066,7 @@ try {
         // Force all quad tag values tied to this device to 0 when offline.
         // Exclude fixed-SV rows to prevent overwriting static values.
         document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]:not([id^="quad-tag-val-fixed-"])`).forEach(el => {
-          el.textContent = formatZeroByTagId(tagId);
+          el.textContent = '0';
         });
       } else {
         indicator.classList.add('status-unknown');
@@ -3126,13 +3139,13 @@ try {
 
     if (valEl) {
       // Reset value to 0 and dim it
-      valEl.textContent = formatZeroByTagId(tagId);
+      valEl.textContent = '0';
       valEl.style.opacity = '0.5';
       valEl.style.color = '#6c757d';
     }
 
     // Đồng bộ giá trị về 0 cho tất cả quad tag hiển thị cùng tag này
-    setQuadTagValueByTagId(tagId, formatZeroByTagId(tagId));
+    setQuadTagValueByTagId(tagId, '0');
     // Khi mất kết nối cũng tắt trạng thái alarm của quad tag đó
     clearQuadAlarmByTag(tagId);
 
@@ -3281,12 +3294,15 @@ try {
             });
           };
           
-          const tagScale = resolveTagScale(tag);
-          const transformedValue = transformTagValue(tag.value, tag);
+          // Backend workers (tcp_worker/rtu_worker) đã format tag.value qua shared/formatting.
+          // Frontend chỉ render string được BE gửi về, không tính toán lại định dạng.
+          const _tagDisplayVal = (perTagStatus === 'disconnected')
+            ? '0'
+            : ((tag.value !== null && tag.value !== undefined) ? String(tag.value) : '0');
 
           if (valEl) {
             const oldVal = valEl.textContent;
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale); // hoặc formatValue(tag.value, tag.datatype)
+            const newVal = _tagDisplayVal;
 
             if (oldVal !== newVal) {
               pending.push({ valEl, newVal, tag });
@@ -3297,7 +3313,7 @@ try {
           quadValElements.forEach(quadValEl => {
             const oldQuadVal = quadValEl.textContent;
             // Khi offline thì ép về 0, tránh giữ giá trị cũ
-            const newQuadVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newQuadVal = _tagDisplayVal;
             
             if (oldQuadVal !== newQuadVal) {
               pending.push({ valEl: quadValEl, newVal: newQuadVal, tag });
@@ -3315,7 +3331,7 @@ try {
             `[id^="quad-tag-val-sv-"][data-tag-id="${tag.id}"]`
           );
           quadSvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3324,7 +3340,7 @@ try {
           // ✅ Update Qtag6 values - PV elements with pattern qtag6-val-{cardId}-{tagId}
           const qtag6ValElements = document.querySelectorAll(`[id^="qtag6-val-"][id$="-${tag.id}"]`);
           qtag6ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3336,7 +3352,7 @@ try {
             `.qtag6-sv-low[data-tag-id="${tag.id}"], .qtag6-sv-high[data-tag-id="${tag.id}"]`
           );
           qtag6SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3345,7 +3361,7 @@ try {
           // ✅ Update Qtag4 values - PV elements with pattern qtag4-val-{cardId}-{tagId}
           const qtag4ValElements = document.querySelectorAll(`[id^="qtag4-val-"][id$="-${tag.id}"]`);
           qtag4ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3357,7 +3373,7 @@ try {
             `.qtag4-sv-value[data-tag-id="${tag.id}"]`
           );
           qtag4SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3366,7 +3382,7 @@ try {
           // ✅ Update Qtag3 PV values - pattern qtag3-val-{cardId}-{tagId}
           const qtag3ValElements = document.querySelectorAll(`[id^="qtag3-val-"][id$="-${tag.id}"]`);
           qtag3ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3378,7 +3394,7 @@ try {
             `.qtag3-sv-low[data-tag-id="${tag.id}"], .qtag3-sv-high[data-tag-id="${tag.id}"]`
           );
           qtag3SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3387,7 +3403,7 @@ try {
           // ✅ Update Qtag2 PV values - pattern qtag2-val-{cardId}-{tagId}
           const qtag2ValElements = document.querySelectorAll(`[id^="qtag2-val-"][id$="-${tag.id}"]`);
           qtag2ValElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3397,7 +3413,7 @@ try {
           // ✅ Update Qtag2 SV elements (tag-based only)
           const qtag2SvElements = document.querySelectorAll(`.qtag2-sv-value[data-tag-id="${tag.id}"]`);
           qtag2SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3406,7 +3422,7 @@ try {
           // ✅ Update Qtag Single3 PV values
           const single3PvElements = document.querySelectorAll(`[id^="qtag-single3-pv-"][id$="-${tag.id}"]`);
           single3PvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3416,7 +3432,7 @@ try {
           // ✅ Update Qtag Single3 SV HIGH/LOW (matched by data-tag-id attribute)
           const single3SvElements = document.querySelectorAll(`.qtag-single-sv-low[data-tag-id="${tag.id}"], .qtag-single-sv-high[data-tag-id="${tag.id}"]`);
           single3SvElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3425,7 +3441,7 @@ try {
           // ✅ Update Qtag PV Only values
           const pvOnlyElements = document.querySelectorAll(`[id^="qtag-pv-val-"][id$="-${tag.id}"]`);
           pvOnlyElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3435,7 +3451,7 @@ try {
           // ✅ Update Qtag PV Dual values
           const pvDualElements = document.querySelectorAll(`[id^="qtag-pv-dual-val-"][id$="-${tag.id}"]`);
           pvDualElements.forEach(el => {
-            const newVal = perTagStatus === 'disconnected' ? fmtVal(0, tagScale) : fmtVal(transformedValue, tagScale);
+            const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
               pending.push({ valEl: el, newVal: newVal, tag });
             }
@@ -3559,10 +3575,16 @@ try {
         const subCardTitle = subCard.querySelector('.quad-sub-card-title');
         const groupName = subCardTitle ? subCardTitle.textContent.trim() : (column === 'left' ? 'Group A' : 'Group B');
         
-        // Get tag values for display
-        const tag1Val = data.tag1_value !== null ? parseFloat(data.tag1_value).toFixed(1) : 'N/A';
-        const tag2Val = data.tag2_value !== null ? parseFloat(data.tag2_value).toFixed(1) : 'N/A';
-        const threshold = data.threshold !== null ? parseFloat(data.threshold).toFixed(1) : 'N/A';
+        // Dùng display fields từ BE (alarm_strategies.py build_event)
+        const tag1Val = data.tag1_display !== undefined && data.tag1_display !== null
+          ? (data.tag1_display || 'N/A')
+          : (data.tag1_value !== null && data.tag1_value !== undefined ? String(data.tag1_value) : 'N/A');
+        const tag2Val = data.tag2_display !== undefined && data.tag2_display !== null
+          ? (data.tag2_display || 'N/A')
+          : (data.tag2_value !== null && data.tag2_value !== undefined ? String(data.tag2_value) : 'N/A');
+        const threshold = data.threshold_display !== undefined && data.threshold_display !== null
+          ? (data.threshold_display || 'N/A')
+          : (data.threshold !== null && data.threshold !== undefined ? String(data.threshold) : 'N/A');
         const operator = data.operator || '>';
         
         // Create detailed notification message
@@ -3606,10 +3628,16 @@ try {
         const outCardTitle = outCardHeader ? outCardHeader.textContent.trim() : `Quad ${quadId}`;
         const outSubCardTitle = subCard.querySelector('.quad-sub-card-title');
         const outGroupName = outSubCardTitle ? outSubCardTitle.textContent.trim() : (column === 'left' ? 'Group A' : 'Group B');
-        const outTag1Val = data.tag1_value !== null && data.tag1_value !== undefined ? parseFloat(data.tag1_value).toFixed(1) : 'N/A';
-        const outTag2Val = data.tag2_value !== null && data.tag2_value !== undefined ? parseFloat(data.tag2_value).toFixed(1) : 'N/A';
+        const outTag1Val = data.tag1_display !== undefined && data.tag1_display !== null
+          ? (data.tag1_display || 'N/A')
+          : (data.tag1_value !== null && data.tag1_value !== undefined ? String(data.tag1_value) : 'N/A');
+        const outTag2Val = data.tag2_display !== undefined && data.tag2_display !== null
+          ? (data.tag2_display || 'N/A')
+          : (data.tag2_value !== null && data.tag2_value !== undefined ? String(data.tag2_value) : 'N/A');
         const outOperator = data.operator || '>';
-        const outThreshold = data.threshold !== null && data.threshold !== undefined ? parseFloat(data.threshold).toFixed(1) : 'N/A';
+        const outThreshold = data.threshold_display !== undefined && data.threshold_display !== null
+          ? (data.threshold_display || 'N/A')
+          : (data.threshold !== null && data.threshold !== undefined ? String(data.threshold) : 'N/A');
 
         // Bell notification is handled instantly by notifications.js via quad_alarm_event socket listener
 

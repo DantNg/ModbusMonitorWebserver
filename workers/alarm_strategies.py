@@ -29,6 +29,35 @@ Cách thêm loại qtag mới:
 from abc import ABC, abstractmethod
 from typing import Optional, List, NamedTuple
 
+# Import shared formatting để tạo display string nhất quán
+try:
+    from shared.formatting import format_alarm_value as _fmt_alarm_val, format_alarm_threshold as _fmt_alarm_thr
+    _FORMATTER_AVAILABLE = True
+except ImportError:
+    _FORMATTER_AVAILABLE = False
+
+def _fmt_val(v) -> str:
+    """Format float value cho alarm display; fallback nếu shared.formatting không có."""
+    if v is None:
+        return 'N/A'
+    if _FORMATTER_AVAILABLE:
+        try:
+            return _fmt_alarm_val(float(v))
+        except Exception:
+            pass
+    return str(round(float(v), 1)) if v is not None else 'N/A'
+
+def _fmt_thr(v) -> str:
+    """Format threshold value cho alarm display; fallback nếu shared.formatting không có."""
+    if v is None:
+        return 'N/A'
+    if _FORMATTER_AVAILABLE:
+        try:
+            return _fmt_alarm_thr(float(v))
+        except Exception:
+            pass
+    return str(round(float(v), 1)) if v is not None else 'N/A'
+
 
 # ---------------------------------------------------------------------------
 # ColumnDef – mô tả một cột cần evaluate của card
@@ -487,6 +516,10 @@ class QuadCardStrategy(CardAlarmStrategy):
             "threshold": threshold,
             "operator": operator,
             "timestamp": timestamp,
+            # Display-formatted fields cho frontend (không cần toFixed lại)
+            "tag1_display": _fmt_val(pv_value),
+            "tag2_display": _fmt_val(sv_value),
+            "threshold_display": _fmt_thr(threshold),
         }
 
     def save_alarm_state(

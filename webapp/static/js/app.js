@@ -39,7 +39,8 @@ window.App = {
           const ts  = document.getElementById('tag-ts-' + row.id);
           
           // Don't modify bar style - it's controlled by device status from server template
-          if (val) val.textContent = isFinite(v) ? (Number.isInteger(v) ? String(v) : v.toFixed(2)) : row.value;
+          // Dùng display_value từ backend (đã format bởi shared/formatting); fallback về raw value
+          if (val) val.textContent = row.display_value !== undefined ? row.display_value : (isFinite(v) ? String(v) : (row.value ?? '--'));
           if (ts) ts.textContent = new Date(row.ts || Date.now()).toLocaleTimeString();
         }
       } catch (e) { /* bỏ qua lỗi nhỏ */ }

@@ -19,6 +19,16 @@ import socketio
 # Strategy + Factory pattern cho qtag alarm evaluation
 from workers.alarm_strategies import AlarmStrategyFactory, CardAlarmStrategy, ColumnDef
 
+# Centralized value formatting service
+from shared.formatting import format_alarm_value, format_alarm_threshold
+
+# AlarmEvaluator v2 – thay thế _process_alarm_rule cho alarm_rules table
+try:
+    from shared.engine import AlarmEvaluator, Signal, AlarmEvent as _AlarmEvent, translate_alarm_rules_table
+    _V2_ENGINE_AVAILABLE = True
+except ImportError:
+    _V2_ENGINE_AVAILABLE = False
+
 # Email imports with fallback
 try:
     import smtplib
@@ -277,6 +287,7 @@ class AlarmWorker:
         self._alarm_since: Dict[int, float] = {}  # rule_id -> timestamp when state changed
         self._last_notification: Dict[int, Dict[str, float]] = {}  # rule_id -> {"incoming": ts, "outgoing": ts}
         self._alarm_types: Dict[str, str] = {}  # alarm_key -> "High" or "Low" (for quad alarms)
+        self._pending_alarm_type: Dict[str, str] = {}  # alarm_key -> "High"/"Low" – which type the pending on_stable timer is counting for
         self._offline_skipped: set = set()  # alarm_keys skipped due to device offline (for reconnect re-emit)
         
         # Operator mapping for faster evaluation
@@ -343,6 +354,15 @@ class AlarmWorker:
         self._card_managed_tag_ids: set = self._managed_tag_ids
         self._card_managed_tag_ids_ts = 0.0
         self._card_managed_tag_ids_ttl = 10.0
+
+        # ── AlarmEvaluator v2 (shadow/parallel mode) ──────────────────────────
+        # Chạy song song với code cũ để validate logic; chưa thay thế.
+        # _v2_rules_hash dùng để detect khi nào rules thay đổi → re-sync evaluator.
+        if _V2_ENGINE_AVAILABLE:
+            self._v2_evaluator: AlarmEvaluator = AlarmEvaluator()
+        else:
+            self._v2_evaluator = None
+        self._v2_rules_hash: int = 0  # hash đơn giản để phát hiện rules thay đổi
         
         
     def _load_notification_config(self):
@@ -502,8 +522,8 @@ class AlarmWorker:
         body = (
             f"DateTime: {now.strftime('%d/%m/%Y %H:%M:%S')}\n"
             f"Alarm Name: {alarm_name}\n"
-            f"Tag Value: {tag_value}\n"
-            f"Threshold: {threshold}\n"
+            f"Tag Value: {format_alarm_value(tag_value)}\n"
+            f"Threshold: {format_alarm_threshold(threshold)}\n"
             f"Condition: {operator}\n"
             f"Status: {status}"
         )
@@ -518,8 +538,8 @@ class AlarmWorker:
         lines = [
             f"DateTime: {now}",
             f"Alarm Name: {alarm_name}",
-            f"Tag Value: {tag_value}",
-            f"Threshold: {threshold}",
+            f"Tag Value: {format_alarm_value(tag_value)}",
+            f"Threshold: {format_alarm_threshold(threshold)}",
             f"Condition: {operator}",
             f"Status: {status}",
         ]
@@ -1600,14 +1620,34 @@ class AlarmWorker:
                     pass
             except Exception as e:
                 self.log("ERROR", f"Failed to emit alarm type change OUTGOING: {e}")
+            # Xóa DB state cũ để periodic sync không re-apply màu alarm cũ
+            # trong khoảng thời gian chờ INCOMING của type mới
+            if self.db_available:
+                try:
+                    strategy.delete_alarm_state(self.db, card_id, column)
+                    self.log("DEBUG", f"Deleted stale DB alarm state during type change: {alarm_key}")
+                except Exception as e:
+                    self.log("WARNING", f"Failed to delete stale DB state on type change: {e}")
             self._alarm_since[alarm_key] = now
             self._alarm_types[alarm_key] = current_alarm_type
             return
 
         # ── INCOMING: điều kiện mới bắt đầu (potential activation) ──────────
         if current_condition and not previous_active:
+            pending_type = self._pending_alarm_type.get(alarm_key)
             if alarm_key not in self._alarm_since:
+                # Bắt đầu timer mới, ghi nhớ loại alarm đang đếm
                 self._alarm_since[alarm_key] = now
+                self._pending_alarm_type[alarm_key] = current_alarm_type
+            elif pending_type is None:
+                # Timer đã tồn tại (do alarm_type_changed reset) nhưng chưa track pending type
+                self._pending_alarm_type[alarm_key] = current_alarm_type
+            elif pending_type != current_alarm_type:
+                # Loại alarm thay đổi trong khi đang đếm on_stable → reset timer
+                # để alarm type mới được đếm đúng stable time của chính nó.
+                self.log("INFO", f"⏱ Pending type changed {alarm_key}: {pending_type} → {current_alarm_type}, resetting on_stable timer")
+                self._alarm_since[alarm_key] = now
+                self._pending_alarm_type[alarm_key] = current_alarm_type
 
             stable_time = now - self._alarm_since[alarm_key]
             if stable_time >= on_stable_sec:
@@ -1618,6 +1658,7 @@ class AlarmWorker:
                 # đếm từ thời điểm condition CLEAR, không phải từ khi condition trigger.
                 # Nếu không reset, off_stable sẽ không có tác dụng khi on_stable >= off_stable.
                 self._alarm_since.pop(alarm_key, None)
+                self._pending_alarm_type.pop(alarm_key, None)
 
                 self.log("INFO", f"⚠️ Alarm TRIGGERED: {alarm_name} ({strategy.card_type}) - {alarm_type} - {column_display} PV: {pv_value} (threshold: {threshold})")
 
@@ -1668,7 +1709,14 @@ class AlarmWorker:
 
             stable_time = now - self._alarm_since[alarm_key]
             if stable_time >= off_stable_sec:
-                alarm_type = self._alarm_types.get(alarm_key, "High")
+                # Không dùng default "High" – nếu thiếu key thì log warning và bỏ qua
+                alarm_type = self._alarm_types.get(alarm_key)
+                if alarm_type is None:
+                    self.log("WARNING", f"OUTGOING: missing alarm_type for {alarm_key}, skipping")
+                    self._alarm_states[alarm_key] = False
+                    self._alarm_since.pop(alarm_key, None)
+                    self._pending_alarm_type.pop(alarm_key, None)
+                    return
                 stored_threshold = high_threshold if alarm_type == "High" else low_threshold
                 stored_operator = high_op if alarm_type == "High" else low_op
 
@@ -1713,13 +1761,19 @@ class AlarmWorker:
 
                 self._alarm_types.pop(alarm_key, None)
                 self._alarm_since.pop(alarm_key, None)
+                self._pending_alarm_type.pop(alarm_key, None)
 
         # ── Stable state: reset timer; re-emit sau reconnect ─────────────────
         elif current_condition == previous_active:
             self._alarm_since.pop(alarm_key, None)
+            self._pending_alarm_type.pop(alarm_key, None)
 
             if reconnected and current_condition and previous_active:
-                alarm_type = self._alarm_types.get(alarm_key, current_alarm_type or "High")
+                # Ưu tiên lấy từ dict; fallback sang current_alarm_type (không default "High")
+                alarm_type = self._alarm_types.get(alarm_key) or current_alarm_type
+                if alarm_type is None:
+                    self.log("WARNING", f"Reconnect re-emit: missing alarm_type for {alarm_key}, skipping")
+                    return
                 self.log("INFO", f"🔄 {strategy.card_type}/{card_id} {column}: reconnected – re-emitting INCOMING (type={alarm_type})")
                 try:
                     event_data = strategy.build_event(
@@ -1843,6 +1897,200 @@ class AlarmWorker:
         """Đã được hợp nhất vào _restore_card_alarm_states. Giữ lại để backward compat."""
         pass  # Logic đã chuyển vào _restore_card_alarm_states
 
+    # ========== AlarmEvaluator v2 – primary alarm_rules processor ==========
+
+    @staticmethod
+    def _to_v2_rule_row(rule: dict) -> dict:
+        """Normalize alarm rule dict từ DB (với key của code cũ) sang format
+        mà translate_alarm_rules_table() mong đợi.
+
+        Key mapping:
+          rule["tag_id"] | rule["target"]  →  "tag_id"
+          rule["threshold"]               →  "threshold_value"
+          rule["level"]                   →  "severity"
+        Các field còn lại (id, name, operator, on_stable_sec, off_stable_sec, enabled)
+        giữ nguyên vì đã đúng tên.
+        """
+        tag_id = rule.get("tag_id") or rule.get("target")
+        return {
+            "id": rule.get("id"),
+            "name": rule.get("name", ""),
+            "tag_id": int(tag_id) if tag_id is not None else None,
+            "operator": rule.get("operator", ">"),
+            "threshold_value": rule.get("threshold", "0"),
+            "severity": rule.get("level", "Critical"),
+            "on_stable_sec": rule.get("on_stable_sec", 0),
+            "off_stable_sec": rule.get("off_stable_sec", 0),
+            "enabled": rule.get("enabled", True),
+        }
+
+    def _process_alarm_rules_v2(self, alarm_rules: list, managed_tags: set) -> None:
+        """Phase 6: Xử lý toàn bộ alarm_rules table bằng AlarmEvaluator v2.
+
+        Thay thế vòng lặp _process_alarm_rule cũ.
+        Card alarm strategies (_evaluate_card_conditions) không bị ảnh hưởng.
+        Nếu v2 engine không khả dụng, tự động fallback sang v1.
+        """
+        if not _V2_ENGINE_AVAILABLE or self._v2_evaluator is None:
+            # Fallback sang v1 khi engine không available
+            for rule in alarm_rules:
+                if rule.get("enabled", True):
+                    tag_id = rule.get("tag_id") or rule.get("target")
+                    if tag_id and int(tag_id) in managed_tags:
+                        continue
+                    self._process_alarm_rule(rule)
+            return
+
+        # 1. Lọc rules: bỏ disabled và các tag đã được card/quad alarm quản lý
+        active_rules = []
+        for rule in alarm_rules:
+            if not rule.get("enabled", True):
+                continue
+            tag_id = rule.get("tag_id") or rule.get("target")
+            if tag_id and int(tag_id) in managed_tags:
+                continue
+            active_rules.append(rule)
+
+        if not active_rules:
+            return
+
+        # 2. Pre-fetch tag values để điền _tag_value_cache cho tất cả rules trong một lần
+        for rule in active_rules:
+            tag_id = rule.get("tag_id") or rule.get("target")
+            if tag_id:
+                self._get_tag_value(int(tag_id))
+
+        # 3. Sync rules vào evaluator khi có thay đổi (dùng hash id list)
+        rules_hash = hash(tuple(r.get("id") for r in active_rules))
+        if rules_hash != self._v2_rules_hash:
+            normalized = [self._to_v2_rule_row(r) for r in active_rules]
+            v2_rules = translate_alarm_rules_table(normalized)
+            self._v2_evaluator.set_rules(v2_rules)
+            self._v2_rules_hash = rules_hash
+            self.log("DEBUG", f"[v2] synced {len(v2_rules)} rules into AlarmEvaluator v2")
+
+        # 4. Build signal_map từ per-cycle cache
+        _now = time.time()
+        signal_map = {
+            tid: Signal(tag_id=tid, value=val, timestamp=_now)
+            for tid, val in self._tag_value_cache.items()
+            if val is not None
+        }
+        if not signal_map:
+            return
+
+        # 5. Lookup dict: str rule_id → original rule dict (để lấy contacts, device_name...)
+        rule_lookup: Dict[str, dict] = {
+            f"alarm_rule_{r.get('id')}": r for r in active_rules
+        }
+
+        # 6. Evaluate
+        try:
+            v2_events = self._v2_evaluator.evaluate(signal_map)
+        except Exception as e:
+            self.log("ERROR", f"[v2] AlarmEvaluator.evaluate() failed: {e}")
+            return
+
+        # 7. Xử lý từng event: socket emit + DB insert + notification
+        for ev in v2_events:
+            try:
+                self._handle_v2_alarm_event(ev, rule_lookup)
+            except Exception as e:
+                self.log("ERROR", f"[v2] Error handling event rule={ev.rule_id}: {e}")
+
+    def _handle_v2_alarm_event(self, ev: '_AlarmEvent', rule_lookup: dict) -> None:
+        """Xử lý một AlarmEvent: emit socket, ghi DB, gửi notification.
+
+        Chỉ xử lý các transition ALARM ON (→ALARM) và ALARM OFF (ALARM→NORMAL).
+        PENDING_ON / PENDING_OFF được bỏ qua (StabilityTracker đã xử lý internally).
+        """
+        if not (ev.is_alarm_on or ev.is_alarm_off):
+            # PENDING state – đang chờ stable time, chưa cần hành động
+            self.log("DEBUG",
+                     f"[v2] Pending {ev.from_state.value}→{ev.to_state.value} rule={ev.rule_id}")
+            return
+
+        rule = rule_lookup.get(ev.rule_id)
+        if rule is None:
+            self.log("DEBUG", f"[v2] No rule dict for {ev.rule_id}, skip")
+            return
+
+        db_rule_id = rule.get("id")
+        rule_name = rule.get("name", ev.rule_label)
+        tag_name = rule.get("tag_name", f"Tag {ev.trigger_tag_id}")
+        device_name = rule.get("device_name", "Unknown Device")
+        alarm_level = rule.get("level", "Critical")
+        threshold_val = rule.get("threshold", "0")
+        operator = rule.get("operator", ">")
+        current_value = ev.trigger_value
+        ts_now = datetime.now()
+
+        # Parse threshold_num cho DB (lấy giá trị đầu nếu là range "min,max")
+        try:
+            threshold_num = float(str(threshold_val).split(",")[0]) if threshold_val else 0.0
+        except (ValueError, TypeError):
+            threshold_num = 0.0
+
+        if ev.is_alarm_on:
+            event_type = "INCOMING"
+            self.log("WARNING", f"[v2] Alarm ACTIVATED: {rule_name} – {tag_name} = {current_value}")
+            title = f"Alarm Triggered: {rule_name}"
+            message = f"Alarm activated: {operator} {threshold_val}"
+        else:  # is_alarm_off
+            event_type = "OUTGOING"
+            self.log("INFO", f"[v2] Alarm CLEARED: {rule_name} – {tag_name} = {current_value}")
+            title = rule.get("dashboard_name") or device_name or rule_name
+            message = f"Alarm cleared: {operator} {threshold_val}"
+
+        # ── EMIT SOCKET EVENT (UI update ngay lập tức) ──────────────────────
+        try:
+            socket_data = {
+                "title": title,
+                "message": message,
+                "level": alarm_level,
+                "tag_id": ev.trigger_tag_id,
+                "tag_name": tag_name,
+                "value": current_value,
+                "status": event_type,
+                "created_at": ts_now.isoformat(),
+                "alarm_event_id": None,  # DB id chưa có tại thời điểm emit
+            }
+            sio.emit('alarm_event', socket_data)
+        except Exception as e:
+            self.log("WARNING", f"[v2] Socket emit failed for {rule_name}: {e}")
+
+        # ── GHI DATABASE ────────────────────────────────────────────────────
+        if self.db_available:
+            try:
+                self.db.insert_alarm_event(
+                    ts=ts_now,
+                    name=rule_name,
+                    level=alarm_level,
+                    target=ev.trigger_tag_id,
+                    value=current_value,
+                    note=message,
+                    event_type=event_type,
+                    operator=operator,
+                    threshold=threshold_num,
+                )
+            except Exception as e:
+                self.log("ERROR", f"[v2] Failed to save alarm event to DB: {e}")
+
+        # ── GỬI NOTIFICATION (email / SMS) ──────────────────────────────────
+        if self.config.enable_notifications and db_rule_id is not None:
+            notif_type = "incoming" if event_type == "INCOMING" else "outgoing"
+            stable_sec = float(
+                rule.get("on_stable_sec") or 0
+                if notif_type == "incoming"
+                else rule.get("off_stable_sec") or 0
+            )
+            if self._should_send_notification(db_rule_id, notif_type, stable_sec):
+                self._send_notification(
+                    db_rule_id, rule_name, tag_name, current_value,
+                    threshold_num, operator,
+                    notif_type, device_name, alarm_level, rule,
+                )
+
     def _alarm_loop(self):
         """Main alarm evaluation loop"""
         self.log("INFO", "Starting alarm evaluation loop")
@@ -1881,16 +2129,8 @@ class AlarmWorker:
                 # Get tag IDs managed by ALL card/quad alarms to avoid duplicate notifications
                 managed_tags = self._get_all_managed_tag_ids()
                 
-                if alarm_rules:
-                    # self.log("DEBUG", f"Evaluating {len(alarm_rules)} alarm rules")
-                    
-                    # Process each enabled alarm rule (skip tags already covered by card/quad alarms)
-                    for rule in alarm_rules:
-                        if rule.get("enabled", True):
-                            tag_id = rule.get("tag_id") or rule.get("target")
-                            if tag_id and int(tag_id) in managed_tags:
-                                continue  # Skip - this tag is managed by card/quad alarm system
-                            self._process_alarm_rule(rule)
+                # Xử lý alarm_rules table bằng AlarmEvaluator v2 (fallback v1 nếu cần)
+                self._process_alarm_rules_v2(alarm_rules, managed_tags)
                 
                 # Evaluate all qtag card + quad alarm conditions (unified via Strategy Pattern)
                 try:

@@ -299,16 +299,19 @@ window.NotificationSystem = {
     const levelIcon = this.getLevelIcon(notification.level);
     const unreadDot = !notification.read ? '<span style="color:red;font-size:1.2em;vertical-align:middle;">•</span>' : '';
 
-    // Determine background color based on level
+    // Determine background color based on level and status
     let bgStyle = '';
-    if (notification.level === 'Critical') {
-      // Red background for High/Critical alarms
+    const _isOutgoing = (notification.status === 'OUTGOING' || notification.event_type === 'OUTGOING');
+    if (_isOutgoing) {
+      // Green background for cleared/outgoing alarms
+      bgStyle = 'background-color: rgba(34, 197, 94, 0.12); border-left: 3px solid #16a34a;';
+    } else if (notification.level === 'Critical') {
       bgStyle = 'background-color: rgba(220, 38, 38, 0.15); border-left: 3px solid #dc2626;';
-    } else if (notification.level === 'Warning') {
-      // Yellow background for Low/Warning alarms
+    } else if (notification.level === 'High' || notification.level === 'Warning') {
       bgStyle = 'background-color: rgba(245, 158, 11, 0.15); border-left: 3px solid #f59e0b;';
+    } else if (notification.level === 'Medium') {
+      bgStyle = 'background-color: rgba(59, 130, 246, 0.12); border-left: 3px solid #3b82f6;';
     } else if (notification.message && /activated/i.test(notification.message)) {
-      // Keep existing logic for activated/cleared messages
       bgStyle = 'background-color: rgba(220, 38, 38, 0.1);';
     } else if (notification.message && /cleared/i.test(notification.message)) {
       bgStyle = 'background-color: rgba(34, 197, 94, 0.1);';
@@ -537,13 +540,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Build display values
-      const tag1Val = data.tag1_value !== null && data.tag1_value !== undefined
-        ? parseFloat(data.tag1_value).toFixed(1) : 'N/A';
-      const tag2Val = data.tag2_value !== null && data.tag2_value !== undefined
-        ? parseFloat(data.tag2_value).toFixed(1) : 'N/A';
-      const threshold = data.threshold !== null && data.threshold !== undefined
-        ? parseFloat(data.threshold).toFixed(1) : 'N/A';
+      // Dùng display_value từ backend (alarm_strategies.py build_event) — không format lại FE
+      const tag1Val = data.tag1_display !== undefined && data.tag1_display !== null
+        ? (data.tag1_display || 'N/A')
+        : (data.tag1_value !== null && data.tag1_value !== undefined ? String(data.tag1_value) : 'N/A');
+      const tag2Val = data.tag2_display !== undefined && data.tag2_display !== null
+        ? (data.tag2_display || 'N/A')
+        : (data.tag2_value !== null && data.tag2_value !== undefined ? String(data.tag2_value) : 'N/A');
+      const threshold = data.threshold_display !== undefined && data.threshold_display !== null
+        ? (data.threshold_display || 'N/A')
+        : (data.threshold !== null && data.threshold !== undefined ? String(data.threshold) : 'N/A');
       const operator = data.operator || '>';
       const columnLabel = column === 'left' ? 'Left' : 'Right';
 

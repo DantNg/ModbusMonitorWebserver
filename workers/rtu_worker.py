@@ -117,6 +117,13 @@ def _calc_decimal_places(scale):
     except Exception:
         return None
 
+# ---- centralized value formatter
+try:
+    from shared.formatting import format_tag_value, TagFormatMetadata as _TagFmtMeta
+    _FORMATTER_AVAILABLE = True
+except ImportError:
+    _FORMATTER_AVAILABLE = False
+
 # ---------- Worker ----------
 class RTUWorker:
     def __init__(self, worker_id, serial_port, baudrate=9600, timeout=1.0,
@@ -582,7 +589,11 @@ class RTUWorker:
                     if self.debug: print(f"⚠️ DB update tag {t.id} err: {e}")
 
                 # Format string với đúng số chữ số thập phân để log và emit
-                if dp is not None and dp > 0:
+                if _FORMATTER_AVAILABLE:
+                    _dtype = getattr(t, "data_type", None) or getattr(t, "datatype", "Word")
+                    _meta = _TagFmtMeta(t.id, sf, off, getattr(t, "unit", ""), _dtype)
+                    val_str = format_tag_value(val, _meta).display_text
+                elif dp is not None and dp > 0:
                     val_str = f"{val:.{dp}f}"
                 elif dp == 0:
                     val_str = str(int(round(val)))
