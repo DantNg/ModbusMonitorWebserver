@@ -2495,6 +2495,13 @@ try {
         } else {
           card.classList.add('qtag-single-alarm-low');
         }
+      } else if (pvTagItem) {
+        // PV within normal range – clear fallback alarm classes from tag item, then
+        // delegate card class cleanup to recalcCardAlarmState so that any still-active
+        // server-confirmed card alarm (in _lastSyncedCardAlarms) is preserved correctly.
+        pvTagItem.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
+        pvTagItem.removeAttribute('title');
+        recalcCardAlarmState(card);
       }
     });
   }
