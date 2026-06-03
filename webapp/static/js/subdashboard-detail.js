@@ -2119,6 +2119,24 @@ try {
   }
 
   /**
+   * Check whether a card has a saved alarm condition configured (enabled OR disabled).
+   * loadCardConditionToggles() chỉ set data-monitoring-enabled ('true'/'false') cho
+   * các card CÓ condition trong DB; card chưa cấu hình thì attribute này absent.
+   * Dùng để biết khi nào backend (card_alarm_event, có stable time) là nguồn chân thực.
+   */
+  function cardHasAlarmCondition(cardEl) {
+    if (!cardEl) return false;
+    const rootCard = cardEl.closest(
+      '[data-qtag6-id], [data-qtag4-id], [data-qtag-single3-id], ' +
+      '[data-qtag-pv-id], [data-qtag2-id], [data-qtag3-id], [data-qtag-pv-dual-id]'
+    ) || cardEl;
+    const toggleWrap = rootCard.querySelector('.card-alarm-toggle-wrap');
+    if (!toggleWrap) return false;
+    const me = toggleWrap.dataset.monitoringEnabled;
+    return me === 'true' || me === 'false';
+  }
+
+  /**
    * Apply alarm visual to a specific tag element and its parent card.
    * @param {number} tagId - The tag ID
    * @param {string} alarmClass - 'high' or 'low'
@@ -2437,6 +2455,13 @@ try {
 
       // Skip if monitoring is disabled for this card
       if (!isCardMonitoringEnabled(card)) return;
+
+      // Nếu card đã có alarm condition cấu hình → backend card-alarm state machine
+      // điều khiển màu theo đúng on_stable/off_stable (qua card_alarm_event).
+      // KHÔNG chạy so sánh PV-vs-SV tức thời ở đây, nếu không card sẽ đỏ ngay khi
+      // PV vượt SV, bỏ qua stable time (vd set on=30s nhưng 3s đã đỏ).
+      // Fallback chỉ dành cho card CHƯA cấu hình condition (hiển thị nhanh PV vs SV).
+      if (cardHasAlarmCondition(card)) return;
 
       // Skip if PV tag already has a system alarm active
       if (systemAlarmMap && systemAlarmMap.has(parseInt(pvTagId))) return;

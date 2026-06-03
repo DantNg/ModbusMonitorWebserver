@@ -285,6 +285,7 @@ class AlarmWorker:
         # Alarm state tracking
         self._alarm_states: Dict[int, bool] = {}  # rule_id -> active
         self._alarm_since: Dict[int, float] = {}  # rule_id -> timestamp when state changed
+        self._alarm_last_eval: Dict[str, float] = {}  # alarm_key -> timestamp lần evaluate gần nhất (continuity guard)
         self._last_notification: Dict[int, Dict[str, float]] = {}  # rule_id -> {"incoming": ts, "outgoing": ts}
         self._alarm_types: Dict[str, str] = {}  # alarm_key -> "High" or "Low" (for quad alarms)
         self._pending_alarm_type: Dict[str, str] = {}  # alarm_key -> "High"/"Low" – which type the pending on_stable timer is counting for
@@ -1292,7 +1293,11 @@ class AlarmWorker:
         if cached and (now - cached["ts"]) < self._card_info_cache_ttl:
             return cached["data"]
         card_info = strategy.fetch_card_info(self.db, card_id)
-        self._card_info_cache[cache_key] = {"data": card_info, "ts": now}
+        # Only cache valid results. Caching None would cause newly created cards
+        # to be skipped for the full 30-second TTL if there's a race condition
+        # between card creation and the alarm worker's first evaluation.
+        if card_info is not None:
+            self._card_info_cache[cache_key] = {"data": card_info, "ts": now}
         return card_info
 
     def _get_all_managed_tag_ids(self) -> set:
@@ -1405,38 +1410,116 @@ class AlarmWorker:
 
         now = time.time()
 
-        # --- Card conditions (qtag6, qtag4, qtag3, qtag2, single3, pv_only, pv_dual) ---
+        # --- Refresh cached condition lists (card + quad) trước khi xử lý ---
         try:
             if self._cached_card_conditions is None or (now - self._cached_card_conditions_ts) > self._cached_card_conditions_ttl:
                 self._cached_card_conditions = self.db.get_all_active_card_conditions()
                 self._cached_card_conditions_ts = now
-
-            for condition in (self._cached_card_conditions or []):
-                try:
-                    self._process_card_condition(condition)
-                except Exception as e:
-                    self.log("ERROR", f"Failed to process card condition {condition.get('card_type')}/{condition.get('card_id')}: {e}")
         except Exception as e:
             self.log("ERROR", f"Failed to load card conditions: {e}")
-
-        # --- Quad conditions (bảng riêng, normalize thành cùng format) ---
         try:
             if self._cached_quad_conditions is None or (now - self._cached_quad_conditions_ts) > self._cached_quad_conditions_ttl:
                 self._cached_quad_conditions = self.db.get_all_active_quad_conditions()
                 self._cached_quad_conditions_ts = now
-
-            for condition in (self._cached_quad_conditions or []):
-                try:
-                    # Normalize quad condition: thêm card_type="quad" và card_id=quad_card_id
-                    # để dùng chung _process_card_condition với Strategy pattern
-                    normalized = dict(condition)
-                    normalized["card_type"] = "quad"
-                    normalized["card_id"] = condition.get("quad_card_id")
-                    self._process_card_condition(normalized)
-                except Exception as e:
-                    self.log("ERROR", f"Failed to process quad condition {condition.get('quad_card_id')}: {e}")
         except Exception as e:
             self.log("ERROR", f"Failed to load quad conditions: {e}")
+
+        # --- Prune in-memory alarm tracking cho các card/quad không còn active ---
+        # Nếu một card bị xóa/disable trong khi timer on_stable/off_stable đang đếm,
+        # các entry _alarm_since/_pending_alarm_type sẽ "mắc kẹt" với timestamp cũ.
+        # Khi một card mới tái sử dụng cùng alarm_key (card_id được DB cấp lại sau
+        # restart, hoặc re-enable/re-create condition), stable_time = now - old_ts
+        # sẽ rất lớn → alarm trigger NGAY LẬP TỨC, bỏ qua stable time.
+        # Dọn sạch tracking cho key không còn live để key tái sử dụng luôn bắt đầu mới.
+        try:
+            live_prefixes = self._collect_live_card_alarm_prefixes()
+            self._prune_stale_card_alarm_tracking(live_prefixes)
+        except Exception as e:
+            self.log("ERROR", f"Failed to prune stale card alarm tracking: {e}")
+
+        # --- Card conditions (qtag6, qtag4, qtag3, qtag2, single3, pv_only, pv_dual) ---
+        for condition in (self._cached_card_conditions or []):
+            try:
+                self._process_card_condition(condition)
+            except Exception as e:
+                self.log("ERROR", f"Failed to process card condition {condition.get('card_type')}/{condition.get('card_id')}: {e}")
+
+        # --- Quad conditions (bảng riêng, normalize thành cùng format) ---
+        for condition in (self._cached_quad_conditions or []):
+            try:
+                # Normalize quad condition: thêm card_type="quad" và card_id=quad_card_id
+                # để dùng chung _process_card_condition với Strategy pattern
+                normalized = dict(condition)
+                normalized["card_type"] = "quad"
+                normalized["card_id"] = condition.get("quad_card_id")
+                self._process_card_condition(normalized)
+            except Exception as e:
+                self.log("ERROR", f"Failed to process quad condition {condition.get('quad_card_id')}: {e}")
+
+    def _collect_live_card_alarm_prefixes(self) -> set:
+        """Tập hợp prefix alarm_key của các card/quad condition đang active.
+
+        Mỗi alarm_key có dạng:
+            card  → "card_{card_type}_{card_id}_{column}"
+            quad  → "quad_{card_id}_{column}"
+        Prefix (phần tới trước "_{column}") là đủ để nhận diện một card cụ thể mà
+        không cần biết column hay phải load card_info (tránh phụ thuộc cache có thể
+        tạm thời None). Một tracking key được coi là "live" nếu nó bắt đầu bằng một
+        trong các prefix này.
+        """
+        prefixes: set = set()
+        for condition in (self._cached_card_conditions or []):
+            card_type = condition.get("card_type")
+            card_id = condition.get("card_id")
+            if not card_type or card_id is None:
+                continue
+            strategy = AlarmStrategyFactory.get(card_type)
+            if not strategy:
+                continue
+            # Dùng make_alarm_key với column rỗng để lấy đúng prefix theo strategy
+            # (vd quad dùng tiền tố 'quad_' thay vì 'card_').
+            prefixes.add(strategy.make_alarm_key(card_id, ""))
+
+        quad_strategy = AlarmStrategyFactory.get("quad")
+        if quad_strategy:
+            for condition in (self._cached_quad_conditions or []):
+                quad_id = condition.get("quad_card_id")
+                if quad_id is None:
+                    continue
+                prefixes.add(quad_strategy.make_alarm_key(quad_id, ""))
+        return prefixes
+
+    def _prune_stale_card_alarm_tracking(self, live_prefixes: set) -> None:
+        """Xóa state machine tracking cho các card/quad alarm_key không còn active.
+
+        Chỉ đụng tới key của card/quad (string bắt đầu bằng 'card_' hoặc 'quad_').
+        KHÔNG đụng tới tag alarm (key là int rule_id) – các key đó do hệ thống
+        khác quản lý. Việc dọn dẹp đảm bảo một alarm_key tái sử dụng luôn bắt đầu
+        từ trạng thái sạch, tôn trọng đúng on_stable/off_stable.
+
+        Một key được giữ lại nếu nó bắt đầu bằng một live prefix (card vẫn active).
+        """
+        def _is_card_key(k) -> bool:
+            return isinstance(k, str) and (k.startswith("card_") or k.startswith("quad_"))
+
+        def _is_live(k: str) -> bool:
+            return any(k.startswith(p) for p in live_prefixes)
+
+        stale: set = set()
+        for d in (self._alarm_since, self._pending_alarm_type, self._alarm_types,
+                  self._alarm_states, self._alarm_last_eval):
+            stale.update(k for k in d if _is_card_key(k) and not _is_live(k))
+
+        for k in stale:
+            self._alarm_since.pop(k, None)
+            self._pending_alarm_type.pop(k, None)
+            self._alarm_types.pop(k, None)
+            self._alarm_states.pop(k, None)
+            self._alarm_last_eval.pop(k, None)
+            self._offline_skipped.discard(k)
+
+        if stale:
+            self.log("DEBUG", f"Pruned {len(stale)} stale card/quad alarm tracking key(s): {sorted(stale)}")
 
     def _process_card_condition(self, condition: dict):
         """Xử lý một card alarm condition dùng strategy tương ứng.
@@ -1620,6 +1703,25 @@ class AlarmWorker:
         Strategy cung cấp: display name, socket event name/payload, DB methods.
         """
         now = time.time()
+
+        # ── Continuity guard ────────────────────────────────────────────────
+        # Nếu alarm_key này không được evaluate trong nhiều cycle liên tiếp (card bị
+        # xóa/disable rồi xuất hiện lại, hoặc card_id được DB cấp lại sau khi MySQL
+        # restart trong lúc worker vẫn chạy), thì timestamp _alarm_since cũ KHÔNG còn
+        # phản ánh "điều kiện đã đúng liên tục". Nếu tin vào nó, stable_time = now -
+        # old_ts sẽ rất lớn → alarm trigger ngay, bỏ qua on_stable/off_stable.
+        # Phát hiện gap và reset countdown để đếm lại từ đầu (luôn an toàn: chỉ kéo
+        # dài thêm thời gian chờ, không bao giờ trigger sớm).
+        last_eval = self._alarm_last_eval.get(alarm_key)
+        gap_limit = max(5.0, 3.0 * float(getattr(self.config, "check_interval", 1.0) or 1.0))
+        if last_eval is not None and (now - last_eval) > gap_limit:
+            if alarm_key in self._alarm_since:
+                self._alarm_since[alarm_key] = now
+                self._pending_alarm_type.pop(alarm_key, None)
+                self.log("DEBUG", f"Continuity gap detected for {alarm_key} "
+                                  f"({now - last_eval:.0f}s) – reset stable timer")
+        self._alarm_last_eval[alarm_key] = now
+
         previous_active = self._alarm_states.get(alarm_key, False)
         stored_alarm_type = self._alarm_types.get(alarm_key)
 
@@ -1990,8 +2092,14 @@ class AlarmWorker:
             if tag_id:
                 self._get_tag_value(int(tag_id))
 
-        # 3. Sync rules vào evaluator khi có thay đổi (dùng hash id list)
-        rules_hash = hash(tuple(r.get("id") for r in active_rules))
+        # 3. Sync rules vào evaluator khi có thay đổi.
+        # Hash bao gồm cả on/off_stable_sec và threshold để phát hiện khi user
+        # chỉnh sửa stable times của rule đã tồn tại (không chỉ thêm/xóa rule).
+        rules_hash = hash(tuple(
+            (r.get("id"), r.get("on_stable_sec"), r.get("off_stable_sec"),
+             r.get("threshold"), r.get("operator"), r.get("enabled"))
+            for r in active_rules
+        ))
         if rules_hash != self._v2_rules_hash:
             normalized = [self._to_v2_rule_row(r) for r in active_rules]
             v2_rules = translate_alarm_rules_table(normalized)

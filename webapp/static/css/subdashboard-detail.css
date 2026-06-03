@@ -1594,10 +1594,9 @@
   border-top: 1px solid rgba(245, 158, 11, 0) !important;
 }
 
-.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sub-title,
-.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sub-title,
-.qtag-single-sub-card.qtag-single-alarm-high .qtag-single-type-badge,
-.qtag-single-sub-card.qtag-single-alarm-low .qtag-single-type-badge,
+/* tag-label, tag-unit, update-time, tag-value, sv-separator: muted gray during alarm.
+   sub-title and type-badge intentionally excluded — they sit on the purple gradient
+   header (.qtag-single-sub-head) and must stay white (#fff) for readability. */
 .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-label,
 .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-label,
 .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-unit,
@@ -1616,18 +1615,16 @@
   color: #ffffff !important;
 }
 
-/* Dark-theme normalization for Single3/Qtag Single alarm text:
-   match Qtag6 tone mapping (primary white, secondary gray-400). */
-[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sub-title,
-[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-sub-title,
-[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-type-badge,
-[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-type-badge,
+/* Dark-theme normalization for Single3/Qtag Single alarm text.
+   sub-title and type-badge inherit white from .qtag-single-sub-head { color:#fff }
+   so they do NOT need explicit rules here. tag-label/tag-value stay white.
+   sv-low/sv-high/arrow-low/arrow-high excluded to preserve orange/blue identity. */
 [data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-label,
 [data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-label,
 [data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-value,
-[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-value,
-/* sv-low/sv-high/arrow-low/arrow-high intentionally excluded: keep their
-   distinctive blue/orange colors visible during alarm state. */
+[data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-value {
+  color: #ffffff !important;
+}
 
 [data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-tag-unit,
 [data-bs-theme="dark"] .qtag-single-sub-card.qtag-single-alarm-low .qtag-single-tag-unit,
