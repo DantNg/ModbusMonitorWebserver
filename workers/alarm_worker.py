@@ -1176,11 +1176,14 @@ class AlarmWorker:
                     if self.config.enable_notifications:
                         if self._should_send_notification(rule_id, "incoming", on_stable_sec):
                             self._send_notification(
-                                rule_id, rule_name, tag_name, current_value, 
+                                rule_id, rule_name, tag_name, current_value,
                                 rule.get("threshold"), rule.get("operator"),
                                 "incoming", device_name, alarm_level, rule
                             )
-                            
+                    # Reset timer so the next OUTGOING counts from when condition actually clears,
+                    # not from when the on_stable timer started.
+                    self._alarm_since.pop(rule_id, None)
+
             elif not current_condition and previous_active:
                 # Potential alarm deactivation
                 if rule_id not in self._alarm_since:
@@ -1245,16 +1248,13 @@ class AlarmWorker:
                                 rule.get("threshold"), rule.get("operator"),
                                 "outgoing", device_name, alarm_level, rule
                             )
-            
-            # Reset stability timer if condition changed
-            if current_condition != previous_active:
-                if rule_id in self._alarm_since:
-                    # Keep tracking for stability, don't reset
-                    pass
-            else:
-                # Condition stable, can reset timer for next change
-                if rule_id in self._alarm_since:
-                    del self._alarm_since[rule_id]
+                    # Reset timer so the next INCOMING counts from when condition actually returns,
+                    # not from when the off_stable timer started.
+                    self._alarm_since.pop(rule_id, None)
+
+            # Reset stability timer when condition matches the current alarm state (no transition)
+            if current_condition == self._alarm_states.get(rule_id, False):
+                self._alarm_since.pop(rule_id, None)
             
         except Exception as e:
             self.log("ERROR", f"Failed to process alarm rule {rule.get('id', 'unknown')}: {e}")

@@ -310,6 +310,27 @@ try {
             });
           });
       });
+
+      // Reset form and newGroupSection state when modal closes to prevent stale
+      // new_group_name from being sent on the next open (which would create a new group
+      // instead of using the selected existing group).
+      const addTagModalEl = document.getElementById('addTagModal');
+      if (addTagModalEl) {
+        addTagModalEl.addEventListener('hidden.bs.modal', function () {
+          addTagForm.reset();
+          const newGroupSection = document.getElementById('newGroupSection');
+          const targetGroupSelect = document.getElementById('target_group');
+          const toggleBtn = document.getElementById('toggleNewGroup');
+          const newGroupInput = document.getElementById('new_group_name');
+          if (newGroupSection) newGroupSection.style.display = 'none';
+          if (targetGroupSelect) targetGroupSelect.disabled = false;
+          if (newGroupInput) { newGroupInput.required = false; newGroupInput.value = ''; }
+          if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="bi bi-plus-circle"></i> New';
+            toggleBtn.className = 'btn btn-outline-secondary';
+          }
+        });
+      }
     }
 
     // Handle Add Group form submission
