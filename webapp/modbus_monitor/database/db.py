@@ -1715,15 +1715,33 @@ def get_active_tag_alarms_for_subdash(subdash_id: int):
             if not all_tag_ids:
                 return []
 
-            # Step 2: For each tag, find latest alarm_event and check if it's INCOMING
-            # Use a subquery to get the max event ID per tag (latest event)
+            # Step 2: Narrow to only tags that have an enabled alarm_rule.
+            # alarm_events contains events from BOTH tag alarms (alarm_rules) AND card
+            # alarms (_process_card_alarm_state). Without this filter, stale INCOMING
+            # card-alarm events for a tag_id cause any new card using that tag to
+            # immediately show alarm-high, even though no tag alarm rule exists.
+            ruled_rows = con.execute(
+                select(alarm_rules.c.target)
+                .where(
+                    alarm_rules.c.enabled == True,
+                    alarm_rules.c.target.in_(list(all_tag_ids))
+                )
+                .distinct()
+            ).fetchall()
+            relevant_tag_ids = {r[0] for r in ruled_rows}
+
+            if not relevant_tag_ids:
+                return []
+
+            # Step 3: For each tag with an active rule, find the latest alarm_event
+            # and check if it's INCOMING (meaning alarm is still active).
             from sqlalchemy import func as sa_func
             subq = (
                 select(
                     alarm_events.c.target,
                     sa_func.max(alarm_events.c.id).label('max_id')
                 )
-                .where(alarm_events.c.target.in_(list(all_tag_ids)))
+                .where(alarm_events.c.target.in_(list(relevant_tag_ids)))
                 .group_by(alarm_events.c.target)
                 .subquery()
             )
