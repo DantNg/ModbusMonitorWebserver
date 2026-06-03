@@ -20,7 +20,7 @@ import socketio
 from workers.alarm_strategies import AlarmStrategyFactory, CardAlarmStrategy, ColumnDef
 
 # Centralized value formatting service
-from shared.formatting import format_alarm_value, format_alarm_threshold
+from shared.formatting import format_alarm_value, format_alarm_threshold, TagFormatMetadata
 
 # AlarmEvaluator v2 – thay thế _process_alarm_rule cho alarm_rules table
 try:
@@ -507,7 +507,8 @@ class AlarmWorker:
     
     def create_alarm_email_body(self, device_name: str, alarm_name: str, tag_value: float,
                                 threshold: float, operator: str, alarm_level: str,
-                                notification_type: str = "incoming") -> str:
+                                notification_type: str = "incoming",
+                                tag_meta: Optional[TagFormatMetadata] = None) -> str:
         """Create a simplified, client-preferred email body.
         Removed banner and Level; keep essential fields only.
         """
@@ -522,8 +523,8 @@ class AlarmWorker:
         body = (
             f"DateTime: {now.strftime('%d/%m/%Y %H:%M:%S')}\n"
             f"Alarm Name: {alarm_name}\n"
-            f"Tag Value: {format_alarm_value(tag_value)}\n"
-            f"Threshold: {format_alarm_threshold(threshold)}\n"
+            f"Tag Value: {format_alarm_value(tag_value, tag_meta)}\n"
+            f"Threshold: {format_alarm_threshold(threshold, tag_meta)}\n"
             f"Condition: {operator}\n"
             f"Status: {status}"
         )
@@ -531,15 +532,16 @@ class AlarmWorker:
         return body
 
     def create_alarm_sms_text(self, alarm_name: str, tag_value: float, threshold: float,
-                              operator: str, notification_type: str = "incoming") -> str:
+                              operator: str, notification_type: str = "incoming",
+                              tag_meta: Optional[TagFormatMetadata] = None) -> str:
         """SMS content mirroring the simplified email body (multiline)."""
         now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
         status = "CLEARED" if notification_type == "outgoing" else "Alarm"
         lines = [
             f"DateTime: {now}",
             f"Alarm Name: {alarm_name}",
-            f"Tag Value: {format_alarm_value(tag_value)}",
-            f"Threshold: {format_alarm_threshold(threshold)}",
+            f"Tag Value: {format_alarm_value(tag_value, tag_meta)}",
+            f"Threshold: {format_alarm_threshold(threshold, tag_meta)}",
             f"Condition: {operator}",
             f"Status: {status}",
         ]
@@ -792,11 +794,18 @@ class AlarmWorker:
         try:
             # Get notification contacts from alarm rule
             contacts = self._get_notification_contacts(rule) if rule else []
-            
+
             if not contacts:
                 self.log("WARNING", f"No notification contacts configured for alarm: {rule_name}")
                 return
-            
+
+            # Get tag metadata for proper decimal-place formatting
+            tag_meta = None
+            if rule:
+                tag_id = rule.get("tag_id") or rule.get("target")
+                if tag_id:
+                    tag_meta = self._get_tag_meta(int(tag_id))
+
             # Create notification message using the standard format
             subject = f"ALARM TRIGGERED: {rule_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {rule_name}"
             body = self.create_alarm_email_body(
@@ -806,9 +815,10 @@ class AlarmWorker:
                 threshold=threshold,
                 operator=operator,
                 alarm_level=alarm_level,
-                notification_type=notification_type
+                notification_type=notification_type,
+                tag_meta=tag_meta,
             )
-            
+
             # Send notifications to configured contacts using threads
             for contact in contacts:
                 if contact.get("enabled", True):
@@ -821,7 +831,7 @@ class AlarmWorker:
                             daemon=True
                         )
                         email_thread.start()
-                    
+
                     # Send SMS if contact has phone (queued, serialized)
                     phone = contact.get("phone")
                     if phone and phone.strip():
@@ -831,6 +841,7 @@ class AlarmWorker:
                             threshold=rule.get("threshold"),
                             operator=rule.get("operator"),
                             notification_type=notification_type,
+                            tag_meta=tag_meta,
                         )
                         # Enqueue instead of spawning threads to avoid COM contention
                         try:
@@ -996,6 +1007,25 @@ class AlarmWorker:
         self._tag_transform_cache[tag_id] = (sf, off)
         self._tag_transform_cache_ts[tag_id] = now
         return (sf, off)
+
+    def _get_tag_meta(self, tag_id: int) -> Optional[TagFormatMetadata]:
+        """Trả về TagFormatMetadata cho tag để format giá trị đúng decimal places."""
+        cache_key = f"meta_{tag_id}"
+        now = time.time()
+        if (cache_key in self._tag_transform_cache and
+                now - self._tag_transform_cache_ts.get(cache_key, 0) < self._tag_transform_cache_ttl):
+            return self._tag_transform_cache[cache_key]
+        meta = None
+        try:
+            if self.db_available:
+                tag_info = self.db.get_tag(tag_id)
+                if tag_info:
+                    meta = TagFormatMetadata.from_db_row(tag_info)
+        except Exception:
+            pass
+        self._tag_transform_cache[cache_key] = meta
+        self._tag_transform_cache_ts[cache_key] = now
+        return meta
 
     def _get_tag_value(self, tag_id: int) -> Optional[float]:
         """Get current tag value in engineering units (raw × scale + offset) from tag_latest_values table (per-cycle cache)"""
