@@ -1204,7 +1204,7 @@
 }
 
 .qtag-single-update-time {
-  padding: 2px 14px 8px;
+  padding: 5px 14px;
   font-size: 0.75rem;
   color: #6b7280;
   display: flex;
@@ -1586,12 +1586,12 @@
 /* Last updated footer follows alarm border color (high/low) for PV Only only. */
 .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high .qtag-single-update-time {
   background: rgba(220, 38, 38, 0.14) !important;
-  border-top: 1px solid rgba(220, 38, 38, 0.45) !important;
+  border-top: 1px solid rgba(220, 38, 38, 0) !important;
 }
 
 .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low .qtag-single-update-time {
   background: rgba(245, 158, 11, 0.16) !important;
-  border-top: 1px solid rgba(245, 158, 11, 0.45) !important;
+  border-top: 1px solid rgba(245, 158, 11, 0) !important;
 }
 
 .qtag-single-sub-card.qtag-single-alarm-high .qtag-single-sub-title,
@@ -2123,15 +2123,6 @@
   --pvonly-alarm-border-width: 3px;
 }
 
-.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high .qtag-single-update-time,
-.qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low .qtag-single-update-time {
-  border-top: var(--pvonly-alarm-border-width, 0) solid var(--pvonly-alarm-border-color, transparent) !important;
-  /* Extend divider to meet outer border so the stroke looks continuous. */
-  margin-left: calc(0 * var(--pvonly-alarm-border-width, 0));
-  margin-right: calc(-1 * var(--pvonly-alarm-border-width, 0));
-  padding-left: calc(14px + var(--pvonly-alarm-border-width, 0));
-  padding-right: calc(14px + var(--pvonly-alarm-border-width, 0));
-}
 
 /* PV Only alarm behavior: keep card background unchanged, only border color changes. */
 :root:not([data-bs-theme="dark"]) .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high,

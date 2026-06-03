@@ -55,3 +55,4 @@ config/SMTP_config.json
 *.exe
 /new_requirement/*
 *.lts
+CLAUDE.md
