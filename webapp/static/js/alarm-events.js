@@ -296,7 +296,7 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
       const str = String(value).trim();
       if (!str) return "";
       const normalized = str.replace(/,/g, ".");
-      // Thêm ' để Excel coi là text, không tự đổi sang dấu phẩy theo locale
+      // Giữ nguyên string; numFmt '@' sẽ được set khi ghi cell để Excel nhận Text format
       return `${normalized}`;
     };
     // Determine current filter and custom range BEFORE building API URL
@@ -425,12 +425,18 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
     });
 
     exportItems.forEach(e => {
+      console.log('Processing item for export:', e); // Debug log
       const row = sheet.addRow([
         e.code || "", e.incoming_date || "", normalizeNumber(e.incoming_value),
-        e.outgoing_date || "", normalizeNumber(e.outgoing_value), e.operator || "", normalizeNumber(e.threshold)
+        e.outgoing_date || "", normalizeNumber(e.outgoing_value), e.operator || "", e.threshold
       ]);
+      console.log('Exporting row:', row.values); // Debug log 
       // Căn trái cột ALARM CODE, các cột còn lại giữ center
+      // Cột 3 (INCOMING VALUE), 5 (OUTGOING VALUE), 7 (VALUE COMPARE): numFmt '@' = Text format
       row.eachCell((cell, colNumber) => {
+        if ([3, 5, 7].includes(colNumber) && cell.value !== null && cell.value !== '') {
+          cell.numFmt = '@';
+        }
         cell.alignment = { horizontal: colNumber === 1 ? "left" : "center", vertical: "middle" };
       });
     });

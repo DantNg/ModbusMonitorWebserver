@@ -1,6 +1,39 @@
 from sqlalchemy import func
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
+try:
+    from shared.formatting.value_formatter import (
+        format_tag_value as _fmt_tag_value,
+        TagFormatMetadata as _TagFormatMeta,
+    )
+    _HAS_FORMATTER = True
+except ImportError:
+    _HAS_FORMATTER = False
+
+
+def _alarm_export_str(val, meta=None) -> str:
+    """Chuyển float thành string cho JSON export alarm report.
+    Pattern giống _format_report_items trong reports/routes.py:
+      - Có meta + formatter → format_tag_value → "89.00"
+      - Không có meta hoặc lỗi → str(val) → str(89.0) = "89.0" (vẫn là string, không mất decimal)
+    Quan trọng: LUÔN trả về string để JSON không serialize thành number (89.0→89).
+    """
+    if val is None:
+        return ""
+    if _HAS_FORMATTER and meta is not None:
+        print(f"Attempting to format alarm value using formatter: val={val}, meta={meta}")  
+        try:
+            print(f"Raw value before formatting: {val}- {meta}")
+            print(_fmt_tag_value(float(val), meta).display_text)
+            return _fmt_tag_value(float(val), meta).display_text
+        except Exception:
+            pass
+    try:
+        print(f"Falling back to default string conversion for alarm value: {val}")
+        return str(float(val))
+    except (ValueError, TypeError):
+        print(f"Value {val} cannot be converted to float for alarm export, returning raw string")
+        return str(val)
 def get_tag_values_with_interval(tag_id: int, dt_from, dt_to, interval_sec: float):
     """
     Lấy các giá trị của tag_id trong khoảng thời gian [dt_from, dt_to],
@@ -1783,15 +1816,17 @@ def list_alarm_report(alarm_name=None):
     print("Generating alarm report...")
     items = []
     tag_names = {}
+    tag_meta = {}
     # quad_titles: key = (card_title, tag_id) -> "{card_title} - {column_title}"
     # Using tuple key prevents collision when multiple cards share the same PV tag
     quad_titles = {}
     # Preload tag names and dual-column card titles for export naming
     try:
         with init_engine().connect() as con:
-            tag_rows = con.execute(select(tags.c.id, tags.c.name)).mappings().all()
+            tag_rows = con.execute(select(tags.c.id, tags.c.name, tags.c.scale, tags.c.offset, tags.c.datatype)).mappings().all()
             tag_names = {r["id"]: r["name"] for r in tag_rows}
-
+            if _HAS_FORMATTER:
+                tag_meta = {r["id"]: _TagFormatMeta.from_db_row(dict(r)) for r in tag_rows}
             # Map (card_title, tag_id) -> "{card_title} - {column_title}" for dual-column cards
             # Key includes card_title to avoid overriding single-column cards that share the same tag
 
@@ -1895,6 +1930,7 @@ def list_alarm_report(alarm_name=None):
             alarm_events.c.target,
             alarm_events.c.name,
             alarm_events.c.level,
+            alarm_events.c.note,
             alarm_events.c.operator.label("op"),
             alarm_events.c.threshold.label("th"),
         ).where(
@@ -1905,7 +1941,6 @@ def list_alarm_report(alarm_name=None):
                 alarm_events.c.event_type.is_(None),
             )
         )
-
         # Filter by alarm name at SQL level if specified
         if alarm_name:
             q_in = q_in.where(alarm_events.c.name == alarm_name)
@@ -1933,6 +1968,7 @@ def list_alarm_report(alarm_name=None):
             event_name = inc["name"] or ""
             column_aware_name = quad_titles.get((event_name, inc["target"]))
             export_name = column_aware_name or event_name or tag_names.get(inc["target"], "")
+            meta = tag_meta.get(inc["target"])
 
             items.append({
                 "acknowledged": False,
@@ -1940,11 +1976,11 @@ def list_alarm_report(alarm_name=None):
                 "name": export_name,
                 "level": inc["level"],
                 "incoming_date": inc["incoming_date"].strftime("%d/%m/%Y %H:%M:%S"),
-                "incoming_value": inc["incoming_value"],
+                "incoming_value": _alarm_export_str(inc["incoming_value"], meta),
                 "outgoing_date": out["outgoing_date"].strftime("%d/%m/%Y %H:%M:%S") if out else "",
-                "outgoing_value": out["outgoing_value"] if out else "",
+                "outgoing_value": _alarm_export_str(out["outgoing_value"] if out else None, meta),
                 "operator": inc["op"] if inc["op"] is not None else "",
-                "threshold": inc["th"] if inc["th"] is not None else "",
+                "threshold": inc.get('note', '').split()[-1],
             })
     print(f"Generated {len(items)} alarm report items.")
     return items
@@ -1955,14 +1991,17 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
     print(f"Generating alarm report for range: {start_date} -> {end_date}")
     items = []
     tag_names = {}
+    tag_meta = {}
     # quad_titles: key = (card_title, tag_id) -> "{card_title} - {column_title}"
     # Using tuple key prevents collision when multiple cards share the same PV tag
     quad_titles = {}
     # Preload tag and dual-column card names for correct export labels
     try:
         with init_engine().connect() as con:
-            tag_rows = con.execute(select(tags.c.id, tags.c.name)).mappings().all()
+            tag_rows = con.execute(select(tags.c.id, tags.c.name, tags.c.scale, tags.c.offset, tags.c.datatype)).mappings().all()
             tag_names = {r["id"]: r["name"] for r in tag_rows}
+            if _HAS_FORMATTER:
+                tag_meta = {r["id"]: _TagFormatMeta.from_db_row(dict(r)) for r in tag_rows}
 
             # Map (card_title, tag_id) -> "{card_title} - {column_title}" for dual-column cards
             # Key includes card_title to avoid overriding single-column cards that share the same tag
@@ -2108,6 +2147,7 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
             event_name = inc["name"] or ""
             column_aware_name = quad_titles.get((event_name, inc["target"]))
             export_name = column_aware_name or event_name or tag_names.get(inc["target"], "")
+            meta = tag_meta.get(inc["target"])
 
             items.append({
                 "acknowledged": False,
@@ -2115,11 +2155,11 @@ def list_alarm_report_by_date_range(start_date, end_date, alarm_name=None):
                 "name": export_name,
                 "level": inc["level"],
                 "incoming_date": inc["incoming_date"].strftime("%d/%m/%Y %H:%M:%S"),
-                "incoming_value": inc["incoming_value"],
+                "incoming_value": _alarm_export_str(inc["incoming_value"], meta),
                 "outgoing_date": out["outgoing_date"].strftime("%d/%m/%Y %H:%M:%S") if out else "",
-                "outgoing_value": out["outgoing_value"] if out else "",
+                "outgoing_value": _alarm_export_str(out["outgoing_value"] if out else None, meta),
                 "operator": inc["op"] if inc["op"] is not None else "",
-                "threshold": inc["th"] if inc["th"] is not None else "",
+                "threshold": _alarm_export_str(inc["th"], meta),
             })
     print(f"Generated {len(items)} alarm report items (filtered).")
     return items
