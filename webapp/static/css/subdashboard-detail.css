@@ -594,7 +594,7 @@
 }
 
 .qtag6-sv-low {
-  font-size: clamp(0.85rem, 1.3rem, 1.3rem) !important;
+  font-size: clamp(0.95rem, 1.5rem, 1.5rem) !important;
   font-weight: 700 !important;
   color: #38bdf8 !important;
   line-height: 1 !important;
@@ -611,7 +611,7 @@
 }
 
 .qtag6-sv-separator {
-  font-size: 1.3rem !important;
+  font-size: 1.5rem !important;
   font-weight: 700 !important;
   color: #6b7280 !important;
   line-height: 1 !important;
@@ -619,7 +619,7 @@
 }
 
 .qtag6-sv-high {
-  font-size: clamp(0.85rem, 1.3rem, 1.3rem) !important;
+  font-size: clamp(0.95rem, 1.5rem, 1.5rem) !important;
   font-weight: 700 !important;
   color: #fb923c !important;
   line-height: 1 !important;
@@ -1240,7 +1240,7 @@
 }
 
 .qtag-single-sv-low {
-  font-size: 1.3rem !important;
+  font-size: 1.5rem !important;
   font-weight: 700 !important;
   color: #38bdf8 !important;
   line-height: 1 !important;
@@ -1248,7 +1248,7 @@
 }
 
 .qtag-single-sv-high {
-  font-size: 1.3rem !important;
+  font-size: 1.5rem !important;
   font-weight: 700 !important;
   color: #fb923c !important;
   line-height: 1 !important;
@@ -1256,7 +1256,7 @@
 }
 
 .qtag-single-sv-separator {
-  font-size: 1.3rem !important;
+  font-size: 1.5rem !important;
   font-weight: 700 !important;
   color: #6b7280 !important;
   line-height: 1 !important;

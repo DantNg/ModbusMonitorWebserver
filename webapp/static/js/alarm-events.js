@@ -124,7 +124,7 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
         tbody.innerHTML = "";
 
         if (data.items.length === 0) {
-          const colCount = (window.ALARM_EVENTS_CONFIG && window.ALARM_EVENTS_CONFIG.isAdmin) ? 7 : 6;
+          const colCount = (window.ALARM_EVENTS_CONFIG && window.ALARM_EVENTS_CONFIG.isAdmin) ? 5 : 4;
           tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center text-muted py-4">No alarm events.</td></tr>`;
         } else {
           data.items.forEach(e => {
@@ -140,19 +140,6 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
                                    eventType === 'INCOMING' ? "text-bg-danger" :
                                    "text-bg-secondary";
 
-            // Badge màu cho Level
-            const level = (e.level || "");
-            const levelBadgeClass =
-              level === 'Critical' ? "text-bg-danger" :
-              level === 'High'     ? "text-bg-warning text-dark" :
-              level === 'Medium'   ? "text-bg-info text-dark" :
-                                     "text-bg-secondary";
-
-            // Badge màu cho Status (INCOMING / OUTGOING)
-            const statusBadgeClass = eventType === 'INCOMING' ? "text-bg-danger" :
-                                     eventType === 'OUTGOING' ? "text-bg-success" :
-                                     "text-bg-secondary";
-
             const row = document.createElement("tr");
             row.className = rowClass;
 
@@ -164,9 +151,7 @@ const ALARM_EVENTS_CONFIG = window.ALARM_EVENTS_CONFIG || {};
             ${checkboxTd}
             <td>${escapeHtml(e.ts || "")}</td>
             <td>${escapeHtml(e.name || "")}</td>
-            <td class="text-center"><span class="badge ${levelBadgeClass}">${escapeHtml(level || "—")}</span></td>
             <td class="text-center">${escapeHtml(String(e.value ?? ""))}</td>
-            <td class="text-center"><span class="badge ${statusBadgeClass}">${escapeHtml(eventType || "—")}</span></td>
             <td><span class="badge ${noteBadgeClass}">${escapeHtml(e.note || "")}</span></td>
           `;
 

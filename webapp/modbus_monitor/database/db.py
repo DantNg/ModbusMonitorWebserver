@@ -3849,10 +3849,39 @@ def get_quad_cards_for_group(group_id: int):
 
         return result
 
+def _purge_card_alarm_rows(con, card_type: str, card_id: int) -> None:
+    """Xóa mọi alarm condition + state gắn với một card cụ thể.
+
+    card_alarm_conditions / card_alarm_states là polymorphic theo (card_type, card_id)
+    và KHÔNG có foreign key tới bảng card → không tự cascade khi xóa card. Phải xóa
+    tay, nếu không sẽ để lại orphan rows khiến:
+      (1) periodic sync (fetchAndApplyCardAlarms) re-apply màu alarm cho card đã xóa,
+      (2) card mới tái sử dụng id (DB cấp lại sau restart) kế thừa condition/state cũ
+          → alarm trigger sai NGAY LẬP TỨC, bỏ qua stable time.
+    """
+    con.execute(
+        delete(card_alarm_states).where(
+            (card_alarm_states.c.card_type == card_type) &
+            (card_alarm_states.c.card_id == card_id)
+        )
+    )
+    con.execute(
+        delete(card_alarm_conditions).where(
+            (card_alarm_conditions.c.card_type == card_type) &
+            (card_alarm_conditions.c.card_id == card_id)
+        )
+    )
+
+
 def delete_quad_card(quad_card_id: int) -> bool:
     """Delete a quad tag card."""
     try:
         with init_engine().begin() as con:
+            # quad_tag_conditions tự cascade (có FK ondelete=CASCADE), nhưng
+            # quad_alarm_states KHÔNG có FK nên phải xóa tay để tránh orphan state.
+            con.execute(
+                delete(quad_alarm_states).where(quad_alarm_states.c.quad_id == quad_card_id)
+            )
             result = con.execute(
                 delete(subdash_quad_cards).where(subdash_quad_cards.c.id == quad_card_id)
             )
@@ -4091,6 +4120,7 @@ def delete_qtag6_card(card_id: int) -> bool:
     """Delete a qtag6 card."""
     try:
         with init_engine().begin() as con:
+            _purge_card_alarm_rows(con, 'qtag6', card_id)
             result = con.execute(
                 delete(subdash_qtag6_cards).where(subdash_qtag6_cards.c.id == card_id)
             )
@@ -4212,6 +4242,7 @@ def delete_qtag4_card(card_id: int) -> bool:
     """Delete a qtag4 card."""
     try:
         with init_engine().begin() as con:
+            _purge_card_alarm_rows(con, 'qtag4', card_id)
             result = con.execute(
                 delete(subdash_qtag4_cards).where(subdash_qtag4_cards.c.id == card_id)
             )
@@ -4333,6 +4364,7 @@ def delete_qtag3_card(card_id: int) -> bool:
     """Delete a qtag3 card."""
     try:
         with init_engine().begin() as con:
+            _purge_card_alarm_rows(con, 'qtag3', card_id)
             result = con.execute(
                 delete(subdash_qtag3_cards).where(subdash_qtag3_cards.c.id == card_id)
             )
@@ -4430,6 +4462,7 @@ def delete_qtag2_card(card_id: int) -> bool:
     """Delete a qtag2 card."""
     try:
         with init_engine().begin() as con:
+            _purge_card_alarm_rows(con, 'qtag2', card_id)
             result = con.execute(
                 delete(subdash_qtag2_cards).where(subdash_qtag2_cards.c.id == card_id)
             )
@@ -4556,6 +4589,7 @@ def delete_qtag_single3_card(card_id: int) -> bool:
     """Delete a qtag single3 card."""
     try:
         with init_engine().begin() as con:
+            _purge_card_alarm_rows(con, 'single3', card_id)
             result = con.execute(
                 delete(subdash_qtag_single3_cards).where(subdash_qtag_single3_cards.c.id == card_id)
             )
@@ -4632,6 +4666,7 @@ def delete_qtag_pv_card(card_id: int) -> bool:
     """Delete a qtag PV only card."""
     try:
         with init_engine().begin() as con:
+            _purge_card_alarm_rows(con, 'pv_only', card_id)
             result = con.execute(
                 delete(subdash_qtag_pv_cards).where(subdash_qtag_pv_cards.c.id == card_id)
             )
@@ -4722,6 +4757,7 @@ def delete_qtag_pv_dual_card(card_id: int) -> bool:
     """Delete a qtag PV dual card."""
     try:
         with init_engine().begin() as con:
+            _purge_card_alarm_rows(con, 'pv_dual', card_id)
             result = con.execute(
                 delete(subdash_qtag_pv_dual_cards).where(subdash_qtag_pv_dual_cards.c.id == card_id)
             )

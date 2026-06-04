@@ -1028,6 +1028,22 @@ class AlarmWorker:
         self._tag_transform_cache_ts[cache_key] = now
         return meta
 
+    def _format_threshold_for_note(self, threshold, compare_tag_id: Optional[int] = None) -> str:
+        """Format ngưỡng alarm cho note (in-app notification / alarm history).
+
+        Khi ngưỡng so sánh là giá trị của một tag (compare_type == "tag"), dùng
+        decimal places của tag đó để giữ đúng số chữ số thập phân (vd: 89.0 thay
+        vì 89). Với ngưỡng tĩnh hoặc khi thiếu metadata, dùng :.10g để loại bỏ
+        floating-point noise (vd: 2713.6000000000004 → 2713.6).
+        """
+        if threshold is None:
+            return "N/A"
+        if compare_tag_id:
+            meta = self._get_tag_meta(int(compare_tag_id))
+            if meta is not None:
+                return format_alarm_threshold(threshold, meta)
+        return f"{float(threshold):.10g}"
+
     def _get_tag_value(self, tag_id: int) -> Optional[float]:
         """Get current tag value in engineering units (raw × scale + offset) from tag_latest_values table (per-cycle cache)"""
         if not self.db_available:
@@ -1666,6 +1682,10 @@ class AlarmWorker:
             low_threshold=low_threshold,
             high_op=high_op,
             low_op=low_op,
+            # Compare tag ids (chỉ khi compare_type == "tag") để format threshold
+            # đúng decimal places của tag được so sánh (vd: 89.0 thay vì 89).
+            high_threshold_tag_id=high_compare_tag_id if high_compare_type == "tag" else None,
+            low_threshold_tag_id=low_compare_tag_id if low_compare_type == "tag" else None,
             card_info=card_info,
             reconnected=reconnected,
         )
@@ -1694,6 +1714,8 @@ class AlarmWorker:
         low_threshold: float,
         high_op: str,
         low_op: str,
+        high_threshold_tag_id: Optional[int] = None,
+        low_threshold_tag_id: Optional[int] = None,
         card_info: dict = None,
         reconnected: bool = False,
     ):
@@ -1812,8 +1834,10 @@ class AlarmWorker:
                 if self.db_available:
                     try:
                         note_prefix = f"{column_display} - " if column_display else ""
-                        # Format threshold để tránh floating point noise (vd: 2713.6000000000004 → 2713.6)
-                        threshold_display = f"{float(threshold):.10g}" if threshold is not None else "N/A"
+                        # Format threshold: nếu so sánh với tag, giữ decimal places của
+                        # tag đó (vd: 89.0); nếu tĩnh, dùng :.10g để bỏ floating noise.
+                        threshold_tag_id = high_threshold_tag_id if alarm_type == "High" else low_threshold_tag_id
+                        threshold_display = self._format_threshold_for_note(threshold, threshold_tag_id)
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now, name=alarm_name, level="Critical",
                             target=pv_tag_id, value=pv_value,
@@ -1871,8 +1895,9 @@ class AlarmWorker:
                 if self.db_available:
                     try:
                         note_prefix = f"{column_display} - " if column_display else ""
-                        # Format threshold để tránh floating point noise
-                        stored_threshold_display = f"{float(stored_threshold):.10g}" if stored_threshold is not None else "N/A"
+                        # Format threshold: giữ decimal places của compare tag nếu có.
+                        stored_threshold_tag_id = high_threshold_tag_id if alarm_type == "High" else low_threshold_tag_id
+                        stored_threshold_display = self._format_threshold_for_note(stored_threshold, stored_threshold_tag_id)
                         event_id = self.db.insert_alarm_event(
                             ts=ts_now, name=alarm_name, level="Warning",
                             target=pv_tag_id, value=pv_value,
