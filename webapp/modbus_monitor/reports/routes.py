@@ -16,15 +16,20 @@ except ImportError:
 def _format_report_items(items: list, tag_meta_full: dict) -> list:
     """Format tất cả giá trị số trong report items theo shared/formatting rules.
     Tag values trong DB là raw float, cần format đúng số thập phân trước khi gửi FE.
+
+    QUAN TRỌNG: mọi giá trị số phải được gửi về FE dưới dạng STRING. Nếu để dạng
+    JSON number, trailing zero bị mất khi JS gọi String(89.0) -> "89" (mất ".0").
+    Vì vậy ngay cả khi không có metadata / formatter, vẫn ép str(val) để giữ nguyên
+    biểu diễn thập phân.
     """
-    if not _FORMATTER_AVAILABLE:
-        return items
     for item in items:
         for col, val in item.items():
             if col == 'timestamp' or val is None or val == '':
                 continue
-            meta = tag_meta_full.get(col)
+            meta = tag_meta_full.get(col) if _FORMATTER_AVAILABLE else None
             if not meta:
+                # Fallback: giữ nguyên biểu diễn thập phân dạng string (str(89.0) == "89.0")
+                item[col] = str(val)
                 continue
             try:
                 fmt_meta = _TagFmtMeta(

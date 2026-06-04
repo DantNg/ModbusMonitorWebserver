@@ -969,11 +969,26 @@ const REPORTS_CONFIG = window.REPORTS_CONFIG || {};
       }
 
       // Data rows with comparison highlighting
+      // Matches plain decimal numbers like "89", "89.0", "-12.34". Values đã được
+      // format sẵn trên BE (giữ đúng số chữ số thập phân của tag). Ta ghi chúng dưới
+      // dạng SỐ thực kèm numFmt để Excel hiển thị đúng trailing zero (89.0) mà vẫn
+      // là number (canh phải, sort/filter/công thức được), tránh "stored as text".
+      const NUMERIC_RE = /^-?\d+(\.\d+)?$/;
       bodyRows.forEach((rowData, rowIdx) => {
         const excelRow = sheet.addRow(rowData);
-        
+
         // Set borders and alignment for all cells in this row
         excelRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          // Convert numeric value cells (không phải cột timestamp) sang number + numFmt
+          if ((colNumber - 1) !== timestampIndex && typeof cell.value === 'string') {
+            const s = cell.value.trim();
+            if (NUMERIC_RE.test(s)) {
+              const dotIdx = s.indexOf('.');
+              const decimals = dotIdx === -1 ? 0 : (s.length - dotIdx - 1);
+              cell.value = Number(s);
+              cell.numFmt = decimals > 0 ? ('0.' + '0'.repeat(decimals)) : '0';
+            }
+          }
           cell.border = {
             top: { style: 'thin' },
             bottom: { style: 'thin' },
