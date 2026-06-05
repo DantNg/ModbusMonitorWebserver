@@ -753,7 +753,71 @@ def create_schema():
     _migrate_pv_description(engine)
     # Migrate: add event_type, operator, threshold to alarm_events (backfill NULLs → INCOMING)
     _migrate_alarm_events_columns(engine)
+    # Migrate: add email/sms/description notification columns to card_alarm_conditions and quad_tag_conditions
+    _migrate_card_alarm_notification_columns(engine)
+    # Migrate: add/widen email, sms, description columns in alarm_rules for tag alarms
+    _migrate_alarm_rules_notification_columns(engine)
     # create_performance_indexes()
+
+
+def _migrate_alarm_rules_notification_columns(engine):
+    """Ensure email, sms, description columns exist and are wide enough in alarm_rules.
+
+    Older deployments may have these columns missing entirely (ADD) or too narrow (MODIFY).
+    Safe for repeated calls.
+    """
+    add_cols = [
+        ('email',       'VARCHAR(512)'),
+        ('sms',         'VARCHAR(255)'),
+        ('description', 'VARCHAR(255)'),
+    ]
+    with engine.connect() as con:
+        for col_name, col_type in add_cols:
+            try:
+                con.execute(text(f"SELECT {col_name} FROM alarm_rules LIMIT 1"))
+                # Column exists – widen if needed (MODIFY is idempotent for same/wider type)
+                try:
+                    con.execute(text(f"ALTER TABLE alarm_rules MODIFY {col_name} {col_type} NULL"))
+                    con.commit()
+                except Exception:
+                    pass
+            except Exception:
+                # Column missing – add it
+                try:
+                    con.execute(text(f"ALTER TABLE alarm_rules ADD COLUMN {col_name} {col_type} NULL"))
+                    con.commit()
+                    print(f"[migrate] Added {col_name} to alarm_rules")
+                except Exception as e:
+                    print(f"[migrate] Could not add {col_name} to alarm_rules: {e}")
+
+
+def _migrate_card_alarm_notification_columns(engine):
+    """Add email/sms/description notification columns to card_alarm_conditions and quad_tag_conditions.
+
+    These columns were added after initial deployment so existing databases need migration.
+    Safe for repeated calls (idempotent via try/except probe).
+    """
+    notification_cols = [
+        ('left_email',       'VARCHAR(500)'),
+        ('left_sms',         'VARCHAR(500)'),
+        ('left_description', 'VARCHAR(500)'),
+        ('right_email',      'VARCHAR(500)'),
+        ('right_sms',        'VARCHAR(500)'),
+        ('right_description','VARCHAR(500)'),
+    ]
+    tables = ['card_alarm_conditions', 'quad_tag_conditions']
+    with engine.connect() as con:
+        for tbl in tables:
+            for col_name, col_type in notification_cols:
+                try:
+                    con.execute(text(f"SELECT {col_name} FROM {tbl} LIMIT 1"))
+                except Exception:
+                    try:
+                        con.execute(text(f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_type}"))
+                        con.commit()
+                        print(f"[migrate] Added {col_name} to {tbl}")
+                    except Exception as e:
+                        print(f"[migrate] Could not add {col_name} to {tbl}: {e}")
 
 
 def _migrate_alarm_events_columns(engine):

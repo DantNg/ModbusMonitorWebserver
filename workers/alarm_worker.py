@@ -1370,50 +1370,8 @@ class AlarmWorker:
         return tag_ids
 
     def _get_card_managed_tag_ids(self) -> set:
-        """Get all tag IDs managed by card alarm conditions to skip in regular evaluation."""
-        now = time.time()
-        if (now - self._managed_tag_ids_ts) < self._managed_tag_ids_ttl:
-            return self._managed_tag_ids
-
-        tag_ids = set()
-        try:
-            if not self.db_available:
-                return tag_ids
-
-            conditions = self.db.get_all_active_card_conditions()
-            if not conditions:
-                self._card_managed_tag_ids = tag_ids
-                self._card_managed_tag_ids_ts = now
-                return tag_ids
-
-            for condition in conditions:
-                card_type = condition.get("card_type")
-                card_id = condition.get("card_id")
-                if not card_type or not card_id:
-                    continue
-
-                cache_key = f"{card_type}_{card_id}"
-                cached = self._card_info_cache.get(cache_key)
-                if cached and (now - cached['ts']) < self._card_info_cache_ttl:
-                    card_info = cached['data']
-                else:
-                    card_info = self.db.get_card_info_for_alarm(card_type, card_id)
-                    self._card_info_cache[cache_key] = {'data': card_info, 'ts': now}
-
-                if not card_info:
-                    continue
-
-                # Extract PV tag IDs based on card type
-                pv_tags = self._get_card_pv_tag_ids(card_type, card_info)
-                tag_ids.update(pv_tags)
-
-            self._card_managed_tag_ids = tag_ids
-            self._card_managed_tag_ids_ts = now
-
-        except Exception as e:
-            self.log("ERROR", f"Failed to get card managed tag IDs: {e}")
-
-        return self._card_managed_tag_ids
+        """Delegate to unified _get_all_managed_tag_ids (kept for backward compat)."""
+        return self._get_all_managed_tag_ids()
 
     def _evaluate_card_conditions(self):
         """Evaluate tất cả qtag card conditions (cả card lẫn quad) dùng Strategy Pattern.
@@ -1851,7 +1809,7 @@ class AlarmWorker:
                     except Exception as e:
                         self.log("ERROR", f"Failed to save alarm event: {e}")
 
-                if email or sms:
+                if self.config.enable_notifications and (email or sms):
                     self._send_card_notification(
                         alarm_key, alarm_name, pv_value, threshold, operator,
                         "incoming", email, sms, description, on_stable_sec,
@@ -1909,7 +1867,7 @@ class AlarmWorker:
                     except Exception as e:
                         self.log("ERROR", f"Failed to save alarm clear event: {e}")
 
-                if email or sms:
+                if self.config.enable_notifications and (email or sms):
                     self._send_card_notification(
                         alarm_key, alarm_name, pv_value, stored_threshold, stored_operator,
                         "outgoing", email, sms, description, off_stable_sec,
