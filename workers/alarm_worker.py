@@ -1709,6 +1709,13 @@ class AlarmWorker:
         alarm_name = strategy.get_display_name(card_id, card_info) if card_info else f"{strategy.card_type} {card_id}"
         column_display = strategy.get_column_display(column, card_info) if card_info else column.capitalize()
 
+        # Notification name: thêm tên cột (Left/Right) cho dual-column cards (qtag6, qtag4, quad, pv_dual)
+        if column in ("left", "right"):
+            _col_label = column_display if column_display else column.capitalize()
+            notif_alarm_name = f"{alarm_name} ({_col_label})"
+        else:
+            notif_alarm_name = alarm_name
+
         # ── Alarm type change: HIGH → LOW hoặc LOW → HIGH ────────────────────
         alarm_type_changed = (
             previous_active and current_condition
@@ -1811,7 +1818,7 @@ class AlarmWorker:
 
                 if self.config.enable_notifications and (email or sms):
                     self._send_card_notification(
-                        alarm_key, alarm_name, pv_value, threshold, operator,
+                        alarm_key, notif_alarm_name, pv_value, threshold, operator,
                         "incoming", email, sms, description, on_stable_sec,
                         device_name=strategy.device_label,
                     )
@@ -1869,7 +1876,7 @@ class AlarmWorker:
 
                 if self.config.enable_notifications and (email or sms):
                     self._send_card_notification(
-                        alarm_key, alarm_name, pv_value, stored_threshold, stored_operator,
+                        alarm_key, notif_alarm_name, pv_value, stored_threshold, stored_operator,
                         "outgoing", email, sms, description, off_stable_sec,
                         device_name=strategy.device_label,
                     )
@@ -1931,15 +1938,31 @@ class AlarmWorker:
         if description:
             body += f"\n\nDescription: {description}"
 
-        if email and email.strip():
+        def _split_contacts(raw: str):
+            if not raw:
+                return []
+            s = raw
+            for sep in (',', ';', '\n', '\r', '\t'):
+                s = s.replace(sep, ' ')
+            items = [x.strip() for x in s.split() if x.strip()]
+            seen = set()
+            result = []
+            for x in items:
+                if x not in seen:
+                    seen.add(x)
+                    result.append(x)
+            return result
+
+        for em in _split_contacts(email):
             email_thread = threading.Thread(
                 target=self._send_email_async,
-                args=(email.strip(), subject, body, hash(alarm_key)),
+                args=(em, subject, body, hash(alarm_key)),
                 daemon=True,
             )
             email_thread.start()
 
-        if sms and sms.strip():
+        phones = _split_contacts(sms)
+        if phones:
             sms_message = self.create_alarm_sms_text(
                 alarm_name=alarm_name,
                 tag_value=value,
@@ -1949,11 +1972,13 @@ class AlarmWorker:
             )
             if description:
                 sms_message += f"\nNote: {description[:50]}"
-            try:
-                if self.sms_queue is not None:
-                    self.sms_queue.put_nowait((sms.strip(), sms_message, hash(alarm_key)))
-            except Exception as e:
-                self.log("ERROR", f"Failed to queue SMS for alarm: {e}")
+            for ph in phones:
+                try:
+                    if self.sms_queue is not None:
+                        self.sms_queue.put_nowait((ph, sms_message, hash(alarm_key)))
+                        self.log("DEBUG", f"📥 Queued SMS to {ph}")
+                except Exception as e:
+                    self.log("ERROR", f"Failed to queue SMS to {ph}: {e}")
 
         if hash(alarm_key) not in self._last_notification:
             self._last_notification[hash(alarm_key)] = {}

@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture Map — Flask Modbus Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050a14;--bg2:#0a1120;--bg3:#0f1930;--bg4:#162040;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#475569;
+  --accent:#4a9eff;--accent2:#00ff88;
+  --sidebar:260px;--detail:400px;--topbar:52px;
+  --radius:10px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;overflow:hidden;font-size:13px}
+
+/* ── TOPBAR ── */
+#topbar{
+  height:var(--topbar);background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 14px;gap:12px;
+  position:fixed;top:0;left:0;right:0;z-index:200;
+}
+.logo{display:flex;align-items:center;gap:9px;white-space:nowrap}
+.logo-mark{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,#00ff88 0%,#4a9eff 100%);
+  display:flex;align-items:center;justify-content:center;font-size:15px;
+  box-shadow:0 0 16px rgba(0,255,136,0.3);
+}
+.logo-text{font-weight:700;font-size:14px;letter-spacing:-0.01em}
+.logo-sub{font-size:10px;color:var(--text3);font-weight:400}
+.top-sep{width:1px;height:24px;background:var(--border)}
+.view-tabs{display:flex;gap:2px}
+.vtab{
+  padding:5px 13px;font-size:12px;font-weight:500;color:var(--text2);
+  border-radius:6px;cursor:pointer;transition:all .15s;border:1px solid transparent;
+}
+.vtab:hover{color:var(--text);background:var(--bg3)}
+.vtab.active{color:var(--accent);background:rgba(74,158,255,.1);border-color:rgba(74,158,255,.25)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.top-stat{
+  display:flex;align-items:center;gap:6px;
+  font-size:11px;color:var(--text3);
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;padding:4px 10px;
+}
+.stat-dot{width:6px;height:6px;border-radius:50%;background:var(--accent2);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.iBtn{
+  width:30px;height:30px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:13px;transition:all .15s;color:var(--text2);
+}
+.iBtn:hover{background:var(--bg4);color:var(--text)}
+
+/* ── LAYOUT ── */
+#app{display:flex;height:100%;padding-top:var(--topbar)}
+
+/* ── SIDEBAR ── */
+#sidebar{
+  width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;
+}
+.sb-head{padding:12px 12px 8px;border-bottom:1px solid var(--border)}
+.search-wrap{position:relative}
+.search-wrap input{
+  width:100%;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);padding:7px 10px 7px 30px;border-radius:8px;
+  font-size:12px;font-family:'Inter',sans-serif;outline:none;transition:border-color .15s;
+}
+.search-wrap input:focus{border-color:var(--accent)}
+.search-wrap input::placeholder{color:var(--text3)}
+.search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px;pointer-events:none}
+.sb-filters{padding:10px 12px;border-bottom:1px solid var(--border)}
+.sb-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}
+.cat-row{
+  display:flex;align-items:center;gap:7px;padding:4px 5px;
+  border-radius:5px;cursor:pointer;transition:background .1s;
+}
+.cat-row:hover{background:var(--bg3)}
+.cat-row input[type=checkbox]{accent-color:var(--accent);width:12px;height:12px;cursor:pointer}
+.cat-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.cat-lbl{font-size:11px;flex:1}
+.cat-cnt{font-size:10px;color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:9px}
+.sb-nodes{flex:1;overflow-y:auto;padding:6px 8px 10px}
+.sb-nodes::-webkit-scrollbar{width:3px}
+.sb-nodes::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.nli{
+  display:flex;align-items:center;gap:7px;padding:5px 7px;
+  border-radius:6px;cursor:pointer;transition:all .1s;border:1px solid transparent;
+  margin-bottom:1px;
+}
+.nli:hover{background:var(--bg3)}
+.nli.active{background:rgba(74,158,255,.08);border-color:rgba(74,158,255,.2)}
+.nli.dimmed{opacity:.35}
+.nli-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.nli-name{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.nli-cat{font-size:9px;color:var(--text3);flex-shrink:0}
+.nli-group{font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;padding:8px 6px 3px;margin-top:4px}
+
+/* ── MAIN GRAPH ── */
+#main{flex:1;overflow:hidden;position:relative}
+#graph-svg{width:100%;height:100%;display:block}
+
+/* SVG elements */
+.link{fill:none;stroke-opacity:.5;stroke-width:1.5}
+.link.spawns{stroke:#00ff88}
+.link.http{stroke:#fb923c;stroke-dasharray:5,3}
+.link.socket_io{stroke:#4a9eff;stroke-dasharray:4,2}
+.link.imports{stroke:rgba(255,255,255,.2)}
+.link.db_read{stroke:#a855f7;stroke-dasharray:3,2}
+.link.uses{stroke:#06b6d4}
+.link.registers{stroke:#60a5fa}
+.link.connects{stroke:#f43f5e}
+.link.serves{stroke:#fbbf24;stroke-dasharray:6,3}
+
+.gnode{cursor:pointer}
+.gnode rect{stroke-width:1.5;rx:8;transition:filter .2s}
+.gnode:hover rect{filter:brightness(1.25) drop-shadow(0 0 8px var(--glow,#fff3))}
+.gnode.selected rect{stroke-width:2.5;filter:brightness(1.2) drop-shadow(0 0 14px var(--glow,#fff5))}
+.gnode.dimmed rect{opacity:.18}
+.gnode.dimmed text{opacity:.18}
+.gnode.highlighted rect{filter:brightness(1.4) drop-shadow(0 0 16px var(--glow,#fff5))}
+.gnode-icon{font-size:14px;dominant-baseline:middle;text-anchor:middle;pointer-events:none}
+.gnode-title{fill:#e2e8f0;font-size:10.5px;font-family:'Inter',sans-serif;dominant-baseline:middle;pointer-events:none}
+.gnode-sub{fill:#64748b;font-size:9px;font-family:'JetBrains Mono',monospace;dominant-baseline:middle;pointer-events:none}
+
+/* ── DETAIL PANEL ── */
+#detail{
+  width:0;background:var(--bg2);border-left:1px solid var(--border);
+  overflow:hidden;transition:width .28s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;flex-shrink:0;
+}
+#detail.open{width:var(--detail)}
+#detail-inner{width:var(--detail);height:100%;display:flex;flex-direction:column;overflow:hidden}
+.d-head{padding:14px 14px 12px;border-bottom:1px solid var(--border)}
+.d-head-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.d-icon{
+  width:38px;height:38px;border-radius:9px;display:flex;align-items:center;
+  justify-content:center;font-size:17px;flex-shrink:0;
+}
+.d-title-wrap{flex:1;overflow:hidden}
+.d-name{font-size:14px;font-weight:600;line-height:1.3;word-break:break-all}
+.d-path{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.d-close{
+  width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text3);border-radius:4px;transition:all .1s;font-size:16px;
+}
+.d-close:hover{color:var(--text);background:var(--bg3)}
+.d-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10px;font-weight:600;padding:2px 9px;border-radius:11px;
+  text-transform:uppercase;letter-spacing:.05em;margin-top:4px;
+}
+.d-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 14px}
+.d-tab{
+  padding:7px 11px;font-size:11px;font-weight:500;color:var(--text3);
+  cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;
+}
+.d-tab:hover{color:var(--text)}
+.d-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+#d-content{flex:1;overflow-y:auto;padding:14px}
+#d-content::-webkit-scrollbar{width:3px}
+#d-content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.dtc{display:none}
+.dtc.active{display:block}
+
+/* Detail sections */
+.ds{margin-bottom:18px}
+.ds-title{
+  font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;
+  letter-spacing:.07em;margin-bottom:8px;display:flex;align-items:center;gap:8px;
+}
+.ds-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.ds-desc{font-size:12px;color:var(--text2);line-height:1.65}
+.code-block{
+  background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:9px 11px;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+  color:#a5f3fc;overflow-x:auto;margin:5px 0;line-height:1.6;
+}
+.ck{color:#60a5fa}.cv{color:#34d399}.cs{color:#fb923c}.cc{color:#475569}.cp{color:#a78bfa}
+
+/* Conn items */
+.conn{
+  display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:6px;
+  cursor:pointer;transition:background .1s;border:1px solid transparent;margin-bottom:2px;
+}
+.conn:hover{background:var(--bg3);border-color:var(--border)}
+.conn-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.conn-name{font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conn-lbl{
+  font-size:9px;color:var(--text3);font-family:'JetBrains Mono',monospace;
+  background:var(--bg3);padding:1px 5px;border-radius:3px;white-space:nowrap;
+}
+.conn-dir{font-size:11px;color:var(--text3)}
+
+/* Method/item list */
+.mi{display:flex;align-items:flex-start;gap:8px;padding:4px 6px;border-radius:4px;margin-bottom:1px}
+.mi:hover{background:var(--bg3)}
+.mi-badge{
+  font-size:9px;padding:1px 6px;border-radius:4px;font-family:'Inter',sans-serif;
+  font-weight:600;flex-shrink:0;margin-top:1px;text-transform:uppercase;letter-spacing:.04em;
+}
+.b-class{background:rgba(167,139,250,.15);color:#a78bfa}
+.b-func{background:rgba(52,211,153,.15);color:#34d399}
+.b-event{background:rgba(74,158,255,.15);color:#4a9eff}
+.b-route{background:rgba(251,146,60,.15);color:#fb923c}
+.b-table{background:rgba(168,85,247,.15);color:#a855f7}
+.mi-content{flex:1}
+.mi-name{font-family:'JetBrains Mono',monospace;font-size:11px;color:#a5f3fc;font-weight:500}
+.mi-desc{font-size:11px;color:var(--text3);margin-top:1px;line-height:1.45}
+
+/* Graph tools */
+#gtools{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px}
+.gtool{
+  width:30px;height:30px;background:var(--bg2);border:1px solid var(--border);
+  border-radius:7px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:13px;transition:all .15s;color:var(--text2);
+  user-select:none;
+}
+.gtool:hover{background:var(--bg4);color:var(--text)}
+
+/* Legend */
+#legend{
+  position:absolute;bottom:14px;left:12px;
+  background:rgba(10,17,32,.92);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;backdrop-filter:blur(8px);
+  transition:opacity .2s;
+}
+#legend.collapsed .legend-body{display:none}
+.legend-hd{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.legend-row{display:flex;align-items:center;gap:7px;padding:2px 0;font-size:10px;color:var(--text2)}
+.legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.legend-sep{height:1px;background:var(--border);margin:5px 0}
+.legend-line-row{display:flex;align-items:center;gap:7px;padding:2px 0;font-size:10px;color:var(--text2)}
+.legend-line{width:22px;height:2px;flex-shrink:0;border-radius:1px}
+.legend-dash{
+  width:22px;height:2px;flex-shrink:0;
+  background:repeating-linear-gradient(90deg,currentColor 0,currentColor 4px,transparent 4px,transparent 7px);
+}
+
+/* Status bar */
+#status{
+  position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  background:rgba(10,17,32,.9);border:1px solid var(--border);
+  border-radius:20px;padding:4px 12px;font-size:10px;color:var(--text3);
+  display:flex;align-items:center;gap:7px;pointer-events:none;backdrop-filter:blur(8px);
+  white-space:nowrap;
+}
+#status b{color:var(--text2);font-weight:600}
+
+/* Tooltip */
+#tt{
+  position:fixed;background:var(--bg2);border:1px solid var(--border2);
+  border-radius:9px;padding:8px 12px;pointer-events:none;z-index:999;
+  display:none;max-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.5);
+}
+#tt .tt-name{font-weight:600;font-size:12px;margin-bottom:2px}
+#tt .tt-cat{font-size:10px;color:var(--text3)}
+#tt .tt-desc{font-size:11px;color:var(--text2);margin-top:5px;line-height:1.5}
+
+/* No results */
+.no-res{text-align:center;padding:20px 10px;color:var(--text3);font-size:11px}
+.no-res .nr-icon{font-size:28px;margin-bottom:6px}
+
+/* Scrollbar */
+*{scrollbar-width:thin;scrollbar-color:var(--bg4) transparent}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="logo">
+    <div class="logo-mark">⚡</div>
+    <div>
+      <div class="logo-text">Flask Modbus Monitor</div>
+      <div class="logo-sub">Architecture Map</div>
+    </div>
+  </div>
+  <div class="top-sep"></div>
+  <div class="view-tabs">
+    <div class="vtab active" data-view="graph">System Graph</div>
+    <div class="vtab" data-view="flow">Data Flow</div>
+    <div class="vtab" data-view="alarm">Alarm System</div>
+    <div class="vtab" data-view="db">DB Schema</div>
+  </div>
+  <div class="top-right">
+    <div class="top-stat"><div class="stat-dot"></div><span id="stat-txt">Loading…</span></div>
+    <div class="iBtn" title="Toggle legend" onclick="toggleLegend()">🗺</div>
+    <div class="iBtn" title="Reset layout" onclick="resetLayout()">↺</div>
+    <div class="iBtn" title="Fit view" onclick="fitView()">⊡</div>
+  </div>
+</div>
+
+<!-- APP LAYOUT -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sb-head">
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="search-input" placeholder="Tìm kiếm node, file, class…" autocomplete="off">
+      </div>
+    </div>
+    <div class="sb-filters">
+      <div class="sb-label">Lọc theo loại</div>
+      <div id="cat-filters"></div>
+    </div>
+    <div class="sb-nodes" id="node-list"></div>
+  </div>
+
+  <!-- GRAPH -->
+  <div id="main">
+    <svg id="graph-svg">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="rgba(255,255,255,0.3)"/>
+        </marker>
+        <marker id="arrow-spawn" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill="#00ff88"/>
+        </marker>
+        <marker id="arrow-http" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill="#fb923c"/>
+        </marker>
+        <marker id="arrow-socket" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill="#4a9eff"/>
+        </marker>
+        <marker id="arrow-db" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill="#a855f7"/>
+        </marker>
+        <marker id="arrow-uses" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill="#06b6d4"/>
+        </marker>
+      </defs>
+    </svg>
+
+    <!-- Graph Tools -->
+    <div id="gtools">
+      <div class="gtool" title="Zoom in" onclick="zoomIn()">+</div>
+      <div class="gtool" title="Zoom out" onclick="zoomOut()">−</div>
+    </div>
+
+    <!-- Legend -->
+    <div id="legend">
+      <div class="legend-hd" onclick="toggleLegend()">● Chú thích <span id="leg-toggle">▾</span></div>
+      <div class="legend-body">
+        <div id="legend-cats"></div>
+        <div class="legend-sep"></div>
+        <div class="legend-line-row"><div class="legend-line" style="background:#00ff88"></div>spawns / tạo process</div>
+        <div class="legend-line-row"><div class="legend-dash" style="color:#fb923c"></div>HTTP request</div>
+        <div class="legend-line-row"><div class="legend-dash" style="color:#4a9eff"></div>Socket.IO event</div>
+        <div class="legend-line-row"><div class="legend-dash" style="color:#a855f7"></div>DB query</div>
+        <div class="legend-line-row"><div class="legend-line" style="background:#06b6d4"></div>uses / imports</div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div id="status">
+      <div class="stat-dot"></div>
+      <span id="status-txt"><b>40</b> nodes · <b>52</b> connections · scroll để zoom, kéo để di chuyển</span>
+    </div>
+  </div>
+
+  <!-- DETAIL PANEL -->
+  <div id="detail">
+    <div id="detail-inner">
+      <div class="d-head">
+        <div class="d-head-top">
+          <div class="d-icon" id="d-icon">📦</div>
+          <div class="d-title-wrap">
+            <div class="d-name" id="d-name">Select a node</div>
+            <div class="d-path" id="d-path"></div>
+            <div id="d-badge"></div>
+          </div>
+          <div class="d-close" onclick="closeDetail()">✕</div>
+        </div>
+      </div>
+      <div class="d-tabs">
+        <div class="d-tab active" data-dtab="overview">Overview</div>
+        <div class="d-tab" data-dtab="code">Classes / Methods</div>
+        <div class="d-tab" data-dtab="connections">Connections</div>
+      </div>
+      <div id="d-content">
+        <div class="dtc active" id="dtc-overview"></div>
+        <div class="dtc" id="dtc-code"></div>
+        <div class="dtc" id="dtc-connections"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOOLTIP -->
+<div id="tt"><div class="tt-name" id="tt-name"></div><div class="tt-cat" id="tt-cat"></div><div class="tt-desc" id="tt-desc"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════════
+const CATS = {
+  EXTERNAL: { label:'External Systems', color:'#f43f5e', glow:'rgba(244,63,94,.5)', icon:'🔌', group:0 },
+  PROCESS:  { label:'Entry Points',     color:'#00ff88', glow:'rgba(0,255,136,.5)', icon:'⚡', group:1 },
+  WORKER:   { label:'Workers',          color:'#22c55e', glow:'rgba(34,197,94,.5)', icon:'⚙', group:2 },
+  WEBAPP:   { label:'Flask App',        color:'#4a9eff', glow:'rgba(74,158,255,.5)',icon:'🌐', group:3 },
+  ROUTE:    { label:'API Routes',       color:'#60a5fa', glow:'rgba(96,165,250,.4)',icon:'🔗', group:4 },
+  DATABASE: { label:'Database Layer',   color:'#a855f7', glow:'rgba(168,85,247,.5)',icon:'🗄', group:5 },
+  SHARED:   { label:'Shared Modules',   color:'#06b6d4', glow:'rgba(6,182,212,.5)', icon:'📦', group:6 },
+  FRONTEND: { label:'Frontend JS',      color:'#fb923c', glow:'rgba(251,146,60,.5)',icon:'✦', group:7 },
+  CONFIG:   { label:'Config & License', color:'#94a3b8', glow:'rgba(148,163,184,.4)',icon:'⚙', group:8 },
+};
+
+const NODES = [
+  // ── EXTERNAL ──
+  { id:'hw_modbus', label:'Modbus Devices', sub:'TCP / RTU hardware', cat:'EXTERNAL',
+    desc:'Thiết bị công nghiệp (PLC, sensor) giao tiếp qua Modbus TCP hoặc RTU (serial).',
+    code:[], routes:[], events:[],
+    resp:['Lưu trữ và cung cấp giá trị register','Phản hồi Modbus read coil/holding register requests'],
+    px:0.15, py:0.1 },
+  { id:'smtp_server', label:'SMTP Server', sub:'smtp.gmail.com:587', cat:'EXTERNAL',
+    desc:'Máy chủ email dùng để gửi thông báo alarm qua email (TLS/STARTTLS).',
+    code:[], routes:[], events:[],
+    resp:['Nhận email alarm từ NotificationManager','Chuyển tiếp đến địa chỉ người dùng cấu hình'],
+    px:0.8, py:0.1 },
+  { id:'sms_modem', label:'SMS Modem', sub:'Serial COM port', cat:'EXTERNAL',
+    desc:'Modem SMS kết nối serial port để gửi tin nhắn SMS alarm.',
+    code:[], routes:[], events:[],
+    resp:['Nhận lệnh AT từ NotificationManager','Gửi SMS đến số điện thoại được cấu hình'],
+    px:0.92, py:0.25 },
+
+  // ── ENTRY POINTS ──
+  { id:'webserver', label:'modbus_monitor_webserver.py', sub:'Entry: Flask + Socket.IO', cat:'PROCESS',
+    desc:'Điểm khởi động chính của Flask web server. Tùy chọn chạy alarm worker trong cùng process (ALARM_IN_MAIN_PROCESS=1).',
+    code:[
+      { type:'class', name:'InProcessAlarmService', desc:'Chạy alarm worker như daemon thread trong Flask process',
+        methods:['start() → launch daemon thread','stop() → graceful shutdown','_drain_logs() → xử lý log queue'] },
+    ],
+    funcs:['setup_main_logging() → get logger','main() → init Flask + SocketIO server'],
+    routes:[], events:[],
+    resp:['Khởi động Flask + Socket.IO','Tùy chọn spawn alarm worker in-process','Expose port 5000'],
+    px:0.5, py:0.05 },
+  { id:'orch_modbus', label:'orchestra_modbus.py', sub:'Modbus Worker Orchestrator', cat:'PROCESS',
+    desc:'Quản lý các TCP/RTU worker processes. Hot-reload cấu hình từ DB mỗi 15 giây.',
+    code:[
+      { type:'class', name:'ModbusOrchestrator', desc:'Quản lý vòng đời của các modbus worker processes',
+        methods:['_start_tcp_worker(cfg)','_start_rtu_worker(cfg)','start_autostart_workers()','stop_all()','run(refresh_sec=15) → main loop'] },
+    ],
+    funcs:['_ns_device(d) → SimpleNamespace','_ns_tag(t) → SimpleNamespace'],
+    routes:[], events:[],
+    resp:['Đọc device configs từ DB','Spawn TCP/RTU workers theo config','Hot-reload khi config thay đổi'],
+    px:0.12, py:0.3 },
+  { id:'orch_alarm', label:'orchestra_alarm.py', sub:'Alarm Worker Launcher', cat:'PROCESS',
+    desc:'Launcher độc lập cho alarm worker process. Giám sát health và restart nếu cần.',
+    code:[
+      { type:'class', name:'AlarmWorkerLauncher', desc:'Quản lý alarm worker process lifecycle',
+        methods:['start_alarm_worker()','stop_alarm_worker()','get_worker_status() → dict','run_main_loop()'] },
+    ],
+    funcs:['main() → entry point với signal handlers'],
+    routes:[], events:[],
+    resp:['Spawn alarm worker process','Monitor health + auto-restart','Drain log queue'],
+    px:0.88, py:0.3 },
+  { id:'orch_datalogger', label:'orchestra_datalogger.py', sub:'DataLogger Orchestrator', cat:'PROCESS',
+    desc:'Quản lý nhiều datalogger worker processes. Sync với DB config và auto-restart worker dead.',
+    code:[
+      { type:'class', name:'OrchestraDatalogger', desc:'Orchestrate multiple datalogger processes',
+        methods:['get_enabled_loggers()','start_worker(logger_id)','stop_worker(logger_id)','restart_worker(logger_id)','send_command_to_worker(logger_id, cmd)','sync_workers_with_config()','check_worker_health()','run() → main loop'] },
+    ],
+    funcs:['main() → với args parser'],
+    routes:[], events:[],
+    resp:['Spawn logger workers per logger config','Broadcast reload commands','Auto-restart dead workers'],
+    px:0.5, py:0.22 },
+
+  // ── WORKERS ──
+  { id:'tcp_worker', label:'workers/tcp_worker.py', sub:'TCPWorker — Modbus TCP client', cat:'WORKER',
+    desc:'Kết nối Modbus TCP đến thiết bị, poll register values và emit đến Flask webapp.',
+    code:[
+      { type:'class', name:'TCPWorker', desc:'Modbus TCP polling worker',
+        methods:['start() → spawn Socket.IO + polling loop','read_devices() → iterate devices','_read_device(device) → Modbus TCP read','emit_tag_update(tag_id, value, ts) → HTTP POST','stop() → graceful shutdown'] },
+    ],
+    funcs:[], routes:[], events:[{ dir:'emit', name:'/api/emit-tag-update', desc:'HTTP POST giá trị tag mới lên webapp' }],
+    resp:['Kết nối Modbus TCP đến device','Đọc holding registers theo cấu hình','POST giá trị lên Flask để broadcast'],
+    px:0.08, py:0.5 },
+  { id:'rtu_worker', label:'workers/rtu_worker.py', sub:'RTUWorker — Modbus RTU serial', cat:'WORKER',
+    desc:'Kết nối Modbus RTU qua serial port, poll registers và emit lên webapp.',
+    code:[
+      { type:'class', name:'RTUWorker', desc:'Modbus RTU via serial port',
+        methods:['start() → serial + polling loop','read_devices()','_read_device(device)','emit_tag_update(tag_id, value, ts)','stop() → close serial'] },
+    ],
+    funcs:[], routes:[], events:[{ dir:'emit', name:'/api/emit-tag-update', desc:'HTTP POST tag values' }],
+    resp:['Kết nối serial port (COM3, baudrate 9600+)','Đọc Modbus RTU registers','POST values lên Flask'],
+    px:0.08, py:0.65 },
+  { id:'alarm_worker', label:'workers/alarm_worker.py', sub:'AlarmWorker — Core alarm engine', cat:'WORKER',
+    desc:'Worker alarm chính: đọc rules từ DB, evaluate thresholds mỗi 1s, gửi Socket.IO event và email/SMS.',
+    code:[
+      { type:'class', name:'SocketIOManager', desc:'Async Socket.IO client với auto-reconnect',
+        methods:['connect()','is_connected() → bool','emit_event(event_name, data)','close()'] },
+      { type:'class', name:'AlarmWorker', desc:'State machine alarm evaluation',
+        methods:['run() → main loop: load → evaluate → notify','_load_card_conditions()','_evaluate_card_alarms() → per card+column','_evaluate_simple_alarms() → per tag rule','_emit_alarm_event() → Socket.IO broadcast','_send_email() → SMTP','_send_sms() → serial','reload_command()'] },
+    ],
+    funcs:['create_alarm_worker_process() → spawn multiprocessing.Process'],
+    routes:[],
+    events:[
+      { dir:'emit', name:'alarm_event', desc:'INCOMING/OUTGOING tag alarm broadcast' },
+      { dir:'emit', name:'card_alarm_event', desc:'Card alarm state change' },
+      { dir:'emit', name:'quad_alarm_event', desc:'Quad card alarm event' },
+    ],
+    resp:['Evaluate alarm_rules + card_alarm_conditions mỗi 1s','Stable time state machine (on_stable/off_stable)','Ghi alarm_events vào DB','Gửi email/SMS notification'],
+    px:0.88, py:0.5 },
+  { id:'alarm_strategies', label:'workers/alarm_strategies.py', sub:'Strategy Pattern — Card alarms', cat:'WORKER',
+    desc:'Strategy pattern cho từng loại card alarm. Mỗi card type có strategy riêng xử lý column, PV/SV, DB state.',
+    code:[
+      { type:'class', name:'CardAlarmStrategy (ABC)', desc:'Base abstract class',
+        methods:['card_type → str','socket_event_name → str','get_columns(card_info) → List[ColumnDef]','get_managed_tag_ids(card_info) → List[int]','fetch_card_info(db, card_id) → dict','build_event(...) → dict payload','save_alarm_state(db, ...)','delete_alarm_state(db, card_id, column)'] },
+      { type:'class', name:'AlarmStrategyFactory', desc:'Registry + factory',
+        methods:['get(card_type) → Strategy | None','register(strategy)','all_strategies() → List','registered_types() → List[str]'] },
+    ],
+    funcs:['Qtag6Strategy, Qtag4Strategy, Qtag3Strategy, Qtag2Strategy','Single3Strategy, PVOnlyStrategy, PVDualStrategy, QuadCardStrategy'],
+    routes:[], events:[],
+    resp:['Cung cấp card-type-specific logic cho alarm evaluation','Isolate card type differences từ core AlarmWorker'],
+    px:0.75, py:0.42 },
+  { id:'logger_worker', label:'workers/logger_worker.py', sub:'DataloggerWorker', cat:'WORKER',
+    desc:'Đọc tag_latest_values định kỳ và ghi vào tag_logs theo interval cấu hình.',
+    code:[
+      { type:'class', name:'LoggerWorker', desc:'multiprocessing.Process datalogger',
+        methods:['run() → main loop','load config + tags → poll every interval_sec','handle commands: stop/reload_config/purge_range'] },
+    ],
+    funcs:[], routes:[],
+    events:[{ dir:'receive', name:'command_queue', desc:'stop | reload_config | purge_range commands' }],
+    resp:['Poll tag_latest_values mỗi interval_sec','Insert vào tag_logs table','Nhận commands từ orchestra qua queue'],
+    px:0.5, py:0.35 },
+
+  // ── FLASK APP ──
+  { id:'webapp_app', label:'webapp/app.py', sub:'Flask App + Socket.IO', cat:'WEBAPP',
+    desc:'Flask application với Socket.IO. Nhận tag updates từ workers, broadcast đến browser clients.',
+    code:[], funcs:[],
+    routes:[
+      { m:'POST', p:'/api/emit-tag-update', d:'Workers POST tag values → broadcast Socket.IO' },
+      { m:'POST', p:'/api/modbus-update',   d:'Emit modbus_update event đến subdash room' },
+      { m:'POST', p:'/tags/<id>/update-unit',d:'Update tag unit' },
+    ],
+    events:[
+      { dir:'emit', name:'tag_update', desc:'Broadcast tag value to subdash room' },
+      { dir:'emit', name:'modbus_update', desc:'Broadcast modbus update to room' },
+    ],
+    resp:['Serve Flask HTTP + WebSocket (port 5000)','Nhận POST từ workers, broadcast Socket.IO','Manage Socket.IO rooms per subdashboard'],
+    px:0.5, py:0.5 },
+  { id:'app_factory', label:'modbus_monitor/__init__.py', sub:'Flask App Factory', cat:'WEBAPP',
+    desc:'create_app() factory function. Đăng ký blueprints, Jinja2 filters, license guard.',
+    code:[], funcs:[],
+    routes:[],
+    events:[],
+    resp:['create_app() → Flask factory','Đăng ký 8 blueprints','Jinja2 filters: format_value, contrast_color','before_request license guard'],
+    px:0.5, py:0.62 },
+  { id:'db_py', label:'database/db.py', sub:'SQLAlchemy Core — 150+ methods', cat:'WEBAPP',
+    desc:'Tất cả table definitions + CRUD functions. Dùng SQLAlchemy Core (không ORM), singleton engine.',
+    code:[],
+    funcs:['init_engine() → singleton engine','create_schema() → create/migrate tables',
+           'list_devices(), add_device_row(), update_device_row()','list_tags(), get_latest_tag_value(tag_id)','get_latest_tag_values_batch(tag_ids)','list_alarm_rules(), add_alarm_event()','get_card_alarm_states(), insert_card_alarm_state()','insert_quad_alarm_state(), delete_quad_alarm_state()','list_data_loggers(), log_tag_value_for_logger()','list_subdashboards(), get_notifications()'],
+    routes:[], events:[],
+    resp:['Single source of truth cho tất cả DB operations','Table definitions cho 20+ tables','Connection pooling + retry logic'],
+    px:0.5, py:0.72 },
+
+  // ── ROUTES ──
+  { id:'r_auth', label:'auth/routes.py', sub:'Blueprint: auth_bp', cat:'ROUTE',
+    desc:'Authentication: login, logout, user management (admin).',
+    code:[], funcs:[],
+    routes:[
+      { m:'GET/POST', p:'/auth/login',           d:'Login form + authenticate' },
+      { m:'GET',      p:'/auth/logout',           d:'Clear session' },
+      { m:'GET/POST', p:'/auth/register',         d:'Create new user' },
+      { m:'GET/POST', p:'/auth/forgot-password',  d:'Password reset' },
+      { m:'GET',      p:'/auth/user-management',  d:'Admin user list' },
+    ], events:[], resp:['Session management','Flask-Login integration'], px:0.22, py:0.78 },
+  { id:'r_dashboard', label:'dashboard/routes.py', sub:'Blueprint: dashboard_bp', cat:'ROUTE',
+    desc:'Main dashboard + notification API.',
+    code:[], funcs:[],
+    routes:[
+      { m:'GET',  p:'/dashboard',         d:'Main dashboard (redirect to first subdash)' },
+      { m:'GET',  p:'/dashboard-data',    d:'AJAX: latest tag values' },
+      { m:'GET',  p:'/notifications',     d:'AJAX: user notifications' },
+      { m:'POST', p:'/notifications/read',d:'Mark notifications as read' },
+    ], events:[], resp:['Dashboard home page','Notification fetch API'], px:0.35, py:0.78 },
+  { id:'r_devices', label:'devices/routes.py', sub:'Blueprint: devices_bp', cat:'ROUTE',
+    desc:'Device và Tag CRUD. Restart modbus workers.',
+    code:[], funcs:[],
+    routes:[
+      { m:'GET',  p:'/devices',           d:'Device list' },
+      { m:'POST', p:'/devices/add',       d:'Create device' },
+      { m:'GET',  p:'/devices/<id>',      d:'Device detail + tags' },
+      { m:'POST', p:'/devices/tag/<id>/update', d:'Update tag' },
+      { m:'POST', p:'/devices/workers/orchestra/restart', d:'Restart modbus orchestra' },
+    ], events:[], resp:['Device + Tag CRUD','Worker restart trigger'], px:0.5, py:0.78 },
+  { id:'r_alarms', label:'alarms/routes.py', sub:'Blueprint: alarms_bp', cat:'ROUTE',
+    desc:'Alarm rules CRUD, event log, settings, report.',
+    code:[], funcs:[],
+    routes:[
+      { m:'GET',  p:'/alarms',            d:'Alarm rules list' },
+      { m:'POST', p:'/alarms/add',        d:'Create alarm rule' },
+      { m:'GET',  p:'/alarms/events',     d:'Event log với pagination' },
+      { m:'POST', p:'/alarms/events/clear',d:'Delete all events' },
+      { m:'GET',  p:'/alarms/report',     d:'Alarm report page' },
+    ], events:[], resp:['Alarm rule CRUD','Event log management','Report generation'], px:0.64, py:0.78 },
+  { id:'r_subdash', label:'subdashboards/routes.py', sub:'Blueprint: subdash_bp', cat:'ROUTE',
+    desc:'Sub-dashboard và card management. Render 9 loại card.',
+    code:[], funcs:[],
+    routes:[
+      { m:'GET',  p:'/subdash/',              d:'List subdashboards' },
+      { m:'GET',  p:'/subdash/<sid>',         d:'Display subdashboard (main view)' },
+      { m:'POST', p:'/subdash/<sid>/add-card',d:'Add card to subdashboard' },
+      { m:'POST', p:'/subdash/<sid>/card/<cid>/update', d:'Update card alarm thresholds' },
+      { m:'GET',  p:'/subdash/<sid>/group-data',d:'AJAX: tag group latest values' },
+    ], events:[], resp:['Subdashboard CRUD','Card rendering (9 types)','Room-based Socket.IO'], px:0.78, py:0.78 },
+  { id:'r_reports', label:'reports/routes.py', sub:'Blueprint: reports_bp', cat:'ROUTE',
+    desc:'Export dữ liệu tag theo khoảng thời gian, comparison report.',
+    code:[], funcs:[],
+    routes:[
+      { m:'GET',  p:'/reports',           d:'Report page (select logger, date range)' },
+      { m:'GET',  p:'/reports/data',      d:'AJAX: fetch tag values for report' },
+      { m:'POST', p:'/reports/export',    d:'Export to Excel/CSV' },
+      { m:'GET',  p:'/reports/comparison',d:'Compare multiple tags' },
+    ], events:[], resp:['Historical data export','Excel/CSV generation'], px:0.5, py:0.88 },
+  { id:'r_datalogger', label:'datalogger/routes.py', sub:'Blueprint: datalogger_bp', cat:'ROUTE',
+    desc:'DataLogger status API và purge operations.',
+    code:[], funcs:[],
+    routes:[
+      { m:'GET',  p:'/datalogger/status',      d:'Orchestra + worker status' },
+      { m:'POST', p:'/datalogger/reload-config',d:'Reload all logger configs' },
+      { m:'POST', p:'/datalogger/<id>/purge',  d:'Purge logs by date range' },
+      { m:'GET',  p:'/datalogger/statistics',  d:'AJAX: worker stats' },
+    ], events:[], resp:['Logger management API','Status monitoring'], px:0.35, py:0.88 },
+  { id:'r_license', label:'license/routes.py', sub:'Blueprint: license_bp', cat:'ROUTE',
+    desc:'License activation và management. Dùng HDD UID hash.',
+    code:[], funcs:[],
+    routes:[
+      { m:'GET/POST', p:'/license/activate', d:'License activation (no auth required)' },
+      { m:'GET',      p:'/license/manage',   d:'Admin license management' },
+      { m:'GET',      p:'/license/machine-uid', d:'Return HDD UID hash' },
+    ], events:[], resp:['License validation','HDD UID-based licensing'], px:0.22, py:0.88 },
+
+  // ── DATABASE ──
+  { id:'db_devices', label:'devices / tags', sub:'DB tables', cat:'DATABASE',
+    desc:'Cấu hình thiết bị Modbus và tags (registers).',
+    code:[],
+    funcs:['devices: id, name, protocol, host, port, serial_port, baudrate, autostart, enabled',
+           'tags: id, device_id, name, address, datatype, unit, scale, offset, group, enabled',
+           'Scale/offset áp dụng: real_value = raw * scale + offset'],
+    routes:[], events:[],
+    resp:['Device configuration (TCP/RTU params)','Tag definitions với scale/offset','Group-based filtering'],
+    px:0.08, py:0.88 },
+  { id:'db_tag_values', label:'tag_values / tag_latest_values', sub:'DB tables — Realtime values', cat:'DATABASE',
+    desc:'tag_latest_values là optimization table — upsert mỗi khi worker poll. tag_values là historical.',
+    code:[],
+    funcs:['tag_latest_values: tag_id (PK), value, ts — upsert on conflict',
+           'tag_values: id, tag_id, ts, value — historical log',
+           'Workers update tag_latest_values via HTTP POST'],
+    routes:[], events:[],
+    resp:['Realtime current values (tag_latest_values)','Historical data (tag_values)'],
+    px:0.2, py:0.95 },
+  { id:'db_alarms', label:'alarm_rules / alarm_events', sub:'DB tables — Tag alarms', cat:'DATABASE',
+    desc:'Tag-level alarm rules và event log cho cả 2 hệ thống alarm.',
+    code:[],
+    funcs:['alarm_rules: id, enabled, code, name, level, target, operator, threshold, on_stable_sec, off_stable_sec',
+           'alarm_events: id, ts, name, level, target, value, note, event_type (INCOMING/OUTGOING)',
+           'level: Critical/High/Medium/Low — severity, KHÔNG phải direction'],
+    routes:[], events:[],
+    resp:['Per-tag alarm configuration','Full event log cho audit trail','Email/SMS recipients per rule'],
+    px:0.35, py:0.95 },
+  { id:'db_card_alarms', label:'card_alarm_conditions / states', sub:'DB tables — Card alarms', cat:'DATABASE',
+    desc:'Card-level alarm conditions và active states. HIGH/LOW threshold per column.',
+    code:[],
+    funcs:['card_alarm_conditions: card_type, card_id, left_high_*, left_low_*, right_high_*, right_low_*',
+           'card_alarm_states: card_type, card_id, column, alarm_type (High/Low), pv_value, threshold',
+           'quad_alarm_states: quad_id, column, alarm_type, tag1_value, tag2_value',
+           'alarm_type = hướng crossing thực sự (authoritative)'],
+    routes:[], events:[],
+    resp:['Card alarm threshold config','Active alarm state persistence','Stable time tracking data'],
+    px:0.5, py:0.95 },
+  { id:'db_subdash', label:'subdashboards / subdash_cards', sub:'DB tables — Dashboard', cat:'DATABASE',
+    desc:'Cấu hình subdashboards và các card types.',
+    code:[],
+    funcs:['subdashboards: id, name, description',
+           'subdash_cards: id, subdash_id, card_type, card_id',
+           'subdash_qtag6_cards, subdash_qtag4_cards, subdash_qtag3_cards, ...',
+           '9 card type tables, mỗi loại có PV/SV column references'],
+    routes:[], events:[],
+    resp:['Dashboard layout persistence','Card configuration per type','Tag ID references per card'],
+    px:0.65, py:0.95 },
+  { id:'db_loggers', label:'data_loggers / tag_logs', sub:'DB tables — DataLogger', cat:'DATABASE',
+    desc:'Cấu hình data loggers và logged values theo interval.',
+    code:[],
+    funcs:['data_loggers: id, name, interval_sec, enabled',
+           'data_logger_tags: logger_id, tag_id (many-to-many)',
+           'tag_logs: id, logger_id, tag_id, ts, value — logged data'],
+    routes:[], events:[],
+    resp:['Logger configuration','Many-to-many logger↔tag mapping','Historical logged data'],
+    px:0.8, py:0.95 },
+  { id:'db_users', label:'users / notifications', sub:'DB tables — Auth', cat:'DATABASE',
+    desc:'User accounts và notification center.',
+    code:[],
+    funcs:['users: id, username, password_hash, role',
+           'notifications: id, alarm_event_id, user_id, status, created_at, seen_at, dismissed_at',
+           'licenses: id, license_key, hdd_uid_hash, expires_at, is_permanent'],
+    routes:[], events:[],
+    resp:['User authentication','Notification center per user','License key management'],
+    px:0.92, py:0.95 },
+
+  // ── SHARED ──
+  { id:'alarm_engine', label:'shared/engine/alarm_engine_v2.py', sub:'AlarmEvaluator v2 — Shadow mode', cat:'SHARED',
+    desc:'AlarmEvaluator v2 chạy parallel (shadow mode), chưa thay thế v1. Kiến trúc sạch hơn.',
+    code:[
+      { type:'class', name:'GenericAlarmRule', desc:'Rule với state machine on/off stable',
+        methods:['evaluate(signal) → AlarmEvent | None','State: NORMAL → TRIGGERED → HOLDING'] },
+      { type:'class', name:'AlarmEvaluator', desc:'Track multiple rules',
+        methods:['add_rule(rule_id, rule)','evaluate(signals_dict) → List[AlarmEvent]'] },
+    ],
+    funcs:['StaticThresholdCondition, TagCompareCondition, RangeCondition',
+           'translate_alarm_rules_table() → convert DB rows → GenericAlarmRule'],
+    routes:[], events:[],
+    resp:['Alarm evaluation với stable time state machine','Shadow parallel execution','Không được xóa cho đến khi thay thế v1'],
+    px:0.85, py:0.65 },
+  { id:'value_formatter', label:'shared/formatting/value_formatter.py', sub:'Value formatting', cat:'SHARED',
+    desc:'Scale/offset formatting, decimal places tự động tính từ scale.',
+    code:[
+      { type:'class', name:'TagFormatMetadata', desc:'Metadata cho formatting: scale, offset, unit, datatype' },
+    ],
+    funcs:['format_tag_value(value, meta) → FormattedValue','format_alarm_value(value) → str','format_fixed_value(raw_value) → FixedValue'],
+    routes:[], events:[],
+    resp:['Apply scale/offset transformation','Tự động decimal places từ scale (1→0dp, 0.1→1dp, etc.)','Unit suffix formatting'],
+    px:0.72, py:0.65 },
+  { id:'notification_mgr', label:'shared/notification_manager.py', sub:'Email / SMS dispatcher', cat:'SHARED',
+    desc:'Gửi email (SMTP) và SMS (serial modem) cho alarm notifications.',
+    code:[
+      { type:'class', name:'NotificationManager', desc:'Multi-channel notification dispatcher',
+        methods:['send_email(to, subject, body) → SMTP TLS','send_sms(phone, message) → serial AT commands','send_webhook(url, data) → POST'] },
+    ],
+    funcs:[], routes:[], events:[],
+    resp:['SMTP email với STARTTLS','Serial SMS modem (AT commands)','Configurable recipients per alarm rule'],
+    px:0.92, py:0.42 },
+  { id:'app_logger', label:'shared/app_logger.py', sub:'Centralized logging', cat:'SHARED',
+    desc:'Centralized logging với RotatingFileHandler. Hoạt động trong cả source và PyInstaller EXE.',
+    code:[],
+    funcs:['get_logger(name, log_filename) → Logger','log_exception(worker_id, exc, msg)','log_startup(worker_id, msg)'],
+    routes:[], events:[],
+    resp:['Rotating file logs (10MB, 5 backups)','Cross-environment (source + PyInstaller)','Console + file dual handler'],
+    px:0.15, py:0.42 },
+  { id:'modbus_client', label:'shared/modbus_client.py', sub:'Modbus protocol base', cat:'SHARED',
+    desc:'Base class xử lý Modbus protocol. TCP và RTU workers kế thừa từ đây.',
+    code:[
+      { type:'class', name:'ModbusClient', desc:'Base Modbus protocol handler',
+        methods:['read_registers(device_id, address, count) → [values]','write_register(device_id, address, value) → bool','convert_value(value, datatype, scale, offset) → float'] },
+    ],
+    funcs:[], routes:[], events:[],
+    resp:['Modbus register reading','Data type conversion (Word/DWord/Float)','Byte order handling'],
+    px:0.08, py:0.42 },
+  { id:'config_cache', label:'services/config_cache.py', sub:'Device/tag config cache', cat:'SHARED',
+    desc:'Cache device và tag configuration để tránh DB query mỗi request.',
+    code:[],
+    funcs:['get_config_cache() → singleton cache','invalidate_cache()','get_device_config(device_id)','get_tag_config(tag_id)'],
+    routes:[], events:[],
+    resp:['In-memory config cache','Cache invalidation on update','Reduce DB query load'],
+    px:0.28, py:0.65 },
+
+  // ── FRONTEND JS ──
+  { id:'js_subdash', label:'static/js/subdashboard-detail.js', sub:'Main real-time + alarm UI (~5000 lines)', cat:'FRONTEND',
+    desc:'File JS lớn nhất. Xử lý real-time card updates, alarm visuals, Socket.IO events.',
+    code:[],
+    funcs:['applyTagAlarmVisual(tagId, alarmClass, alarmInfo)','removeTagAlarmVisual(tagId)','applyCardAlarmState(card, newAlarmClass)','recalcCardAlarmState(card)','applyCardAlarmVisual(cardType, cardId, column, alarmType)','removeCardAlarmVisual(cardType, cardId, column)','evaluateSingle3PvSvFallback(systemAlarmMap)','fetchAndApplyTagAlarms() — periodic 10s sync','fetchAndApplyCardAlarms() — periodic 10s sync','buildCardAlarmKey(cardType, cardId, column) → string key'],
+    routes:[],
+    events:[
+      { dir:'receive', name:'tag_update',       desc:'Cập nhật giá trị tag realtime' },
+      { dir:'receive', name:'alarm_event',       desc:'Tag alarm INCOMING/OUTGOING' },
+      { dir:'receive', name:'card_alarm_event',  desc:'Card alarm state change' },
+      { dir:'receive', name:'quad_alarm_event',  desc:'Quad card alarm event' },
+    ],
+    resp:['Real-time card value updates','Alarm visual (màu đỏ/vàng)','_lastSyncedCardAlarms Map (source of truth)','SV mode: tag vs fixed'],
+    px:0.35, py:0.15 },
+  { id:'js_notifications', label:'static/js/notifications.js', sub:'Notification bell + Socket.IO', cat:'FRONTEND',
+    desc:'Notification center: real-time bell, badge count, toast notifications.',
+    code:[],
+    funcs:['NotificationSystem.init()','loadServerNotifications() → fetch /api/notifications','addNotification(data) → toast + store','render() → DOM update + badge'],
+    routes:[],
+    events:[
+      { dir:'receive', name:'alarm_event',      desc:'Real-time alarm → toast notification' },
+      { dir:'receive', name:'card_alarm_event', desc:'Card alarm → notification' },
+    ],
+    resp:['Bell icon với unread badge','Toast notifications','30s periodic sync từ server','localStorage persistence'],
+    px:0.5, py:0.1 },
+  { id:'js_alarm_events', label:'static/js/alarm-events.js', sub:'Alarm event log UI', cat:'FRONTEND',
+    desc:'Alarm history page: pagination, search (Vietnamese diacritics), bulk delete, export.',
+    code:[],
+    funcs:['loadAlarmEvents(page, reset) → AJAX fetch + render','filterTable(q) → diacritic-insensitive search','deleteSelectedAlarms() → bulk delete','toggleAll(source) → select all','updateAlarmRowCount() → pagination info'],
+    routes:[], events:[],
+    resp:['Paginated alarm event list','Client-side search với Vietnamese support','Bulk + single delete'],
+    px:0.65, py:0.15 },
+  { id:'js_reports', label:'static/js/reports.js', sub:'Report export (Excel/CSV)', cat:'FRONTEND',
+    desc:'Report UI: date range picker, logger selection, export to Excel/CSV với formatting.',
+    code:[],
+    funcs:['selectLogger(loggerId)','exportReport() → fetch data + trigger download','comparisonMode() → toggle view'],
+    routes:[], events:[],
+    resp:['Date range picker (flatpickr)','Excel generation (ExcelJS)','Multi-tag comparison report'],
+    px:0.78, py:0.15 },
+  { id:'js_card_conditions', label:'static/js/card_conditions.js', sub:'Card alarm config modal', cat:'FRONTEND',
+    desc:'Modal UI để cấu hình alarm conditions cho mỗi loại card (HIGH/LOW threshold, static/tag mode).',
+    code:[],
+    funcs:['openModal(cardId) → fetch card + show form','validateThresholds()','saveConditions() → POST update','renderColumnForm(column)'],
+    routes:[], events:[],
+    resp:['Dynamic form per card type','Toggle SV mode: static vs tag','HIGH/LOW per column config'],
+    px:0.5, py:0.05 },
+
+  // ── CONFIG ──
+  { id:'smtp_config', label:'config/SMTP_config.json', sub:'App configuration', cat:'CONFIG',
+    desc:'Cấu hình database, SMTP, SMS và secret key.',
+    code:[],
+    funcs:['MYSQL_URI: mysql+pymysql://user:pass@host:3306/db','POOL_SIZE: connection pool size','SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASS','SMS_PORT (COM3), SMS_BAUDRATE','SECRET_KEY: Flask session secret'],
+    routes:[], events:[],
+    resp:['Database connection string','SMTP email config','SMS serial port config','Flask secret key'],
+    px:0.5, py:0.18 },
+];
+
+const LINKS = [
+  // Hardware → Workers
+  { s:'hw_modbus',      t:'tcp_worker',     type:'connects',  lbl:'Modbus TCP' },
+  { s:'hw_modbus',      t:'rtu_worker',     type:'connects',  lbl:'Modbus RTU' },
+  // Orchestrators → Workers
+  { s:'orch_modbus',    t:'tcp_worker',     type:'spawns',    lbl:'spawn' },
+  { s:'orch_modbus',    t:'rtu_worker',     type:'spawns',    lbl:'spawn' },
+  { s:'orch_alarm',     t:'alarm_worker',   type:'spawns',    lbl:'spawn' },
+  { s:'orch_datalogger',t:'logger_worker',  type:'spawns',    lbl:'spawn' },
+  // webserver
+  { s:'webserver',      t:'webapp_app',     type:'imports',   lbl:'creates' },
+  { s:'webserver',      t:'alarm_worker',   type:'uses',      lbl:'optional in-process' },
+  // Workers → Flask
+  { s:'tcp_worker',     t:'webapp_app',     type:'http',      lbl:'POST /api/emit-tag-update' },
+  { s:'rtu_worker',     t:'webapp_app',     type:'http',      lbl:'POST /api/emit-tag-update' },
+  { s:'alarm_worker',   t:'webapp_app',     type:'socket_io', lbl:'alarm_event emit' },
+  // Alarm internals
+  { s:'alarm_worker',   t:'alarm_strategies',type:'uses',     lbl:'strategy pattern' },
+  { s:'alarm_worker',   t:'alarm_engine',   type:'uses',      lbl:'shadow eval' },
+  { s:'alarm_worker',   t:'notification_mgr',type:'uses',     lbl:'send notifications' },
+  { s:'alarm_worker',   t:'db_alarms',      type:'db_read',   lbl:'write events' },
+  { s:'alarm_worker',   t:'db_card_alarms', type:'db_read',   lbl:'read/write states' },
+  // Notifications → External
+  { s:'notification_mgr',t:'smtp_server',   type:'connects',  lbl:'SMTP email' },
+  { s:'notification_mgr',t:'sms_modem',     type:'connects',  lbl:'serial SMS' },
+  // Flask App
+  { s:'webapp_app',     t:'app_factory',    type:'imports',   lbl:'uses factory' },
+  { s:'app_factory',    t:'r_auth',         type:'registers', lbl:'blueprint' },
+  { s:'app_factory',    t:'r_dashboard',    type:'registers', lbl:'blueprint' },
+  { s:'app_factory',    t:'r_devices',      type:'registers', lbl:'blueprint' },
+  { s:'app_factory',    t:'r_alarms',       type:'registers', lbl:'blueprint' },
+  { s:'app_factory',    t:'r_subdash',      type:'registers', lbl:'blueprint' },
+  { s:'app_factory',    t:'r_reports',      type:'registers', lbl:'blueprint' },
+  { s:'app_factory',    t:'r_datalogger',   type:'registers', lbl:'blueprint' },
+  { s:'app_factory',    t:'r_license',      type:'registers', lbl:'blueprint' },
+  // Routes → DB
+  { s:'r_auth',         t:'db_py',          type:'db_read',   lbl:'users' },
+  { s:'r_devices',      t:'db_py',          type:'db_read',   lbl:'devices/tags' },
+  { s:'r_alarms',       t:'db_py',          type:'db_read',   lbl:'alarm rules/events' },
+  { s:'r_subdash',      t:'db_py',          type:'db_read',   lbl:'cards/conditions' },
+  { s:'r_reports',      t:'db_py',          type:'db_read',   lbl:'tag_logs' },
+  { s:'r_datalogger',   t:'db_py',          type:'db_read',   lbl:'logger status' },
+  // DB → Tables
+  { s:'db_py',          t:'db_devices',     type:'imports',   lbl:'schema' },
+  { s:'db_py',          t:'db_tag_values',  type:'imports',   lbl:'schema' },
+  { s:'db_py',          t:'db_alarms',      type:'imports',   lbl:'schema' },
+  { s:'db_py',          t:'db_card_alarms', type:'imports',   lbl:'schema' },
+  { s:'db_py',          t:'db_subdash',     type:'imports',   lbl:'schema' },
+  { s:'db_py',          t:'db_loggers',     type:'imports',   lbl:'schema' },
+  { s:'db_py',          t:'db_users',       type:'imports',   lbl:'schema' },
+  // Logger
+  { s:'logger_worker',  t:'db_tag_values',  type:'db_read',   lbl:'read latest' },
+  { s:'logger_worker',  t:'db_loggers',     type:'db_read',   lbl:'write logs' },
+  { s:'orch_modbus',    t:'db_py',          type:'db_read',   lbl:'read worker configs' },
+  { s:'orch_datalogger',t:'db_py',          type:'db_read',   lbl:'read logger configs' },
+  // Shared modules
+  { s:'modbus_client',  t:'tcp_worker',     type:'imports',   lbl:'base class' },
+  { s:'modbus_client',  t:'rtu_worker',     type:'imports',   lbl:'base class' },
+  { s:'app_logger',     t:'alarm_worker',   type:'uses',      lbl:'logging' },
+  { s:'app_logger',     t:'tcp_worker',     type:'uses',      lbl:'logging' },
+  { s:'value_formatter',t:'alarm_worker',   type:'uses',      lbl:'format values' },
+  { s:'config_cache',   t:'r_devices',      type:'uses',      lbl:'cached config' },
+  { s:'smtp_config',    t:'webapp_app',     type:'uses',      lbl:'DB URI + secrets' },
+  // Frontend → Flask
+  { s:'js_subdash',     t:'webapp_app',     type:'socket_io', lbl:'Socket.IO client' },
+  { s:'js_notifications',t:'webapp_app',    type:'socket_io', lbl:'Socket.IO client' },
+  { s:'js_alarm_events',t:'r_alarms',       type:'http',      lbl:'AJAX fetch events' },
+  { s:'js_reports',     t:'r_reports',      type:'http',      lbl:'AJAX export' },
+  { s:'webapp_app',     t:'js_subdash',     type:'serves',    lbl:'Socket.IO broadcast' },
+  { s:'webapp_app',     t:'js_notifications',type:'serves',   lbl:'alarm broadcast' },
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// VIEW PRESETS (node subsets)
+// ═══════════════════════════════════════════════════════════════════
+const VIEWS = {
+  graph: null,  // all nodes
+  flow: ['hw_modbus','tcp_worker','rtu_worker','orch_modbus','webserver','webapp_app','app_factory','db_py','db_tag_values','db_devices','logger_worker','orch_datalogger','js_subdash','js_notifications','smtp_config'],
+  alarm: ['alarm_worker','alarm_strategies','alarm_engine','notification_mgr','smtp_server','sms_modem','orch_alarm','webapp_app','db_alarms','db_card_alarms','js_subdash','js_notifications','value_formatter','app_logger'],
+  db: ['db_py','db_devices','db_tag_values','db_alarms','db_card_alarms','db_subdash','db_loggers','db_users','r_devices','r_alarms','r_subdash','r_reports','r_datalogger','alarm_worker','logger_worker'],
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// GRAPH ENGINE
+// ═══════════════════════════════════════════════════════════════════
+let svg, g, sim, nodeG, linkG, zoomBeh;
+let currentView = 'graph';
+let selectedNode = null;
+let searchQuery = '';
+let hiddenCats = new Set();
+let currentNodes = [], currentLinks = [];
+let transform = d3.zoomIdentity;
+
+const W = () => document.getElementById('main').clientWidth;
+const H = () => document.getElementById('main').clientHeight;
+
+function nodeColor(n) { return CATS[n.cat].color; }
+function nodeGlow(n)  { return CATS[n.cat].glow; }
+
+function initGraph() {
+  svg = d3.select('#graph-svg');
+  g = svg.append('g').attr('class','graph-root');
+  linkG = g.append('g').attr('class','links');
+  nodeG = g.append('g').attr('class','nodes');
+
+  zoomBeh = d3.zoom()
+    .scaleExtent([0.15, 4])
+    .on('zoom', e => { transform = e.transform; g.attr('transform', e.transform); });
+  svg.call(zoomBeh);
+
+  sim = d3.forceSimulation()
+    .force('link', d3.forceLink().id(d=>d.id).distance(d => {
+      const bothDB = d.source.cat==='DATABASE' && d.target.cat==='DATABASE';
+      if(bothDB) return 80;
+      if(d.type==='registers') return 100;
+      return 130;
+    }).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(-500).distanceMax(400))
+    .force('center', d3.forceCenter(W()/2, H()/2))
+    .force('collide', d3.forceCollide(70).iterations(2))
+    .force('cluster', clusterForce(0.12))
+    .on('tick', ticked);
+}
+
+function clusterForce(strength) {
+  const clusterCenters = {
+    EXTERNAL: [0.5, 0.06],
+    PROCESS:  [0.22, 0.2],
+    WORKER:   [0.25, 0.55],
+    WEBAPP:   [0.5, 0.45],
+    ROUTE:    [0.5, 0.72],
+    DATABASE: [0.75, 0.72],
+    SHARED:   [0.22, 0.38],
+    FRONTEND: [0.72, 0.22],
+    CONFIG:   [0.5, 0.12],
+  };
+  return function(alpha) {
+    currentNodes.forEach(d => {
+      const c = clusterCenters[d.cat];
+      if(!c) return;
+      const cx = c[0]*W(), cy = c[1]*H();
+      d.vx = (d.vx||0) + (cx - d.x) * strength * alpha;
+      d.vy = (d.vy||0) + (cy - d.y) * strength * alpha;
+    });
+  };
+}
+
+function arrowMarker(type) {
+  if(type==='spawns')    return 'url(#arrow-spawn)';
+  if(type==='http')      return 'url(#arrow-http)';
+  if(type==='socket_io') return 'url(#arrow-socket)';
+  if(type==='db_read')   return 'url(#arrow-db)';
+  return 'url(#arrow)';
+}
+
+function renderGraph(view) {
+  currentView = view;
+  const subset = VIEWS[view];
+  const nodeMap = new Map(NODES.map(n=>[n.id,n]));
+
+  currentNodes = subset
+    ? NODES.filter(n => subset.includes(n.id))
+    : NODES.slice();
+
+  currentLinks = LINKS
+    .filter(l => {
+      const sn = nodeMap.get(l.s), tn = nodeMap.get(l.t);
+      if(!sn || !tn) return false;
+      if(subset && (!subset.includes(l.s) || !subset.includes(l.t))) return false;
+      return true;
+    })
+    .map(l => ({ ...l, source: l.s, target: l.t }));
+
+  // Initialize positions
+  const w=W(), h=H();
+  currentNodes.forEach(n => {
+    if(n.x == null) {
+      n.x = (n.px||0.5)*w + (Math.random()-0.5)*80;
+      n.y = (n.py||0.5)*h + (Math.random()-0.5)*80;
+    }
+  });
+
+  drawLinks();
+  drawNodes();
+  applyFilters();
+
+  sim.nodes(currentNodes);
+  sim.force('link').links(currentLinks);
+  sim.alpha(0.5).restart();
+
+  document.getElementById('stat-txt').textContent =
+    `${currentNodes.length} nodes · ${currentLinks.length} connections`;
+  updateSidebar();
+}
+
+function drawLinks() {
+  linkG.selectAll('.link').remove();
+  linkG.selectAll('.link')
+    .data(currentLinks)
+    .join('path')
+    .attr('class', d=>`link ${d.type}`)
+    .attr('marker-end', d=>arrowMarker(d.type));
+}
+
+const NODE_W = 150, NODE_H = 44;
+
+function drawNodes() {
+  nodeG.selectAll('.gnode').remove();
+  const nodes = nodeG.selectAll('.gnode')
+    .data(currentNodes, d=>d.id)
+    .join('g')
+    .attr('class','gnode')
+    .style('--glow', d=>nodeGlow(d))
+    .call(d3.drag()
+      .on('start', dragStart)
+      .on('drag',  dragging)
+      .on('end',   dragEnd))
+    .on('click', (e,d) => { e.stopPropagation(); selectNode(d); })
+    .on('mouseenter', showTooltip)
+    .on('mousemove',  moveTooltip)
+    .on('mouseleave', hideTooltip);
+
+  // Background rect
+  nodes.append('rect')
+    .attr('x', -NODE_W/2).attr('y',-NODE_H/2)
+    .attr('width',NODE_W).attr('height',NODE_H)
+    .attr('rx',9)
+    .attr('fill', d=>`${nodeColor(d)}18`)
+    .attr('stroke', d=>nodeColor(d));
+
+  // Icon
+  nodes.append('text')
+    .attr('class','gnode-icon')
+    .attr('x', -NODE_W/2+16).attr('y',0)
+    .text(d=>CATS[d.cat].icon);
+
+  // Label (truncated)
+  nodes.append('text')
+    .attr('class','gnode-title')
+    .attr('x', -NODE_W/2+30).attr('y',-7)
+    .attr('text-anchor','start')
+    .text(d => {
+      const max=16;
+      return d.label.length>max ? d.label.substring(0,max)+'…' : d.label;
+    });
+
+  // Sub-label
+  nodes.append('text')
+    .attr('class','gnode-sub')
+    .attr('x',-NODE_W/2+30).attr('y',8)
+    .attr('text-anchor','start')
+    .text(d => {
+      const max=20;
+      return d.sub.length>max ? d.sub.substring(0,max)+'…' : d.sub;
+    });
+
+  // Click on svg background to deselect
+  svg.on('click', () => { if(selectedNode){ deselect(); closeDetail(); } });
+}
+
+function ticked() {
+  linkG.selectAll('.link').attr('d', d => {
+    const sx=d.source.x, sy=d.source.y, tx=d.target.x, ty=d.target.y;
+    const dx=tx-sx, dy=ty-sy;
+    const len=Math.sqrt(dx*dx+dy*dy)||1;
+    const ex=dx/len, ey=dy/len;
+    const sx2=sx+ex*(NODE_W/2+4), sy2=sy+ey*(NODE_H/2+4);
+    const tx2=tx-ex*(NODE_W/2+8), ty2=ty-ey*(NODE_H/2+8);
+    return `M${sx2},${sy2} L${tx2},${ty2}`;
+  });
+
+  nodeG.selectAll('.gnode').attr('transform', d=>`translate(${d.x},${d.y})`);
+}
+
+function dragStart(e,d) { if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; }
+function dragging(e,d)  { d.fx=e.x; d.fy=e.y; }
+function dragEnd(e,d)   { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }
+
+// ── Highlight ──
+function selectNode(d) {
+  selectedNode = d;
+  const connectedIds = new Set([d.id]);
+  currentLinks.forEach(l => {
+    const si = typeof l.source==='object'?l.source.id:l.source;
+    const ti = typeof l.target==='object'?l.target.id:l.target;
+    if(si===d.id) connectedIds.add(ti);
+    if(ti===d.id) connectedIds.add(si);
+  });
+
+  nodeG.selectAll('.gnode')
+    .classed('selected', n=>n.id===d.id)
+    .classed('highlighted', n=>connectedIds.has(n.id) && n.id!==d.id)
+    .classed('dimmed', n=>!connectedIds.has(n.id));
+
+  linkG.selectAll('.link')
+    .classed('dimmed', l=>{
+      const si=typeof l.source==='object'?l.source.id:l.source;
+      const ti=typeof l.target==='object'?l.target.id:l.target;
+      return si!==d.id && ti!==d.id;
+    });
+
+  document.querySelectorAll('.nli').forEach(el=>{
+    el.classList.toggle('active', el.dataset.id===d.id);
+  });
+
+  openDetail(d);
+}
+
+function deselect() {
+  selectedNode = null;
+  nodeG.selectAll('.gnode').classed('selected dimmed highlighted', false);
+  linkG.selectAll('.link').classed('dimmed', false);
+  document.querySelectorAll('.nli').forEach(el=>el.classList.remove('active'));
+}
+
+// ── Filters / Search ──
+function applyFilters() {
+  const q = searchQuery.toLowerCase().trim();
+  const nodeMap = new Map(currentNodes.map(n=>[n.id,n]));
+
+  currentNodes.forEach(n => {
+    const hidden = hiddenCats.has(n.cat);
+    const matches = !q || n.label.toLowerCase().includes(q) ||
+      n.sub.toLowerCase().includes(q) ||
+      n.desc.toLowerCase().includes(q) ||
+      n.cat.toLowerCase().includes(q);
+    n._visible = !hidden && matches;
+  });
+
+  nodeG.selectAll('.gnode')
+    .style('display', d=>d._visible?'':'none');
+  linkG.selectAll('.link')
+    .style('display', l=>{
+      const si=typeof l.source==='object'?l.source.id:l.source;
+      const ti=typeof l.target==='object'?l.target.id:l.target;
+      const sn=nodeMap.get(si), tn=nodeMap.get(ti);
+      return (sn&&sn._visible&&tn&&tn._visible)?'':'none';
+    });
+
+  updateSidebarDim(q);
+}
+
+// ── Sidebar ──
+function buildCatFilters() {
+  const catCounts = {};
+  NODES.forEach(n=>{ catCounts[n.cat]=(catCounts[n.cat]||0)+1; });
+  const el = document.getElementById('cat-filters');
+  el.innerHTML = Object.entries(CATS).map(([key,c])=>`
+    <label class="cat-row">
+      <input type="checkbox" checked data-cat="${key}" onchange="toggleCat('${key}',this.checked)">
+      <div class="cat-dot" style="background:${c.color}"></div>
+      <span class="cat-lbl">${c.label}</span>
+      <span class="cat-cnt">${catCounts[key]||0}</span>
+    </label>`).join('');
+}
+
+function toggleCat(cat, checked) {
+  if(checked) hiddenCats.delete(cat); else hiddenCats.add(cat);
+  applyFilters();
+  updateSidebar();
+}
+
+function updateSidebar() {
+  const nodeMap = new Map(NODES.map(n=>[n.id,n]));
+  const viewSubset = VIEWS[currentView];
+  let nodes = viewSubset ? NODES.filter(n=>viewSubset.includes(n.id)) : NODES.slice();
+  nodes = nodes.filter(n=>!hiddenCats.has(n.cat));
+
+  // Group by category
+  const groups = {};
+  nodes.forEach(n=>{
+    if(!groups[n.cat]) groups[n.cat]=[];
+    groups[n.cat].push(n);
+  });
+
+  const el = document.getElementById('node-list');
+  if(nodes.length===0){
+    el.innerHTML='<div class="no-res"><div class="nr-icon">🔍</div>Không tìm thấy kết quả</div>';
+    return;
+  }
+
+  el.innerHTML = Object.entries(groups).map(([cat,ns])=>`
+    <div class="nli-group">${CATS[cat].label}</div>
+    ${ns.map(n=>`
+    <div class="nli ${selectedNode?.id===n.id?'active':''}" data-id="${n.id}" onclick="focusNode('${n.id}')">
+      <div class="nli-dot" style="background:${CATS[n.cat].color}"></div>
+      <span class="nli-name" title="${n.label}">${n.label}</span>
+    </div>`).join('')}`).join('');
+}
+
+function updateSidebarDim(q) {
+  if(!q) { document.querySelectorAll('.nli').forEach(el=>el.classList.remove('dimmed')); return; }
+  document.querySelectorAll('.nli').forEach(el => {
+    const id = el.dataset.id;
+    const n = NODES.find(x=>x.id===id);
+    if(!n) return;
+    const m = n.label.toLowerCase().includes(q)||n.sub.toLowerCase().includes(q)||n.desc.toLowerCase().includes(q);
+    el.classList.toggle('dimmed', !m);
+  });
+}
+
+function focusNode(id) {
+  const n = currentNodes.find(x=>x.id===id);
+  if(!n) return;
+  selectNode(n);
+  // Pan to node
+  const scale = transform.k;
+  const cx=W()/2, cy=H()/2;
+  svg.transition().duration(500)
+    .call(zoomBeh.transform, d3.zoomIdentity
+      .translate(cx - n.x*scale, cy - n.y*scale)
+      .scale(scale));
+}
+
+// ── Detail Panel ──
+function openDetail(n) {
+  const cat = CATS[n.cat];
+  document.getElementById('d-icon').textContent = cat.icon;
+  document.getElementById('d-icon').style.background = `${cat.color}22`;
+  document.getElementById('d-icon').style.border = `1px solid ${cat.color}44`;
+  document.getElementById('d-name').textContent = n.label;
+  document.getElementById('d-path').textContent = n.sub;
+  document.getElementById('d-badge').innerHTML =
+    `<span class="d-badge" style="background:${cat.color}20;color:${cat.color};border:1px solid ${cat.color}40">${cat.icon} ${cat.label}</span>`;
+
+  // Tab: Overview
+  document.getElementById('dtc-overview').innerHTML = `
+    <div class="ds">
+      <div class="ds-title">Mô tả</div>
+      <div class="ds-desc">${n.desc}</div>
+    </div>
+    ${n.resp&&n.resp.length?`<div class="ds">
+      <div class="ds-title">Trách nhiệm chính</div>
+      ${n.resp.map(r=>`<div class="mi"><div class="mi-badge b-func">•</div><div class="mi-content"><div class="mi-desc">${r}</div></div></div>`).join('')}
+    </div>`:''}
+    ${n.routes&&n.routes.length?`<div class="ds">
+      <div class="ds-title">API Endpoints</div>
+      ${n.routes.map(r=>`<div class="mi">
+        <div class="mi-badge b-route">${r.m}</div>
+        <div class="mi-content">
+          <div class="mi-name">${r.p}</div>
+          <div class="mi-desc">${r.d}</div>
+        </div></div>`).join('')}
+    </div>`:''}
+    ${n.events&&n.events.length?`<div class="ds">
+      <div class="ds-title">Socket.IO / Events</div>
+      ${n.events.map(e=>`<div class="mi">
+        <div class="mi-badge b-event">${e.dir}</div>
+        <div class="mi-content">
+          <div class="mi-name">${e.name}</div>
+          <div class="mi-desc">${e.desc}</div>
+        </div></div>`).join('')}
+    </div>`:''}`;
+
+  // Tab: Code
+  const codeItems = [];
+  if(n.code&&n.code.length){
+    n.code.forEach(c=>{
+      codeItems.push(`<div class="ds"><div class="ds-title"><span class="mi-badge b-class">class</span> ${c.name}</div>`);
+      codeItems.push(`<div class="ds-desc" style="margin-bottom:8px">${c.desc}</div>`);
+      if(c.methods){
+        codeItems.push(`<div class="code-block">${c.methods.map(m=>`<span class="cv">${m}</span>`).join('\n')}</div>`);
+      }
+      codeItems.push('</div>');
+    });
+  }
+  if(n.funcs&&n.funcs.length){
+    codeItems.push(`<div class="ds"><div class="ds-title">Functions / Methods</div><div class="code-block">${
+      n.funcs.map(f=>`<span class="cv">${f}</span>`).join('\n')
+    }</div></div>`);
+  }
+  document.getElementById('dtc-code').innerHTML = codeItems.length
+    ? codeItems.join('')
+    : '<div class="no-res"><div class="nr-icon">📄</div>Xem CLAUDE.md để biết thêm chi tiết</div>';
+
+  // Tab: Connections
+  const incoming = [], outgoing = [];
+  LINKS.forEach(l=>{
+    if(l.s===n.id){ const tn=NODES.find(x=>x.id===l.t); if(tn) outgoing.push({n:tn,l}); }
+    if(l.t===n.id){ const sn=NODES.find(x=>x.id===l.s); if(sn) incoming.push({n:sn,l}); }
+  });
+  let connHtml='';
+  if(outgoing.length){
+    connHtml+=`<div class="ds"><div class="ds-title">→ Gửi đến (${outgoing.length})</div>`;
+    connHtml+=outgoing.map(({n:cn,l})=>`
+      <div class="conn" onclick="focusNode('${cn.id}')">
+        <div class="conn-dot" style="background:${CATS[cn.cat].color}"></div>
+        <span class="conn-name">${cn.label}</span>
+        <span class="conn-lbl">${l.lbl||l.type}</span>
+        <span class="conn-dir">→</span>
+      </div>`).join('');
+    connHtml+='</div>';
+  }
+  if(incoming.length){
+    connHtml+=`<div class="ds"><div class="ds-title">← Nhận từ (${incoming.length})</div>`;
+    connHtml+=incoming.map(({n:cn,l})=>`
+      <div class="conn" onclick="focusNode('${cn.id}')">
+        <div class="conn-dot" style="background:${CATS[cn.cat].color}"></div>
+        <span class="conn-name">${cn.label}</span>
+        <span class="conn-lbl">${l.lbl||l.type}</span>
+        <span class="conn-dir">←</span>
+      </div>`).join('');
+    connHtml+='</div>';
+  }
+  document.getElementById('dtc-connections').innerHTML = connHtml || '<div class="no-res">Không có connections</div>';
+
+  document.getElementById('detail').classList.add('open');
+
+  // Reset to overview tab
+  document.querySelectorAll('.d-tab').forEach(t=>t.classList.toggle('active',t.dataset.dtab==='overview'));
+  document.querySelectorAll('.dtc').forEach(t=>t.classList.toggle('active',t.id==='dtc-overview'));
+}
+
+function closeDetail() {
+  document.getElementById('detail').classList.remove('open');
+  deselect();
+}
+
+// ── View Tabs ──
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll('.vtab').forEach(t=>t.classList.toggle('active',t.dataset.view===view));
+  renderGraph(view);
+  if(selectedNode) closeDetail();
+}
+
+// ── Zoom controls ──
+function zoomIn()  { svg.transition().duration(300).call(zoomBeh.scaleBy, 1.4); }
+function zoomOut() { svg.transition().duration(300).call(zoomBeh.scaleBy, 0.7); }
+function fitView() {
+  const bounds = nodeG.node().getBBox();
+  if(!bounds.width) return;
+  const w=W(),h=H(),pad=60;
+  const scale=Math.min((w-pad*2)/bounds.width,(h-pad*2)/bounds.height,3);
+  const tx=w/2-(bounds.x+bounds.width/2)*scale;
+  const ty=h/2-(bounds.y+bounds.height/2)*scale;
+  svg.transition().duration(600).call(zoomBeh.transform,d3.zoomIdentity.translate(tx,ty).scale(scale));
+}
+function resetLayout() {
+  currentNodes.forEach(n=>{ n.fx=null; n.fy=null; n.x=undefined; n.y=undefined; });
+  renderGraph(currentView);
+}
+
+// ── Tooltip ──
+function showTooltip(e,d) {
+  const tt=document.getElementById('tt');
+  document.getElementById('tt-name').textContent=d.label;
+  document.getElementById('tt-cat').textContent=CATS[d.cat].label;
+  document.getElementById('tt-desc').textContent=d.desc.substring(0,100)+(d.desc.length>100?'…':'');
+  tt.style.display='block';
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  const tt=document.getElementById('tt');
+  let x=e.clientX+14,y=e.clientY-8;
+  if(x+240>window.innerWidth) x=e.clientX-250;
+  if(y+120>window.innerHeight) y=e.clientY-130;
+  tt.style.left=x+'px'; tt.style.top=y+'px';
+}
+function hideTooltip() { document.getElementById('tt').style.display='none'; }
+
+// ── Legend ──
+function buildLegend() {
+  document.getElementById('legend-cats').innerHTML = Object.entries(CATS)
+    .map(([,c])=>`<div class="legend-row"><div class="legend-dot" style="background:${c.color}"></div>${c.label}</div>`)
+    .join('');
+}
+function toggleLegend() {
+  const el=document.getElementById('legend');
+  el.classList.toggle('collapsed');
+  document.getElementById('leg-toggle').textContent=el.classList.contains('collapsed')?'▸':'▾';
+}
+
+// ── Detail tabs ──
+document.addEventListener('click', e=>{
+  const dt=e.target.closest('.d-tab');
+  if(dt){
+    const tab=dt.dataset.dtab;
+    document.querySelectorAll('.d-tab').forEach(t=>t.classList.toggle('active',t.dataset.dtab===tab));
+    document.querySelectorAll('.dtc').forEach(t=>t.classList.toggle('active',t.id===`dtc-${tab}`));
+  }
+  const vt=e.target.closest('.vtab');
+  if(vt) switchView(vt.dataset.view);
+});
+
+// ── Search ──
+document.getElementById('search-input').addEventListener('input', e=>{
+  searchQuery=e.target.value;
+  applyFilters();
+});
+
+// ── Init ──
+function init() {
+  buildCatFilters();
+  buildLegend();
+  initGraph();
+  renderGraph('graph');
+
+  // Auto-fit after sim settles
+  setTimeout(fitView, 2500);
+}
+
+window.addEventListener('load', init);
+window.addEventListener('resize', () => {
+  sim.force('center', d3.forceCenter(W()/2, H()/2));
+  sim.force('cluster', clusterForce(0.12));
+  sim.alpha(0.1).restart();
+});
+</script>
+</body>
+</html>
