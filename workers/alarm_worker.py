@@ -1709,8 +1709,11 @@ class AlarmWorker:
         alarm_name = strategy.get_display_name(card_id, card_info) if card_info else f"{strategy.card_type} {card_id}"
         column_display = strategy.get_column_display(column, card_info) if card_info else column.capitalize()
 
-        # Notification name: thêm tên cột (Left/Right) cho dual-column cards (qtag6, qtag4, quad, pv_dual)
-        if column in ("left", "right"):
+        # Notification name: thêm tên cột (Left/Right) cho dual-column cards (qtag6, qtag4, quad, pv_dual).
+        # Kiểm tra số cột thực tế để tránh thêm "(Left)" vào single-column cards (single3, qtag3, qtag2, pv_only)
+        # vì những card đó cũng dùng "left" làm tên cột nội bộ.
+        _num_cols = len(strategy.get_columns(card_info)) if card_info else 0
+        if _num_cols > 1 and column in ("left", "right"):
             _col_label = column_display if column_display else column.capitalize()
             notif_alarm_name = f"{alarm_name} ({_col_label})"
         else:
