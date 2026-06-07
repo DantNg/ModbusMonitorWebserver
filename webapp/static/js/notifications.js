@@ -296,20 +296,18 @@ window.NotificationSystem = {
 
   renderNotification(notification) {
     const timeStr = this.formatTime(notification.timestamp);
-    const levelClass = this.getLevelClass(notification.level);
-    const levelIcon = this.getLevelIcon(notification.level);
+    const _isOutgoing = (notification.status === 'OUTGOING' || notification.event_type === 'OUTGOING');
+    const levelClass = _isOutgoing ? 'secondary' : this.getLevelClass(notification.level);
+    const levelIcon = _isOutgoing ? 'bi-bell' : this.getLevelIcon(notification.level);
     const unreadDot = !notification.read ? '<span style="color:red;font-size:1.2em;vertical-align:middle;">•</span>' : '';
 
     // Determine background color based on level and status
     let bgStyle = '';
-    const _isOutgoing = (notification.status === 'OUTGOING' || notification.event_type === 'OUTGOING');
     if (_isOutgoing) {
       // Green background for cleared/outgoing alarms
       bgStyle = 'background-color: rgba(34, 197, 94, 0.12); border-left: 3px solid #16a34a;';
-    } else if (notification.level === 'Critical') {
+    } else if (notification.level === 'Critical' || notification.level === 'High' || notification.level === 'Warning') {
       bgStyle = 'background-color: rgba(220, 38, 38, 0.15); border-left: 3px solid #dc2626;';
-    } else if (notification.level === 'High' || notification.level === 'Warning') {
-      bgStyle = 'background-color: rgba(245, 158, 11, 0.15); border-left: 3px solid #f59e0b;';
     } else if (notification.level === 'Medium') {
       bgStyle = 'background-color: rgba(59, 130, 246, 0.12); border-left: 3px solid #3b82f6;';
     } else if (notification.message && /activated/i.test(notification.message)) {
@@ -340,7 +338,7 @@ window.NotificationSystem = {
   getLevelClass(level) {
     const levels = {
       'Critical': 'danger',
-      'High': 'warning',
+      'High': 'danger',
       'Medium': 'info',
       'Low': 'secondary'
     };
@@ -350,7 +348,7 @@ window.NotificationSystem = {
   getLevelIcon(level) {
     const icons = {
       'Critical': 'bi-exclamation-triangle-fill',
-      'High': 'bi-exclamation-triangle',
+      'High': 'bi-exclamation-triangle-fill',
       'Medium': 'bi-info-circle',
       'Low': 'bi-info-circle-fill'
     };
