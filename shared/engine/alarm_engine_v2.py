@@ -105,8 +105,10 @@ class AlarmEvent:
 
     @property
     def is_alarm_off(self) -> bool:
-        """Chuyển từ ALARM sang NORMAL."""
-        return self.from_state == AlarmState.ALARM and self.to_state == AlarmState.NORMAL
+        """Chuyển sang NORMAL: ALARM→NORMAL (off_stable=0) hoặc PENDING_OFF→NORMAL (off_stable>0)."""
+        return self.to_state == AlarmState.NORMAL and self.from_state in (
+            AlarmState.ALARM, AlarmState.PENDING_OFF
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +152,12 @@ _OP_MAP = {
     "!=": lambda a, b: a != b,
 }
 
+# Map range operator string → callable (a, min, max) → bool
+_RANGE_OP_MAP = {
+    "between":     lambda a, lo, hi: lo <= a <= hi,
+    "not_between": lambda a, lo, hi: not (lo <= a <= hi),
+}
+
 
 class StaticThresholdCondition(Condition):
     """
@@ -188,6 +196,46 @@ class StaticThresholdCondition(Condition):
     def __repr__(self):
         return (f"StaticThreshold(tag={self.tag_id} "
                 f"{self.operator} {self.threshold})")
+
+
+# ---------------------------------------------------------------------------
+# RangeThresholdCondition — between / not_between
+# ---------------------------------------------------------------------------
+
+class RangeThresholdCondition(Condition):
+    """
+    Điều kiện: value của tag_id nằm trong / ngoài khoảng [lo, hi].
+
+    Attributes:
+        tag_id   — tag cần monitor
+        operator — "between" hoặc "not_between"
+        lo, hi   — giới hạn dưới/trên (float)
+    """
+
+    VALID_OPERATORS = frozenset(_RANGE_OP_MAP.keys())
+
+    def __init__(self, tag_id: int, operator: str, lo: float, hi: float):
+        if operator not in self.VALID_OPERATORS:
+            raise ValueError(f"Range operator không hợp lệ: '{operator}'. "
+                             f"Phải là một trong: {sorted(self.VALID_OPERATORS)}")
+        self.tag_id = tag_id
+        self.operator = operator
+        self.lo = float(lo)
+        self.hi = float(hi)
+        self._op_fn = _RANGE_OP_MAP[operator]
+
+    def evaluate(
+        self, signal_map: Dict[int, Signal]
+    ) -> Tuple[bool, Optional[int], Optional[float]]:
+        sig = signal_map.get(self.tag_id)
+        if sig is None or sig.value is None:
+            return (False, self.tag_id, None)
+        result = self._op_fn(sig.value, self.lo, self.hi)
+        return (result, self.tag_id, sig.value)
+
+    def __repr__(self):
+        return (f"RangeThreshold(tag={self.tag_id} "
+                f"{self.operator} [{self.lo}, {self.hi}])")
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +556,21 @@ class AlarmEvaluator:
     def get_all_states(self) -> Dict[str, AlarmState]:
         """Trả về snapshot toàn bộ trạng thái."""
         return {rid: t.current_state for rid, t in self._trackers.items()}
+
+    def seed_rule_state(self, rule_id: str, state: AlarmState) -> bool:
+        """Seed trạng thái ban đầu cho một rule (dùng khi restore state sau restart).
+
+        Không tạo tracker mới — chỉ cập nhật tracker đã tồn tại (sau set_rules).
+        Trả về True nếu tracker tìm thấy và được cập nhật.
+        """
+        tracker = self._trackers.get(rule_id)
+        if tracker is None:
+            return False
+        tracker._state = state
+        # Reset timers để tránh stale on/off timestamps từ cycle trước
+        tracker._on_since = None
+        tracker._off_since = None
+        return True
 
     def reset_rule(self, rule_id: str):
         """Reset trạng thái của một rule cụ thể."""

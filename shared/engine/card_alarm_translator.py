@@ -28,6 +28,7 @@ from typing import Dict, List, Optional, Any
 from .alarm_engine_v2 import (
     Condition,
     StaticThresholdCondition,
+    RangeThresholdCondition,
     TagCompareCondition,
     GenericAlarmRule,
 )
@@ -57,16 +58,31 @@ def translate_alarm_rule_row(row: Dict[str, Any]) -> Optional[GenericAlarmRule]:
         label = row.get("name") or f"Rule #{row['id']}"
         tag_id = int(row["tag_id"])
         operator = row.get("operator", ">")
-        threshold = float(row.get("threshold_value", 0.0))
+        threshold_raw = row.get("threshold_value", "0") or "0"
         severity = row.get("severity", "medium") or "medium"
         on_sec = float(row.get("on_stable_sec") or 0.0)
         off_sec = float(row.get("off_stable_sec") or 0.0)
 
-        condition = StaticThresholdCondition(
-            tag_id=tag_id,
-            operator=operator,
-            threshold=threshold,
-        )
+        # Hỗ trợ range operator (between / not_between) với threshold "min,max"
+        if operator in ("between", "not_between"):
+            parts = str(threshold_raw).split(",")
+            if len(parts) != 2:
+                logger.warning(
+                    f"[translate_alarm_rule_row] Rule #{row['id']}: operator '{operator}' "
+                    f"yêu cầu threshold dạng 'min,max', nhận: '{threshold_raw}' — bỏ qua"
+                )
+                return None
+            lo, hi = float(parts[0]), float(parts[1])
+            condition: Condition = RangeThresholdCondition(
+                tag_id=tag_id, operator=operator, lo=lo, hi=hi
+            )
+        else:
+            threshold = float(threshold_raw)
+            condition = StaticThresholdCondition(
+                tag_id=tag_id,
+                operator=operator,
+                threshold=threshold,
+            )
 
         return GenericAlarmRule(
             rule_id=rule_id,

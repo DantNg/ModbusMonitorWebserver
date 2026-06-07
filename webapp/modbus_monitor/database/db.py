@@ -1792,7 +1792,54 @@ def get_active_tag_alarms_for_subdash(subdash_id: int):
                 if card.get('right_tag_id'):
                     all_tag_ids.add(card['right_tag_id'])
 
-            # Also include tags from quad cards (tag1..tag4)
+            # Qtag4: 2 PV tags (tag1_id=Left, tag2_id=Right)
+            qtag4_rows = con.execute(
+                select(subdash_qtag4_cards)
+                .select_from(
+                    subdash_qtag4_cards.join(
+                        subdash_tag_groups,
+                        subdash_qtag4_cards.c.group_id == subdash_tag_groups.c.id
+                    )
+                )
+                .where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).mappings().all()
+            for card in qtag4_rows:
+                if card.get('tag1_id'):
+                    all_tag_ids.add(card['tag1_id'])
+                if card.get('tag2_id'):
+                    all_tag_ids.add(card['tag2_id'])
+
+            # Qtag3: 1 PV tag (tag1_id)
+            qtag3_rows = con.execute(
+                select(subdash_qtag3_cards)
+                .select_from(
+                    subdash_qtag3_cards.join(
+                        subdash_tag_groups,
+                        subdash_qtag3_cards.c.group_id == subdash_tag_groups.c.id
+                    )
+                )
+                .where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).mappings().all()
+            for card in qtag3_rows:
+                if card.get('tag1_id'):
+                    all_tag_ids.add(card['tag1_id'])
+
+            # Qtag2: 1 PV tag (tag1_id)
+            qtag2_rows = con.execute(
+                select(subdash_qtag2_cards)
+                .select_from(
+                    subdash_qtag2_cards.join(
+                        subdash_tag_groups,
+                        subdash_qtag2_cards.c.group_id == subdash_tag_groups.c.id
+                    )
+                )
+                .where(subdash_tag_groups.c.dashboard_id == subdash_id)
+            ).mappings().all()
+            for card in qtag2_rows:
+                if card.get('tag1_id'):
+                    all_tag_ids.add(card['tag1_id'])
+
+            # Quad cards: tag1..tag4
             quad_rows = con.execute(
                 select(subdash_quad_cards)
                 .select_from(
@@ -1875,6 +1922,59 @@ def get_active_tag_alarms_for_subdash(subdash_id: int):
         return []
 
     
+def get_active_legacy_alarm_tag_ids(tag_ids: list) -> set:
+    """Trả về set tag_id có legacy alarm đang active (latest alarm_event = INCOMING).
+
+    Dùng khi alarm worker khởi động để restore trạng thái v2 evaluator:
+    seed các rule ở ALARM state để khi evaluate lần đầu, nếu condition không
+    còn met sẽ emit OUTGOING thay vì để alarm "kẹt" mãi trong DB.
+
+    Chỉ xét tag_ids có enabled alarm_rule để tránh stale card alarm events.
+    """
+    if not tag_ids:
+        return set()
+    try:
+        with init_engine().connect() as con:
+            # Filter to only tags with enabled alarm_rules
+            ruled_rows = con.execute(
+                select(alarm_rules.c.target)
+                .where(
+                    alarm_rules.c.enabled == True,
+                    alarm_rules.c.target.in_(tag_ids),
+                )
+                .distinct()
+            ).fetchall()
+            relevant = {r[0] for r in ruled_rows}
+            if not relevant:
+                return set()
+
+            from sqlalchemy import func as _func
+            subq = (
+                select(
+                    alarm_events.c.target,
+                    _func.max(alarm_events.c.id).label("max_id"),
+                )
+                .where(alarm_events.c.target.in_(list(relevant)))
+                .group_by(alarm_events.c.target)
+                .subquery()
+            )
+            rows = con.execute(
+                select(alarm_events.c.target)
+                .select_from(
+                    alarm_events.join(
+                        subq,
+                        (alarm_events.c.target == subq.c.target)
+                        & (alarm_events.c.id == subq.c.max_id),
+                    )
+                )
+                .where(alarm_events.c.event_type == "INCOMING")
+            ).fetchall()
+            return {r[0] for r in rows}
+    except Exception as e:
+        print(f"Error querying active legacy alarm tag_ids: {e}")
+        return set()
+
+
 def list_alarm_report(alarm_name=None):
     """Ghép INCOMING với OUTGOING + rule info để làm báo cáo alarm."""
     print("Generating alarm report...")

@@ -25,9 +25,11 @@ from shared.formatting import format_alarm_value, format_alarm_threshold, TagFor
 # AlarmEvaluator v2 – thay thế _process_alarm_rule cho alarm_rules table
 try:
     from shared.engine import AlarmEvaluator, Signal, AlarmEvent as _AlarmEvent, translate_alarm_rules_table
+    from shared.engine import AlarmState as _AlarmState
     _V2_ENGINE_AVAILABLE = True
 except ImportError:
     _V2_ENGINE_AVAILABLE = False
+    _AlarmState = None
 
 # Email imports with fallback
 try:
@@ -356,14 +358,16 @@ class AlarmWorker:
         self._card_managed_tag_ids_ts = 0.0
         self._card_managed_tag_ids_ttl = 10.0
 
-        # ── AlarmEvaluator v2 (shadow/parallel mode) ──────────────────────────
-        # Chạy song song với code cũ để validate logic; chưa thay thế.
+        # ── AlarmEvaluator v2 ─────────────────────────────────────────────────
         # _v2_rules_hash dùng để detect khi nào rules thay đổi → re-sync evaluator.
+        # _v2_states_restored: True sau khi đã seed lại ALARM state từ DB (1 lần duy nhất
+        # sau mỗi lần khởi động) để dọn sạch stale INCOMING events tích lũy trong DB.
         if _V2_ENGINE_AVAILABLE:
             self._v2_evaluator: AlarmEvaluator = AlarmEvaluator()
         else:
             self._v2_evaluator = None
-        self._v2_rules_hash: int = 0  # hash đơn giản để phát hiện rules thay đổi
+        self._v2_rules_hash: int = 0
+        self._v2_states_restored: bool = False
         
         
     def _load_notification_config(self):
@@ -1317,10 +1321,12 @@ class AlarmWorker:
         return card_info
 
     def _get_all_managed_tag_ids(self) -> set:
-        """Lấy tập hợp tag IDs được quản lý bởi tất cả qtag card (quad + card).
+        """Lấy tập hợp PV tag IDs đang được quản lý bởi card alarm conditions.
 
-        Thay thế _get_quad_managed_tag_ids() và _get_card_managed_tag_ids() cũ.
-        Dùng AlarmStrategyFactory để đảm bảo tự động bao gồm loại card mới.
+        Chỉ thêm PV tag_id của cột thực sự có condition operator được cấu hình
+        (left_high_operator hoặc left_low_operator không null). Không suppress SV tags
+        và không suppress PV tags của cột chưa cấu hình condition — tránh chặn nhầm
+        legacy alarm_rules của các tag đó.
         """
         now = time.time()
         if (now - self._managed_tag_ids_ts) < self._managed_tag_ids_ttl:
@@ -1342,8 +1348,15 @@ class AlarmWorker:
                 if not strategy:
                     continue
                 card_info = self._get_cached_card_info(strategy, card_id)
-                if card_info:
-                    tag_ids.update(strategy.get_managed_tag_ids(card_info))
+                if not card_info:
+                    continue
+                # Chỉ suppress PV tag của cột có ít nhất 1 operator được cấu hình.
+                # SV tags và cột không có condition KHÔNG bị suppress.
+                for col in strategy.get_columns(card_info):
+                    high_op = condition.get(f"{col.name}_high_operator")
+                    low_op = condition.get(f"{col.name}_low_operator")
+                    if (high_op or low_op) and col.pv_tag_id:
+                        tag_ids.add(col.pv_tag_id)
 
             # --- Quad conditions (bảng riêng) ---
             quad_strategy = AlarmStrategyFactory.get("quad")
@@ -1354,8 +1367,13 @@ class AlarmWorker:
                     if quad_id is None:
                         continue
                     card_info = self._get_cached_card_info(quad_strategy, quad_id)
-                    if card_info:
-                        tag_ids.update(quad_strategy.get_managed_tag_ids(card_info))
+                    if not card_info:
+                        continue
+                    for col in quad_strategy.get_columns(card_info):
+                        high_op = condition.get(f"{col.name}_high_operator")
+                        low_op = condition.get(f"{col.name}_low_operator")
+                        if (high_op or low_op) and col.pv_tag_id:
+                            tag_ids.add(col.pv_tag_id)
 
         except Exception as e:
             self.log("ERROR", f"Failed to get managed tag IDs: {e}")
@@ -2040,6 +2058,48 @@ class AlarmWorker:
         """Đã được hợp nhất vào _restore_card_alarm_states. Giữ lại để backward compat."""
         pass  # Logic đã chuyển vào _restore_card_alarm_states
 
+    def _restore_v2_tag_alarm_states(self, active_rules: list) -> None:
+        """Seed v2 evaluator với ALARM state cho các rule có stale INCOMING trong DB.
+
+        Sau restart, v2 evaluator bắt đầu ở trạng thái NORMAL. Nếu DB còn stale
+        INCOMING events (chưa có OUTGOING), alarm sẽ bị kẹt "active" mãi trên
+        frontend vì không có OUTGOING nào được emit.
+
+        Bằng cách seed ALARM state, lần evaluate đầu tiên sẽ:
+        - Nếu condition vẫn met → giữ ALARM, không fire event thêm (đúng)
+        - Nếu condition không còn met → chạy off_stable timer → fire OUTGOING → dọn sạch DB
+        """
+        if not _V2_ENGINE_AVAILABLE or self._v2_evaluator is None or not self.db_available:
+            return
+        try:
+            tag_ids = []
+            rule_id_by_tag: Dict[int, str] = {}
+            for rule in active_rules:
+                tag_id = rule.get("tag_id") or rule.get("target")
+                if tag_id:
+                    tid = int(tag_id)
+                    tag_ids.append(tid)
+                    rule_id_by_tag[tid] = f"alarm_rule_{rule.get('id')}"
+
+            if not tag_ids:
+                return
+
+            active_tag_ids = self.db.get_active_legacy_alarm_tag_ids(tag_ids)
+            if not active_tag_ids:
+                return
+
+            seeded = 0
+            for tid in active_tag_ids:
+                rule_id_str = rule_id_by_tag.get(tid)
+                if rule_id_str and self._v2_evaluator.seed_rule_state(rule_id_str, _AlarmState.ALARM):
+                    seeded += 1
+                    self.log("DEBUG", f"[v2] Seeded ALARM state: {rule_id_str} (stale INCOMING in DB)")
+
+            if seeded:
+                self.log("INFO", f"[v2] Seeded {seeded} ALARM state(s) from stale DB records on startup")
+        except Exception as e:
+            self.log("ERROR", f"[v2] Failed to restore v2 tag alarm states: {e}")
+
     # ========== AlarmEvaluator v2 – primary alarm_rules processor ==========
 
     @staticmethod
@@ -2117,6 +2177,12 @@ class AlarmWorker:
             self._v2_evaluator.set_rules(v2_rules)
             self._v2_rules_hash = rules_hash
             self.log("DEBUG", f"[v2] synced {len(v2_rules)} rules into AlarmEvaluator v2")
+            # Một lần duy nhất sau startup: seed ALARM state cho các rule có stale
+            # INCOMING trong DB để lần evaluate đầu tiên có thể clear chúng nếu
+            # condition không còn met (tránh alarm bị kẹt mãi do bug is_alarm_off cũ).
+            if not self._v2_states_restored:
+                self._restore_v2_tag_alarm_states(active_rules)
+                self._v2_states_restored = True
 
         # 4. Build signal_map từ per-cycle cache
         _now = time.time()
