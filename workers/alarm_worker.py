@@ -2127,30 +2127,27 @@ class AlarmWorker:
             "enabled": rule.get("enabled", True),
         }
 
-    def _process_alarm_rules_v2(self, alarm_rules: list, managed_tags: set) -> None:
+    def _process_alarm_rules_v2(self, alarm_rules: list) -> None:
         """Phase 6: Xử lý toàn bộ alarm_rules table bằng AlarmEvaluator v2.
 
         Thay thế vòng lặp _process_alarm_rule cũ.
         Card alarm strategies (_evaluate_card_conditions) không bị ảnh hưởng.
         Nếu v2 engine không khả dụng, tự động fallback sang v1.
+
+        Legacy alarm_rules và card alarm conditions là hai hệ thống độc lập —
+        cả hai đều được evaluate cho cùng tag nếu cần thiết.
         """
         if not _V2_ENGINE_AVAILABLE or self._v2_evaluator is None:
             # Fallback sang v1 khi engine không available
             for rule in alarm_rules:
                 if rule.get("enabled", True):
-                    tag_id = rule.get("tag_id") or rule.get("target")
-                    if tag_id and int(tag_id) in managed_tags:
-                        continue
                     self._process_alarm_rule(rule)
             return
 
-        # 1. Lọc rules: bỏ disabled và các tag đã được card/quad alarm quản lý
+        # 1. Lọc rules: bỏ disabled
         active_rules = []
         for rule in alarm_rules:
             if not rule.get("enabled", True):
-                continue
-            tag_id = rule.get("tag_id") or rule.get("target")
-            if tag_id and int(tag_id) in managed_tags:
                 continue
             active_rules.append(rule)
 
@@ -2340,12 +2337,9 @@ class AlarmWorker:
                 
                 # Load current alarm rules
                 alarm_rules = self._load_alarm_rules()
-                
-                # Get tag IDs managed by ALL card/quad alarms to avoid duplicate notifications
-                managed_tags = self._get_all_managed_tag_ids()
-                
+
                 # Xử lý alarm_rules table bằng AlarmEvaluator v2 (fallback v1 nếu cần)
-                self._process_alarm_rules_v2(alarm_rules, managed_tags)
+                self._process_alarm_rules_v2(alarm_rules)
                 
                 # Evaluate all qtag card + quad alarm conditions (unified via Strategy Pattern)
                 try:
