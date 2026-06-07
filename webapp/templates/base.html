@@ -12,7 +12,7 @@
       const KEY = 'theme';
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       const saved = localStorage.getItem(KEY);
-      const initTheme = saved || (prefersDark ? 'dark' : 'light');
+      const initTheme = saved || 'dark';
       document.documentElement.setAttribute('data-bs-theme', initTheme);
     })();
   </script>
