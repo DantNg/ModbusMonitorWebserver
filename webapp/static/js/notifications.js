@@ -89,7 +89,8 @@ window.NotificationSystem = {
             level: notification.level || 'Medium',
             timestamp: createdAt,
             read: notification.is_read || false,
-            type: 'server'
+            type: 'server',
+            event_type: notification.event_type
           }, false); // false = don't show animation for existing notifications
         });
 
