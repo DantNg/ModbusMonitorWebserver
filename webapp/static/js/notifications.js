@@ -71,9 +71,9 @@ window.NotificationSystem = {
 
           const createdAt = notification.created_at ? new Date(notification.created_at) : new Date();
 
-          // Skip server duplicates only for INCOMING events delivered via socket.
-          // OUTGOING should still be accepted from server for persistence.
-          if (notification.event_type !== 'OUTGOING' && this._wasDeliveredViaSocket(createdAt)) {
+          // Skip server duplicates for events already delivered via socket this session.
+          // _socketEventSecs is cleared on page load so this never suppresses historical notifications.
+          if (this._wasDeliveredViaSocket(createdAt)) {
             return;
           }
 
@@ -490,6 +490,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Show clear notification from socket (server API filters OUTGOING).
       if (data.status === 'OUTGOING' || data.event_type === 'OUTGOING') {
+        // Track timestamp so server sync (loadServerNotifications) won't add a duplicate
+        NotificationSystem._trackSocketEvent(ts);
         NotificationSystem.addNotification({
           id: Date.now() + Math.random(),
           serverId: undefined,

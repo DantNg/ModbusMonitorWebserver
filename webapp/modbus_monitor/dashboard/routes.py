@@ -169,7 +169,8 @@ def api_notifications():
                 "tag_name": notification.get("tag_name") or notification.get("target"),
                 # provide alarm event id and tag id if present to help deduplicate client-side
                 "alarm_event_id": notification.get("alarm_event_id"),
-                "tag_id": notification.get("tag_id"),
+                # alarm_events.target stores the tag_id (FK to tags.id)
+                "tag_id": notification.get("tag_id") or notification.get("target"),
                 "event_type": notification.get("event_type", "INCOMING"),
             })
         
