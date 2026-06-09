@@ -2134,20 +2134,29 @@ class AlarmWorker:
         Card alarm strategies (_evaluate_card_conditions) không bị ảnh hưởng.
         Nếu v2 engine không khả dụng, tự động fallback sang v1.
 
-        Legacy alarm_rules và card alarm conditions là hai hệ thống độc lập —
-        cả hai đều được evaluate cho cùng tag nếu cần thiết.
+        Tag là PV của card alarm condition (có operator cấu hình) sẽ bị skip ở đây
+        để tránh legacy alarm_rules bypass on_stable_sec của card alarm.
         """
+        managed_tag_ids = self._get_all_managed_tag_ids()
+
         if not _V2_ENGINE_AVAILABLE or self._v2_evaluator is None:
             # Fallback sang v1 khi engine không available
             for rule in alarm_rules:
-                if rule.get("enabled", True):
-                    self._process_alarm_rule(rule)
+                if not rule.get("enabled", True):
+                    continue
+                tag_id = rule.get("tag_id") or rule.get("target")
+                if tag_id and int(tag_id) in managed_tag_ids:
+                    continue
+                self._process_alarm_rule(rule)
             return
 
-        # 1. Lọc rules: bỏ disabled
+        # 1. Lọc rules: bỏ disabled và tag đã được card alarm quản lý
         active_rules = []
         for rule in alarm_rules:
             if not rule.get("enabled", True):
+                continue
+            tag_id = rule.get("tag_id") or rule.get("target")
+            if tag_id and int(tag_id) in managed_tag_ids:
                 continue
             active_rules.append(rule)
 
