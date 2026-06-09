@@ -521,9 +521,9 @@ class AlarmWorker:
 
         # Determine status label
         if notification_type == "outgoing":
-            status = "CLEARED"
+            status = "✅ CLEARED"
         else:
-            status = "Alarm"
+            status = "🚨 Alarm"
 
         body = (
             f"DateTime: {now.strftime('%d/%m/%Y %H:%M:%S')}\n"
@@ -812,7 +812,7 @@ class AlarmWorker:
                     tag_meta = self._get_tag_meta(int(tag_id))
 
             # Create notification message using the standard format
-            subject = f"ALARM TRIGGERED: {rule_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {rule_name}"
+            subject = f"🚨 ALARM TRIGGERED: {rule_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {rule_name}"
             body = self.create_alarm_email_body(
                 device_name=device_name,
                 alarm_name=rule_name,
@@ -1946,7 +1946,7 @@ class AlarmWorker:
         if not self._should_send_notification(hash(alarm_key), notification_type, stable_time_sec):
             return
 
-        subject = f"ALARM: {alarm_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {alarm_name}"
+        subject = f"🚨 ALARM: {alarm_name}" if notification_type == "incoming" else f"✅ ALARM CLEARED: {alarm_name}"
         body = self.create_alarm_email_body(
             device_name=device_name,
             alarm_name=alarm_name,
@@ -2134,29 +2134,21 @@ class AlarmWorker:
         Card alarm strategies (_evaluate_card_conditions) không bị ảnh hưởng.
         Nếu v2 engine không khả dụng, tự động fallback sang v1.
 
-        Tag là PV của card alarm condition (có operator cấu hình) sẽ bị skip ở đây
-        để tránh legacy alarm_rules bypass on_stable_sec của card alarm.
+        Legacy alarm_rules và card alarm conditions chạy độc lập — cả hai đều
+        được evaluate cho cùng tag. Màu CARD chỉ do card_alarm_event điều khiển
+        (frontend check cardHasAlarmCondition trước khi fallback tô màu card).
         """
-        managed_tag_ids = self._get_all_managed_tag_ids()
-
         if not _V2_ENGINE_AVAILABLE or self._v2_evaluator is None:
             # Fallback sang v1 khi engine không available
             for rule in alarm_rules:
-                if not rule.get("enabled", True):
-                    continue
-                tag_id = rule.get("tag_id") or rule.get("target")
-                if tag_id and int(tag_id) in managed_tag_ids:
-                    continue
-                self._process_alarm_rule(rule)
+                if rule.get("enabled", True):
+                    self._process_alarm_rule(rule)
             return
 
-        # 1. Lọc rules: bỏ disabled và tag đã được card alarm quản lý
+        # 1. Lọc rules: bỏ disabled
         active_rules = []
         for rule in alarm_rules:
             if not rule.get("enabled", True):
-                continue
-            tag_id = rule.get("tag_id") or rule.get("target")
-            if tag_id and int(tag_id) in managed_tag_ids:
                 continue
             active_rules.append(rule)
 

@@ -2164,10 +2164,10 @@ try {
         tagEl.setAttribute('title', tooltipText);
       }
 
-      // Find and mark the parent card with highest-severity alarm
-      // Include all card types: qtag6, qtag4, qtag-single-sub-card (single3/pv_only/qtag2), qtag3
+      // Card coloring: chỉ do tag alarm điều khiển khi card KHÔNG có condition cấu hình.
+      // Card CÓ condition: màu card do card_alarm_event điều khiển độc lập (tôn trọng on_stable).
       const card = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
-      if (card) {
+      if (card && !cardHasAlarmCondition(card)) {
         applyCardAlarmState(card, alarmClass);
       }
     });
@@ -2187,9 +2187,9 @@ try {
       tagEl.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
       tagEl.removeAttribute('title');
 
-      // Re-evaluate parent card alarm state
+      // Card coloring: chỉ recalc khi card không có condition (xem applyTagAlarmVisual).
       const card = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
-      if (card) {
+      if (card && !cardHasAlarmCondition(card)) {
         recalcCardAlarmState(card);
       }
     });
