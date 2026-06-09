@@ -15,9 +15,14 @@ window.NotificationSystem = {
 
   _trackSocketEvent(timestamp) {
     const sec = Math.floor(new Date(timestamp).getTime() / 1000);
-    this._socketEventSecs.set(sec, Date.now());
+    const now = Date.now();
+    // Track ±1 second window to absorb clock skew between Python emit time and
+    // MySQL notification.created_at (set by server-side NOW() slightly later).
+    this._socketEventSecs.set(sec - 1, now);
+    this._socketEventSecs.set(sec, now);
+    this._socketEventSecs.set(sec + 1, now);
     // Cleanup entries older than 60s
-    const cutoff = Date.now() - 60000;
+    const cutoff = now - 60000;
     for (const [k, v] of this._socketEventSecs) {
       if (v < cutoff) this._socketEventSecs.delete(k);
     }
@@ -467,6 +472,18 @@ window.NotificationSystem = {
     this._interval = setInterval(() => {
       this.loadServerNotifications();
     }, 10000); // every 10 seconds (reduced from 15s for faster sync)
+  },
+
+  // Debounced server resync. Used by realtime socket handlers so the bell is driven
+  // entirely by the server (DB = single source of truth) instead of mixing in transient
+  // client-side entries. Avoids the flicker caused by reconciling socket transients
+  // (purged by event-timestamp age) against server suppression (purged by tracking clock).
+  scheduleServerSync(delay = 400) {
+    if (this._resyncTimer) clearTimeout(this._resyncTimer);
+    this._resyncTimer = setTimeout(() => {
+      this._resyncTimer = null;
+      this.loadServerNotifications();
+    }, delay);
   }
 };
 
@@ -477,8 +494,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof socket !== 'undefined' && socket !== null) {
     socket.on('alarm_event', function (data) {
       console.log('Received alarm_event via Socket.IO:', data);
-      const alarmId = data.id || data.alarm_event_id;
-      const tagId = data.tag_id;
       const ts = data.created_at || data.ts || new Date().toISOString();
       const dt = new Date(ts);
       const ageSec = Math.floor((Date.now() - dt.getTime()) / 1000);
@@ -488,40 +503,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Show clear notification from socket (server API filters OUTGOING).
-      if (data.status === 'OUTGOING' || data.event_type === 'OUTGOING') {
-        // Track timestamp so server sync (loadServerNotifications) won't add a duplicate
-        NotificationSystem._trackSocketEvent(ts);
-        NotificationSystem.addNotification({
-          id: Date.now() + Math.random(),
-          serverId: undefined,
-          alarmId,
-          tagId,
-          title: data.title || 'Alarm Cleared',
-          message: data.message || 'Alarm condition cleared',
-          level: data.level || 'Low',
-          timestamp: dt,
-          status: 'OUTGOING',
-          read: false
-        });
-        console.log('[Notifications] Added OUTGOING alarm_event to bell:', data);
-        return;
+      // Server is the single source of truth (DB notification has a stable id).
+      // We no longer add a transient client-side entry here: that required reconciling
+      // two independent 60s expiry timers (transient age vs socket-suppression window)
+      // which disagreed around the boundary and made the bell count flicker (e.g. 4↔3).
+      // Instead, animate the bell for INCOMING and pull the authoritative list from the
+      // server with a short debounce (worker emits the socket BEFORE writing the DB row).
+      const isOutgoing = (data.status === 'OUTGOING' || data.event_type === 'OUTGOING');
+      if (!isOutgoing) {
+        NotificationSystem.showBellAnimation();
       }
-
-      // Track this event's timestamp to suppress duplicate server notification
-      NotificationSystem._trackSocketEvent(ts);
-      NotificationSystem.addNotification({
-        id: Date.now() + Math.random(),
-        serverId: undefined,
-        alarmId,
-        tagId,
-        title: data.title || 'Alarm Alert',
-        message: data.message || 'Alarm condition detected',
-        level: data.level || 'Critical',
-        timestamp: dt,
-        status: data.status || 'Active',
-        read: false
-      });
+      NotificationSystem.scheduleServerSync(400);
     });
 
     // Listen for quad alarm events - update bell INSTANTLY without HTTP roundtrip

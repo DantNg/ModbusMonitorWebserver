@@ -1459,9 +1459,10 @@ def insert_alarm_event(ts, name, level, target, value, note="", event_type="INCO
         except Exception:
             inserted_id = None
 
-    # If we got an inserted id, create notifications for it
+    # If we got an inserted id, create notifications for it.
+    # Pass ts so notification.created_at matches the socket-emitted created_at exactly.
     if inserted_id is not None:
-        insert_notification(inserted_id)
+        insert_notification(inserted_id, event_ts=ts)
     return inserted_id
 
 # ----------- ALARM EVENTS (history) -----------
@@ -3819,9 +3820,11 @@ def get_all_datalogger_data(dt_from: datetime, dt_to: datetime, offset: int = 0,
         return items, columns, total_count
 
 # ----------- NOTIFICATIONS -----------
-def insert_notification(alarm_event_id: int) -> int:
+def insert_notification(alarm_event_id: int, event_ts=None) -> int:
     """
     Fan-out 1 alarm_event thành notifications 'unread' cho TẤT CẢ users.
+    event_ts: nếu cung cấp, dùng làm created_at thay vì MySQL NOW() để timestamp
+              khớp chính xác với giá trị đã emit qua Socket.IO (tránh lệch giây).
     Trả về số bản ghi MỚI được chèn (bỏ qua trùng nếu UNIQUE).
     """
     with init_engine().begin() as con:
@@ -3832,13 +3835,15 @@ def insert_notification(alarm_event_id: int) -> int:
             return 0
 
         # 2) Chuẩn bị rows
-        rows = [{
+        row_base = {
             "alarm_event_id": alarm_event_id,
-            "user_id": uid,
-            "status": "unread",   # 'unread' == unseen
+            "status": "unread",
             "seen_at": None,
             "dismissed_at": None,
-        } for uid in user_ids]
+        }
+        if event_ts is not None:
+            row_base["created_at"] = event_ts
+        rows = [{**row_base, "user_id": uid} for uid in user_ids]
 
         # 3) Bulk insert (idempotent)
         inserted = 0

@@ -19,9 +19,7 @@ Sau khi chạy xong, mở app và quan sát alarm trigger trong ~5-10 giây.
 
 import sys
 
-# ── DISABLED: Script này đã chạy xong, chặn chạy lại để tránh tạo dữ liệu trùng ──
-print("⛔  test_setup_alarm.py đã bị vô hiệu hoá. Xoá dòng sys.exit() nếu muốn chạy lại.")
-sys.exit(0)
+
 
 import os
 from datetime import datetime

@@ -1032,6 +1032,22 @@ class AlarmWorker:
         self._tag_transform_cache_ts[cache_key] = now
         return meta
 
+    @staticmethod
+    def _strip_device_prefix(name: str) -> str:
+        """Bỏ prefix dạng '[...]' ở đầu tên (vd nhãn device '[TEST]') để notification
+        title của card alarm không chứa tên device — thống nhất với legacy tag alarm.
+        '[TEST] Qtag3 – Flow 1' → 'Qtag3 – Flow 1'. Nếu strip ra rỗng thì giữ nguyên."""
+        if not name:
+            return name
+        s = name.strip()
+        if s.startswith("["):
+            idx = s.find("]")
+            if idx != -1:
+                stripped = s[idx + 1:].strip()
+                if stripped:
+                    return stripped
+        return s
+
     def _format_threshold_for_note(self, threshold, compare_tag_id: Optional[int] = None) -> str:
         """Format ngưỡng alarm cho note (in-app notification / alarm history).
 
@@ -1162,7 +1178,7 @@ class AlarmWorker:
                     # ── EMIT SOCKET EVENT FIRST for instant UI update ──
                     try:
                         data = {
-                            "title": f"Alarm Triggered: {rule_name}",
+                            "title": rule_name,
                             "message": f"Alarm activated: {rule.get('operator', '>')} {threshold_val}",
                             "level": alarm_level,
                             "tag_id": tag_id,
@@ -1228,9 +1244,8 @@ class AlarmWorker:
                     
                     # ── EMIT SOCKET EVENT FIRST for instant UI update ──
                     try:
-                        dashboard_title = (rule.get("dashboard_name") or device_name or rule_name)
                         data = {
-                            "title": dashboard_title,
+                            "title": rule_name,
                             "message": f"Alarm cleared: {rule.get('operator', '>')} {threshold_val}",
                             "level": alarm_level,
                             "tag_id": tag_id,
@@ -1819,15 +1834,17 @@ class AlarmWorker:
                 # Lưu vào DB sau (chậm hơn nhưng UI đã update rồi)
                 if self.db_available:
                     try:
-                        note_prefix = f"{column_display} - " if column_display else ""
                         # Format threshold: nếu so sánh với tag, giữ decimal places của
                         # tag đó (vd: 89.0); nếu tĩnh, dùng :.10g để bỏ floating noise.
                         threshold_tag_id = high_threshold_tag_id if alarm_type == "High" else low_threshold_tag_id
                         threshold_display = self._format_threshold_for_note(threshold, threshold_tag_id)
+                        # Format thống nhất với legacy tag alarm: title = tên card (bỏ
+                        # prefix '[TEST]'), message = "Alarm activated: {operator} {threshold}".
+                        # Bỏ column prefix và "(High/Low)" để notification legacy & qtag đồng nhất.
                         event_id = self.db.insert_alarm_event(
-                            ts=ts_now, name=alarm_name, level="Critical",
+                            ts=ts_now, name=self._strip_device_prefix(alarm_name), level="Critical",
                             target=pv_tag_id, value=pv_value,
-                            note=f"{note_prefix}Alarm activated ({alarm_type}): {operator} {threshold_display}",
+                            note=f"Alarm activated: {operator} {threshold_display}",
                             event_type="INCOMING", operator=operator, threshold=threshold,
                         )
                         state_id = strategy.save_alarm_state(
@@ -1880,14 +1897,14 @@ class AlarmWorker:
 
                 if self.db_available:
                     try:
-                        note_prefix = f"{column_display} - " if column_display else ""
                         # Format threshold: giữ decimal places của compare tag nếu có.
                         stored_threshold_tag_id = high_threshold_tag_id if alarm_type == "High" else low_threshold_tag_id
                         stored_threshold_display = self._format_threshold_for_note(stored_threshold, stored_threshold_tag_id)
+                        # Format thống nhất với legacy tag alarm (xem nhánh INCOMING).
                         event_id = self.db.insert_alarm_event(
-                            ts=ts_now, name=alarm_name, level="Warning",
+                            ts=ts_now, name=self._strip_device_prefix(alarm_name), level="Warning",
                             target=pv_tag_id, value=pv_value,
-                            note=f"{note_prefix}Alarm cleared ({alarm_type}): {stored_operator} {stored_threshold_display}",
+                            note=f"Alarm cleared: {stored_operator} {stored_threshold_display}",
                             event_type="OUTGOING", operator=stored_operator, threshold=stored_threshold,
                         )
                         deleted = strategy.delete_alarm_state(self.db, card_id, column)
@@ -2244,15 +2261,19 @@ class AlarmWorker:
         except (ValueError, TypeError):
             threshold_num = 0.0
 
+        # Socket title PHẢI khớp với DB notification name (= rule_name) để frontend
+        # dedup được giữa entry từ socket và entry từ server sync. Trước đây INCOMING
+        # dùng "Alarm Triggered: {name}" và OUTGOING dùng device_name → tạo notification
+        # trùng với title khác nhau (vd phantom "[TEST] Alarm Device").
         if ev.is_alarm_on:
             event_type = "INCOMING"
             self.log("WARNING", f"[v2] Alarm ACTIVATED: {rule_name} – {tag_name} = {current_value}")
-            title = f"Alarm Triggered: {rule_name}"
+            title = rule_name
             message = f"Alarm activated: {operator} {threshold_val}"
         else:  # is_alarm_off
             event_type = "OUTGOING"
             self.log("INFO", f"[v2] Alarm CLEARED: {rule_name} – {tag_name} = {current_value}")
-            title = rule.get("dashboard_name") or device_name or rule_name
+            title = rule_name
             message = f"Alarm cleared: {operator} {threshold_val}"
 
         # ── EMIT SOCKET EVENT (UI update ngay lập tức) ──────────────────────
