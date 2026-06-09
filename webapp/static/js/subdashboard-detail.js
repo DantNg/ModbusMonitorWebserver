@@ -2154,6 +2154,11 @@ try {
       const parentCard = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
       if (!isCardMonitoringEnabled(parentCard)) return;
 
+      // Card CÓ condition: toàn bộ visual do card_alarm_event điều khiển (tôn trọng on_stable).
+      // Legacy alarm không được gây bất kỳ thay đổi visual nào — kể cả tag items —
+      // để tránh nháy layout và trạng thái không nhất quán giữa 2 stable time khác nhau.
+      if (cardHasAlarmCondition(parentCard)) return;
+
       // Remove opposite class first to prevent stale DOM state causing wrong card color
       tagEl.classList.remove('tag-alarm-high', 'tag-alarm-low');
       tagEl.classList.add('tag-alarm-active', `tag-alarm-${alarmClass}`);
@@ -2164,10 +2169,8 @@ try {
         tagEl.setAttribute('title', tooltipText);
       }
 
-      // Card coloring: chỉ do tag alarm điều khiển khi card KHÔNG có condition cấu hình.
-      // Card CÓ condition: màu card do card_alarm_event điều khiển độc lập (tôn trọng on_stable).
       const card = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
-      if (card && !cardHasAlarmCondition(card)) {
+      if (card) {
         applyCardAlarmState(card, alarmClass);
       }
     });
@@ -2184,12 +2187,14 @@ try {
     );
 
     tagElements.forEach(tagEl => {
+      // Card CÓ condition: không can thiệp visual (đối xứng với applyTagAlarmVisual).
+      const card = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
+      if (cardHasAlarmCondition(card)) return;
+
       tagEl.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
       tagEl.removeAttribute('title');
 
-      // Card coloring: chỉ recalc khi card không có condition (xem applyTagAlarmVisual).
-      const card = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
-      if (card && !cardHasAlarmCondition(card)) {
+      if (card) {
         recalcCardAlarmState(card);
       }
     });
@@ -2238,14 +2243,12 @@ try {
             } else if (confirmedType === 'Low') {
               sub.classList.add('qtag6-alarm-low');
             }
-          }
-          // Nếu server chưa sync (_lastSyncedCardAlarms chưa load),
-          // fallback về logic dựa trên tag-alarm class như trước.
-          else if (_lastSyncedCardAlarms.size === 0) {
+          } else {
+            // Card has no condition (applyTagAlarmVisual returns early for cards with conditions),
+            // so server will never have an entry for this card — always use DOM fallback.
             if (hasHigh) sub.classList.add('qtag6-alarm-high');
             else if (hasLow) sub.classList.add('qtag6-alarm-low');
           }
-          // Nếu server đã sync nhưng không có entry cho cột này → không tô màu.
         }
       });
     } else if (isSingle) {
@@ -2321,8 +2324,8 @@ try {
             // Trust server exclusively – stale hasHigh/hasLow must not override confirmed type
             if (confirmedType === 'High') sub.classList.add('qtag6-alarm-high');
             else if (confirmedType === 'Low') sub.classList.add('qtag6-alarm-low');
-          } else if (_lastSyncedCardAlarms.size === 0) {
-            // Fallback khi chưa có dữ liệu từ server
+          } else {
+            // Card has no condition — server never has an entry for it, always use DOM fallback.
             if (hasHigh) sub.classList.add('qtag6-alarm-high');
             else if (hasLow) sub.classList.add('qtag6-alarm-low');
           }
