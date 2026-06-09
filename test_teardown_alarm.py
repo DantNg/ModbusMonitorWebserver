@@ -38,7 +38,7 @@ from modbus_monitor.database.db import (
     devices, tags, tag_latest_values, tag_values, tag_logs,
     alarm_rules, alarm_events,
     dashboards, dashboard_tags,
-    subdash_groups, subdash_group_tags,
+    subdash_tag_groups, subdash_group_tags,
 )
 
 # ── Import các card/condition tables (có thể không export sẵn → dùng text SQL) ──
@@ -97,7 +97,7 @@ print("\n[3] Xoá alarm conditions + states của các card test ...")
 
 def get_group_ids_for_dash(con, dash_id):
     rows = con.execute(
-        select(subdash_groups.c.id).where(subdash_groups.c.dashboard_id == dash_id)
+        select(subdash_tag_groups.c.id).where(subdash_tag_groups.c.dashboard_id == dash_id)
     ).all()
     return [r[0] for r in rows]
 
