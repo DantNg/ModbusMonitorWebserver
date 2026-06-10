@@ -2143,37 +2143,25 @@ try {
    * @param {object} alarmInfo - Optional alarm details for tooltip {alarm_name, level, value, operator, threshold}
    */
   function applyTagAlarmVisual(tagId, alarmClass, alarmInfo) {
-    // Find all elements displaying this tag across all Qtag card types
-    const tagElements = document.querySelectorAll(
-      `.qtag6-tag-item[data-tag-id="${tagId}"],` +
-      `.qtag-single-tag-item[data-tag-id="${tagId}"]`
-    );
-
-    tagElements.forEach(tagEl => {
-      // Skip if parent card has monitoring disabled
-      const parentCard = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
-      if (!isCardMonitoringEnabled(parentCard)) return;
-
-      // Card CÓ condition: toàn bộ visual do card_alarm_event điều khiển (tôn trọng on_stable).
-      // Legacy alarm không được gây bất kỳ thay đổi visual nào — kể cả tag items —
-      // để tránh nháy layout và trạng thái không nhất quán giữa 2 stable time khác nhau.
-      if (cardHasAlarmCondition(parentCard)) return;
-
-      // Remove opposite class first to prevent stale DOM state causing wrong card color
-      tagEl.classList.remove('tag-alarm-high', 'tag-alarm-low');
-      tagEl.classList.add('tag-alarm-active', `tag-alarm-${alarmClass}`);
-
-      // Add tooltip with alarm info
-      if (alarmInfo) {
-        const tooltipText = `⚠️ ${alarmInfo.alarm_name || 'Alarm'}\nLevel: ${alarmInfo.level || 'High'}\nValue: ${alarmInfo.value ?? 'N/A'}\nCondition: ${alarmInfo.operator || '>'} ${alarmInfo.threshold ?? 'N/A'}`;
-        tagEl.setAttribute('title', tooltipText);
-      }
-
-      const card = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
-      if (card) {
-        applyCardAlarmState(card, alarmClass);
-      }
-    });
+    // ────────────────────────────────────────────────────────────────────────
+    // DECOUPLED: legacy per-tag alarms (alarm_rules) no longer color any card.
+    //
+    // Every qtag-family card (qtag6/qtag4/qtag3/qtag2/single3/pv_only/pv_dual) is
+    // driven EXCLUSIVELY by the card alarm system (card_alarm_conditions →
+    // card_alarm_event → applyCardAlarmVisual / _lastSyncedCardAlarms). A card with
+    // no card-alarm condition must NOT inherit color from an unrelated legacy
+    // alarm_rules row that happens to target one of its tags. That coupling caused:
+    //   (1) a newly created qtag turning red/yellow even though no alarm was set;
+    //   (2) the new qtag "following" the legacy alarm's state instead of its own.
+    //
+    // Legacy per-tag alarms still power the Alarms page, notification bell and email
+    // (the backend keeps emitting 'alarm_event'); they simply have no visual effect
+    // on subdashboard cards anymore. This is intentionally a no-op — the callers
+    // (page load, 10s sync, socket 'alarm_event') are retained so that
+    // fetchAndApplyTagAlarms() still builds the live legacy-alarm map consumed by
+    // the single3 PV-vs-SV fallback.
+    // ────────────────────────────────────────────────────────────────────────
+    return;
   }
 
   /**
@@ -2181,23 +2169,11 @@ try {
    * @param {number} tagId - The tag ID
    */
   function removeTagAlarmVisual(tagId) {
-    const tagElements = document.querySelectorAll(
-      `.qtag6-tag-item[data-tag-id="${tagId}"],` +
-      `.qtag-single-tag-item[data-tag-id="${tagId}"]`
-    );
-
-    tagElements.forEach(tagEl => {
-      // Card CÓ condition: không can thiệp visual (đối xứng với applyTagAlarmVisual).
-      const card = tagEl.closest('.qtag6-card, .qtag4-card, .qtag-single-sub-card, .qtag3-card');
-      if (cardHasAlarmCondition(card)) return;
-
-      tagEl.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
-      tagEl.removeAttribute('title');
-
-      if (card) {
-        recalcCardAlarmState(card);
-      }
-    });
+    // Symmetric with applyTagAlarmVisual: legacy per-tag alarms (alarm_rules) do not
+    // touch card visuals, so there is nothing to clear here. Card colors are managed
+    // solely by the card alarm system (removeCardAlarmVisual) and, for unconfigured
+    // single3 cards, by evaluateSingle3PvSvFallback (which clears its own classes).
+    return;
   }
 
   /**

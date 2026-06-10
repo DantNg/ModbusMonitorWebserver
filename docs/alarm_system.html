@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hệ thống Alarm – Flask Modbus Monitor</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#161b22; --panel2:#1c2330; --border:#2a3340;
+    --txt:#d7dde6; --muted:#8b97a7; --accent:#4ea1ff; --accent2:#7c5cff;
+    --high:#ff5b5b; --low:#ffc14d; --ok:#39d98a; --code:#0b0e13;
+    --tag:#2e3b52; --quad:#3a2d52;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.65;font-size:15px}
+  .wrap{display:flex;max-width:1500px;margin:0 auto}
+  /* Sidebar */
+  nav{position:sticky;top:0;align-self:flex-start;width:280px;height:100vh;
+    overflow-y:auto;padding:24px 18px;background:var(--panel);border-right:1px solid var(--border)}
+  nav h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:18px 0 8px}
+  nav a{display:block;color:var(--txt);text-decoration:none;padding:5px 10px;border-radius:6px;
+    font-size:13.5px;margin:1px 0;border-left:2px solid transparent}
+  nav a:hover{background:var(--panel2);border-left-color:var(--accent)}
+  nav .brand{font-weight:700;font-size:16px;color:var(--accent);margin-bottom:4px}
+  nav .brand small{display:block;color:var(--muted);font-weight:400;font-size:11.5px}
+  /* Main */
+  main{flex:1;padding:40px 56px;min-width:0;max-width:1180px}
+  h1{font-size:30px;margin:0 0 6px;background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .sub{color:var(--muted);margin-bottom:34px;font-size:15px}
+  h2{font-size:23px;margin:48px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--border)}
+  h3{font-size:18px;margin:28px 0 10px;color:var(--accent)}
+  h4{font-size:15px;margin:20px 0 8px;color:#bcd}
+  p{margin:10px 0}
+  code{background:var(--code);padding:2px 6px;border-radius:4px;font-family:"Cascadia Code",Consolas,monospace;
+    font-size:13px;color:#ffd479}
+  pre{background:var(--code);border:1px solid var(--border);border-radius:10px;padding:16px 18px;
+    overflow-x:auto;font-family:"Cascadia Code",Consolas,monospace;font-size:13px;line-height:1.55}
+  pre code{background:none;padding:0;color:#cfe3ff}
+  .kw{color:#ff7edb}.str{color:#9be88a}.cm{color:#6b7787;font-style:italic}.fn{color:#7cc7ff}.num{color:#ffb86c}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#cfe;font-weight:600}
+  tr:nth-child(even) td{background:rgba(255,255,255,.018)}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin:18px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}nav{display:none}main{padding:24px}}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600;margin:1px 3px 1px 0}
+  .b-tag{background:var(--tag);color:#9cc2ff}.b-card{background:#2f4a3a;color:#8be3b0}
+  .b-quad{background:var(--quad);color:#c3a8ff}.b-high{background:#52262a;color:#ff9a9a}
+  .b-low{background:#52482a;color:#ffd98a}.b-v2{background:#2a3a52;color:#9ad0ff}
+  .note{border-left:4px solid var(--accent);background:var(--panel2);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .warn{border-left:4px solid var(--low);background:#2a2418}
+  .danger{border-left:4px solid var(--high);background:#2a1a1a}
+  .ok{border-left:4px solid var(--ok);background:#16271f}
+  .note b{color:#fff}
+  .pill{font-size:11px;padding:1px 7px;border-radius:5px;background:var(--code);border:1px solid var(--border);color:var(--muted)}
+  /* flow diagram */
+  .flow{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+  .flow .step{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;position:relative}
+  .flow .step b{color:var(--accent)}
+  .flow .arrow{text-align:center;color:var(--accent2);font-size:18px;line-height:1}
+  .legend span{margin-right:14px;font-size:12.5px}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:middle}
+  .sm-box{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px;margin:10px 0}
+  .sm-box .title{font-weight:700;color:#fff;margin-bottom:6px}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0}
+  .twocol{column-count:2;column-gap:28px}
+  @media(max-width:900px){.twocol{column-count:1}}
+  .tline{font-family:monospace;font-size:12.5px}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+  a.x{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav>
+  <div class="brand">⚙ Alarm System<small>Flask Modbus Monitor · IIoT</small></div>
+  <h2>Nội dung</h2>
+  <a href="#tongquan">1. Tổng quan</a>
+  <a href="#kientruc">2. Kiến trúc 2 hệ thống</a>
+  <a href="#process">3. Tiến trình & vòng lặp</a>
+  <a href="#tagalarm">4. Tag Alarm (rules)</a>
+  <a href="#v2">5. AlarmEvaluator v2</a>
+  <a href="#cardalarm">6. Card Alarm</a>
+  <a href="#strategy">7. Strategy Pattern</a>
+  <a href="#statemachine">8. State Machine</a>
+  <a href="#stable">9. Stable Time</a>
+  <a href="#edge">10. Edge cases</a>
+  <a href="#db">11. Database</a>
+  <a href="#socket">12. Socket events</a>
+  <a href="#frontend">13. Frontend</a>
+  <a href="#notify">14. Notification</a>
+  <a href="#keys">15. Bảng tra cứu key</a>
+</nav>
+
+<main>
+<h1>Hệ thống Alarm – Flask Modbus Monitor</h1>
+<div class="sub">Tài liệu kỹ thuật chi tiết về cấu trúc và logic hoạt động của hệ thống cảnh báo (alarm).
+Dựa trên <code>workers/alarm_worker.py</code>, <code>workers/alarm_strategies.py</code>,
+<code>shared/engine/</code> và <code>static/js/subdashboard-detail.js</code>.</div>
+
+<!-- ============ 1 ============ -->
+<section id="tongquan">
+<h2>1. Tổng quan</h2>
+<p>Hệ thống alarm chạy trong một <b>process độc lập</b> (<code>orchestra_alarm.py</code> → <code>AlarmWorker</code>),
+tách biệt với web server và modbus worker. Cứ mỗi <b>1 giây</b> (<code>check_interval</code>), worker đọc giá trị tag
+mới nhất từ DB, đánh giá điều kiện, và phát sự kiện qua <b>Socket.IO</b> để trình duyệt cập nhật màu sắc real-time.</p>
+
+<div class="card">
+<div class="legend">
+  <span><i class="dot" style="background:var(--tag)"></i><b>Tag Alarm</b> — cảnh báo theo từng tag riêng lẻ</span>
+  <span><i class="dot" style="background:#2f4a3a"></i><b>Card Alarm</b> — cảnh báo theo card hiển thị (PV vs ngưỡng)</span>
+  <span><i class="dot" style="background:var(--quad)"></i><b>Quad Alarm</b> — biến thể của Card cho quad card</span>
+</div>
+</div>
+
+<div class="note"><b>Nguyên tắc cốt lõi:</b> Worker <b>emit Socket.IO trước</b> để UI cập nhật tức thì,
+<b>ghi DB sau</b> (chậm hơn nhưng UI đã đổi màu xong). Mọi state thay đổi đều tuân theo <b>stable time</b>
+(thời gian ổn định) để chống nhiễu/chống nhấp nháy.</p></div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="kientruc">
+<h2>2. Kiến trúc: hai hệ thống alarm song song</h2>
+<p>Trong project tồn tại <b>hai hệ thống alarm hoàn toàn riêng biệt</b>, đánh giá cùng dữ liệu nhưng phục vụ
+mục đích khác nhau:</p>
+
+<table>
+<tr><th></th><th>Tag Alarm <span class="badge b-tag">tag</span></th><th>Card Alarm <span class="badge b-card">card</span> / <span class="badge b-quad">quad</span></th></tr>
+<tr><td><b>Bảng nguồn</b></td><td><code>alarm_rules</code></td><td><code>card_alarm_conditions</code>, <code>quad_tag_conditions</code></td></tr>
+<tr><td><b>Bảng state</b></td><td><code>alarm_events</code> (log)</td><td><code>card_alarm_states</code>, <code>quad_alarm_states</code></td></tr>
+<tr><td><b>Đối tượng</b></td><td>1 tag đơn lẻ</td><td>1 cột (left/right) của 1 card</td></tr>
+<tr><td><b>Engine xử lý</b></td><td><code>AlarmEvaluator v2</code> (fallback v1 <code>_process_alarm_rule</code>)</td><td>Strategy Pattern (<code>alarm_strategies.py</code>)</td></tr>
+<tr><td><b>Socket event</b></td><td><code>alarm_event</code></td><td><code>card_alarm_event</code> / <code>quad_alarm_event</code></td></tr>
+<tr><td><b>Ý nghĩa "High/Low"</b></td><td><code>level</code> = <b>mức độ nghiêm trọng</b> (Critical/High/Medium/Low)</td><td><code>alarm_type</code> = <b>hướng ngưỡng bị vượt</b> (High/Low — authoritative)</td></tr>
+<tr><td><b>Màu trên UI</b></td><td>Critical/High → đỏ; Medium/Low → vàng</td><td>High → đỏ; Low → vàng</td></tr>
+</table>
+
+<div class="warn note"><b>Điểm dễ nhầm:</b> ở Tag Alarm, <code>level="High"</code> chỉ là <b>severity</b> — KHÔNG cho biết
+hướng ngưỡng. Một crossing ngưỡng <i>thấp</i> vẫn có thể mang severity "Critical". Vì vậy frontend
+ưu tiên <code>card_alarm_event.alarm_type</code> (hướng thật) hơn class DOM <code>tag-alarm-high</code> (severity).</div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="process">
+<h2>3. Tiến trình & vòng lặp chính</h2>
+<p>Entry point: <code>create_alarm_worker_process()</code> tạo một <code>multiprocessing.Process</code>
+chạy <code>AlarmWorker.run()</code>. Khi khởi động:</p>
+
+<div class="flow">
+  <div class="step"><b>run()</b> → set <code>running=True</code></div>
+  <div class="arrow">↓</div>
+  <div class="step">Khởi động <b>command_handler thread</b> (nhận stop/reload/get_status) + <b>SMS sender thread</b> (serialize COM port)</div>
+  <div class="arrow">↓</div>
+  <div class="step"><b>_restore_card_alarm_states()</b> — đọc lại các alarm đang active từ DB (card + quad) vào dict in-memory, tránh "mất màu" sau restart</div>
+  <div class="arrow">↓</div>
+  <div class="step"><b>_alarm_loop()</b> — vòng lặp vô hạn mỗi <code>check_interval=1.0s</code></div>
+</div>
+
+<h3>3.1. Mỗi chu kỳ của <code>_alarm_loop()</code></h3>
+<div class="flow">
+  <div class="step">1. <code>_tag_value_cache.clear()</code> — xóa cache giá trị tag (per-cycle, tránh query trùng trong 1 cycle)</div>
+  <div class="arrow">↓</div>
+  <div class="step">2. Mỗi 10 cycle (~10s): <b>health-check Socket.IO</b>; nếu mất kết nối → reconnect trong background thread</div>
+  <div class="arrow">↓</div>
+  <div class="step">3. <code>_load_alarm_rules()</code> — load rules từ DB (cache TTL 10s, enrich tag_name/device_name)</div>
+  <div class="arrow">↓</div>
+  <div class="step">4. <code>_process_alarm_rules_v2()</code> — đánh giá toàn bộ <code>alarm_rules</code> qua engine v2</div>
+  <div class="arrow">↓</div>
+  <div class="step">5. <code>_evaluate_card_conditions()</code> — đánh giá tất cả card + quad conditions qua Strategy Pattern</div>
+  <div class="arrow">↓</div>
+  <div class="step">6. Mỗi 10 cycle: cập nhật <code>shared_state["alarm_worker_status"]</code> (active_alarms, total_rules, sio_connected)</div>
+  <div class="arrow">↓</div>
+  <div class="step">7. <code>time.sleep(check_interval)</code></div>
+</div>
+
+<div class="note"><b>Caching nhiều lớp</b> để giảm tải DB: alarm rules (TTL 10s), card conditions (5s),
+quad conditions (5s), card info (30s), tag transform scale/offset (60s), device status (3s),
+managed tag IDs (10s). Giá trị tag dùng <b>per-cycle cache</b> (xóa đầu mỗi vòng).</div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="tagalarm">
+<h2>4. Tag Alarm — luồng v1 (<code>_process_alarm_rule</code>)</h2>
+<p>Đây là logic gốc cho từng <code>alarm_rules</code> (giờ là fallback khi engine v2 không khả dụng).
+Một rule gồm: <code>target</code> (tag_id), <code>operator</code> (<code>&gt; &lt; &gt;= &lt;= == !=</code>),
+<code>threshold</code> (số đơn hoặc <code>"min,max"</code> cho between/not_between), <code>level</code>,
+<code>on_stable_sec</code>, <code>off_stable_sec</code>, <code>email</code>, <code>sms</code>.</p>
+
+<pre><code><span class="cm"># Lõi đánh giá điều kiện</span>
+<span class="kw">def</span> <span class="fn">_evaluate_alarm_rule</span>(self, rule, tag_value):
+    operator = rule[<span class="str">"operator"</span>]; threshold = <span class="fn">float</span>(rule[<span class="str">"threshold"</span>])
+    <span class="kw">return</span> self.<span class="fn">_compare_value</span>(tag_value, operator, threshold)
+
+<span class="cm"># Giá trị tag đọc từ tag_latest_values — ĐÃ là engineering units (raw×scale+offset)</span>
+<span class="cm"># nên KHÔNG nhân scale/offset lần nữa.</span></code></pre>
+
+<h4>Logic chuyển trạng thái (rút gọn):</h4>
+<table>
+<tr><th>Điều kiện hiện tại</th><th>State trước</th><th>Hành động</th></tr>
+<tr><td>met</td><td>inactive</td><td>Bắt đầu đếm <code>on_stable_sec</code>. Khi đủ → set active, emit <code>INCOMING</code>, ghi <code>alarm_events</code>, gửi notification, reset timer</td></tr>
+<tr><td>not met</td><td>active</td><td>Bắt đầu đếm <code>off_stable_sec</code>. Khi đủ → set inactive, emit <code>OUTGOING</code>, ghi event, gửi clear notification, reset timer</td></tr>
+<tr><td>met == state</td><td>—</td><td>Không transition → <code>_alarm_since.pop()</code> (reset timer ổn định)</td></tr>
+</table>
+
+<div class="note">Sau khi INCOMING fire, <code>_alarm_since</code> được <b>reset</b> để OUTGOING đếm từ lúc condition
+thực sự clear — không phải từ lúc on_stable bắt đầu (quan trọng khi <code>on_stable ≥ off_stable</code>).</div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="v2">
+<h2>5. AlarmEvaluator v2 <span class="badge b-v2">shared/engine</span></h2>
+<p>Engine mới thay thế vòng lặp <code>_process_alarm_rule</code> cho bảng <code>alarm_rules</code>.
+Card alarm <b>không</b> dùng engine này.</p>
+
+<h3>5.1. Quy trình <code>_process_alarm_rules_v2()</code></h3>
+<div class="flow">
+  <div class="step">1. Lọc bỏ rule disabled</div>
+  <div class="arrow">↓</div>
+  <div class="step">2. Pre-fetch giá trị mọi tag → điền <code>_tag_value_cache</code> một lần</div>
+  <div class="arrow">↓</div>
+  <div class="step">3. Tính <b>rules_hash</b> (id, on/off_stable, threshold, operator, enabled). Nếu đổi → <code>translate_alarm_rules_table()</code> + <code>set_rules()</code> để re-sync evaluator</div>
+  <div class="arrow">↓</div>
+  <div class="step">4. Build <code>signal_map</code> = {tag_id → Signal(value, timestamp)}</div>
+  <div class="arrow">↓</div>
+  <div class="step">5. <code>v2_evaluator.evaluate(signal_map)</code> → trả về danh sách <code>AlarmEvent</code></div>
+  <div class="arrow">↓</div>
+  <div class="step">6. Mỗi event → <code>_handle_v2_alarm_event()</code>: emit socket + ghi DB + notification</div>
+</div>
+
+<h3>5.2. Xử lý event v2</h3>
+<p><code>_handle_v2_alarm_event()</code> chỉ xử lý 2 transition: <code>is_alarm_on</code> (→ALARM) và
+<code>is_alarm_off</code> (ALARM→NORMAL). Các state <code>PENDING_ON</code>/<code>PENDING_OFF</code> bị bỏ qua
+(StabilityTracker xử lý nội bộ).</p>
+
+<div class="warn note"><b>Bug đã xử lý (xem memory):</b> socket title của INCOMING và OUTGOING trước đây khác nhau
+(INCOMING dùng <code>"Alarm Triggered: {name}"</code>, OUTGOING dùng <code>device_name</code>) → tạo notification
+trùng "ma" trên chuông. Nay <b>thống nhất</b> <code>title = rule_name</code> cho cả hai chiều.</div>
+
+<h3>5.3. Seed state sau khởi động</h3>
+<p><code>_restore_v2_tag_alarm_states()</code> chạy <b>một lần</b> sau lần sync rules đầu tiên: với các rule còn
+<b>stale INCOMING</b> trong DB (chưa có OUTGOING tương ứng), nó seed evaluator vào state <code>ALARM</code>.
+Lần evaluate kế tiếp, nếu condition không còn met → off_stable timer chạy → fire OUTGOING → dọn sạch DB.
+Tránh alarm "kẹt active" vĩnh viễn sau restart.</p>
+
+<div class="note">v1 vẫn được giữ nguyên (chạy shadow / fallback) — <b>không xóa code v1</b>.</div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="cardalarm">
+<h2>6. Card Alarm — đánh giá theo cột</h2>
+<p>Mỗi card hiển thị 1–2 cột (<code>left</code>/<code>right</code>). Với mỗi cột, condition gồm <b>HIGH</b> và
+<b>LOW</b> threshold độc lập, mỗi cái có operator, value/compare_tag, on_stable, off_stable riêng.</p>
+
+<h3>6.1. <code>_process_card_condition()</code> → <code>_evaluate_card_column()</code></h3>
+<pre><code><span class="cm"># Tham số condition cho 1 cột (column = "left"/"right")</span>
+{column}_high_operator        <span class="cm"># &gt; &lt; &gt;= &lt;=</span>
+{column}_high_compare_type    <span class="cm"># "static" | "tag"</span>
+{column}_high_value           <span class="cm"># ngưỡng tĩnh</span>
+{column}_high_compare_tag_id  <span class="cm"># ngưỡng động (giá trị tag khác)</span>
+{column}_high_on_stable / _off_stable
+<span class="cm"># ... lặp lại y hệt cho {column}_low_*</span></code></pre>
+
+<h4>Các bước đánh giá 1 cột:</h4>
+<div class="flow">
+  <div class="step">1. <b>Offline check:</b> nếu device của PV/SV/compare-tag offline → bỏ qua, đánh dấu <code>_offline_skipped</code>. Khi online lại → re-emit INCOMING (reconnect path)</div>
+  <div class="arrow">↓</div>
+  <div class="step">2. <b>Eval HIGH:</b> lấy threshold (static value hoặc value của compare tag) → <code>_compare_value(pv_value, high_op, high_threshold)</code></div>
+  <div class="arrow">↓</div>
+  <div class="step">3. <b>Eval LOW:</b> tương tự với low_op</div>
+  <div class="arrow">↓</div>
+  <div class="step">4. <code>alarm_triggered = high_met OR low_met</code>; <code>current_alarm_type = "High" if high_met else ("Low" if low_met else None)</code></div>
+  <div class="arrow">↓</div>
+  <div class="step">5. Chọn <b>stable times tương ứng</b> với type đang/ sẽ active → gọi <code>_process_card_alarm_state()</code></div>
+</div>
+
+<div class="danger note"><b>Chỉ PV value được so sánh</b> với ngưỡng. SV (setpoint) chỉ để hiển thị, không tham gia logic alarm
+(trừ khi SV được cấu hình làm compare tag động).</div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="strategy">
+<h2>7. Strategy Pattern (<code>alarm_strategies.py</code>)</h2>
+<p>Mọi khác biệt giữa các loại card (cách lấy tag IDs, format event, DB methods, tên hiển thị) được đóng gói
+trong concrete strategy. <code>AlarmWorker</code> đánh giá mà <b>không cần biết</b> loại card cụ thể.</p>
+
+<pre><code><span class="kw">class</span> <span class="fn">CardAlarmStrategy</span>(ABC):
+    card_type           <span class="cm"># "qtag6", "quad", ...</span>
+    socket_event_name   <span class="cm"># "card_alarm_event" | "quad_alarm_event"</span>
+    <span class="fn">get_columns</span>(card_info)        <span class="cm"># → [ColumnDef(name, pv_tag_id, sv_tag_id)]</span>
+    <span class="fn">make_alarm_key</span>(card_id, col)  <span class="cm"># → "card_{type}_{id}_{col}" | "quad_{id}_{col}"</span>
+    <span class="fn">fetch_card_info</span>(db, card_id)
+    <span class="fn">build_event</span>(...)               <span class="cm"># → payload Socket.IO</span>
+    <span class="fn">save_alarm_state</span> / <span class="fn">delete_alarm_state</span>(db, ...)</code></pre>
+
+<table>
+<tr><th>Strategy</th><th>card_type</th><th>Cột</th><th>PV tags</th><th>Socket event</th><th>Bảng state</th></tr>
+<tr><td>Qtag6Strategy</td><td><code>qtag6</code></td><td>left+right</td><td>tag1_id, tag2_id</td><td><span class="pill">card_alarm_event</span></td><td>card_alarm_states</td></tr>
+<tr><td>Qtag4Strategy</td><td><code>qtag4</code></td><td>left+right</td><td>tag1_id, tag2_id</td><td><span class="pill">card_alarm_event</span></td><td>card_alarm_states</td></tr>
+<tr><td>Qtag3Strategy</td><td><code>qtag3</code></td><td>left</td><td>tag1_id</td><td><span class="pill">card_alarm_event</span></td><td>card_alarm_states</td></tr>
+<tr><td>Qtag2Strategy</td><td><code>qtag2</code></td><td>left</td><td>tag1_id</td><td><span class="pill">card_alarm_event</span></td><td>card_alarm_states</td></tr>
+<tr><td>Single3Strategy</td><td><code>single3</code></td><td>left</td><td>pv_tag_id</td><td><span class="pill">card_alarm_event</span></td><td>card_alarm_states</td></tr>
+<tr><td>PVOnlyStrategy</td><td><code>pv_only</code></td><td>left</td><td>pv_tag_id</td><td><span class="pill">card_alarm_event</span></td><td>card_alarm_states</td></tr>
+<tr><td>PVDualStrategy</td><td><code>pv_dual</code></td><td>left+right</td><td>left_tag_id, right_tag_id</td><td><span class="pill">card_alarm_event</span></td><td>card_alarm_states</td></tr>
+<tr><td>QuadCardStrategy</td><td><code>quad</code></td><td>left+right</td><td>tag1_id, tag2_id (SV: tag3_id, tag4_id)</td><td><span class="pill">quad_alarm_event</span></td><td>quad_alarm_states</td></tr>
+</table>
+
+<h4>Khác biệt của QuadCardStrategy:</h4>
+<ul>
+<li>alarm_key prefix <code>quad_</code> thay vì <code>card_</code></li>
+<li>Payload event chứa cả <code>tag1_value</code> (PV) và <code>tag2_value</code> (SV), kèm field <code>*_display</code> đã format sẵn</li>
+<li>Quản lý cả 4 tag (tag1–tag4); lưu vào <code>quad_alarm_states</code></li>
+</ul>
+
+<div class="note"><b>Thêm loại card mới:</b> tạo class kế thừa <code>CardAlarmStrategy</code> → implement abstract methods →
+thêm vào <code>_BUILTIN_STRATEGIES</code>. Không cần sửa <code>alarm_worker.py</code>.
+<code>AlarmStrategyFactory.get(card_type)</code> tự routing.</div>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="statemachine">
+<h2>8. State Machine — <code>_process_card_alarm_state()</code></h2>
+<p>Đây là trái tim của card alarm. Các dict tracking in-memory (key = <code>alarm_key</code>):</p>
+<table>
+<tr><th>Dict</th><th>Ý nghĩa</th></tr>
+<tr><td><code>_alarm_states</code></td><td>alarm_key → đang active (True/False)</td></tr>
+<tr><td><code>_alarm_types</code></td><td>alarm_key → "High"/"Low" (hướng đang active)</td></tr>
+<tr><td><code>_alarm_since</code></td><td>alarm_key → timestamp bắt đầu đếm stable</td></tr>
+<tr><td><code>_pending_alarm_type</code></td><td>alarm_key → type mà timer on_stable đang đếm cho</td></tr>
+<tr><td><code>_alarm_last_eval</code></td><td>alarm_key → lần evaluate gần nhất (continuity guard)</td></tr>
+<tr><td><code>_offline_skipped</code></td><td>alarm_key bị skip do device offline (để re-emit khi reconnect)</td></tr>
+</table>
+
+<h3>8.1. Bốn nhánh xử lý</h3>
+
+<div class="sm-box">
+<div class="title">🔄 Nhánh A — Alarm TYPE CHANGED (HIGH↔LOW khi đang active)</div>
+Điều kiện: <code>previous_active AND current_condition AND stored_type ≠ current_type</code>.
+<ol>
+<li>Emit <code>OUTGOING</code> cho type cũ</li>
+<li>Xóa DB state cũ (để periodic sync không re-apply màu cũ)</li>
+<li>Reset <code>_alarm_since = now</code>, set <code>_alarm_types = current_type</code></li>
+<li><code>return</code> — bắt đầu đếm on_stable cho type mới</li>
+</ol>
+</div>
+
+<div class="sm-box">
+<div class="title">⬆ Nhánh B — INCOMING (condition met, chưa active)</div>
+Quản lý <code>_pending_alarm_type</code>:
+<ul>
+<li>Chưa có timer → bắt đầu <code>_alarm_since=now</code>, ghi pending type</li>
+<li>pending_type ≠ current_type (đổi loại trong khi đếm) → <b>reset timer</b>, đếm lại cho type mới</li>
+</ul>
+Khi <code>stable_time ≥ on_stable_sec</code>: set active, set type, <b>reset timer ngay</b> (để off_stable đếm từ lúc clear),
+emit INCOMING, ghi <code>alarm_events</code> + <code>card_alarm_states</code>, gửi notification.
+</div>
+
+<div class="sm-box">
+<div class="title">⬇ Nhánh C — OUTGOING (condition hết, đang active)</div>
+Khi <code>stable_time ≥ off_stable_sec</code>: lấy <code>alarm_type</code> từ dict (KHÔNG default "High" — nếu thiếu → log warning & skip),
+set inactive, emit OUTGOING với threshold/operator <b>đã lưu</b>, ghi event, xóa DB state, gửi clear notification,
+pop toàn bộ tracking key.
+</div>
+
+<div class="sm-box">
+<div class="title">⏸ Nhánh D — Stable (condition == state, không transition)</div>
+Reset <code>_alarm_since</code> + <code>_pending_alarm_type</code>.
+Nếu vừa <b>reconnect</b> mà vẫn đang active → <b>re-emit INCOMING</b> để UI khôi phục màu (device offline làm UI mất màu).
+</div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="stable">
+<h2>9. Stable Time — cô lập HIGH và LOW</h2>
+<p>Mỗi alarm có <code>on_stable_sec</code> (giữ condition đúng bao lâu trước khi trigger) và
+<code>off_stable_sec</code> (giữ clear bao lâu trước khi tắt). <b>HIGH và LOW dùng timer độc lập.</b></p>
+
+<div class="note"><b>Cơ chế cô lập:</b> dùng <code>_pending_alarm_type[alarm_key]</code>. Khi đang đếm on_stable cho HIGH
+mà condition chuyển sang LOW → <code>pending_type ≠ current_type</code> → reset <code>_alarm_since</code>,
+bắt đầu đếm lại cho LOW. Tránh việc thời gian "tích" của HIGH bị dùng nhầm cho LOW.</div>
+
+<pre><code><span class="cm"># Trích _process_card_alarm_state — nhánh INCOMING</span>
+pending_type = self._pending_alarm_type.get(alarm_key)
+<span class="kw">if</span> alarm_key <span class="kw">not in</span> self._alarm_since:
+    self._alarm_since[alarm_key] = now
+    self._pending_alarm_type[alarm_key] = current_alarm_type
+<span class="kw">elif</span> pending_type != current_alarm_type:        <span class="cm"># đổi loại khi đang đếm</span>
+    self._alarm_since[alarm_key] = now            <span class="cm"># RESET timer</span>
+    self._pending_alarm_type[alarm_key] = current_alarm_type</code></pre>
+
+<table>
+<tr><th>Checklist khi stable time bị "mix" HIGH/LOW</th></tr>
+<tr><td>INCOMING: nếu <code>pending_type ≠ current_type</code> → phải reset <code>_alarm_since</code></td></tr>
+<tr><td>Khi INCOMING fire → <code>pop(_pending_alarm_type)</code></td></tr>
+<tr><td>Khi OUTGOING fire → <code>pop(_pending_alarm_type)</code></td></tr>
+</table>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="edge">
+<h2>10. Edge cases & bảo vệ</h2>
+
+<h3>10.1. Continuity guard (chống trigger tức thì)</h3>
+<div class="danger note"><b>Vấn đề:</b> nếu một <code>alarm_key</code> không được evaluate nhiều cycle liên tiếp
+(card bị xóa/disable rồi xuất hiện lại, hoặc <code>card_id</code> được DB cấp lại sau khi MySQL restart),
+timestamp <code>_alarm_since</code> cũ khiến <code>stable_time = now − old_ts</code> rất lớn → alarm trigger
+<b>ngay lập tức</b>, bỏ qua stable time.</div>
+<pre><code>last_eval = self._alarm_last_eval.get(alarm_key)
+gap_limit = <span class="fn">max</span>(<span class="num">5.0</span>, <span class="num">3.0</span> * check_interval)
+<span class="kw">if</span> last_eval <span class="kw">and</span> (now - last_eval) &gt; gap_limit:
+    <span class="cm"># phát hiện gap → reset countdown, đếm lại từ đầu (luôn an toàn)</span>
+    self._alarm_since[alarm_key] = now
+    self._pending_alarm_type.pop(alarm_key, None)</code></pre>
+
+<h3>10.2. Prune stale tracking</h3>
+<p><code>_prune_stale_card_alarm_tracking()</code> mỗi cycle xóa các tracking key của card/quad <b>không còn active</b>
+(không nằm trong <code>_collect_live_card_alarm_prefixes()</code>). Chỉ đụng key dạng <code>card_*</code>/<code>quad_*</code>,
+KHÔNG đụng tag alarm (key là int rule_id). Đảm bảo key tái sử dụng luôn bắt đầu sạch.</p>
+
+<h3>10.3. Managed tag IDs (chống trùng cảnh báo)</h3>
+<p><code>_get_all_managed_tag_ids()</code> thu thập các <b>PV tag</b> đang được card condition quản lý
+(chỉ cột có <code>high_operator</code> hoặc <code>low_operator</code>). Mục đích: tránh trùng giữa card alarm và
+legacy tag alarm. <b>Lưu ý:</b> chỉ suppress PV tag của cột có condition — SV tag và cột chưa cấu hình
+KHÔNG bị suppress (tránh chặn nhầm legacy alarm).</p>
+
+<h3>10.4. Device offline / reconnect</h3>
+<p>Nếu device offline → skip cột, ghi vào <code>_offline_skipped</code>. Khi device online lại
+(<code>reconnected=True</code>) và alarm vẫn đang active → re-emit INCOMING để UI khôi phục màu đỏ/vàng.</p>
+
+<h3>10.5. Restore sau restart</h3>
+<p><code>_restore_card_alarm_states()</code> đọc <code>get_active_card_alarms()</code> + <code>get_active_quad_alarms()</code>,
+build đúng <code>alarm_key</code> qua <code>strategy.make_alarm_key()</code>, set lại <code>_alarm_states</code> +
+<code>_alarm_types</code>. Worker tiếp tục từ trạng thái trước đó thay vì coi mọi thứ là mới.</p>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="db">
+<h2>11. Database</h2>
+<table>
+<tr><th>Bảng</th><th>Vai trò</th></tr>
+<tr><td><code>alarm_rules</code></td><td>Per-tag rules. <code>level</code>=severity, <code>operator</code>, <code>threshold</code>, <code>on/off_stable_sec</code>, <code>email</code>, <code>sms</code></td></tr>
+<tr><td><code>alarm_events</code></td><td>Log mọi INCOMING/OUTGOING của <b>cả hai</b> hệ thống. <code>event_type</code>, <code>level</code>, <code>target</code>, <code>value</code>, <code>note</code>, <code>operator</code>, <code>threshold</code></td></tr>
+<tr><td><code>card_alarm_conditions</code></td><td>Conditions cho mọi card (trừ quad). Unique(card_type, card_id). HIGH+LOW + stable riêng mỗi cột</td></tr>
+<tr><td><code>quad_tag_conditions</code></td><td>Conditions riêng cho quad card</td></tr>
+<tr><td><code>card_alarm_states</code></td><td>State active cho non-quad. Unique(card_type, card_id, column)</td></tr>
+<tr><td><code>quad_alarm_states</code></td><td>State active cho quad. Unique(quad_id, column)</td></tr>
+<tr><td><code>tag_latest_values</code></td><td>Giá trị tag mới nhất (đã engineering units). Worker đọc từ đây mỗi cycle</td></tr>
+<tr><td><code>notifications</code></td><td>Notification center cho user (chuông)</td></tr>
+</table>
+<div class="note">Toàn bộ DB dùng <b>SQLAlchemy Core</b> (không ORM). Mọi định nghĩa bảng + CRUD nằm trong
+<code>webapp/modbus_monitor/database/db.py</code>.</div>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="socket">
+<h2>12. Socket.IO events</h2>
+
+<h4><code>alarm_event</code> (Tag Alarm)</h4>
+<pre><code>{
+  <span class="str">"title"</span>: rule_name,          <span class="cm"># thống nhất INCOMING & OUTGOING</span>
+  <span class="str">"message"</span>: <span class="str">"Alarm activated: &gt; 100"</span>,
+  <span class="str">"level"</span>: <span class="str">"Critical"</span>,         <span class="cm"># severity</span>
+  <span class="str">"tag_id"</span>, <span class="str">"tag_name"</span>, <span class="str">"value"</span>,
+  <span class="str">"status"</span>: <span class="str">"INCOMING"</span> | <span class="str">"OUTGOING"</span>,
+  <span class="str">"created_at"</span>, <span class="str">"alarm_event_id"</span>
+}</code></pre>
+
+<h4><code>card_alarm_event</code> (Card Alarm — authoritative cho màu card)</h4>
+<pre><code>{
+  <span class="str">"card_type"</span>, <span class="str">"card_id"</span>, <span class="str">"column"</span>,
+  <span class="str">"alarm_type"</span>: <span class="str">"High"</span> | <span class="str">"Low"</span>,   <span class="cm"># HƯỚNG ngưỡng thật</span>
+  <span class="str">"status"</span>: <span class="str">"INCOMING"</span> | <span class="str">"OUTGOING"</span>,
+  <span class="str">"tag_id"</span>, <span class="str">"pv_value"</span>, <span class="str">"threshold"</span>, <span class="str">"operator"</span>, <span class="str">"timestamp"</span>
+}</code></pre>
+
+<h4><code>quad_alarm_event</code> (Quad — thêm SV)</h4>
+<pre><code>{
+  <span class="str">"quad_id"</span>, <span class="str">"column"</span>, <span class="str">"alarm_type"</span>, <span class="str">"status"</span>,
+  <span class="str">"tag1_value"</span>: pv, <span class="str">"tag2_value"</span>: sv,
+  <span class="str">"tag1_display"</span>, <span class="str">"tag2_display"</span>, <span class="str">"threshold_display"</span>  <span class="cm"># đã format</span>
+}</code></pre>
+
+<div class="note">Worker emit theo <b>hai kênh</b>: <code>sio.emit()</code> (Socket.IO trực tiếp tới browser) và
+<code>data_queue.put()</code> (qua main process). Emit trước, ghi DB sau.</div>
+</section>
+
+<!-- ============ 13 ============ -->
+<section id="frontend">
+<h2>13. Frontend — <code>subdashboard-detail.js</code></h2>
+<p>File JS chính (~5000+ dòng) nhận socket event và đổi màu card real-time.</p>
+
+<table>
+<tr><th>Hàm</th><th>Nhiệm vụ</th></tr>
+<tr><td><code>applyTagAlarmVisual(tagId, class, info)</code></td><td>Set <code>tag-alarm-*</code> trên tag item, gọi <code>applyCardAlarmState</code></td></tr>
+<tr><td><code>applyCardAlarmVisual(type, id, col, alarmType)</code></td><td>Đổi màu card từ <code>card_alarm_event</code> (authoritative)</td></tr>
+<tr><td><code>applyCardAlarmState(card, class)</code></td><td>Tính lại màu card; ưu tiên <code>_lastSyncedCardAlarms</code> nếu đã sync</td></tr>
+<tr><td><code>evaluateSingle3PvSvFallback()</code></td><td>Fallback so PV vs SV nếu không có system alarm (đã gate <code>cardHasAlarmCondition</code>)</td></tr>
+<tr><td><code>fetchAndApplyTagAlarms / CardAlarms()</code></td><td>Periodic sync 10s từ server API</td></tr>
+</table>
+
+<h3>13.1. <code>_lastSyncedCardAlarms</code> — nguồn chân thực cho màu card</h3>
+<p><code>Map&lt;string,string&gt;</code>: key = <code>buildCardAlarmKey(type,id,col)</code> = <code>"qtag6|5|left"</code>,
+value = <code>"High"/"Low"</code>.</p>
+<div class="ok note"><b>Nguyên tắc vàng:</b> khi <code>_lastSyncedCardAlarms</code> đã có entry cho card → dùng
+<code>confirmedType</code> (KHÔNG đọc DOM class). Chỉ khi chưa có entry → fallback về class DOM
+<code>tag-alarm-high/low</code>. Vì DOM class phản ánh <i>severity</i>, còn <code>card_alarm_event</code>
+phản ánh đúng <i>hướng crossing</i>.</div>
+
+<div class="warn note"><b>data-card-type ≠ server card_type:</b> trong HTML là <code>pvonly</code>/<code>pvdual</code>/<code>quad6</code>,
+nhưng trong Python/DB là <code>pv_only</code>/<code>pv_dual</code>/<code>qtag6</code>. Key của <code>_lastSyncedCardAlarms</code>
+luôn dùng <b>server-side string</b>.</div>
+</section>
+
+<!-- ============ 14 ============ -->
+<section id="notify">
+<h2>14. Notification (Email / SMS)</h2>
+<p>Tag alarm lấy contacts từ field <code>email</code>/<code>sms</code> của rule; card alarm lấy từ
+<code>{column}_email</code>/<code>{column}_sms</code>. Tách bằng dấu phẩy/chấm phẩy/khoảng trắng/xuống dòng, khử trùng.</p>
+
+<ul>
+<li><b>Email:</b> gửi trong thread riêng (non-blocking), SMTP starttls (config <code>SMTP_config.json</code>)</li>
+<li><b>SMS:</b> đưa vào <code>sms_queue</code> → <b>một thread sender duy nhất</b> serialize truy cập COM port (GSM/AT commands),
+tự chọn GSM 7-bit hoặc UCS2, có chunk + retry +CMS ERROR 305</li>
+<li><b>Debounce:</b> <code>_should_send_notification()</code> = <code>max(5s, 2×stable_time)</code> giữa 2 lần gửi cùng loại</li>
+</ul>
+
+<div class="warn note"><b>Strip device prefix:</b> <code>_strip_device_prefix()</code> bỏ prefix <code>[TEST]</code> ở đầu tên card
+để title notification của card alarm thống nhất với legacy tag alarm (tránh entry chuông trùng "ma").</div>
+</section>
+
+<!-- ============ 15 ============ -->
+<section id="keys">
+<h2>15. Bảng tra cứu key & CSS</h2>
+
+<h3>15.1. Định dạng <code>alarm_key</code></h3>
+<table>
+<tr><th>Loại</th><th>Format</th><th>Ví dụ</th></tr>
+<tr><td>Tag alarm</td><td><code>int</code> (rule_id)</td><td><code>42</code></td></tr>
+<tr><td>Tag alarm v2</td><td><code>"alarm_rule_{id}"</code></td><td><code>alarm_rule_42</code></td></tr>
+<tr><td>Card alarm</td><td><code>"card_{type}_{id}_{col}"</code></td><td><code>card_qtag6_5_left</code></td></tr>
+<tr><td>Quad alarm</td><td><code>"quad_{id}_{col}"</code></td><td><code>quad_3_right</code></td></tr>
+</table>
+
+<h3>15.2. CSS classes</h3>
+<table>
+<tr><th>Cấp</th><th>HIGH (đỏ)</th><th>LOW (vàng)</th></tr>
+<tr><td>Tag item</td><td><code>tag-alarm-high</code> <span class="badge b-high">Critical/High</span></td><td><code>tag-alarm-low</code> <span class="badge b-low">Medium/Low</span></td></tr>
+<tr><td>qtag6/qtag4 sub-card</td><td><code>qtag6-alarm-high</code></td><td><code>qtag6-alarm-low</code></td></tr>
+<tr><td>qtag3 outer</td><td><code>card-alarm-high</code></td><td><code>card-alarm-low</code></td></tr>
+<tr><td>single3/pv_only/qtag2</td><td><code>qtag-single-alarm-high</code></td><td><code>qtag-single-alarm-low</code></td></tr>
+<tr><td>pv_dual sub-card</td><td><code>qtag-pv-dual-alarm-high</code></td><td><code>qtag-pv-dual-alarm-low</code></td></tr>
+<tr><td>quad sub-card</td><td><code>quad-alarm-high</code></td><td><code>quad-alarm-low</code></td></tr>
+</table>
+
+<h3>15.3. Sơ đồ luồng tổng thể</h3>
+<pre><code>Modbus Device
+   │ poll TCP/RTU
+tcp_worker / rtu_worker  ──emit "tag_update"──▶  Flask webapp ──▶ tag_latest_values
+                                                      │ broadcast
+                                                      ▼
+                                            Browser (cập nhật giá trị)
+
+alarm_worker (đọc tag_latest_values mỗi 1s)
+   │ v2 engine + Strategy Pattern
+   ├─ emit "alarm_event"        ─▶ applyTagAlarmVisual   ─┐
+   ├─ emit "card_alarm_event"   ─▶ applyCardAlarmVisual  ─┼─▶ Card đổi màu (đỏ/vàng)
+   └─ emit "quad_alarm_event"   ─▶ applyCardAlarmVisual  ─┘
+   │ ghi DB SAU khi emit
+   └─ alarm_events / card_alarm_states / quad_alarm_states</code></pre>
+</section>
+
+<footer>
+Tài liệu sinh tự động dựa trên mã nguồn thực tế tại thời điểm tạo:
+<code>workers/alarm_worker.py</code>, <code>workers/alarm_strategies.py</code>,
+<code>shared/engine/alarm_engine_v2.py</code>, <code>static/js/subdashboard-detail.js</code>.
+Khi sửa logic alarm, đối chiếu lại tài liệu này và <code>CLAUDE.md</code>.
+</footer>
+
+</main>
+</div>
+</body>
+</html>
