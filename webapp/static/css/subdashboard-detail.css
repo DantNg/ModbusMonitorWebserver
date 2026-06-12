@@ -1214,7 +1214,7 @@
 
 /* Only PV Only cards get colored/styled Last updated footer area. */
 .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-update-time {
-  border-radius: 0 0 14px 14px;
+  border-radius: 0 0 10px 10px;
   transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
@@ -1585,7 +1585,7 @@
 
 /* Last updated footer follows alarm border color (high/low) for PV Only only. */
 .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high .qtag-single-update-time {
-  background: rgba(220, 38, 38, 0.14) !important;
+  background: #dc2626 !important;
   border-top: 1px solid rgba(220, 38, 38, 0) !important;
 }
 
