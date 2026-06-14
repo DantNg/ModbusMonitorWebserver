@@ -1585,7 +1585,7 @@
 
 /* Last updated footer follows alarm border color (high/low) for PV Only only. */
 .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high .qtag-single-update-time {
-  background: #dc2626 !important;
+  background: #991b1b !important;
   border-top: 1px solid rgba(220, 38, 38, 0) !important;
 }
 
@@ -2080,8 +2080,8 @@
 }
 
 [data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high {
-  border: 3px solid #dc2626 !important;
-  --pvonly-alarm-border-color: #dc2626;
+  border: 3px solid #991b1b !important;
+  --pvonly-alarm-border-color: #991b1b;
   --pvonly-alarm-border-width: 3px;
 }
 
@@ -2102,7 +2102,7 @@
 
 [data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-high,
 [data-bs-theme="dark"] .qtag-single-sub-card[data-card-type="pvonly"].qtag-single-alarm-low {
-  background: #1f2937 !important;
+  background: #111827 !important;
   background-image: none !important;
   animation: none !important;
 }
