@@ -164,10 +164,13 @@ class SocketIOManager:
             print(f"❌ Failed to connect Socket.IO to {self._server_url}: {e}")
             return False
 
-    def ensure_connected(self):
+    def ensure_connected(self, force=False):
         """
         Check connection health and reconnect if needed.
         Call this periodically from the alarm loop (runs in background thread).
+
+        ``force=True`` bỏ qua cooldown 5s giữa các lần connect – dùng cho critical
+        emit (alarm state change) để không bị nghẽn bởi một lần connect lỗi gần đó.
         """
         with self._lock:
             try:
@@ -179,6 +182,8 @@ class SocketIOManager:
 
             # Connection lost - attempt reconnect
             self._connected = False
+            if force:
+                self._last_connect_attempt = 0  # reset cooldown để connect() chạy ngay
             logger.warning("[SocketIOManager] Connection lost, attempting reconnect to %s ...", self._server_url)
             try:
                 # Disconnect cleanly first to reset internal state
@@ -193,21 +198,39 @@ class SocketIOManager:
                 logger.warning(f"[SocketIOManager] Reconnect failed: {e}")
                 return False
 
-    def emit(self, event, data):
+    def emit(self, event, data, critical=False):
         """
         Safely emit an event. Returns True if sent successfully.
-        NON-BLOCKING: Does NOT attempt reconnection here.
-        Reconnection is handled by the periodic health check in _alarm_loop.
+
+        Mặc định NON-BLOCKING: không reconnect tại đây (reconnect do health check
+        định kỳ trong _alarm_loop xử lý) – phù hợp cho event tần suất cao (tag update).
+
+        Với event quan trọng (alarm state change → đổi màu card), truyền
+        ``critical=True``: nếu đang mất kết nối sẽ reconnect NGAY rồi gửi lại một
+        lần. Lý do: kênh data_queue đã bị vô hiệu hóa nên ``sio.emit`` là đường
+        DUY NHẤT đẩy màu tới browser. Nếu để mất event, màu chỉ được áp lại ở vòng
+        polling 10s, trong khi email/SMS (kênh độc lập) đã gửi → khách thấy "thông
+        báo về trước, đổi màu sau".
         """
         try:
             if self._sio and self._sio.connected:
                 self._sio.emit(event, data)
                 self._connected = True
                 return True
-            else:
-                self._connected = False
+
+            self._connected = False
+            if not critical:
                 logger.warning(f"[SocketIOManager] Cannot emit '{event}': not connected (will reconnect on next health check)")
                 return False
+
+            # Critical event: thử reconnect ngay rồi gửi lại một lần
+            logger.warning(f"[SocketIOManager] Critical emit '{event}': not connected, reconnecting now ...")
+            if self.ensure_connected(force=True) and self._sio and self._sio.connected:
+                self._sio.emit(event, data)
+                self._connected = True
+                return True
+            logger.warning(f"[SocketIOManager] Critical emit '{event}' failed: reconnect unsuccessful")
+            return False
         except Exception as e:
             self._connected = False
             logger.warning(f"[SocketIOManager] Emit failed for '{event}': {e}")
@@ -1770,7 +1793,7 @@ class AlarmWorker:
                 )
                 self.data_queue.put({"type": strategy.socket_event_name, "data": event_data})
                 try:
-                    sio.emit(strategy.socket_event_name, event_data)
+                    sio.emit(strategy.socket_event_name, event_data, critical=True)
                 except Exception:
                     pass
             except Exception as e:
@@ -1826,7 +1849,7 @@ class AlarmWorker:
                     timestamp=ts_now.isoformat(),
                 )
                 try:
-                    sio.emit(strategy.socket_event_name, event_data)
+                    sio.emit(strategy.socket_event_name, event_data, critical=True)
                     self.data_queue.put({"type": strategy.socket_event_name, "data": event_data})
                 except Exception as e:
                     self.log("WARNING", f"Socket emit failed: {e}")
@@ -1891,7 +1914,7 @@ class AlarmWorker:
                     timestamp=ts_now.isoformat(),
                 )
                 try:
-                    sio.emit(strategy.socket_event_name, event_data)
+                    sio.emit(strategy.socket_event_name, event_data, critical=True)
                     self.data_queue.put({"type": strategy.socket_event_name, "data": event_data})
                 except Exception as e:
                     self.log("WARNING", f"Socket emit failed: {e}")
@@ -1945,7 +1968,7 @@ class AlarmWorker:
                     )
                     self.data_queue.put({"type": strategy.socket_event_name, "data": event_data})
                     try:
-                        sio.emit(strategy.socket_event_name, event_data)
+                        sio.emit(strategy.socket_event_name, event_data, critical=True)
                     except Exception:
                         pass
                 except Exception as e:
