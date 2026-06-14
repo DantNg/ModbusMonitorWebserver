@@ -1748,7 +1748,7 @@ class AlarmWorker:
         _num_cols = len(strategy.get_columns(card_info)) if card_info else 0
         if _num_cols > 1 and column in ("left", "right"):
             _col_label = column_display if column_display else column.capitalize()
-            notif_alarm_name = f"{alarm_name} ({_col_label})"
+            notif_alarm_name = f"{alarm_name} - {_col_label}"
         else:
             notif_alarm_name = alarm_name
 
@@ -1840,9 +1840,10 @@ class AlarmWorker:
                         threshold_display = self._format_threshold_for_note(threshold, threshold_tag_id)
                         # Format thống nhất với legacy tag alarm: title = tên card (bỏ
                         # prefix '[TEST]'), message = "Alarm activated: {operator} {threshold}".
-                        # Bỏ column prefix và "(High/Low)" để notification legacy & qtag đồng nhất.
+                        # Dual-column card (qtag6, qtag4, quad, pv_dual): kèm tên cột vào
+                        # title để alarm event chỉ rõ cột nào báo động ("tên card - cột").
                         event_id = self.db.insert_alarm_event(
-                            ts=ts_now, name=self._strip_device_prefix(alarm_name), level="Critical",
+                            ts=ts_now, name=self._strip_device_prefix(notif_alarm_name), level="Critical",
                             target=pv_tag_id, value=pv_value,
                             note=f"Alarm activated: {operator} {threshold_display}",
                             event_type="INCOMING", operator=operator, threshold=threshold,
@@ -1902,7 +1903,7 @@ class AlarmWorker:
                         stored_threshold_display = self._format_threshold_for_note(stored_threshold, stored_threshold_tag_id)
                         # Format thống nhất với legacy tag alarm (xem nhánh INCOMING).
                         event_id = self.db.insert_alarm_event(
-                            ts=ts_now, name=self._strip_device_prefix(alarm_name), level="Warning",
+                            ts=ts_now, name=self._strip_device_prefix(notif_alarm_name), level="Warning",
                             target=pv_tag_id, value=pv_value,
                             note=f"Alarm cleared: {stored_operator} {stored_threshold_display}",
                             event_type="OUTGOING", operator=stored_operator, threshold=stored_threshold,
