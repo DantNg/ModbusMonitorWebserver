@@ -52,11 +52,16 @@ except ImportError:
 # SMS imports
 try:
     import serial
+    try:
+        import serial.tools.list_ports as serial_list_ports
+    except Exception:
+        serial_list_ports = None
     SMS_AVAILABLE = True
 except ImportError:
     print("⚠️ Serial module not available - SMS functionality disabled")
     SMS_AVAILABLE = False
     serial = None
+    serial_list_ports = None
 
 # Add project root to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -445,7 +450,12 @@ class AlarmWorker:
                 'parity': sms_config.get('Parity', 'N'),
                 'stop_bits': sms_config.get('StopBits', 1),
                 'pin': sms_config.get('PIN', '0000'),
-                'timeout': 10
+                'timeout': 10,
+                # Retry / reconnect khi module SIM bị tháo ra rồi cắm lại
+                'max_retries': int(sms_config.get('MaxRetries', 3)),
+                'retry_delay': float(sms_config.get('RetryDelay', 3)),
+                'reconnect_wait': float(sms_config.get('ReconnectWait', 30)),
+                'auto_detect_port': bool(sms_config.get('AutoDetectPort', True)),
             }
             
             self.notification_enabled = EMAIL_AVAILABLE or SMS_AVAILABLE
@@ -606,6 +616,110 @@ class AlarmWorker:
             self.log("ERROR", f"❌ Failed to send email to {to_email}: {e}")
             return False
     
+    def _list_serial_ports(self) -> list:
+        """Danh sách COM port hiện có (rỗng nếu không liệt kê được)."""
+        if not SMS_AVAILABLE or serial_list_ports is None:
+            return []
+        try:
+            return [p.device for p in serial_list_ports.comports()]
+        except Exception:
+            return []
+
+    def _sms_port_available(self) -> bool:
+        """Kiểm tra COM port của module SIM có đang hiện diện không.
+
+        Khi module bị tháo ra, port biến mất khỏi danh sách; khi cắm lại nó
+        xuất hiện trở lại (đôi khi với tên port khác). Nếu không liệt kê được
+        port (môi trường không hỗ trợ), trả True để vẫn thử mở trực tiếp.
+        """
+        ports = self._list_serial_ports()
+        if not ports:
+            return True
+        return self.sms_config.get('com_port') in ports
+
+    def _redetect_sms_port(self) -> bool:
+        """Tự dò lại COM port khi port cấu hình biến mất (module cắm lại đổi tên).
+
+        Trả True nếu đã cập nhật `com_port` sang một port khả dụng mới.
+        """
+        if not self.sms_config.get('auto_detect_port', True):
+            return False
+        ports = self._list_serial_ports()
+        if not ports:
+            return False
+        current = self.sms_config.get('com_port')
+        if current in ports:
+            return False
+        # Chọn port khả dụng đầu tiên khác với port cũ
+        for dev in ports:
+            if dev != current:
+                self.log("WARNING", f"📱 SMS COM port '{current}' không còn; chuyển sang '{dev}'")
+                self.sms_config['com_port'] = dev
+                return True
+        return False
+
+    def _wait_for_sms_port(self, timeout: float) -> bool:
+        """Chờ COM port của module SIM xuất hiện trở lại (sau khi cắm lại).
+
+        Tự dò lại tên port nếu cần. Trả True khi port sẵn sàng trong `timeout`.
+        """
+        end = time.time() + max(0.0, timeout)
+        first = True
+        while True:
+            if self._sms_port_available():
+                return True
+            if self._redetect_sms_port():
+                return True
+            if time.time() >= end:
+                return False
+            if first:
+                self.log("INFO", f"📱 Đang chờ module SIM kết nối lại (port {self.sms_config.get('com_port')})...")
+                first = False
+            # Cho phép thoát sớm khi worker dừng
+            if not getattr(self, 'running', True) or self.sms_sender_stop.is_set():
+                return False
+            time.sleep(1.0)
+
+    def _send_sms_with_retry(self, phone: str, message: str) -> bool:
+        """Gửi SMS với cơ chế retry + reconnect khi module SIM bị tháo/cắm lại."""
+        if not SMS_AVAILABLE or not self.notification_enabled:
+            self.log("INFO", f"📱 SMS disabled - would send to {phone}: {message}")
+            return False
+
+        max_retries = int(self.sms_config.get('max_retries', 3))
+        retry_delay = float(self.sms_config.get('retry_delay', 3))
+        reconnect_wait = float(self.sms_config.get('reconnect_wait', 30))
+
+        for attempt in range(1, max_retries + 1):
+            # Đảm bảo module đang hiện diện trước khi thử (chờ cắm lại nếu vừa rút)
+            if not self._sms_port_available():
+                if not self._wait_for_sms_port(reconnect_wait):
+                    self.log("WARNING",
+                             f"📱 Module SIM chưa kết nối lại sau {reconnect_wait}s "
+                             f"(attempt {attempt}/{max_retries}) cho {phone}")
+                    # Nếu còn lượt thử thì chờ rồi thử lại, ngược lại bỏ
+                    if attempt < max_retries:
+                        time.sleep(retry_delay)
+                    continue
+
+            try:
+                if self._send_sms_notification(phone, message):
+                    if attempt > 1:
+                        self.log("INFO", f"📱 SMS gửi thành công sau {attempt} lần thử tới {phone}")
+                    return True
+            except Exception as e:
+                self.log("ERROR", f"📱 SMS attempt {attempt}/{max_retries} lỗi cho {phone}: {e}")
+
+            if attempt < max_retries:
+                # Nếu port biến mất giữa chừng (module bị rút), chờ cắm lại thay vì chỉ delay
+                if not self._sms_port_available():
+                    self._wait_for_sms_port(reconnect_wait)
+                else:
+                    time.sleep(retry_delay)
+
+        self.log("ERROR", f"📱 Gửi SMS thất bại sau {max_retries} lần thử tới {phone}")
+        return False
+
     def _send_sms_notification(self, phone: str, message: str) -> bool:
         """Send SMS notification via COM port (GSM modem/AT commands)"""
         if not SMS_AVAILABLE or not self.notification_enabled:
@@ -2469,7 +2583,7 @@ class AlarmWorker:
                     except pyqueue.Empty:
                         continue
                     try:
-                        ok = self._send_sms_notification(phone, message)
+                        ok = self._send_sms_with_retry(phone, message)
                         if ok:
                             self.log("INFO", f"📱 SMS notification sent to {phone} (queued)")
                         else:

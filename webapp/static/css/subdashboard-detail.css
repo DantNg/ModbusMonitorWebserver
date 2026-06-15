@@ -454,6 +454,20 @@
   border-radius: 14px 14px 0 0 !important;
 }
 
+/* Nhóm A – header ngoài bao quanh 2 cột: qtag4 đồng bộ với qtag6/quad/pv_dual = 52px */
+.qtag4-card .card-header {
+  min-height: 52px !important;
+  padding: 12px 16px !important;
+  border-radius: 14px 14px 0 0 !important;
+}
+
+/* Nhóm B – header chính là header của cột: qtag3 đồng bộ với qtag2/single3/pv_only = 48px */
+.qtag3-card .card-header {
+  min-height: 48px !important;
+  padding: 10px 14px !important;
+  border-radius: 14px 14px 0 0 !important;
+}
+
 .qtag6-card .card-body {
   padding: 10px !important;
 }
