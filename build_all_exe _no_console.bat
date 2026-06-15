@@ -55,6 +55,16 @@ set "HIDDEN_IMPORTS=%HIDDEN_IMPORTS% --hidden-import=dns.update"
 set "HIDDEN_IMPORTS=%HIDDEN_IMPORTS% --hidden-import=dns.versioned"
 set "HIDDEN_IMPORTS=%HIDDEN_IMPORTS% --hidden-import=dns.zone"
 set "HIDDEN_IMPORTS=%HIDDEN_IMPORTS% --hidden-import=dns.tsigkeyring"
+:: DB driver (loaded dynamically by SQLAlchemy via mysql+pymysql URI)
+set "HIDDEN_IMPORTS=%HIDDEN_IMPORTS% --hidden-import=pymysql"
+:: Serial / SMS modem support (alarm worker SMS reconnect + RTU worker)
+set "HIDDEN_IMPORTS=%HIDDEN_IMPORTS% --hidden-import=serial"
+set "HIDDEN_IMPORTS=%HIDDEN_IMPORTS% --hidden-import=serial.tools.list_ports"
+:: Modbus client (RTU/TCP)
+set "HIDDEN_IMPORTS=%HIDDEN_IMPORTS% --hidden-import=pymodbus"
+
+:: Output directly into release/ (start scripts and summary expect exes there)
+set "OUTPUT=--distpath release --workpath build"
 
 :: Shared data files for worker builds
 set "DATA_WORKERS=--add-data=workers;workers/"
@@ -78,6 +88,7 @@ echo ============================================================
 echo.
 
 pyinstaller --noconfirm --onefile --noconsole ^
+    %OUTPUT% ^
     %HIDDEN_IMPORTS% ^
     --hidden-import=sqlalchemy ^
     --hidden-import=eventlet ^
@@ -109,6 +120,7 @@ echo ============================================================
 echo.
 
 pyinstaller --noconfirm --onefile --noconsole ^
+    %OUTPUT% ^
     %HIDDEN_IMPORTS% ^
     --hidden-import=sqlalchemy ^
     %DATA_WORKERS% ^
@@ -138,6 +150,7 @@ echo ============================================================
 echo.
 
 pyinstaller --noconfirm --onefile --noconsole ^
+    %OUTPUT% ^
     %HIDDEN_IMPORTS% ^
     --hidden-import=sqlalchemy ^
     %DATA_WORKERS% ^
@@ -165,6 +178,7 @@ echo ============================================================
 echo.
 
 pyinstaller --noconfirm --onefile --noconsole ^
+    %OUTPUT% ^
     %HIDDEN_IMPORTS% ^
     --hidden-import=sqlalchemy ^
     %DATA_WORKERS% ^

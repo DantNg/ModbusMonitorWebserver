@@ -17,12 +17,14 @@ REM Use ONLOGON so windows is fully loaded for the user session; delay ensures d
 REM /RL HIGHEST requests highest privileges in the user session.
 REM /F forces update if the task already exists.
 
-REM Simple action: call the start script directly (it already handles delay, logging, and working dir)
+REM Simple action: call the start script directly (it already handles logging and working dir)
+REM /DELAY 0000:30 waits 30s after logon so dependent services (network, MySQL) are ready.
 schtasks /create ^
   /tn "%TASK_NAME%" ^
   /sc ONLOGON ^
+  /delay 0000:30 ^
   /rl HIGHEST ^
-  /tr "\"%START_SCRIPT%\"" ^
+  /tr "cmd /c \"%START_SCRIPT%\"" ^
   /F
 
 if %errorlevel% equ 0 (
