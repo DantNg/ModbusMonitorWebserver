@@ -493,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Listen for real-time alarm events via Socket.IO
   if (typeof socket !== 'undefined' && socket !== null) {
     socket.on('alarm_event', function (data) {
-      console.log('Received alarm_event via Socket.IO:', data);
+      if (window.SUBDASH_DEBUG === true) console.log('Received alarm_event via Socket.IO:', data);
       const ts = data.created_at || data.ts || new Date().toISOString();
       const dt = new Date(ts);
       const ageSec = Math.floor((Date.now() - dt.getTime()) / 1000);

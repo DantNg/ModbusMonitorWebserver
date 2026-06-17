@@ -15,6 +15,54 @@ try {
   TAG_SCALE_MAP = {};
 }
 
+// ==========================================================================
+// Per-tag DOM element index (perf: tránh quét toàn-DOM mỗi bản tin modbus_update)
+// --------------------------------------------------------------------------
+// Handler modbus_update chạy mỗi giây/ mỗi device. Trước đây nó gọi ~14
+// querySelectorAll dạng [id$="-tagId"] / [data-tag-id="tagId"] cho MỖI tag —
+// các selector này không dùng được index nên quét toàn bộ DOM, khiến chi phí
+// mỗi bản tin = O(số_tag × DOM). Khi chi phí vượt khoảng cách giữa các bản tin,
+// event-loop backlog dồn dần → trang đơ (phải F5).
+//
+// Bố cục card là TĨNH trong một phiên: mọi CRUD card đều location.reload(), và
+// thay đổi cấu trúc duy nhất lúc runtime là fixQuadTagLayout() chạy 1 lần ở
+// DOMContentLoaded. Vì vậy ta dựng index theo tagId 1 lần (lazy) rồi tái dùng;
+// chỉ cần invalidate sau fixQuadTagLayout(). NodeList từ querySelectorAll là
+// static nên cache an toàn.
+// Log chi tiết (kèm object payload) chỉ khi debug. Mặc định tắt ở production:
+// log object mỗi alarm event giữ tham chiếu trong console → memory tăng dần khi
+// chạy nhiều ngày. Bật runtime bằng: window.SUBDASH_DEBUG = true (đọc động mỗi lần).
+function _subdashDebug() { return window.SUBDASH_DEBUG === true; }
+
+const _tagElIndex = new Map();
+function invalidateTagElIndex() { _tagElIndex.clear(); }
+function getTagEls(tagId) {
+  const key = String(tagId);
+  let e = _tagElIndex.get(key);
+  if (e) return e;
+  e = {
+    val: document.getElementById('tag-val-' + key),
+    quadItem: document.querySelector(`.quad-tag-item[data-tag-id="${key}"]`),
+    statusIndicators: document.querySelectorAll(`.quad-status-indicator[data-pv-tag-id="${key}"]`),
+    quadVal: document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${key}"]:not([id^="quad-tag-val-fixed-"])`),
+    quadSv: document.querySelectorAll(`[id^="quad-tag-val-sv-"][data-tag-id="${key}"]`),
+    qtag6Val: document.querySelectorAll(`[id^="qtag6-val-"][id$="-${key}"]`),
+    qtag6Sv: document.querySelectorAll(`.qtag6-sv-low[data-tag-id="${key}"], .qtag6-sv-high[data-tag-id="${key}"]`),
+    qtag4Val: document.querySelectorAll(`[id^="qtag4-val-"][id$="-${key}"]`),
+    qtag4Sv: document.querySelectorAll(`.qtag4-sv-value[data-tag-id="${key}"]`),
+    qtag3Val: document.querySelectorAll(`[id^="qtag3-val-"][id$="-${key}"]`),
+    qtag3Sv: document.querySelectorAll(`.qtag3-sv-low[data-tag-id="${key}"], .qtag3-sv-high[data-tag-id="${key}"]`),
+    qtag2Val: document.querySelectorAll(`[id^="qtag2-val-"][id$="-${key}"]`),
+    qtag2Sv: document.querySelectorAll(`.qtag2-sv-value[data-tag-id="${key}"]`),
+    single3Pv: document.querySelectorAll(`[id^="qtag-single3-pv-"][id$="-${key}"]`),
+    single3Sv: document.querySelectorAll(`.qtag-single-sv-low[data-tag-id="${key}"], .qtag-single-sv-high[data-tag-id="${key}"]`),
+    pvOnly: document.querySelectorAll(`[id^="qtag-pv-val-"][id$="-${key}"]`),
+    pvDual: document.querySelectorAll(`[id^="qtag-pv-dual-val-"][id$="-${key}"]`),
+  };
+  _tagElIndex.set(key, e);
+  return e;
+}
+
 // Auto-refresh page at 3:00 AM daily to keep UI fresh after long uptime
 (function scheduleAutoRefreshAt3AM() {
   function msUntil3AM() {
@@ -1619,11 +1667,21 @@ try {
     _quadValuesCache = JSON.parse(localStorage.getItem(QUAD_VALUES_KEY)) || {};
   } catch (e) { _quadValuesCache = {}; }
 
-  function updateQuadValueCache(tagId, value) {
-    _quadValuesCache[tagId] = value;
+  // Persist cache xuống localStorage — debounce để KHÔNG serialize + ghi đĩa
+  // đồng bộ cho TỪNG giá trị thay đổi (trước đây gọi mỗi entry trong pending.forEach,
+  // mỗi lần stringify toàn bộ cache → blocking main thread). Gom tối đa 1 lần/giây.
+  let _quadCacheFlushTimer = null;
+  function _flushQuadValueCache() {
+    _quadCacheFlushTimer = null;
     try {
       localStorage.setItem(QUAD_VALUES_KEY, JSON.stringify(_quadValuesCache));
     } catch (e) { /* ignore */ }
+  }
+  function updateQuadValueCache(tagId, value) {
+    _quadValuesCache[tagId] = value;            // cập nhật in-memory ngay
+    if (_quadCacheFlushTimer === null) {        // gom ghi đĩa, 1s/lần
+      _quadCacheFlushTimer = setTimeout(_flushQuadValueCache, 1000);
+    }
   }
 
   // Fix quad tag layout by restructuring HTML using template structure
@@ -1925,6 +1983,9 @@ try {
     // Chạy fixQuadTagLayout ngay lập tức (KHÔNG dùng requestAnimationFrame)
     // để hoàn thành trước first paint, tránh nháy layout cũ → mới
     fixQuadTagLayout();
+    // fixQuadTagLayout restructure quad grid → invalidate index để bản tin
+    // modbus_update kế tiếp dựng lại element index trên DOM cuối cùng.
+    invalidateTagElIndex();
 
     // Re-apply display rule for all Qtag/Quad values in case old localStorage cache
     // still contains values formatted by previous rules.
@@ -3042,14 +3103,15 @@ try {
   // Update quad status indicator based on PV tag device status
   function updateQuadStatusIndicator(tagId, deviceStatus) {
     const normalizedStatus = normalizeDeviceStatus(deviceStatus);
-    // Find all quad cards that use this tag as PV (tag1)
-    const indicators = document.querySelectorAll(`.quad-status-indicator[data-pv-tag-id="${tagId}"]`);
-    
+    // Find all quad cards that use this tag as PV (tag1) — qua index (không quét DOM)
+    const els = getTagEls(tagId);
+    const indicators = els.statusIndicators;
+
     indicators.forEach(indicator => {
       // Remove all status classes
       indicator.classList.remove('status-online', 'status-offline', 'status-unknown');
       indicator.setAttribute('data-device-status', normalizedStatus);
-      
+
       // Add appropriate status class
       if (normalizedStatus === 'connected') {
         indicator.classList.add('status-online');
@@ -3059,7 +3121,7 @@ try {
         indicator.title = 'Device offline';
         // Force all quad tag values tied to this device to 0 when offline.
         // Exclude fixed-SV rows to prevent overwriting static values.
-        document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tagId}"]:not([id^="quad-tag-val-fixed-"])`).forEach(el => {
+        els.quadVal.forEach(el => {
           el.textContent = '0';
         });
       } else {
@@ -3233,6 +3295,11 @@ try {
 
       socketConnected = true;
 
+      // Tab ẩn (background): bỏ qua cập nhật DOM để tránh dồn event-loop backlog.
+      // Khi tab hiển thị lại, bản tin kế tiếp của mỗi device sẽ cập nhật đầy đủ.
+      // Heartbeat _lastSocketDataTime vẫn được handler modbus_update thứ 2 cập nhật.
+      if (document.hidden) return;
+
       // 1) Derive default device status from payload (fallback only)
       const payloadDeviceStatus = normalizeDeviceStatus(
         data.status !== undefined ? data.status : (data.ok === true ? 'connected' : 'unknown')
@@ -3245,10 +3312,12 @@ try {
         data.tags.forEach(tag => {
           // Stamp the quad cards even khi giá trị không đổi để hiển thị thời gian mới nhất
           const nowForTag = new Date();
+          // Element index theo tagId (dựng 1 lần, tái dùng) — thay cho ~14 querySelectorAll/tag
+          const els = getTagEls(tag.id);
           // Derive device status per tag (prefer tag fields, then DOM fallbacks)
           const barEl = document.getElementById('tag-bar-' + tag.id);
-          const indicatorEl = document.querySelector(`.quad-status-indicator[data-pv-tag-id="${tag.id}"]`);
-          const quadItemEl = document.querySelector(`.quad-tag-item[data-tag-id="${tag.id}"]`);
+          const indicatorEl = els.statusIndicators[0] || null;
+          const quadItemEl = els.quadItem;
           const domStatus = normalizeDeviceStatus(
             barEl?.getAttribute('data-device-status') ||
             indicatorEl?.getAttribute('data-device-status') ||
@@ -3271,11 +3340,11 @@ try {
           }
 
           // Update regular tags
-          const valEl = document.getElementById('tag-val-' + tag.id);
+          const valEl = els.val;
 
           // ✅ Update quad tags - tìm TẤT CẢ elements với pattern này
           // Exclude fixed-SV rows (id^="quad-tag-val-fixed-") to prevent overwriting static values.
-          const quadValElements = document.querySelectorAll(`[id^="quad-tag-val-"][id$="-${tag.id}"]:not([id^="quad-tag-val-fixed-"])`);
+          const quadValElements = els.quadVal;
 
           const updateQuadLastUpdated = () => {
             quadValElements.forEach(quadValEl => {
@@ -3321,9 +3390,7 @@ try {
           }
 
           // ✅ Update Quad SV elements (tag-based only, fixed values are static)
-          const quadSvElements = document.querySelectorAll(
-            `[id^="quad-tag-val-sv-"][data-tag-id="${tag.id}"]`
-          );
+          const quadSvElements = els.quadSv;
           quadSvElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3332,7 +3399,7 @@ try {
           });
 
           // ✅ Update Qtag6 values - PV elements with pattern qtag6-val-{cardId}-{tagId}
-          const qtag6ValElements = document.querySelectorAll(`[id^="qtag6-val-"][id$="-${tag.id}"]`);
+          const qtag6ValElements = els.qtag6Val;
           qtag6ValElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3342,9 +3409,7 @@ try {
           });
 
           // ✅ Update Qtag6 SV elements (tag-based only, fixed values are static)
-          const qtag6SvElements = document.querySelectorAll(
-            `.qtag6-sv-low[data-tag-id="${tag.id}"], .qtag6-sv-high[data-tag-id="${tag.id}"]`
-          );
+          const qtag6SvElements = els.qtag6Sv;
           qtag6SvElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3353,7 +3418,7 @@ try {
           });
 
           // ✅ Update Qtag4 values - PV elements with pattern qtag4-val-{cardId}-{tagId}
-          const qtag4ValElements = document.querySelectorAll(`[id^="qtag4-val-"][id$="-${tag.id}"]`);
+          const qtag4ValElements = els.qtag4Val;
           qtag4ValElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3363,9 +3428,7 @@ try {
           });
 
           // ✅ Update Qtag4 SV elements (tag-based only, fixed values are static)
-          const qtag4SvElements = document.querySelectorAll(
-            `.qtag4-sv-value[data-tag-id="${tag.id}"]`
-          );
+          const qtag4SvElements = els.qtag4Sv;
           qtag4SvElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3374,7 +3437,7 @@ try {
           });
 
           // ✅ Update Qtag3 PV values - pattern qtag3-val-{cardId}-{tagId}
-          const qtag3ValElements = document.querySelectorAll(`[id^="qtag3-val-"][id$="-${tag.id}"]`);
+          const qtag3ValElements = els.qtag3Val;
           qtag3ValElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3384,9 +3447,7 @@ try {
           });
 
           // ✅ Update Qtag3 SV elements (tag-based only)
-          const qtag3SvElements = document.querySelectorAll(
-            `.qtag3-sv-low[data-tag-id="${tag.id}"], .qtag3-sv-high[data-tag-id="${tag.id}"]`
-          );
+          const qtag3SvElements = els.qtag3Sv;
           qtag3SvElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3395,7 +3456,7 @@ try {
           });
 
           // ✅ Update Qtag2 PV values - pattern qtag2-val-{cardId}-{tagId}
-          const qtag2ValElements = document.querySelectorAll(`[id^="qtag2-val-"][id$="-${tag.id}"]`);
+          const qtag2ValElements = els.qtag2Val;
           qtag2ValElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3405,7 +3466,7 @@ try {
           });
 
           // ✅ Update Qtag2 SV elements (tag-based only)
-          const qtag2SvElements = document.querySelectorAll(`.qtag2-sv-value[data-tag-id="${tag.id}"]`);
+          const qtag2SvElements = els.qtag2Sv;
           qtag2SvElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3414,7 +3475,7 @@ try {
           });
 
           // ✅ Update Qtag Single3 PV values
-          const single3PvElements = document.querySelectorAll(`[id^="qtag-single3-pv-"][id$="-${tag.id}"]`);
+          const single3PvElements = els.single3Pv;
           single3PvElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3424,7 +3485,7 @@ try {
           });
 
           // ✅ Update Qtag Single3 SV HIGH/LOW (matched by data-tag-id attribute)
-          const single3SvElements = document.querySelectorAll(`.qtag-single-sv-low[data-tag-id="${tag.id}"], .qtag-single-sv-high[data-tag-id="${tag.id}"]`);
+          const single3SvElements = els.single3Sv;
           single3SvElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3433,7 +3494,7 @@ try {
           });
 
           // ✅ Update Qtag PV Only values
-          const pvOnlyElements = document.querySelectorAll(`[id^="qtag-pv-val-"][id$="-${tag.id}"]`);
+          const pvOnlyElements = els.pvOnly;
           pvOnlyElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3443,7 +3504,7 @@ try {
           });
 
           // ✅ Update Qtag PV Dual values
-          const pvDualElements = document.querySelectorAll(`[id^="qtag-pv-dual-val-"][id$="-${tag.id}"]`);
+          const pvDualElements = els.pvDual;
           pvDualElements.forEach(el => {
             const newVal = _tagDisplayVal;
             if (el.textContent !== newVal) {
@@ -3523,7 +3584,7 @@ try {
 
     // Listen for quad alarm events
     socket.on('quad_alarm_event', function (data) {
-      console.log('🚨 Quad alarm event received:', data);
+      if (_subdashDebug()) console.log('🚨 Quad alarm event received:', data);
       
       const quadId = data.quad_id;
       const column = data.column; // 'left' or 'right'
@@ -3642,7 +3703,7 @@ try {
     // Listen for per-tag alarm events (from existing alarm_rules system)
     // Applies alarm visuals to Qtag6, Single3, PV Only cards
     socket.on('alarm_event', function (data) {
-      console.log('🔔 Tag alarm event received:', data);
+      if (_subdashDebug()) console.log('🔔 Tag alarm event received:', data);
 
       const tagId = data.tag_id;
       const status = data.status; // 'INCOMING' or 'OUTGOING'
@@ -3674,7 +3735,7 @@ try {
 
     // Listen for card alarm events (Qtag6, Single3, PV Only, PV Dual)
     socket.on('card_alarm_event', function (data) {
-      console.log('🚨 Card alarm event received:', data);
+      if (_subdashDebug()) console.log('🚨 Card alarm event received:', data);
 
       const cardType = data.card_type;
       const cardId = data.card_id;
@@ -5655,6 +5716,12 @@ try {
   window.addEventListener('beforeunload', function () {
     if (pollingInterval) {
       clearInterval(pollingInterval);
+    }
+
+    // Flush value cache ngay (debounce có thể còn pending) để lần load sau có giá trị mới nhất
+    if (_quadCacheFlushTimer !== null) {
+      clearTimeout(_quadCacheFlushTimer);
+      _flushQuadValueCache();
     }
 
     // Clear quad alarm sync interval
