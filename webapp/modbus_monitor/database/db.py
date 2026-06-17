@@ -2725,6 +2725,42 @@ def add_subdashboard_row(data: dict, tag_ids: List[int] = None) -> int:
 def delete_subdashboard_row(sid: int) -> int:
     """Delete a subdashboard and its tag mappings."""
     with init_engine().begin() as con:
+        # card_alarm_conditions / card_alarm_states / quad_* là polymorphic, KHÔNG có
+        # FK tới card → CASCADE xóa group/card nhưng để lại orphan alarm rows. Nếu sau
+        # này một card mới tái sử dụng id đã xóa, nó sẽ kế thừa condition cũ và bị tô
+        # đỏ NGAY. Purge tay tất cả alarm rows của card thuộc subdash này trước khi xóa.
+        card_tables = [
+            ('qtag6',   subdash_qtag6_cards),
+            ('qtag4',   subdash_qtag4_cards),
+            ('qtag3',   subdash_qtag3_cards),
+            ('qtag2',   subdash_qtag2_cards),
+            ('single3', subdash_qtag_single3_cards),
+            ('pv_only', subdash_qtag_pv_cards),
+            ('pv_dual', subdash_qtag_pv_dual_cards),
+        ]
+        group_ids = [
+            r[0] for r in con.execute(
+                select(subdash_tag_groups.c.id).where(subdash_tag_groups.c.dashboard_id == sid)
+            ).fetchall()
+        ]
+        if group_ids:
+            for card_type, card_table in card_tables:
+                card_ids = [
+                    r[0] for r in con.execute(
+                        select(card_table.c.id).where(card_table.c.group_id.in_(group_ids))
+                    ).fetchall()
+                ]
+                for cid in card_ids:
+                    _purge_card_alarm_rows(con, card_type, cid)
+            # Quad cards (bảng riêng quad_tag_conditions / quad_alarm_states)
+            quad_ids = [
+                r[0] for r in con.execute(
+                    select(subdash_quad_cards.c.id).where(subdash_quad_cards.c.group_id.in_(group_ids))
+                ).fetchall()
+            ]
+            for qid in quad_ids:
+                _purge_quad_alarm_rows(con, qid)
+
         # ON DELETE CASCADE will remove dashboard_tags
         res = con.execute(delete(dashboards).where(dashboards.c.id == sid))
         return res.rowcount
@@ -2844,7 +2880,16 @@ def delete_subdash_group(gid: int):
                 con.execute(delete(card_table).where(card_table.c.group_id == gid))
                 print(f"Deleted {len(card_ids)} {card_type} cards for group {gid}")
 
-        # 2. Xóa quad cards (quad_tag_conditions tự cascade)
+        # 2. Xóa quad cards. quad_tag_conditions tự cascade (có FK), nhưng
+        # quad_alarm_states KHÔNG có FK → phải purge tay để tránh orphan state
+        # khiến quad card mới tái sử dụng id bị tô đỏ oan.
+        quad_ids = [
+            r[0] for r in con.execute(
+                select(subdash_quad_cards.c.id).where(subdash_quad_cards.c.group_id == gid)
+            ).fetchall()
+        ]
+        for qid in quad_ids:
+            _purge_quad_alarm_rows(con, qid)
         con.execute(delete(subdash_quad_cards).where(subdash_quad_cards.c.group_id == gid))
 
         # 3. Xóa tag associations
@@ -4010,7 +4055,9 @@ def add_quad_tag_card(group_id: int, tag1_id: int, tag2_id: int,
                 res = con.execute(insert(subdash_quad_cards).values(**fallback_values))
             else:
                 raise
-        return res.inserted_primary_key[0]
+        new_id = res.inserted_primary_key[0]
+        _purge_quad_alarm_rows(con, new_id)
+        return new_id
 
 def get_quad_cards_for_group(group_id: int):
     """Get all quad cards for a specific group with tag details and resolved SV values."""
@@ -4079,6 +4126,20 @@ def _purge_card_alarm_rows(con, card_type: str, card_id: int) -> None:
             (card_alarm_conditions.c.card_type == card_type) &
             (card_alarm_conditions.c.card_id == card_id)
         )
+    )
+
+
+def _purge_quad_alarm_rows(con, quad_card_id: int) -> None:
+    """Xóa mọi quad alarm condition + state gắn với một quad card cụ thể.
+
+    Tương tự _purge_card_alarm_rows nhưng cho quad (bảng quad_tag_conditions /
+    quad_alarm_states). quad_alarm_states KHÔNG có FK nên không tự cascade.
+    """
+    con.execute(
+        delete(quad_alarm_states).where(quad_alarm_states.c.quad_id == quad_card_id)
+    )
+    con.execute(
+        delete(quad_tag_conditions).where(quad_tag_conditions.c.quad_card_id == quad_card_id)
     )
 
 
@@ -4237,7 +4298,9 @@ def add_qtag6_card(group_id: int, tag1_id: int, tag2_id: int,
                 right_title=right_title
             )
         )
-        return res.inserted_primary_key[0]
+        new_id = res.inserted_primary_key[0]
+        _purge_card_alarm_rows(con, 'qtag6', new_id)
+        return new_id
 
 
 def get_qtag6_cards_for_group(group_id: int):
@@ -4368,7 +4431,9 @@ def add_qtag4_card(group_id: int, tag1_id: int, tag2_id: int,
                 right_title=right_title
             )
         )
-        return res.inserted_primary_key[0]
+        new_id = res.inserted_primary_key[0]
+        _purge_card_alarm_rows(con, 'qtag4', new_id)
+        return new_id
 
 
 def get_qtag4_cards_for_group(group_id: int):
@@ -4487,7 +4552,9 @@ def add_qtag3_card(group_id: int, tag1_id: int,
                 card_title=card_title, column_title=column_title
             )
         )
-        return res.inserted_primary_key[0]
+        new_id = res.inserted_primary_key[0]
+        _purge_card_alarm_rows(con, 'qtag3', new_id)
+        return new_id
 
 
 def get_qtag3_cards_for_group(group_id: int):
@@ -4599,7 +4666,9 @@ def add_qtag2_card(group_id: int, tag1_id: int,
                 card_title=card_title, column_title=column_title
             )
         )
-        return res.inserted_primary_key[0]
+        new_id = res.inserted_primary_key[0]
+        _purge_card_alarm_rows(con, 'qtag2', new_id)
+        return new_id
 
 
 def get_qtag2_cards_for_group(group_id: int):
@@ -4721,7 +4790,9 @@ def add_qtag_single3_card(group_id: int, pv_tag_id: int, card_title: str = None,
                 sv_low_fixed_unit=sv_low_fixed_unit,
             )
         )
-        return res.inserted_primary_key[0]
+        new_id = res.inserted_primary_key[0]
+        _purge_card_alarm_rows(con, 'single3', new_id)
+        return new_id
 
 
 def get_qtag_single3_cards_for_group(group_id: int):
@@ -4821,7 +4892,9 @@ def add_qtag_pv_card(group_id: int, pv_tag_id: int, card_title: str = None, desc
                 description=description,
             )
         )
-        return res.inserted_primary_key[0]
+        new_id = res.inserted_primary_key[0]
+        _purge_card_alarm_rows(con, 'pv_only', new_id)
+        return new_id
 
 
 def get_qtag_pv_cards_for_group(group_id: int):
@@ -4904,7 +4977,9 @@ def add_qtag_pv_dual_card(group_id: int, left_tag_id: int, right_tag_id: int,
                 right_description=right_description,
             )
         )
-        return res.inserted_primary_key[0]
+        new_id = res.inserted_primary_key[0]
+        _purge_card_alarm_rows(con, 'pv_dual', new_id)
+        return new_id
 
 
 def get_qtag_pv_dual_cards_for_group(group_id: int):

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process -Filter \"Name='\\\\''python.exe'\\\\'' OR Name='\\\\''pythonw.exe'\\\\''\" | Select-Object ProcessId,@{n='\\\\''Cmd'\\\\'';e={$_.CommandLine}} | Format-List')",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR Name='pythonw.exe'\" | Where-Object { $_.CommandLine -match 'modbus_monitor_webserver|orchestra_alarm|parent_pid' } | Select-Object ProcessId,ParentProcessId,@{n='Cmd';e={$_.CommandLine.Substring\\(0,[Math]::Min\\(70,$_.CommandLine.Length\\)\\)}} | Format-Table -AutoSize)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"ProcessId=12824 OR ProcessId=18860\" | Select-Object ProcessId,Name,@{n='Cmd';e={$_.CommandLine}} | Format-List)"
+    ]
+  }
+}

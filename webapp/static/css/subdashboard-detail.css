@@ -1319,6 +1319,27 @@
   margin-right: 2px;
 }
 
+/*
+ * SV row của single3 có 2 số (LOW - HIGH) nên rộng hơn PV (1 số), khiến đơn vị bị
+ * đẩy sát/ tràn ra mép card. Thu nhỏ cỡ chữ SV + cho đơn vị co lại (không nowrap-out)
+ * để cả số lẫn đơn vị luôn nằm gọn trong khung. Scope riêng single3, không ảnh hưởng
+ * pv_only/qtag2.
+ */
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-sv-low,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-sv-high,
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-sv-separator {
+  font-size: 1.25rem !important;
+}
+
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item[data-role="sv"] .qtag-single-value-row {
+  gap: 4px !important;
+}
+
+.qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item[data-role="sv"] .qtag-single-tag-unit {
+  flex: 0 0 auto !important;
+  margin-left: 2px !important;
+}
+
 /* PV Only specific styles */
 .qtag-single-sub-card[data-card-type="pvonly"] .qtag-single-tag-rows {
   padding: 0 !important;
