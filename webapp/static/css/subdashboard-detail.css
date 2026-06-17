@@ -1328,7 +1328,7 @@
 .qtag-single-sub-card[data-card-type="single3"] .qtag-single-sv-low,
 .qtag-single-sub-card[data-card-type="single3"] .qtag-single-sv-high,
 .qtag-single-sub-card[data-card-type="single3"] .qtag-single-sv-separator {
-  font-size: 1.25rem !important;
+  font-size: 1.5rem !important;
 }
 
 .qtag-single-sub-card[data-card-type="single3"] .qtag-single-tag-item[data-role="sv"] .qtag-single-value-row {
