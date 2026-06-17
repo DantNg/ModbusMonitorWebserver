@@ -1127,6 +1127,24 @@ def delete_quad_condition_route(sid, quad_id):
 
 VALID_CARD_TYPES = {'qtag6', 'qtag4', 'qtag3', 'qtag2', 'single3', 'pv_only', 'pv_dual'}
 
+
+def _card_condition_has_valid_compare(d: dict) -> bool:
+    """True nếu có ít nhất 1 cột nhập đủ điều kiện so sánh: operator + (value hoặc compare tag).
+
+    Dùng để chặn việc bật (enable) alarm monitoring khi chưa cấu hình compare condition.
+    Áp dụng cho mọi loại card: card 1 cột chỉ có left_*, card 2 cột có cả right_* (các
+    cột không dùng sẽ rỗng nên không tính là hợp lệ).
+    """
+    for col in ('left_high', 'left_low', 'right_high', 'right_low'):
+        op = d.get(f'{col}_operator')
+        val = d.get(f'{col}_value')
+        tag = d.get(f'{col}_compare_tag_id')
+        has_threshold = (val is not None and str(val).strip() != '') or \
+                        (tag is not None and str(tag).strip() != '')
+        if op and str(op).strip() and has_threshold:
+            return True
+    return False
+
 @subdash_bp.route("/<int:sid>/card_condition/<card_type>/<int:card_id>", methods=["GET"])
 def get_card_condition(sid, card_type, card_id):
     """Get alarm condition for a card"""
@@ -1148,7 +1166,8 @@ def save_card_condition(sid, card_type, card_id):
     try:
         data = request.get_json()
         conditions_data = {
-            "enabled": data.get("enabled", True),
+            # Mặc định DISABLE; sẽ chỉ enable khi user bật VÀ có compare condition hợp lệ (xử lý bên dưới).
+            "enabled": False,
             # Left column
             "left_high_operator": data.get("left_high_operator"),
             "left_high_compare_type": data.get("left_high_compare_type"),
@@ -1182,6 +1201,11 @@ def save_card_condition(sid, card_type, card_id):
             "right_sms": data.get("right_sms"),
             "right_description": data.get("right_description"),
         }
+        # Chỉ cho phép enable khi user yêu cầu bật VÀ đã nhập compare condition hợp lệ.
+        # Card mới / chưa cấu hình compare → luôn bị giữ ở trạng thái disabled (không tự giám sát).
+        requested_enabled = bool(data.get("enabled", False))
+        conditions_data["enabled"] = requested_enabled and _card_condition_has_valid_compare(conditions_data)
+
         condition_id = db.save_card_alarm_condition(card_type, card_id, conditions_data)
 
         # Nếu disable condition → xóa alarm states để tránh alarm cũ vẫn hiển thị
@@ -1195,7 +1219,11 @@ def save_card_condition(sid, card_type, card_id):
         return jsonify({
             "success": True,
             "message": "Alarm condition saved successfully",
-            "condition_id": condition_id
+            "condition_id": condition_id,
+            # Trạng thái enable thực tế sau khi áp ràng buộc compare condition.
+            "enabled": conditions_data["enabled"],
+            # Báo cho frontend biết user muốn bật nhưng bị ép tắt do thiếu compare condition.
+            "forced_disabled": requested_enabled and not conditions_data["enabled"],
         })
     except Exception as e:
         print(f"Error saving card condition: {e}")
@@ -1228,6 +1256,17 @@ def toggle_card_condition_enabled(sid, card_type, card_id):
     try:
         data = request.get_json() or {}
         enabled = bool(data.get("enabled", False))
+        # Không cho bật alarm khi chưa nhập compare condition hợp lệ.
+        if enabled:
+            cond = db.get_card_alarm_condition(card_type, card_id)
+            if not cond:
+                return jsonify({"success": False, "message": "Condition not found — please set conditions first"}), 404
+            if not _card_condition_has_valid_compare(cond):
+                return jsonify({
+                    "success": False,
+                    "needs_compare": True,
+                    "message": "Cần nhập điều kiện so sánh (operator + giá trị hoặc tag) trước khi bật alarm.",
+                }), 400
         updated = db.update_card_condition_enabled(card_type, card_id, enabled)
         if not updated:
             return jsonify({"success": False, "message": "Condition not found — please set conditions first"}), 404

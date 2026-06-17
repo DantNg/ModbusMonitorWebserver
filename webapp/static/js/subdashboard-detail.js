@@ -2427,86 +2427,44 @@ try {
    * if PV < SV LOW → alarm-low.
    * Priority: system alarm > PV vs SV comparison.
    */
+  // Xóa màu do fallback PV-vs-SV đã áp, TRỪ KHI có card_alarm_event xác nhận (alarm thật).
+  // Cần thiết vì fallback có thể đã tô màu trong lúc race (chạy trước khi
+  // loadCardConditionToggles set data-monitoring-enabled). Nếu sau đó card hoá ra có
+  // condition (kể cả disabled) hoặc monitoring tắt, màu cũ phải được dọn — nếu chỉ
+  // `return` thì màu sẽ kẹt lại tới khi user bật/tắt toggle thủ công.
+  function clearSingle3FallbackColor(card) {
+    const id = parseInt(card.getAttribute('data-qtag-single3-id') || '0');
+    if (id > 0 && _lastSyncedCardAlarms.has(buildCardAlarmKey('single3', id, null))) {
+      return; // có alarm card thật (authoritative) → giữ nguyên màu
+    }
+    card.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
+    const pvTagId = card.getAttribute('data-pv-tag-id');
+    if (pvTagId) {
+      const pvItem = card.querySelector(`.qtag-single-tag-item[data-tag-id="${pvTagId}"]`);
+      if (pvItem) {
+        pvItem.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
+        pvItem.removeAttribute('title');
+      }
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // ĐÃ BỎ auto-color PV-vs-SV cho single3.
+  //
+  // Trước đây hàm này tự so sánh PV với SV HIGH/LOW đang hiển thị và tô đỏ/vàng
+  // NGAY cho card single3 chưa cấu hình alarm condition. Đây là root cause khiến
+  // card single3 mới tạo "tự nhiên" chuyển màu dù chưa hề đặt alarm.
+  //
+  // Theo yêu cầu: single3 chỉ được đổi màu qua hệ Card Alarm (card_alarm_event,
+  // tôn trọng enabled + on/off stable time) — giống mọi loại card khác. Vì vậy hàm
+  // này giờ KHÔNG bao giờ tự tô màu nữa; nó chỉ DỌN sạch màu fallback cũ còn sót,
+  // và TUYỆT ĐỐI không đụng tới màu alarm thật đã được card_alarm_event xác nhận
+  // (clearSingle3FallbackColor giữ nguyên nếu card nằm trong _lastSyncedCardAlarms).
+  // Tham số systemAlarmMap được giữ lại cho tương thích caller.
+  // ────────────────────────────────────────────────────────────────────────
   function evaluateSingle3PvSvFallback(systemAlarmMap) {
     document.querySelectorAll('.qtag-single-sub-card[data-qtag-single3-id]').forEach(card => {
-      const pvTagId = card.getAttribute('data-pv-tag-id');
-      if (!pvTagId) return;
-
-      // Skip if monitoring is disabled for this card
-      if (!isCardMonitoringEnabled(card)) return;
-
-      // Nếu card đã có alarm condition cấu hình → backend card-alarm state machine
-      // điều khiển màu theo đúng on_stable/off_stable (qua card_alarm_event).
-      // KHÔNG chạy so sánh PV-vs-SV tức thời ở đây, nếu không card sẽ đỏ ngay khi
-      // PV vượt SV, bỏ qua stable time (vd set on=30s nhưng 3s đã đỏ).
-      // Fallback chỉ dành cho card CHƯA cấu hình condition (hiển thị nhanh PV vs SV).
-      if (cardHasAlarmCondition(card)) return;
-
-      // Skip if PV tag already has a system alarm active
-      if (systemAlarmMap && systemAlarmMap.has(parseInt(pvTagId))) return;
-
-      // Skip if card_alarm_event has already confirmed an alarm type for this card –
-      // card_alarm_event uses threshold direction (High/Low) which is authoritative.
-      const single3Id = parseInt(card.getAttribute('data-qtag-single3-id') || '0');
-      if (single3Id > 0) {
-        const s3Key = buildCardAlarmKey('single3', single3Id, null);
-        if (_lastSyncedCardAlarms.has(s3Key)) {
-          const confirmedType = _lastSyncedCardAlarms.get(s3Key);
-          card.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
-          if (confirmedType === 'High') card.classList.add('qtag-single-alarm-high');
-          else if (confirmedType === 'Low') card.classList.add('qtag-single-alarm-low');
-          return;
-        }
-      }
-
-      // Get PV value
-      const pvEl = card.querySelector('.qtag-single-tag-value');
-      if (!pvEl) return;
-      const pvVal = parseFloat(pvEl.textContent);
-      if (isNaN(pvVal)) return;
-
-      // Get SV HIGH value
-      const svHighEl = card.querySelector('.qtag-single-sv-high');
-      const svHighVal = svHighEl ? parseFloat(svHighEl.textContent) : NaN;
-
-      // Get SV LOW value
-      const svLowEl = card.querySelector('.qtag-single-sv-low');
-      const svLowVal = svLowEl ? parseFloat(svLowEl.textContent) : NaN;
-
-      // Compare PV against SV limits
-      let fallbackAlarm = null;
-      if (!isNaN(svHighVal) && pvVal > svHighVal) {
-        fallbackAlarm = 'high';
-      } else if (!isNaN(svLowVal) && pvVal < svLowVal) {
-        fallbackAlarm = 'low';
-      }
-
-      // Apply or remove fallback alarm visual
-      const pvTagItem = card.querySelector(`.qtag-single-tag-item[data-tag-id="${pvTagId}"]`);
-      if (fallbackAlarm && pvTagItem) {
-        // Remove opposite tag class first so stale class doesn't corrupt card color logic
-        pvTagItem.classList.remove('tag-alarm-high', 'tag-alarm-low');
-        pvTagItem.classList.add('tag-alarm-active', `tag-alarm-${fallbackAlarm}`);
-        const condText = fallbackAlarm === 'high'
-          ? `PV (${pvVal}) > SV HIGH (${svHighVal})`
-          : `PV (${pvVal}) < SV LOW (${svLowVal})`;
-        pvTagItem.setAttribute('title', `⚠️ PV vs SV: ${condText}`);
-
-        // Apply to card – always remove both classes first so LOW doesn't stay red
-        card.classList.remove('qtag-single-alarm-high', 'qtag-single-alarm-low');
-        if (fallbackAlarm === 'high') {
-          card.classList.add('qtag-single-alarm-high');
-        } else {
-          card.classList.add('qtag-single-alarm-low');
-        }
-      } else if (pvTagItem) {
-        // PV within normal range – clear fallback alarm classes from tag item, then
-        // delegate card class cleanup to recalcCardAlarmState so that any still-active
-        // server-confirmed card alarm (in _lastSyncedCardAlarms) is preserved correctly.
-        pvTagItem.classList.remove('tag-alarm-active', 'tag-alarm-high', 'tag-alarm-low');
-        pvTagItem.removeAttribute('title');
-        recalcCardAlarmState(card);
-      }
+      clearSingle3FallbackColor(card);
     });
   }
 
@@ -2820,6 +2778,10 @@ try {
           );
           if (toggle) toggle.checked = enabled;
         });
+        // Sau khi đã biết card nào có condition (kể cả disabled), dọn ngay màu fallback
+        // PV-vs-SV bị áp trong lúc race (trước khi data-monitoring-enabled được set),
+        // thay vì để màu kẹt tới 10s sau hoặc tới khi user bật/tắt toggle thủ công.
+        try { evaluateSingle3PvSvFallback(); } catch (e) { /* noop */ }
       })
       .catch(err => console.warn('[CardToggle] Could not load states:', err));
   }

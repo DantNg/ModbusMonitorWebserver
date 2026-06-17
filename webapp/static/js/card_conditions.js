@@ -29,7 +29,9 @@ function cardCondToggleCompareType(target, compareType) {
 }
 
 function cardCondSetDefaults() {
-  document.getElementById('cardCondEnabled').checked = true;
+  // Card mới: alarm monitoring mặc định TẮT. Chỉ bật được sau khi nhập compare
+  // condition hợp lệ và lưu (ràng buộc cũng được enforce ở backend).
+  document.getElementById('cardCondEnabled').checked = false;
   // Left defaults
   cardCondSetValue('cardLeftHighOperator', '>', '>');
   cardCondSetValue('cardLeftHighCompareType', 'static', 'static');
@@ -284,12 +286,22 @@ async function saveCardConditionsToAPI() {
     const result = await response.json();
 
     if (result.success) {
-      Swal.fire({ icon: 'success', title: 'Success!', text: 'Alarm conditions saved', timer: 2000, showConfirmButton: false });
+      // Trạng thái enable thực tế do server quyết định (có thể bị ép tắt nếu thiếu compare condition).
+      const effectiveEnabled = (typeof result.enabled === 'boolean') ? result.enabled : !!conditionData.enabled;
+      if (result.forced_disabled) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Đã lưu (alarm đang TẮT)',
+          text: 'Cần nhập điều kiện so sánh (operator + giá trị hoặc tag) thì mới bật được alarm monitoring.',
+        });
+      } else {
+        Swal.fire({ icon: 'success', title: 'Success!', text: 'Alarm conditions saved', timer: 2000, showConfirmButton: false });
+      }
       const modal = bootstrap.Modal.getInstance(document.getElementById('cardConditionsModal'));
       if (modal) modal.hide();
-      // Cập nhật toggle switch trên card (nếu có)
+      // Cập nhật toggle switch trên card (nếu có) theo trạng thái thực tế từ server.
       if (typeof window._onCardConditionSaved === 'function') {
-        window._onCardConditionSaved(cardType, cardId, !!conditionData.enabled);
+        window._onCardConditionSaved(cardType, cardId, effectiveEnabled);
       }
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: result.message || 'Could not save conditions' });
