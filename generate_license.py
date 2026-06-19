@@ -36,6 +36,10 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 _LICENSE_SECRET = "Mdb5-LcNs-Xk9P-qMrV-2025-zNf3-s8cW"
 
+# Avoid a flashing console window when shelling out to `wmic` from a windowed
+# (--noconsole) build. 0 on non-Windows so it has no effect there.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if platform.system() == "Windows" else 0
+
 
 def _get_hdd_uid() -> str:
     """Read primary hard-drive serial number, fallback to hostname."""
@@ -45,7 +49,8 @@ def _get_hdd_uid() -> str:
         if sys_name == "Windows":
             result = subprocess.run(
                 ["wmic", "diskdrive", "get", "SerialNumber", "/format:list"],
-                capture_output=True, text=True, timeout=10
+                capture_output=True, text=True, timeout=10,
+                creationflags=_NO_WINDOW,
             )
             for line in result.stdout.splitlines():
                 if line.upper().startswith("SERIALNUMBER="):
@@ -56,7 +61,8 @@ def _get_hdd_uid() -> str:
         elif sys_name == "Linux":
             result = subprocess.run(
                 ["lsblk", "-d", "-o", "SERIAL", "--noheadings"],
-                capture_output=True, text=True, timeout=10
+                capture_output=True, text=True, timeout=10,
+                creationflags=_NO_WINDOW,
             )
             for line in result.stdout.splitlines():
                 serial = line.strip()
