@@ -62,12 +62,6 @@
               <td class="text-muted small">Activated</td>
               <td class="small">{{ active_license.activated_at.strftime('%d/%m/%Y %H:%M') if active_license.activated_at else '—' }}</td>
             </tr>
-            {% if active_license.note %}
-            <tr>
-              <td class="text-muted small">Note</td>
-              <td class="small">{{ active_license.note }}</td>
-            </tr>
-            {% endif %}
           </table>
           {% else %}
           <div class="d-flex align-items-center gap-2 mb-3">
@@ -93,15 +87,11 @@
         <div class="card-body">
           <form method="POST" action="{{ url_for('license_bp.activate') }}" id="activateForm">
             <div class="row g-3 align-items-end">
-              <div class="col-12 col-md-8">
+              <div class="col-12">
                 <label class="form-label small fw-semibold">License Key</label>
                 <textarea name="license_key" class="form-control font-monospace"
                           rows="3" placeholder="Paste license key…" required
                           style="font-size: 0.78rem;"></textarea>
-              </div>
-              <div class="col-12 col-md-4">
-                <label class="form-label small fw-semibold">Note (optional)</label>
-                <input type="text" name="note" class="form-control" placeholder="e.g. Server 1" maxlength="255">
               </div>
               <div class="col-12">
                 <button type="submit" class="btn btn-primary btn-sm">
@@ -135,7 +125,6 @@
                   <th>Expires</th>
                   <th>Status</th>
                   <th>Activated</th>
-                  <th>Note</th>
                   <th class="text-end pe-3">Actions</th>
                 </tr>
               </thead>
@@ -170,7 +159,6 @@
                     {% endif %}
                   </td>
                   <td class="small">{{ lic.activated_at.strftime('%d/%m/%Y %H:%M') if lic.activated_at else '—' }}</td>
-                  <td class="small">{{ lic.note or '—' }}</td>
                   <td class="text-end pe-3">
                     {% if lic.status == 'active' %}
                     <button class="btn btn-xs btn-outline-warning revoke-btn"
