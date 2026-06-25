@@ -3,6 +3,14 @@ setlocal
 
 REM Remove both user and system scheduled tasks installed by helper scripts.
 
+REM --- Self-elevate to Administrator if needed (deleting an elevated task requires admin) ---
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+  echo Requesting Administrator privileges...
+  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+  exit /b
+)
+
 set "TASK_USER=ModbusMonitor AutoStart"
 set "TASK_SYSTEM=ModbusMonitor AutoStart (System)"
 
@@ -12,4 +20,6 @@ if %errorlevel% equ 0 ( echo Removed task: %TASK_USER% ) else ( echo Task not fo
 schtasks /delete /tn "%TASK_SYSTEM%" /f >nul 2>&1
 if %errorlevel% equ 0 ( echo Removed task: %TASK_SYSTEM% ) else ( echo Task not found or already removed: %TASK_SYSTEM% )
 
+echo.
+pause
 endlocal

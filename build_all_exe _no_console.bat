@@ -66,6 +66,49 @@ set "HIDDEN_IMPORTS=%HIDDEN_IMPORTS% --hidden-import=pymodbus"
 :: Output directly into release/ (start scripts and summary expect exes there)
 set "OUTPUT=--distpath release --workpath build"
 
+:: --- App icons (optional, one per exe) ---
+:: To customize an exe icon, put the matching .ico file at the path below
+:: (or change the ICON_PATH* value). If a file is not found, PyInstaller's
+:: default icon is used for that exe.
+::   ICON_PATH1 -> modbus_monitor_webserver.exe
+::   ICON_PATH2 -> orchestra_modbus.exe
+::   ICON_PATH3 -> orchestra_datalogger.exe
+::   ICON_PATH4 -> orchestra_alarm.exe
+set "ICON_PATH1=%PROJECT_DIR%webserver.ico"
+set "ICON_PATH2=%PROJECT_DIR%modbus.ico"
+set "ICON_PATH3=%PROJECT_DIR%datalogger.ico"
+set "ICON_PATH4=%PROJECT_DIR%alarm.ico"
+
+set "ICON_OPT1="
+set "ICON_OPT2="
+set "ICON_OPT3="
+set "ICON_OPT4="
+
+if exist "%ICON_PATH1%" (
+    echo [INFO] Webserver icon: %ICON_PATH1%
+    set ICON_OPT1=--icon="%ICON_PATH1%"
+) else (
+    echo [INFO] No webserver icon at "%ICON_PATH1%" - using default icon
+)
+if exist "%ICON_PATH2%" (
+    echo [INFO] Modbus icon: %ICON_PATH2%
+    set ICON_OPT2=--icon="%ICON_PATH2%"
+) else (
+    echo [INFO] No modbus icon at "%ICON_PATH2%" - using default icon
+)
+if exist "%ICON_PATH3%" (
+    echo [INFO] Datalogger icon: %ICON_PATH3%
+    set ICON_OPT3=--icon="%ICON_PATH3%"
+) else (
+    echo [INFO] No datalogger icon at "%ICON_PATH3%" - using default icon
+)
+if exist "%ICON_PATH4%" (
+    echo [INFO] Alarm icon: %ICON_PATH4%
+    set ICON_OPT4=--icon="%ICON_PATH4%"
+) else (
+    echo [INFO] No alarm icon at "%ICON_PATH4%" - using default icon
+)
+
 :: Shared data files for worker builds
 set "DATA_WORKERS=--add-data=workers;workers/"
 set "DATA_UTILS=--add-data=utils;utils/"
@@ -89,6 +132,7 @@ echo.
 
 pyinstaller --noconfirm --onefile --noconsole ^
     %OUTPUT% ^
+    %ICON_OPT1% ^
     %HIDDEN_IMPORTS% ^
     --hidden-import=sqlalchemy ^
     --hidden-import=eventlet ^
@@ -121,6 +165,7 @@ echo.
 
 pyinstaller --noconfirm --onefile --noconsole ^
     %OUTPUT% ^
+    %ICON_OPT2% ^
     %HIDDEN_IMPORTS% ^
     --hidden-import=sqlalchemy ^
     %DATA_WORKERS% ^
@@ -151,6 +196,7 @@ echo.
 
 pyinstaller --noconfirm --onefile --noconsole ^
     %OUTPUT% ^
+    %ICON_OPT3% ^
     %HIDDEN_IMPORTS% ^
     --hidden-import=sqlalchemy ^
     %DATA_WORKERS% ^
@@ -179,6 +225,7 @@ echo.
 
 pyinstaller --noconfirm --onefile --noconsole ^
     %OUTPUT% ^
+    %ICON_OPT4% ^
     %HIDDEN_IMPORTS% ^
     --hidden-import=sqlalchemy ^
     %DATA_WORKERS% ^
