@@ -1,4 +1,12 @@
 @echo off
+
+REM --- Relaunch this script in a MINIMIZED terminal so the console does not
+REM     pop up in front. The "/relaunched" marker prevents an infinite loop. ---
+if not "%~1"=="/relaunched" (
+    start "Modbus Monitor" /min cmd /c "%~f0" /relaunched
+    exit /b
+)
+
 setlocal ENABLEDELAYEDEXPANSION
 
 REM Change to the folder of this script
@@ -34,7 +42,7 @@ REM Start WebApp (modbus_monitor_webserver.exe)
 if exist "modbus_monitor_webserver.exe" (
 	echo Starting webapp: modbus_monitor_webserver.exe
 	echo [%date% %time%] Starting: modbus_monitor_webserver.exe>>"%LOG%"
-	start "webapp" "%SCRIPT_DIR%modbus_monitor_webserver.exe"
+	start "webapp" /min "%SCRIPT_DIR%modbus_monitor_webserver.exe"
 ) else (
 	echo modbus_monitor_webserver.exe not found in %SCRIPT_DIR%
 	echo [%date% %time%] Skip modbus_monitor_webserver.exe (not found)>>"%LOG%"
@@ -47,7 +55,7 @@ REM Start Orchestra Modbus worker
 if exist "orchestra_modbus.exe" (
 	echo Starting worker: orchestra_modbus.exe
 	echo [%date% %time%] Starting: orchestra_modbus.exe>>"%LOG%"
-	start "orchestra_modbus" "%SCRIPT_DIR%orchestra_modbus.exe"
+	start "orchestra_modbus" /min "%SCRIPT_DIR%orchestra_modbus.exe"
 ) else (
 	echo orchestra_modbus.exe not found in %SCRIPT_DIR%
 	echo [%date% %time%] Skip orchestra_modbus.exe (not found)>>"%LOG%"
@@ -57,7 +65,7 @@ REM Start Datalogger worker
 if exist "orchestra_datalogger.exe" (
 	echo Starting worker: orchestra_datalogger.exe
 	echo [%date% %time%] Starting: orchestra_datalogger.exe>>"%LOG%"
-	start "orchestra_datalogger" "%SCRIPT_DIR%orchestra_datalogger.exe"
+	start "orchestra_datalogger" /min "%SCRIPT_DIR%orchestra_datalogger.exe"
 ) else (
 	echo orchestra_datalogger.exe not found in %SCRIPT_DIR%
 	echo [%date% %time%] Skip orchestra_datalogger.exe (not found)>>"%LOG%"
@@ -71,7 +79,7 @@ REM Start Alarm worker
 if exist "orchestra_alarm.exe" (
 	echo Starting worker: orchestra_alarm.exe
 	echo [%date% %time%] Starting: orchestra_alarm.exe>>"%LOG%"
-	start "orchestra_alarm" "%SCRIPT_DIR%orchestra_alarm.exe"
+	start "orchestra_alarm" /min "%SCRIPT_DIR%orchestra_alarm.exe"
 ) else (
 	echo orchestra_alarm.exe not found in %SCRIPT_DIR%
 	echo [%date% %time%] Skip orchestra_alarm.exe (not found)>>"%LOG%"
