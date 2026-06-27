@@ -20,6 +20,13 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
 	sys.path.insert(0, PROJECT_ROOT)
 
+# Tự thu nhỏ cửa sổ console ngay khi khởi động (bản --console). No-op nếu --noconsole.
+try:
+	from utils.console_window import minimize_console
+	minimize_console()
+except Exception:
+	pass
+
 # Use centralized app_logger (auto-creates logs/ folder, works with EXE)
 from shared.app_logger import get_logger as _get_app_logger, log_exception, log_startup
 

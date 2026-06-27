@@ -18,6 +18,13 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 sys.path.insert(0, os.path.join(current_dir, 'webapp'))
 
+# Tự thu nhỏ cửa sổ console ngay khi khởi động (bản --console). No-op nếu --noconsole.
+try:
+    from utils.console_window import minimize_console
+    minimize_console()
+except Exception:
+    pass
+
 # Centralized logging — tự tạo folder logs/, hoạt động cả khi build EXE
 from shared.app_logger import get_logger as _get_app_logger, log_exception, log_startup
 

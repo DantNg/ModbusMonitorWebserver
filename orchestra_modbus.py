@@ -18,6 +18,13 @@ import time
 from types import SimpleNamespace
 from threading import Event
 
+# Tự thu nhỏ cửa sổ console ngay khi khởi động (bản --console). No-op nếu --noconsole.
+try:
+    from utils.console_window import minimize_console
+    minimize_console()
+except Exception:
+    pass
+
 # Centralized logging — tự tạo folder logs/, hoạt động cả khi build EXE
 from shared.app_logger import get_logger, log_exception, log_startup
 logger = get_logger("orchestra_modbus")

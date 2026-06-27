@@ -176,8 +176,9 @@ def start_exe(exe_path: str, cwd: str = None, new_window: bool = True):
     run_cwd = cwd or os.path.dirname(exe_abs) or None
     if os.name == 'nt':
         if new_window:
-            # Use cmd start to get a new window
-            subprocess.Popen(["cmd.exe", "/c", "start", "", exe_abs], cwd=run_cwd)
+            # Use cmd start to get a new window, opened MINIMIZED so the console
+            # does not pop up in front when a worker is reloaded.
+            subprocess.Popen(["cmd.exe", "/c", "start", "", "/min", exe_abs], cwd=run_cwd)
         else:
             # Detached background
             DETACHED_PROCESS = 0x00000008
