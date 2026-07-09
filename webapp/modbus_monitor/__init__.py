@@ -13,6 +13,8 @@ import os
 import asyncio
 import logging, sys
 import time
+import hashlib
+import mimetypes
 from .extensions import socketio
 import json
 
@@ -381,5 +383,137 @@ def create_app():
             app_login=app.config.get('APP_LOGIN_NAME', default_brand),
             app_footer=app.config.get('APP_FOOTER_NAME', default_brand),
         )
+
+    # ===== Hardened static serving — fixes "CSS disappears after long uptime" =====
+    #
+    # ROOT CAUSE: Flask's default static view (werkzeug send_from_directory) calls
+    # os.path.isfile() before serving. os.path.isfile() swallows *any* OSError and
+    # returns False — including EMFILE ("too many open files") and WinError 1450
+    # ("insufficient system resources") that appear once the process has been running
+    # for days, and including the case where a PyInstaller --onefile build's assets
+    # under %TEMP%\_MEIxxxx are pruned by Windows cleanup while the app is live.
+    # When isfile() -> False, Flask returns 404 even though the file still exists, so
+    # the browser drops bootstrap.min.css / style.css / *-theme.css and the page loses
+    # all styling. (The previous 500 error handler never caught this — it is a 404.)
+    #
+    # FIX: the whole static tree is tiny (~4 MB). Preload it into RAM at startup and
+    # serve straight from memory. No per-request filesystem syscall means no
+    # isfile()->404 and no temp-dir race — regardless of uptime or handle pressure.
+    _static_mem_cache = {}  # rel_path (posix, no leading slash) -> (bytes, mimetype, etag)
+
+    # Windows' registry-backed mimetypes are unreliable (e.g. .js can map to
+    # text/plain), which can stop browsers from executing JS. Pin the render-
+    # critical types so behavior is deterministic across machines.
+    _STATIC_MIME_OVERRIDES = {
+        '.js': 'text/javascript', '.mjs': 'text/javascript',
+        '.css': 'text/css', '.svg': 'image/svg+xml',
+        '.json': 'application/json', '.map': 'application/json',
+        '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+    }
+
+    def _static_mimetype(path):
+        ext = os.path.splitext(path)[1].lower()
+        if ext in _STATIC_MIME_OVERRIDES:
+            return _STATIC_MIME_OVERRIDES[ext]
+        return mimetypes.guess_type(path)[0] or 'application/octet-stream'
+
+    def _resolve_static_path(rel_key):
+        """Return the on-disk path for rel_key, or None if it escapes static_folder."""
+        base = app.static_folder
+        if not base:
+            return None
+        base_norm = os.path.normpath(base)
+        full = os.path.normpath(os.path.join(base_norm, rel_key))
+        try:
+            if os.path.commonpath([base_norm, full]) != base_norm:
+                return None  # path traversal attempt
+        except ValueError:
+            return None
+        return full
+
+    def _read_static_from_disk(rel_key):
+        """Read + cache a static file, retrying transient OSErrors.
+
+        Returns (bytes, mimetype, etag), or None for a genuine missing file.
+        A transient failure (resource exhaustion) never returns None as "missing";
+        it falls back to any previously cached copy so we never emit a false 404.
+        time.sleep here is eventlet-cooperative (app.py monkey-patches eventlet).
+        """
+        full = _resolve_static_path(rel_key)
+        if full is None:
+            return None
+        last_err = None
+        for attempt in range(5):
+            try:
+                with open(full, 'rb') as fh:
+                    data = fh.read()
+                mimetype = _static_mimetype(full)
+                etag = hashlib.md5(data).hexdigest()  # content hash, stable across restarts
+                entry = (data, mimetype, etag)
+                _static_mem_cache[rel_key] = entry
+                return entry
+            except FileNotFoundError:
+                return None  # real 404
+            except OSError as e:
+                last_err = e
+                time.sleep(0.02 * (attempt + 1))
+        print(f"[static] transient read failure for {rel_key}: {last_err}")
+        return _static_mem_cache.get(rel_key)  # serve stale copy if we have one
+
+    def _serve_static_hardened(filename):
+        from flask import Response, abort
+        rel_key = os.path.normpath(filename).replace('\\', '/').lstrip('/')
+        if rel_key.startswith('../') or rel_key == '..' or os.path.isabs(filename):
+            abort(404)
+        entry = _static_mem_cache.get(rel_key)
+        if entry is None:
+            entry = _read_static_from_disk(rel_key)
+        if entry is None:
+            abort(404)
+        data, mimetype, etag = entry
+        cache_control = 'public, max-age=3600, stale-while-revalidate=86400'
+        if etag in (request.headers.get('If-None-Match') or ''):
+            resp = Response(status=304)
+            resp.headers['ETag'] = etag
+            resp.headers['Cache-Control'] = cache_control
+            return resp
+        resp = Response(data, mimetype=mimetype)
+        resp.headers['ETag'] = etag
+        resp.headers['Cache-Control'] = cache_control
+        return resp
+
+    # Swap Flask's built-in static view for the hardened one (keeps the same
+    # /static/<path:filename> rule and 'static' endpoint, so url_for('static', ...)
+    # is unchanged).
+    if 'static' in app.view_functions:
+        app.view_functions['static'] = _serve_static_hardened
+
+    # Warm the cache at startup so assets are in RAM before the first request and
+    # survive any later deletion/pruning of the source files.
+    def _warm_load_static():
+        base = app.static_folder
+        if not base or not os.path.isdir(base):
+            return 0
+        count = 0
+        for root, _dirs, files in os.walk(base):
+            for fn in files:
+                full = os.path.join(root, fn)
+                rel = os.path.relpath(full, base).replace('\\', '/')
+                try:
+                    with open(full, 'rb') as fh:
+                        data = fh.read()
+                    mimetype = _static_mimetype(full)
+                    _static_mem_cache[rel] = (data, mimetype, hashlib.md5(data).hexdigest())
+                    count += 1
+                except OSError:
+                    pass
+        return count
+
+    try:
+        _warm_count = _warm_load_static()
+        _warm_mb = sum(len(v[0]) for v in _static_mem_cache.values()) / 1048576
+        print(f"[static] preloaded {_warm_count} files into memory ({_warm_mb:.1f} MB)")
+    except Exception as _e:
+        print(f"[static] warm-load skipped: {_e}")
 
     return app
