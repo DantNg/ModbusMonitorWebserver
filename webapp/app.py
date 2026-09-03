@@ -535,6 +535,62 @@ def start_data_queue_processor():
     print("INFO: Data queue processor disabled in webapp-only mode")
     return None
 
+# --------------------------------------------------
+# Stale tag value watchdog
+# UI tự reset giá trị tag về 0 sau 30s không có cập nhật (markTagInactive trong
+# subdashboard-detail.js). Watchdog này ghi cùng trạng thái đó xuống DB để
+# tag_latest_values không giữ lại giá trị cuối cùng của worker đã mất kết nối.
+# Chạy trong tiến trình webapp vì đây là tiến trình luôn sống, kể cả khi
+# modbus worker chết hẳn.
+# --------------------------------------------------
+_stale_watchdog_started = False
+
+
+def _stale_value_watchdog_loop(timeout_sec: int, scan_sec: int):
+    logger.info(
+        "Stale value watchdog started (timeout=%ss, scan=%ss)", timeout_sec, scan_sec
+    )
+    while True:
+        socketio.sleep(scan_sec)
+        try:
+            # Hạ is_online TRƯỚC khi ghi 0, để alarm_worker thấy device offline và
+            # skip evaluate thay vì đánh giá trên giá trị 0 → alarm LOW giả.
+            device_ids = db.mark_devices_offline_when_all_tags_stale(timeout_sec)
+            if device_ids:
+                logger.info("Stale watchdog: marked devices offline %s", device_ids)
+
+            tag_ids = db.zero_stale_tag_latest_values(timeout_sec)
+            if tag_ids:
+                logger.info(
+                    "Stale watchdog: zeroed %d stale tag latest value(s) %s",
+                    len(tag_ids), tag_ids,
+                )
+        except Exception as e:
+            logger.error("Stale value watchdog error: %s", e)
+
+
+def start_stale_value_watchdog():
+    """Khởi động watchdog nền (idempotent). Tắt bằng STALE_VALUE_WATCHDOG=0."""
+    global _stale_watchdog_started
+    if _stale_watchdog_started:
+        return
+    if os.environ.get("STALE_VALUE_WATCHDOG", "1").strip().lower() in ("0", "false", "no", "off"):
+        logger.info("Stale value watchdog disabled via STALE_VALUE_WATCHDOG")
+        return
+
+    def _int_env(name, default):
+        try:
+            return max(1, int(os.environ.get(name, default)))
+        except (TypeError, ValueError):
+            return default
+
+    timeout_sec = _int_env("TAG_STALE_TIMEOUT_SEC", db.STALE_TAG_TIMEOUT_SEC)
+    scan_sec = _int_env("TAG_STALE_SCAN_SEC", 5)
+
+    _stale_watchdog_started = True
+    socketio.start_background_task(_stale_value_watchdog_loop, timeout_sec, scan_sec)
+
+
 def cleanup_on_exit():
     """Cleanup function for graceful shutdown (disabled in webapp-only mode)"""
     print("INFO: Cleanup disabled in webapp-only mode")
@@ -547,6 +603,9 @@ if __name__ == "__main__":
     
     # Initialize ProcessManager (disabled in webapp-only mode)
     initialize_process_manager()
+
+    # Đồng bộ giá trị tag về 0 trong DB khi worker ngừng cập nhật
+    start_stale_value_watchdog()
     
     try:
         # Use socketio.run() for proper eventlet integration

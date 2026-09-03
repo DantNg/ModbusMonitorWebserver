@@ -3235,6 +3235,96 @@ def update_tag_latest_value(tag_id: int, value: float, timestamp: datetime):
         print(f"Error updating latest value for tag {tag_id}: {e}")
         raise
 
+# ----------- STALE VALUE WATCHDOG -----------
+# UI (subdashboard-detail.js → markTagInactive) tự reset giá trị tag về 0 khi
+# không nhận được cập nhật ts trong 30s. Các hàm dưới đây đồng bộ trạng thái đó
+# xuống DB để tag_latest_values không còn giữ giá trị "đóng băng" của lần đọc
+# cuối khi worker mất kết nối.
+
+STALE_TAG_TIMEOUT_SEC = 30  # phải khớp với timeout 30s trong markTagInactive()
+
+
+def zero_stale_tag_latest_values(timeout_sec: int = STALE_TAG_TIMEOUT_SEC) -> List[int]:
+    """Đưa value về 0 cho các tag không được cập nhật trong `timeout_sec` giây.
+
+    Cột `ts` được giữ NGUYÊN (không bump về now) vì:
+      - Row vẫn phải "trông cũ" để mọi logic kiểm tra độ tươi của dữ liệu còn đúng.
+      - Điều kiện `value != 0` đảm bảo mỗi tag chỉ bị ghi 0 đúng một lần cho tới
+        khi worker gửi giá trị mới trở lại (không ghi DB lặp mỗi vòng quét).
+
+    Returns: danh sách tag_id vừa bị đưa về 0.
+    """
+    try:
+        cutoff = safe_datetime_now() - timedelta(seconds=timeout_sec)
+        with init_engine().begin() as con:
+            tag_ids = list(con.execute(
+                select(tag_latest_values.c.tag_id)
+                .where(tag_latest_values.c.ts < cutoff)
+                .where(tag_latest_values.c.value != 0)
+            ).scalars().all())
+
+            if not tag_ids:
+                return []
+
+            con.execute(
+                update(tag_latest_values)
+                .where(tag_latest_values.c.tag_id.in_(tag_ids))
+                .values(value=0.0, updated_at=safe_datetime_now())
+            )
+        return tag_ids
+    except Exception as e:
+        print(f"[stale-watchdog] Error zeroing stale latest values: {e}")
+        return []
+
+
+def mark_devices_offline_when_all_tags_stale(timeout_sec: int = STALE_TAG_TIMEOUT_SEC) -> List[int]:
+    """Đặt is_online = 0 cho device mà TẤT CẢ tag đều quá hạn `timeout_sec`.
+
+    Cần thiết vì khi tiến trình modbus worker chết (khác với device mất kết nối),
+    không ai gọi _update_device_status(ok=False) nên is_online kẹt ở True. Nếu
+    chỉ ghi 0 vào tag_latest_values mà không hạ is_online, alarm_worker sẽ coi
+    device còn online và evaluate trên giá trị 0 → alarm LOW giả.
+
+    Chỉ xét device đang is_online = 1 và có ít nhất một tag từng có giá trị.
+
+    Returns: danh sách device_id vừa bị đánh dấu offline.
+    """
+    try:
+        cutoff = safe_datetime_now() - timedelta(seconds=timeout_sec)
+        with init_engine().begin() as con:
+            device_ids = list(con.execute(
+                text("""
+                    SELECT d.id
+                    FROM devices d
+                    WHERE d.is_online = 1
+                      AND EXISTS (
+                          SELECT 1 FROM tags t
+                          JOIN tag_latest_values lv ON lv.tag_id = t.id
+                          WHERE t.device_id = d.id
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM tags t
+                          JOIN tag_latest_values lv ON lv.tag_id = t.id
+                          WHERE t.device_id = d.id AND lv.ts >= :cutoff
+                      )
+                """),
+                {"cutoff": cutoff}
+            ).scalars().all())
+
+            if not device_ids:
+                return []
+
+            con.execute(
+                update(devices)
+                .where(devices.c.id.in_(device_ids))
+                .values(is_online=False, updated_at=safe_datetime_now())
+            )
+        return device_ids
+    except Exception as e:
+        print(f"[stale-watchdog] Error marking stale devices offline: {e}")
+        return []
+
+
 # ----------- WORKER MANAGEMENT -----------
 
 def list_workers():

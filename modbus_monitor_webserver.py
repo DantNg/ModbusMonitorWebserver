@@ -41,7 +41,7 @@ try:
 	logger.info("Starting Modbus Monitor Webserver...")
 	
 	# Import pre-configured app and socketio from webapp
-	from webapp.app import app, socketio, initialize_process_manager
+	from webapp.app import app, socketio, initialize_process_manager, start_stale_value_watchdog
 	logger.info("Successfully imported webapp components")
 except Exception as e:
 	# Fallback: try adding the webapp folder explicitly
@@ -49,7 +49,7 @@ except Exception as e:
 		WEBAPP_DIR = os.path.join(PROJECT_ROOT, 'webapp')
 		if WEBAPP_DIR not in sys.path:
 			sys.path.insert(0, WEBAPP_DIR)
-		from webapp.app import app, socketio, initialize_process_manager  # type: ignore
+		from webapp.app import app, socketio, initialize_process_manager, start_stale_value_watchdog  # type: ignore
 		if 'logger' in locals():
 			logger.info("Successfully imported webapp components (fallback method)")
 	except Exception as fallback_error:
@@ -181,6 +181,13 @@ def main():
 		logger.info("Process manager initialized successfully")
 	except Exception as e:
 		logger.warning(f"Process manager initialization failed (may be normal): {e}")
+
+	# Watchdog: ghi 0 xuống tag_latest_values khi worker ngừng cập nhật,
+	# khớp với hành vi reset về 0 của UI sau 30s.
+	try:
+		start_stale_value_watchdog()
+	except Exception as e:
+		logger.warning(f"Stale value watchdog failed to start: {e}")
 
 	# Default app hooks for alarm runtime control (used by Flask routes).
 	if not hasattr(app, "alarm_command_queue"):
