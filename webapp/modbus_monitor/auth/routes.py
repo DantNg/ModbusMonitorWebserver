@@ -48,11 +48,15 @@ def register():
 
 @auth_bp.route("/user-management")
 def user_management():
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
     users = db.list_users()
     return render_template("auth/user_management.html", users=users)
 
 @auth_bp.route("/user-management/<username>/edit", methods=["GET", "POST"])
 def edit_user(username):
+    if session.get("role") != "admin":
+        return "Unauthorized", 403
     user = db.get_user_by_username(username)
     if not user:
         return "User not found", 404
@@ -119,6 +123,8 @@ def add_user():
 
 @auth_bp.route("/api/users", methods=["POST"])
 def api_add_user():
+    if session.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
     data = request.json
     if not data or "username" not in data or "password_hash" not in data:
         return jsonify({"error": "Missing fields"}), 400
@@ -127,11 +133,15 @@ def api_add_user():
 
 @auth_bp.route("/api/users/<int:user_id>", methods=["PUT"])
 def api_update_user(user_id):
+    if session.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
     data = request.json
     db.update_user_row(user_id, data)
     return jsonify({"status": "updated"})
 
 @auth_bp.route("/api/users/<int:user_id>", methods=["DELETE"])
 def api_delete_user(user_id):
+    if session.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
     db.delete_user_row(user_id)
     return jsonify({"status": "deleted"})

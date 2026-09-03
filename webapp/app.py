@@ -357,8 +357,22 @@ def on_modbus_write_command(data):
     This acts as a relay between frontend and workers.
     """
     try:
+        # Authorization: only an authenticated browser session may issue a write
+        # to a Modbus/PLC device. Workers connect over Socket.IO WITHOUT a browser
+        # session and never emit this event, so this check does not affect them —
+        # it only blocks anonymous/cross-site clients from driving device writes.
+        if not session.get('user_id'):
+            socketio.emit('modbus_write_response', {
+                'tag_id': (data or {}).get('tag_id') if isinstance(data, dict) else None,
+                'success': False,
+                'error': 'Authentication required',
+                'timestamp': datetime.now().isoformat()
+            }, to=request.sid)
+            print("⛔ Rejected modbus_write_command from unauthenticated client")
+            return
+
         print(f"📝 Received write command from frontend: {data}")
-        
+
         tag_id = data.get('tag_id')
         if not tag_id:
             # Send error response back to frontend

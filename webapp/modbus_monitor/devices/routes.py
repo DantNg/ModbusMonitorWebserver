@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import render_template, request, redirect, url_for, flash, jsonify, current_app, session
 from . import devices_bp
 from modbus_monitor.database.db import (
     list_devices, list_tags  # Keep these for now as fallback
@@ -12,10 +12,16 @@ from types import SimpleNamespace
 # Get config cache instance
 config_cache = get_config_cache()
 
+# Logical worker names that may be (re)started via the web API. Prevents the
+# endpoint from being used to launch arbitrary executables on the host.
+_ALLOWED_WORKERS = {"orchestra", "datalogger", "alarm"}
+
 # API: Restart Orchestra Modbus worker (external process mode)
 @devices_bp.route("/workers/orchestra/restart", methods=["POST"])
 def restart_orchestra_worker():
     """Backward-compatible endpoint to restart the orchestra worker using EXE manager."""
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "message": "Access denied. Admin role required."}), 403
     try:
         restart_exe('orchestra')
         return jsonify({"success": True, "message": "Orchestra Modbus worker restarted"})
@@ -36,32 +42,37 @@ def _as_bool(v, default=False):
 @devices_bp.route("/restart", methods=["POST"])
 def api_restart_worker():
     """
-    Restart a worker executable without batch scripts.
+    Restart a known worker process without batch scripts.
     Accepts JSON or form/query:
-      - worker: logical name (orchestra|datalogger|alarm) or exe name/substring
-      - path: optional explicit path to exe (overrides lookup by name)
+      - worker: logical name (orchestra|datalogger|alarm) ONLY
       - no_window: optional bool, if true do not open a new console window
+
+    SECURITY: the worker name is validated against a fixed whitelist and the
+    executable path is resolved server-side from that name. A client-supplied
+    'path' is intentionally NOT honoured — accepting it previously allowed an
+    (unauthenticated) request to launch any executable on the host.
     """
+    if session.get("role") != "admin":
+        return jsonify({"success": False, "error": "Access denied. Admin role required."}), 403
     try:
         data = request.get_json(silent=True) or {}
-        worker = data.get('worker') or request.form.get('worker') or request.args.get('worker')
-        exe_path = data.get('path') or request.form.get('path') or request.args.get('path')
+        worker = (data.get('worker') or request.form.get('worker') or request.args.get('worker') or '').strip().lower()
         no_window = data.get('no_window')
         if no_window is None:
             no_window = request.form.get('no_window', request.args.get('no_window'))
         no_window = _as_bool(no_window, default=False)
 
-        if not worker:
+        if worker not in _ALLOWED_WORKERS:
             return jsonify({
                 "success": False,
-                "error": "Missing 'worker'. Expected orchestra|datalogger|alarm or an exe name/substring."
+                "error": "Invalid 'worker'. Expected one of: orchestra, datalogger, alarm."
             }), 400
 
-        restart_exe(worker, exe_path=exe_path, new_window=(not no_window))
+        # Resolve the exe from the logical name only; never from client input.
+        restart_exe(worker, new_window=(not no_window))
         return jsonify({
             "success": True,
             "message": f"Restarted {worker}",
-            "path": exe_path or None,
             "no_window": no_window
         })
     except Exception as e:

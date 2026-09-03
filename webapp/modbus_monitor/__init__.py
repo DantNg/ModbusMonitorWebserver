@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, session, redirect, url_for, jsonify
 from .dashboard import dashboard_bp
 from .alarms import alarms_bp
 from .devices import devices_bp
@@ -93,6 +93,17 @@ def create_app():
     with open(smtp_cfg_path, 'r', encoding='utf-8') as config_file:
         smtp_cfg = json.load(config_file)
     app.secret_key = smtp_cfg.get("SECRET_KEY")
+
+    # Session cookie hardening.
+    #  - HTTPONLY: JavaScript cannot read the session cookie (mitigates XSS theft).
+    #  - SAMESITE=Lax: cookie is NOT sent on cross-site POST/sub-requests, which
+    #    blocks CSRF and stops a malicious page from driving Socket.IO writes with
+    #    the victim's session. Same-site fetch()/navigation still works normally.
+    #  NOTE: SESSION_COOKIE_SECURE is intentionally NOT enabled because the app is
+    #  served over plain HTTP (0.0.0.0:5000). Turning it on would stop the browser
+    #  from ever sending the cookie and break login. Enable it once TLS is in front.
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
     # App naming configuration: support customizing brand/title, login and footer names
     # Sources (priority): root 'web_config.txt' then 'config/web_config.txt'
@@ -345,6 +356,36 @@ def create_app():
         if not is_license_valid():
             return redirect(url_for("license_bp.activate"))
         return None
+
+    # ----- Authentication guard: require a logged-in session for every route -----
+    # Previously the app had NO global auth check — most read routes (and several
+    # write/API routes) were reachable without logging in. This guard closes that
+    # by requiring session["user_id"] on all paths except the public ones below.
+    #
+    # IMPORTANT: /socket.io is exempt. Modbus/alarm workers talk to the server ONLY
+    # over Socket.IO (socketio.Client → /socket.io) and never carry a browser
+    # session, so blocking it here would break worker<->server traffic. Per-event
+    # authorization for sensitive socket messages (e.g. modbus_write_command) is
+    # enforced inside the individual handlers instead.
+    _AUTH_EXEMPT = ("/auth", "/license", "/static", "/socket.io")
+
+    @app.before_request
+    def require_login_guard():
+        """Redirect anonymous users to login (or return 401 JSON for API calls)."""
+        p = request.path
+        if any(p.startswith(x) for x in _AUTH_EXEMPT):
+            return None
+        if session.get("user_id"):
+            return None
+        # API/XHR callers get a clean 401 instead of an HTML redirect body.
+        wants_json = (
+            "/api/" in p
+            or p.startswith("/api")
+            or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        )
+        if wants_json:
+            return jsonify({"success": False, "message": "Authentication required"}), 401
+        return redirect(url_for("auth_bp.login"))
 
     # ----- Static file robustness for long uptime (10+ days) -----
     # Add explicit Cache-Control headers for static assets so browsers
